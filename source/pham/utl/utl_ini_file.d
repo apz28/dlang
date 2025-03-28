@@ -153,7 +153,7 @@ public:
             if (i < 0)
                return false;
 
-            removeAt(values, i);
+            values.removeAt(i);
             return true;
         }
 
@@ -393,7 +393,7 @@ public:
             return false;
 
         foundSection = FoundSection(null, -1);
-        removeAt(_sections, si);
+        _sections.removeAt(si);
         _changed = true;
         return true;
     }

@@ -194,7 +194,7 @@ public:
             const resultBitMax = (hexDigits.length / 2) + (hexDigits.length % 2) + 1;
             auto resultBits = UByteTempArray(resultBitMax);
             resultBits.length = resultBitMax;
-            
+
             size_t bitIndex = 0;
             bool shift = false;
 
@@ -1208,7 +1208,7 @@ public:
     do
     {
         scope (failure) assert(0, "Assume nothrow failed"); // formatValue
-        
+
         const ptrdiff_t cuSrc = _bits.length;
 
         if (cuSrc == 0)
@@ -1232,7 +1232,7 @@ public:
             for (size_t iuDst = 0; iuDst < cuDst; iuDst++)
             {
                 assert(rguDst[iuDst] < kuBase);
-                
+
                 const ulong uuRes = BigIntegerHelper.makeUlong(rguDst[iuDst], uCarry);
                 rguDst[iuDst] = cast(uint)(uuRes % kuBase);
                 uCarry = cast(uint)(uuRes / kuBase);
@@ -1245,7 +1245,7 @@ public:
                     rguDst[cuDst++] = uCarry;
             }
         }
-        
+
         rguDst.length = cuDst;
 
         // Each uint contributes at most 9 digits to the decimal representation.
@@ -1371,7 +1371,7 @@ public:
             hexDigits[charsPos++] = hexDigitSources[b >> 4];
             hexDigits[charsPos++] = hexDigitSources[b & 0xF];
         }
-        
+
         hexDigits.length = charsPos;
 
         ptrdiff_t resultLength = charsPos;
@@ -1413,7 +1413,7 @@ public:
     string toString(scope const(char)[] fmt, char separatorChar) const nothrow pure @safe scope
     {
         scope (failure) assert(0, "Assume nothrow failed"); // writeUpToNextSpec
-        
+
         ShortStringBuffer!char buffer;
 
         auto f = FormatSpec!char(fmt);
@@ -1428,7 +1428,7 @@ public:
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         scope (failure) assert(0, "Assume nothrow failed"); // writeUpToNextSpec
-        
+
         auto f = FormatSpec!Char(fmt);
         f.writeUpToNextSpec(sink);
         return toString(sink, f);
@@ -2421,15 +2421,29 @@ double log10(const(BigInteger) value) nothrow pure
 
 bool modInverse(const(BigInteger) a, const(BigInteger) m, ref BigInteger d) nothrow pure @safe
 {
-    BigInteger x, y, gcd;
-    extendedEuclid(a, m, x, y, gcd);
-    if (gcd.isOne)
+    BigInteger t = BigInteger.zero, newT = BigInteger.one;
+    BigInteger r = m.dup, newR = a.dup;
+
+    while (!newR.isZero)
     {
-        d = x.sign == -1 ? (m + x) % m : x % m;
-        return true;
+        const quotient = r / newR;
+
+        auto temp = t;
+        t = newT;
+        newT = temp - (quotient * newT);
+
+        temp = r;
+        r = newR;
+        newR = temp - (quotient * newR);
     }
-    else
+
+    if (r > 1)
         return false;
+
+    //import std.stdio : writeln; debug writeln("m=", m.toString, ", t=", t.toString);
+
+    d = t.sign == -1 ? (t + m) : t;
+    return true;
 }
 
 BigInteger modPow(const(BigInteger) value, const(BigInteger) exponent, const(BigInteger) modulus) nothrow pure
@@ -2625,22 +2639,24 @@ void extendedEuclid(const(BigInteger) a, const(BigInteger) b,
     BigInteger s = BigInteger.zero, oldS = BigInteger.one;
     BigInteger t = BigInteger.one, oldT = BigInteger.zero;
     BigInteger r = b.dup, oldR = a.dup;
+
     while (!r.isZero)
     {
         const quotient = oldR / r;
 
-        auto old = oldR;
-        oldR = r;
-        r = old - quotient * r;
+        auto temp = r;
+        r = oldR - quotient * r;
+        oldR = temp;
 
-        old = oldS;
-        oldS = s;
-        s = old - quotient * s;
+        temp = s;
+        s = oldS - quotient * s;
+        oldS = temp;
 
-        old = oldT;
-        oldT = t;
-        t = old - quotient * t;
+        temp = t;
+        t = temp - quotient * t;
+        oldT = temp;
     }
+
     gcd = oldR;
     x = oldS;
     y = oldT;
@@ -3591,6 +3607,18 @@ unittest // modInverse
     assert(modInverse(BigInteger(65537), BigInteger("1034776851837418226012406113933120080"), d));
     assert(d == BigInteger("568411228254986589811047501435713"));
 
+    assert(modInverse(BigInteger(1795804389L), BigInteger(2957870813L), d));
+    assert(d == BigInteger(2849476504L));
+
+    assert(modInverse(BigInteger(53389L), BigInteger(29578713L), d));
+    assert(d == BigInteger(4631629L));
+
+    assert(modInverse(BigInteger(175389L), BigInteger(2954378713L), d));
+    assert(d == BigInteger(2628921865L));
+
+    // Not invertable cases
+    assert(!modInverse(BigInteger(88882), BigInteger(22224), d));
+
     //assert(modInverse(BigInteger(), BigInteger(), d));
     //assert(d == BigInteger());
 }
@@ -3709,7 +3737,7 @@ unittest // BigInteger.divRem vs / & %
     BigInteger h = BigInteger("0"); h *= BigInteger("-1");
     BigInteger i = BigInteger("0"); i -= 2 * i;
     BigInteger j = BigInteger("0"); j = -j;
- 
+
     // All of these should be zero and not negative
     auto values = [a, b, c, d, e, f, g, h, i, j];
     foreach (ref val; values)

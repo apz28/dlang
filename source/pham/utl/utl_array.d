@@ -188,22 +188,57 @@ do
 void arrayShiftLeft(T)(ref T[] array, const(size_t) currentLength, const(size_t) beginIndex, const(size_t) shiftLength) @trusted
 in
 {
-    assert(array.length >= currentLength);
-    assert(beginIndex < currentLength);
+    assert(currentLength <= array.length);
     assert(beginIndex + shiftLength <= currentLength);
+    assert(shiftLength != 0);
 }
 do
 {
     import core.stdc.string : memmove;
     import std.traits : hasElaborateDestructor;
 
-    static if (hasElaborateDestructor!T)
-        arrayDestroy!T(array[beginIndex..beginIndex + shiftLength], false);
-
     const afterLength = currentLength - beginIndex - shiftLength;
-    if (afterLength)
-        memmove(array.ptr + beginIndex, array.ptr + beginIndex + shiftLength, afterLength * T.sizeof);
 
+    static if (is(T == immutable) || is(T == const) || !is(T == struct))
+    {
+        static if (hasElaborateDestructor!T)
+            arrayDestroy!T(array[beginIndex..beginIndex + shiftLength], false);
+
+        if (afterLength)
+        {
+            auto p = array.ptr + beginIndex;
+            memmove(p, p + shiftLength, afterLength * T.sizeof);
+            
+            static if (__traits(hasPostblit, T))
+            {
+                foreach (ref e; array[beginIndex..beginIndex + shiftLength])
+                    e.__xpostblit();
+            }
+        }
+    }
+    else
+    {
+        if (afterLength)
+        {
+            foreach (i; 0..afterLength)
+            {
+                const b = beginIndex + i;
+                array[b] = array[b + shiftLength];
+            }
+            
+            static if (hasElaborateDestructor!T)
+            {
+                const b = beginIndex + shiftLength;
+                arrayDestroy!T(array[b..b + afterLength], false);
+            }
+        }
+        else
+        {
+            static if (hasElaborateDestructor!T)
+                arrayDestroy!T(array[beginIndex..beginIndex + shiftLength], false);
+        }
+    }
+    
     arrayZeroInit!T(array[currentLength-shiftLength..currentLength]);
 }
 
@@ -347,52 +382,36 @@ do
     memmove(data.ptr + toIndex, data.ptr + fromIndex, nBytes);
 }
 
-void removeAt(T)(ref T array, size_t index) nothrow
+void removeAt(T)(ref T array, ref size_t length, size_t beginIndex,
+    size_t removeLength = 1) nothrow
+if (isStaticArray!T)
+in
+{
+    assert(length != 0 && length <= array.length);
+    assert(beginIndex + removeLength <= length);
+    assert(removeLength != 0);
+}
+do
+{
+    auto arrayDyn = array[0..length];
+    arrayShiftLeft(arrayDyn, length, beginIndex, removeLength);
+    length -= removeLength;
+}
+
+void removeAt(T)(ref T array, size_t beginIndex,
+    size_t removeLength = 1) nothrow
 if (isDynamicArray!T)
 in
 {
-    assert(array.length > 0);
-    assert(index < array.length);
+    assert(array.length != 0);
+    assert(beginIndex + removeLength <= array.length);
+    assert(removeLength != 0);
 }
 do
 {
     const length = array.length;
-    arrayShiftLeft(array, length, index, 1);
-    array.length = length - 1;
-}
-
-void removeAt(T)(ref T array, size_t index, ref size_t length) nothrow
-if (isStaticArray!T)
-in
-{
-    assert(length > 0 && length <= array.length);
-    assert(index < length);
-}
-do
-{
-    import std.range.primitives : ElementType;
-    import std.traits : lvalueOf;
-
-    // Move all items after index to the left
-    const lengthLess = length - 1;
-    if (lengthLess > 0)
-    {
-        while (index < lengthLess)
-        {
-            array[index] = array[index + 1];
-            ++index;
-        }
-    }
-
-    // Reset the value at array[index]
-    static if (is(typeof(lvalueOf!T[0]) == char))
-        array[index] = char.init;
-    else static if (is(typeof(lvalueOf!T[0]) == wchar))
-        array[index] = wchar.init;
-    else
-        array[index] = ElementType!T.init;
-
-    length = lengthLess;
+    arrayShiftLeft(array, length, beginIndex, removeLength);
+    array.length = length - removeLength;
 }
 
 
@@ -435,36 +454,36 @@ unittest // removeAt
 {
     // Dynamic array
     auto da = [0, 1, 2, 3, 4, 5];
-    removeAt(da, 2);
+    da.removeAt(2);
     assert(da.length == 5);
     assert(da == [0, 1, 3, 4, 5]);
-    removeAt(da, 4);
+    da.removeAt(4);
     assert(da.length == 4);
     assert(da == [0, 1, 3, 4]);
 
     // Static array
     int[6] sa = [0, 1, 2, 3, 4, 5];
-    size_t sal = 6;
-    removeAt(sa, 2, sal);
+    size_t sal = sa.length;
+    sa.removeAt(sal, 2);
     assert(sal == 5);
     assert(sa == [0, 1, 3, 4, 5, 0]);
     assert(sa[0..sal] == [0, 1, 3, 4, 5]);
-    removeAt(sa, 4, sal);
+    sa.removeAt(sal, 4);
     assert(sal == 4);
     assert(sa == [0, 1, 3, 4, 0, 0]);
     assert(sa[0..sal] == [0, 1, 3, 4]);
 
     char[6] sca = [0, 1, 2, 3, 4, 5];
-    size_t scal = 6;
-    removeAt(sca, 2, scal);
+    size_t scal = sca.length;
+    sca.removeAt(scal, 2);
     assert(scal == 5);
-    assert(sca == [0, 1, 3, 4, 5, char.init]);
+    assert(sca == [0, 1, 3, 4, 5, 0]);
     assert(sca[0..scal] == [0, 1, 3, 4, 5]);
 
     wchar[6] swa = [0, 1, 2, 3, 4, 5];
-    size_t swal = 6;
-    removeAt(swa, 2, swal);
+    size_t swal = swa.length;
+    swa.removeAt(swal, 2);
     assert(swal == 5);
-    assert(swa == [0, 1, 3, 4, 5, wchar.init]);
+    assert(swa == [0, 1, 3, 4, 5, 0]);
     assert(swa[0..swal] == [0, 1, 3, 4, 5]);
 }

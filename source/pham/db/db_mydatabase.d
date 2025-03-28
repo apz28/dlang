@@ -407,13 +407,8 @@ protected:
         if (!isPreparedError && !connection.isFatalError)
             purgePendingRows();
 
-        if (_handle && !connection.isFatalError)
-        {
-            if (_handle.isDummy)
-                _handle.reset();
-            else
-                deallocateHandle();
-        }
+        if (_handle && !_handle.isDummy && !connection.isFatalError)
+            deallocateHandle();
     }
 
     static void fillNamedColumn(DbNameColumn column, const ref MyColumnInfo myColumn, const(bool) isNew) nothrow @safe
