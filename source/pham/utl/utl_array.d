@@ -195,7 +195,9 @@ in
 do
 {
     import core.stdc.string : memmove;
-    import std.traits : hasElaborateDestructor;
+    import std.traits : hasElaborateDestructor, Unqual;
+    
+    alias UT = Unqual!T;
 
     const afterLength = currentLength - beginIndex - shiftLength;
 
@@ -206,7 +208,7 @@ do
 
         if (afterLength)
         {
-            auto p = array.ptr + beginIndex;
+            auto p = cast(UT*)(array.ptr + beginIndex);
             memmove(p, p + shiftLength, afterLength * T.sizeof);
             
             static if (__traits(hasPostblit, T))

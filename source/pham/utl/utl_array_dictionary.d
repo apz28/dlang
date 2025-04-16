@@ -11,7 +11,8 @@
 
 module pham.utl.utl_array_dictionary;
 
-import std.traits : fullyQualifiedName, isAssignable, Unqual;
+import core.stdc.string : memmove;
+import std.traits : isAssignable, Unqual;
 
 debug(debug_pham_utl_utl_array_dictionary)
 {
@@ -65,7 +66,7 @@ public:
      */
     this(OK, OV)(OV[OK] other,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
-        CustomHashOf customHashOf = null)
+        CustomHashOf customHashOf = null) nothrow
     if (is(OK : K) && is(OV : V))
     {
         //pragma(msg, "this(OK, OV)(buildin." ~ OK.stringof ~ " vs " ~ K.stringof ~ ")");
@@ -116,36 +117,40 @@ public:
     /**
      * Supports build-in foreach operator
      */
-    static if (V.sizeof <= size_t.sizeof)
-    {
-        alias opApply = opApplyImpl!(int delegate(V));
-        alias opApply = opApplyImpl!(int delegate(const(K), V));
-    }
-    else
-    {
-        alias opApply = opApplyImpl!(int delegate(ref V));
-        alias opApply = opApplyImpl!(int delegate(const(K), ref V));
-    }
-
+    alias opApply = opApplyImpl!(int delegate(ref V value));
+    alias opApply = opApplyImpl!(int delegate(const(K) key, ref V value));
+    alias opApply = opApplyImpl!(int delegate(size_t index, const(K) key, ref V value));
     int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(ref V))
-        || is(CallBack : int delegate(const(K), V)) || is(CallBack : int delegate(const(K), ref V)))
+    if (is(CallBack : int delegate(V))
+        || is(CallBack : int delegate(ref V))
+        || is(CallBack : int delegate(const(K), V))
+        || is(CallBack : int delegate(const(K), ref V))
+        || is(CallBack : int delegate(size_t, const(K), ref V)))
     {
         debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "()");
 
-        if (length)
+        if (length == 0)
+            return 0;
+
+        static if (is(CallBack : int delegate(size_t, const(K), ref V)))
         {
-            static if (is(CallBack : int delegate(V)) || is(CallBack : int delegate(ref V)))
+            foreach (i, ref e; aa.entries)
             {
-                foreach (ref e; aa.entries)
+                if (const r = callBack(i, e.key, e.value))
+                    return r;
+            }
+        }
+        else
+        {
+            foreach (ref e; aa.entries)
+            {
+                static if (is(CallBack : int delegate(V))
+                    || is(CallBack : int delegate(ref V)))
                 {
                     if (const r = callBack(e.value))
                         return r;
                 }
-            }
-            else
-            {
-                foreach (ref e; aa.entries)
+                else
                 {
                     if (const r = callBack(e.key, e.value))
                         return r;
@@ -170,16 +175,18 @@ public:
 
     private void opAssignImpl(OK, OV)(OV[OK] rhs,
         DictionaryHashMix hashMix = DictionaryHashMix.none,
-        CustomHashOf customHashOf = null)
+        CustomHashOf customHashOf = null) nothrow
     if (is(OK : K) && is(OV : V))
     {
+        scope (failure) assert(0, "Assume nothrow failed");
+
         const ol = rhs.length;
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
             this.aa = createAA(ol != 0 ? (ol + bucketInflated) : 0, ol, hashMix, customHashOf);
             if (ol)
             {
-                foreach (k, v; rhs)
+                foreach (k, ref v; rhs)
                     this.aa.add(k, v);
             }
         }
@@ -378,7 +385,7 @@ public:
      *  key = the key of the value to get
      *  defaultValue = the default value being returned if the key is not found
      */
-    inout(V) get(scope const(K) key, lazy inout(V) defaultValue = V.init) inout nothrow // lazy does not infer nothrow
+    inout(V) get(scope const(K) key, lazy inout(V) defaultValue) inout nothrow // lazy does not infer nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
@@ -398,14 +405,13 @@ public:
      *  index = the location of key-value pair
      *  defaultValue = the default value being returned if the index is out of bound
      */
-    inout(V) getAt(size_t index, lazy inout(V) defaultValue = V.init) inout nothrow // lazy does not infer nothrow
+    inout(V) getAt(size_t index, lazy inout(V) defaultValue) inout nothrow // lazy does not infer nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
-        if (index < length)
-            return aa.entries[index].value;
-
-        return defaultValue;
+        return index < length
+            ? aa.entries[index].value
+            : defaultValue;
     }
 
     /**
@@ -501,7 +507,7 @@ public:
      *  key = the key of the element to lookup/add
      *  createValue = the value being added if key is not found
      */
-    ref V require(K key, lazy V createValue = V.init) nothrow return // lazy does not infer nothrow
+    ref V require(K key, lazy V createValue) nothrow return // lazy does not infer nothrow
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
@@ -723,6 +729,9 @@ private:
 
             const entryPos = addEntry(hash, key, value);
             attachEntryToBucket(bucket, entryPos, keyCollision);
+
+            debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && keyCollision) debug writeln(__FUNCTION__, "(key=", key,
+                ", hash=", hash, ", keyCollision=", keyCollision, ")");
         }
 
         pragma(inline, true)
@@ -941,29 +950,35 @@ private:
             }
         }
 
-        ref V put(ref K key, ref V value) return
+        ref V put(ref K key, ref V value) return @trusted
         {
             Index index, bucket;
             uint keyCollision;
-            const h = calcHash(key);
-            auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
+            const hash = calcHash(key);
+            auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
             if (entry)
             {
                 static if (isAssignable!V)
-                {
                     entry.value = value;
-                    return entry.value;
-                }
                 else
-                    assert(0, fullyQualifiedName!V ~ " is not assignable"); // Runtime error only
+                {
+                    memmove(cast(UV*)&entry.value, &value, V.sizeof);
+                    static if (__traits(hasPostblit, V))
+                        entry.value.__xpostblit();
+                }
+                return entry.value;
             }
             else
             {
                 if (grow())
-                    bucket = findSlotInsert(h, keyCollision);
+                    bucket = findSlotInsert(hash, keyCollision);
 
-                const entryPos = addEntry(h, key, value);
+                const entryPos = addEntry(hash, key, value);
                 attachEntryToBucket(bucket, entryPos, keyCollision);
+
+                debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && keyCollision) debug writeln(__FUNCTION__, "(key=", key,
+                    ", hash=", hash, ", keyCollision=", keyCollision, ")");
+
                 return entries[entryPos - 1].value;
             }
         }
@@ -1104,13 +1119,13 @@ private:
             {
                 Index indexDup, bucket;
                 uint keyCollision;
-                const h = calcHash(key);
+                const hash = calcHash(key);
                 // Duplicate?
-                if (findSlotLookup(h, key, indexDup, bucket, keyCollision) !is null)
+                if (findSlotLookup(hash, key, indexDup, bucket, keyCollision) !is null)
                     return false;
 
                 removeEntryFromBucket(index);
-                entry.hash = h;
+                entry.hash = hash;
                 entry._key = key;
                 attachEntryToBucket(bucket, index + 1, keyCollision);
             }
@@ -1123,15 +1138,19 @@ private:
         {
             Index index, bucket;
             uint keyCollision;
-            const h = calcHash(key);
-            auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
+            const hash = calcHash(key);
+            auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
             if (entry is null)
             {
                 if (grow())
-                    bucket = findSlotInsert(h, keyCollision);
+                    bucket = findSlotInsert(hash, keyCollision);
 
-                entries ~= Entry(-1, h, key, createValue);
+                entries ~= Entry(-1, hash, key, createValue);
                 attachEntryToBucket(bucket, entries.length, keyCollision);
+
+                debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && keyCollision) debug writeln(__FUNCTION__, "(key=", key,
+                    ", hash=", hash, ", keyCollision=", keyCollision, ")");
+
                 return entries[$ - 1].value;
             }
             else
@@ -1184,14 +1203,14 @@ private:
         {
             Index index, bucket;
             uint keyCollision;
-            const h = calcHash(key);
-            auto entry = findSlotLookup(h, key, index, bucket, keyCollision);
+            const hash = calcHash(key);
+            auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
             if (entry is null)
             {
                 if (grow())
-                    bucket = findSlotInsert(h, keyCollision);
+                    bucket = findSlotInsert(hash, keyCollision);
 
-                entries ~= Entry(-1, h, key, createValue());
+                entries ~= Entry(-1, hash, key, createValue());
                 attachEntryToBucket(bucket, entries.length, keyCollision);
                 return entries[$ - 1].value;
             }
@@ -1386,17 +1405,16 @@ private:
  */
 auto asAA(K, V)(Dictionary!(K, V) dictionary)
 {
+    V[K] result;
     if (dictionary.length)
     {
-        V[K] result;
-        foreach (ref e; dictionary[])
+        foreach (k, ref v; dictionary)
         {
-            result[e._key] = e.value;
+            result[k] = v;
         }
         return result;
     }
-
-    return V[K].init;
+    return result;
 }
 
 /**
@@ -1408,7 +1426,7 @@ auto asAA(K, V)(Dictionary!(K, V) dictionary)
  */
 auto asAA(K, V)(V[K] aa,
     DictionaryHashMix hashMix = DictionaryHashMix.none,
-    Dictionary!(K, V).CustomHashOf customHashOf = null)
+    Dictionary!(K, V).CustomHashOf customHashOf = null) nothrow
 {
     return Dictionary!(K, V)(aa, hashMix, customHashOf);
 }
@@ -1461,8 +1479,163 @@ size_t mixMurmurHash3(size_t hash) @nogc nothrow pure @safe
         static assert(0);
 }
 
+pragma(inline, true)
+size_t scrambleMurmurHash3(size_t key) @nogc nothrow pure @safe
+{
+    static if (size_t.sizeof == 4)
+    {
+        enum size_t c1 = 0xcc9e2d51;
+        enum size_t c2 = 0x1b873593;
+        enum uint r1a = 15;
+
+    }
+    else static if (size_t.sizeof == 8)
+    {
+        enum size_t c1 = 0x87c37b91114253d5;
+        enum size_t c2 = 0x4cf5ad432745937f;
+        enum uint r1a = 31;
+    }
+    else
+        static assert(0);
+
+    enum uint r1b = (size_t.sizeof * 8 - r1a);
+
+    key *= c1;
+    key = (key << r1a) | (key >>> r1b);
+    key *= c2;
+    return key;
+}
+
+// MurmurHash3
+version(none) // Return same value as D buildin
+size_t murmur3HashOf(T)(scope const(T)[] key) @nogc nothrow pure @safe
+if (is(T == char) || is(T == wchar) || is(T == dchar)
+    || is(T == byte) || is(T == ubyte)
+    || is(T == short) || is(T == ushort)
+    || is(T == int) || is(T == uint)
+    || is(T == long) || is(T == ulong))
+{
+    return hashOf(key, 0);
+}
+
+// MurmurHash3
+version(none) // Return same value as D buildin
+size_t murmur3HashOf(T)(scope const(T)[] key, size_t seed) @nogc nothrow pure @safe
+if (is(T == char) || is(T == wchar) || is(T == dchar)
+    || is(T == short) || is(T == ushort)
+    || is(T == int) || is(T == uint)
+    || is(T == long) || is(T == ulong))
+{
+    if (key.length == 0)
+        return seed;
+
+    static if (T.sizeof > ubyte.sizeof)
+    {
+        const ptr = cast(const(ubyte)*)&key[0];
+        return hashOf(ptr[0..key.length*T.sizeof], seed);
+    }
+    else
+    {
+        return hashOf(cast(const(ubyte)[])key, seed);
+    }
+}
+
+version(none) // Return same value as D buildin
+size_t murmur3HashOf(T)(scope const(T)[] key, size_t seed) @nogc nothrow pure @safe
+if (is(T == byte) || is(T == ubyte))
+{
+    import std.bitmanip : littleEndianToNative;
+
+    if (key.length == 0)
+        return seed;
+
+    const keyLength = key.length;
+
+    // MurmurHash3 single round
+    static if (size_t.sizeof == 4)
+    {
+        enum size_t c3 = 0xe6546b64;
+        enum uint r2a = 13;
+    }
+    else static if (size_t.sizeof == 8)
+    {
+        enum size_t c3 = 0x52dce729;
+        enum uint r2a = 27;
+    }
+    else
+        static assert(0);
+
+    enum uint r2b = (size_t.sizeof * 8 - r2a);
+
+    size_t result = seed;
+    size_t k;
+
+    /* Read in groups of 4/8 */
+    while (key.length >= size_t.sizeof)
+    {
+        // Here is a source of differing results across endiannesses.
+        // A swap here has no effects on hash properties though.
+        k = littleEndianToNative!size_t(key[0..size_t.sizeof]);
+        key = key[size_t.sizeof..$];
+
+        result ^= scrambleMurmurHash3(k);
+        result = (result << r2a) | (result >>> r2b);
+        result = result * 5 + c3;
+    }
+
+    /* Read the rest */
+    if (key.length)
+    {
+        k = 0;
+        while (key.length)
+        {
+            k <<= 8;
+            k |= key[0];
+
+            key = key[1..$];
+        }
+
+        // A swap is *not* necessary here because the preceding loop already
+        // places the low bytes in the low places according to whatever endianness
+        // we use. Swaps only apply when the memory is copied in a chunk.
+        result ^= scrambleMurmurHash3(k);
+    }
+
+    /* Finalize. */
+    result ^= keyLength;
+    return mixMurmurHash3(result);
+}
+
 
 private:
+
+version(none)
+unittest // murmur3HashOf
+{
+    import std.conv : to;
+    import std.stdio : writeln;
+
+    static if (size_t.sizeof == 4)
+    {
+        size_t h;
+
+        h = murmur3HashOf("test");
+        assert(h == 0xba6bd213, to!string(h, 16));
+
+        h = murmur3HashOf("Hello, world!", 0x9747b28c);
+        assert(h == 0x24884CBA, to!string(h, 16));
+
+        h = murmur3HashOf("The quick brown fox jumps over the lazy dog");
+        assert(h == 0x2e4ff723, to!string(h, 16));
+    }
+
+    foreach (s; ["NaN", "Infinity", "-Infinity", "nan", "NAN", "inf", "+inf", "-inf", "infinity", "+infinity", "-infinity", "Infinite", "-Infinite"])
+    {
+        const dH = hashOf(s);
+        const ourH = murmur3HashOf(s);
+        writeln(to!string(ourH), " vs ", to!string(dH), " slot[29] ", dH%29, " of ", s);
+    }
+}
 
 unittest // Dictionary
 {
@@ -1663,7 +1836,7 @@ unittest // Dictionary testRequire1()
     auto b = aa.require("foo", new T);
     assert(T.count == 1);
     assert(b is a);
-    auto c = aa.require("bar");
+    auto c = aa.require("bar", T.init);
     assert(T.count == 1);
     assert(c is null);
     assert("bar" in aa);
@@ -1693,7 +1866,7 @@ unittest // Dictionary testRequire2()
 
     Dictionary!(string, S) aa;
 
-    aa.require("foo").value = 1;
+    aa.require("foo", S.init).value = 1;
     assert(aa == Dictionary!(string, S)(["foo" : S(1)]));
 
     aa["bar"] = S(2);

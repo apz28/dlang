@@ -416,7 +416,7 @@ nothrow @safe:
 public:
     string opIndex(string name)
     {
-        return values.get(name);
+        return values.get(name, null);
     }
 
     ref typeof(this) opIndexAssign(string value, string name) return
@@ -427,7 +427,7 @@ public:
 
     bool hasValue(string name, out string value) const
     {
-        value = values.get(name);
+        value = values.get(name, null);
         return value.length != 0;
     }
 
@@ -693,7 +693,7 @@ public:
     }
     do
     {
-        return items.getAt(index);
+        return items.getAt(index, inout(T).init);
     }
 
     /**
@@ -701,12 +701,12 @@ public:
      */
     final inout(T) opIndex(scope const(DbIdentitier) name) inout nothrow @safe
     {
-        return items.get(name);
+        return items.get(name, inout(T).init);
     }
 
     final inout(T) opIndex(string name) inout nothrow @safe
     {
-        return items.get(DbIdentitier(name));
+        return items.get(DbIdentitier(name), inout(T).init);
     }
 
     typeof(this) clear() nothrow @safe
@@ -771,7 +771,7 @@ public:
 
     final inout(T) getAt(size_t index) inout @safe
     {
-        return items.getAt(index);
+        return items.getAt(index, inout(T).init);
     }
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow @safe
@@ -1015,7 +1015,7 @@ public:
     }
     do
     {
-        return items.getAt(index);
+        return items.getAt(index, inout(DbIdentitierValuePair).init);
     }
 
     /**
@@ -1110,7 +1110,7 @@ public:
 
     final inout(T) getAt(size_t index) inout nothrow
     {
-        return items.getAt(index).value;
+        return items.getAt(index, inout(DbIdentitierValuePair).init).value;
     }
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow

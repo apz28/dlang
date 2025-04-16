@@ -2938,7 +2938,7 @@ public:
 
     @property final string applicationName() const nothrow
     {
-        return customAttributes.get(DbConnectionCustomIdentifier.applicationName);
+        return customAttributes.get(DbConnectionCustomIdentifier.applicationName, null);
     }
 
     @property final typeof(this) applicationName(string value)
@@ -2954,7 +2954,7 @@ public:
 
     @property final string applicationVersion() const nothrow
     {
-        return customAttributes.get(DbConnectionCustomIdentifier.applicationVersion);
+        return customAttributes.get(DbConnectionCustomIdentifier.applicationVersion, null);
     }
 
     @property final typeof(this) applicationVersion(string value)

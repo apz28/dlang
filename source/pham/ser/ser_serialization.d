@@ -553,7 +553,8 @@ class DSSerializerException : Exception
 
 public:
     this(string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorMessage, file, line, next);
         this.funcName = funcName;
@@ -569,7 +570,8 @@ class DeserializerException : DSSerializerException
 
 public:
     this(string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorMessage, next, funcName, file, line);
     }
@@ -581,7 +583,8 @@ class SerializerException : DSSerializerException
 
 public:
     this(string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorMessage, next, funcName, file, line);
     }

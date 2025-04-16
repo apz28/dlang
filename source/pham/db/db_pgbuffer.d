@@ -64,7 +64,7 @@ public:
         if (_buffer !is null && _connection !is null)
             _connection.releaseMessageReadBuffer(_buffer);
 
-        _buffer = null;        
+        _buffer = null;
         _reader.dispose(disposingReason);
         if (isDisposing(disposingReason))
             _connection = null;
@@ -994,6 +994,7 @@ unittest // PgXdrReader & PgXdrWriter
 
     ubyte[] writerBytes = writer.buffer.peekBytes();
     auto reader = PgXdrReader(writerBytes);
+
     int32 valueLength;
     int32 readLength(uint line = __LINE__)
     {

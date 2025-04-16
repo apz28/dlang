@@ -297,7 +297,7 @@ public:
             const flags = packIntegral(value,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-                            
+
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -308,7 +308,7 @@ public:
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
                             0);
-                            
+
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -318,7 +318,7 @@ public:
             const flags = decimalToDecimal(value, this,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-                            
+
             static if (D.sizeof < T.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -328,7 +328,7 @@ public:
             const flags = packIntegral(cast(uint)value,
                             __ctfe ? PRECISION : DecimalControl.precision,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-                            
+
             static if (D.sizeof <= uint.sizeof)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
@@ -352,7 +352,7 @@ public:
         static if (isIntegral!T)
         {
             const flags = packIntegral(value, PRECISION, mode);
-            
+
             static if (D.sizeof <= T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -360,7 +360,7 @@ public:
         else static if (isDecimal!T)
         {
             const flags = decimalToDecimal(value, this, PRECISION, mode);
-            
+
             static if (D.sizeof < T.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -368,7 +368,7 @@ public:
         else // isSomeChar!T
         {
             const flags = packIntegral(cast(uint)value, PRECISION, mode);
-            
+
             static if (D.sizeof <= uint.sizeof)
             if (!__ctfe)
                 DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -389,7 +389,7 @@ public:
     if (isFloatingPoint!T)
     {
         const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
-        
+
         static if (D.sizeof <= T.sizeof)
         if (!__ctfe)
             DecimalControl.checkFlags(explicitModeTraps, flags);
@@ -446,7 +446,7 @@ public:
         {
             const flags = decimalToFloat(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-                            
+
             static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
@@ -455,7 +455,7 @@ public:
         {
             const flags = decimalToUnsigned(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-                            
+
             static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
@@ -464,7 +464,7 @@ public:
         {
             const flags = decimalToSigned(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
-                            
+
             static if (D.sizeof > T.sizeof)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
@@ -1640,12 +1640,12 @@ else
 {
     mixin template ExceptionConstructors()
     {
-        this(string msg, string file = __FILE__, uint line = __LINE__, Throwable next = null) @nogc nothrow pure @safe
+        this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) @nogc nothrow pure @safe
         {
             super(msg, file, line, next);
         }
 
-        this(string msg, Throwable next, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure @safe
+        this(string msg, Throwable next, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure @safe
         {
             super(msg, file, line, next);
         }
@@ -2083,7 +2083,7 @@ unittest
     else
     {
         import std.exception : assertThrown;
-        
+
         assertThrown!InvalidOperationException(Decimal128(""));
         assertThrown!InvalidOperationException(Decimal128(" "));
         assertThrown!InvalidOperationException(Decimal128("_"));

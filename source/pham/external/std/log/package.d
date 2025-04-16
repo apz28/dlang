@@ -1,15 +1,18 @@
 /*
- *
- * Source: $(PHOBOSSRC std/experimental/logger/core.d)
+ * Clone from std.logger with enhancement API
+ * https://github.com/dlang/phobos/blob/master/std/logger/package.d
+ * Copyright: Robert "burner" Schadek 2013
+ * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * Authors: $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html, Robert burner Schadek)
  *
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * Authors: Copyright Robert, An Pham
+ * Authors: An Pham
  *
- * Copyright Copyright Robert "burner" Schadek 2013, $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html
+ * Copyright An Pham 2021 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
-*/
+ */
 
 /*
 $(H3 Basic Logging)

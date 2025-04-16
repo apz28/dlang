@@ -41,12 +41,12 @@ public:
         version(profile) debug auto p = PerfFunction.create();
 
         this._type = type;
-        doAssign!(T, false)(value);
+        doAssign!false(value);
     }
 
     ref typeof(this) opAssign(T)(T rhs) return @safe
     {
-        doAssign!(T, true)(rhs);
+        doAssign!true(rhs);
         return this;
     }
 
@@ -177,7 +177,7 @@ package(pham.db):
     DbType _type;
 
 private:
-    void doAssign(T, bool Assign)(T rhs) @safe
+    void doAssign(bool byAssign, T)(T rhs) @safe
     {
         alias UT = Unqual!T;
 

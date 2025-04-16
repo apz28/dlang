@@ -1,4 +1,6 @@
 /*
+ * Clone from std.array.Appender with enhancement API
+ * https://github.com/dlang/phobos/blob/master/std/array.d
  *
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * Authors: An Pham
@@ -111,25 +113,23 @@ public:
     {
         static if (isSomeChar!ET && isSomeChar!U && ET.sizeof < U.sizeof)
         {
+            import std.typecons : Yes;
             import std.utf : encode;
             
-            // may throwable operation: std.utf.encode
-            // must do some transcoding around here
-
             UET[ET.sizeof == 1 ? 4 : 2] encoded;
-            const len = encode(encoded, item);
+            const len = encode!(Yes.useReplacementDchar)(encoded, item);
             put(encoded[0..len]);
         }
         else
         {
             import core.lifetime : emplace;
-        
+
             const endLength = ensureAddable(1, 1);
             auto bigData = _data.values[endLength..endLength + 1];
             () @trusted
-            { 
+            {
                 auto unqualItem = &cast()item;
-                emplace(&bigData[0], *unqualItem); 
+                emplace(&bigData[0], *unqualItem);
             }();
             _data.length += 1;
         }
@@ -177,7 +177,7 @@ public:
                 }
             }
 
-            const endLength = ensureAddable(itemsLength, itemsLength);            
+            const endLength = ensureAddable(itemsLength, itemsLength);
             auto bigData = _data.values[endLength..endLength + itemsLength];
 
             static if (is(typeof(_data.values[] = items[]))
@@ -190,7 +190,7 @@ public:
             else
             {
                 import core.internal.lifetime : emplaceRef;
-            
+
                 foreach (ref it; bigData[0..itemsLength])
                 {
                     () @trusted { emplaceRef!ET(it, items.front); }();
@@ -203,7 +203,7 @@ public:
             && !is(immutable ET == immutable ElementType!R))
         {
             import std.utf : decodeFront;
-            
+
             // need to decode
             while (!items.empty)
             {
@@ -272,7 +272,7 @@ public:
     string toString()() const
     {
         import std.traits : isSomeString;
-        
+
         auto spec = singleSpec("%s");
 
         // Different reserve lengths because each element in a

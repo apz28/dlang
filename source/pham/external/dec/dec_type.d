@@ -70,7 +70,7 @@ string getExceptionMessage(string throwingMsg, const(ExceptionFlag) kind) @nogc 
 }
 
 version(D_BetterC)
-string getExceptionMessage(return char[] bufferMsg, string throwingMsg, const(ExceptionFlag) kind, string file, uint line) @nogc nothrow pure @safe
+string getExceptionMessage(return char[] bufferMsg, string throwingMsg, const(ExceptionFlag) kind, string file, size_t line) @nogc nothrow pure @safe
 {
     import std.format : sformat;
 

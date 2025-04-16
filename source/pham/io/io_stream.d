@@ -362,7 +362,7 @@ protected:
 class MemoryStream : Stream
 {
     import std.conv : to;
-    
+
 @safe:
 
 public:
@@ -578,7 +578,7 @@ private:
 class ReadonlyStream : Stream
 {
     import std.conv : to;
-    
+
 @safe:
 
 public:

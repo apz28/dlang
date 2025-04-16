@@ -12,33 +12,18 @@
 module pham.ser.ser_serialization_json;
 
 import std.conv : to;
-import std.json : JSONOptions, JSONType, JSONValue, parseJSON;
 import std.traits : isDynamicArray, isFloatingPoint, isIntegral;
 
 import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimePattern, dateTimeParse=parse;
 import pham.dtm.dtm_tick : DateTimeSetting, DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
+import pham.json : JSONOptions, JSONType, JSONValue, parseJSON;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.ser.ser_serialization;
 
-// Redeclare to fix deprecate members such as JSONType.NULL=JSONType.null_ ...
-// to be used with EnumSet
-enum JSONTypeChecked : byte
-{
-    null_,
-    string,
-    integer,
-    uinteger,
-    float_,
-    array,
-    object,
-    true_,
-    false_,
-}
-static assert(cast(int)JSONTypeChecked.null_ == cast(int)JSONType.null_);
-static assert(cast(int)JSONTypeChecked.false_ == cast(int)JSONType.false_);
+alias JSONTypeChecked = JSONType;
 
 class JsonDeserializer : Deserializer
 {
@@ -47,7 +32,8 @@ class JsonDeserializer : Deserializer
 public:
     this(scope const(char)[] data)
     {
-        this.root = parseJSON(data);
+        this.root = parseJSON!(JSONOptions.none)(data); // Need to handle Nan, +inf, -inf ourself
+        //import std.stdio : writeln; debug writeln("root=", root.toString(JSONOptions.specialFloatLiterals));
     }
 
     override JsonDeserializer begin(scope ref Serializable attribute)
@@ -151,9 +137,10 @@ public:
     final V readInt(V)()
     if (isIntegral!V)
     {
-        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.integer, JSONTypeChecked.uinteger]);
+        //import std.stdio : writeln; debug writeln("readInt().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.value=",  currents[$-1].value.toString(JSONOptions.specialFloatLiterals));
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.integer]);
         const t = checkDataType(checkTypes);
-        const v = t == JSONType.integer ? cast(V)currents[$-1].value.integer : cast(V)currents[$-1].value.uinteger;
+        const v = cast(V)currents[$-1].value.integer;        
         popFront();
         return v;
     }
@@ -172,7 +159,7 @@ public:
     if (isFloatingPoint!V)
     {
         //import std.stdio : writeln; debug writeln("readFloat().currents.length=", currents.length, ", current.type=", currents[$-1].type, ", current.value=",  currents[$-1].value.toString(JSONOptions.specialFloatLiterals));
-        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.float_, JSONTypeChecked.integer, JSONTypeChecked.uinteger, JSONTypeChecked.string]);
+        static immutable EnumSet!JSONTypeChecked checkTypes = EnumSet!JSONTypeChecked([JSONTypeChecked.float_, JSONTypeChecked.integer, JSONTypeChecked.string]);
         const t = checkDataType(checkTypes);
         auto p = &currents[$-1];
 
@@ -194,9 +181,7 @@ public:
             ? cast(V)p.value.floating
             : (t == JSONType.integer
                 ? cast(V)p.value.integer
-                : (t == JSONType.uinteger
-                    ? cast(V)p.value.uinteger
-                    : readFloatLiteral()));
+                : readFloatLiteral());
         popFront();
         return v;
     }
@@ -397,7 +382,7 @@ public:
         string name;
         ptrdiff_t childLength;
         ptrdiff_t parentLength;
-        string[] childNames;
+        const(string)[] childNames;
         JSONType type;
     }
 
@@ -673,7 +658,7 @@ public:
     if (isIntegral!V)
     {
         import pham.utl.utl_object : toString;
-        
+
         toString(buffer, v);
     }
 

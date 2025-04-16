@@ -400,7 +400,7 @@ public:
         const r = getsockname(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (r == resultOK)
             return SocketAddress(addrBuffer[0..addrLength]);
-        
+
         lastError.setSystemError("getsockname", lastSocketError());
         return SocketAddress.init;
     }
@@ -418,7 +418,7 @@ public:
         const r = getpeername(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (r == resultOK)
             return SocketAddress(addrBuffer[0..addrLength]);
-        
+
         lastError.setSystemError("getpeername", lastSocketError());
         return SocketAddress.init;
     }
@@ -641,7 +641,7 @@ public:
         lastError.setSystemError(getSocketAPIName("getWriteTimeoutSocket"), lastSocketError(), " writeTimeout");
         return dur!"msecs"(-1);
     }
-    
+
 public:
     ResultStatus lastError;
 

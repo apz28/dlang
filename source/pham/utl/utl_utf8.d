@@ -18,6 +18,9 @@ import std.traits : isSomeChar;
 
 nothrow @safe:
 
+// http://en.wikipedia.org/wiki/Replacement_character#Replacement_character
+//enum dchar replacementUtf8Char = '\uFFFD';
+
 struct UTF8Iterator
 {
     char[encodeUTF8MaxLength] codeBuffer = 0;

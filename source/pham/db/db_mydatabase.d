@@ -776,7 +776,7 @@ protected:
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ", socketActive=", socketActive, ")");
 
         const isFailing = isFatalError || reasonState == DbConnectionState.failing;
-        
+
         scope (exit)
             disposeProtocol(DisposingReason.other);
 

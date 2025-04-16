@@ -4377,7 +4377,7 @@ unittest
     unitTestSocketFailure++;
     scope (exit)
         unitTestSocketFailure--;
-        
+
     bool failedAssert = true;
     try
     {
@@ -4385,7 +4385,7 @@ unittest
     }
     catch (FbException)
         failedAssert = false;
-    assert(!failedAssert);        
+    assert(!failedAssert);
 }
 
 version(UnitTestFBDatabase)

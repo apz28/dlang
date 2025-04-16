@@ -277,7 +277,7 @@ do
 
         version(CRuntime_Glibc)
             p = strerror_r(errorCode, buf.ptr, buf.length);
-        else 
+        else
         {
             if (!strerror_r(errorCode, buf.ptr, buf.length))
                 p = buf.ptr;
@@ -326,7 +326,7 @@ string osCharToString(scope const(char)[] v) nothrow pure
 string osWCharToString(scope const(wchar)[] v) nothrow pure
 {
     scope (failure) assert(0, "Assume nothrow failed");
-    
+
     auto length = v.length;
     while (length != 0 && v[length - 1] <= ' ')
         length--;
@@ -515,7 +515,7 @@ public:
     {
         return typeof(this)(value, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
     }
-        
+
     /**
      * Create this result-type without error
      */
@@ -629,7 +629,7 @@ public:
             ? errorMessage
             : (errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
     }
-    
+
     pragma(inline, true)
     static typeof(this) ok() @nogc nothrow pure
     {

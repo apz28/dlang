@@ -508,14 +508,14 @@ nothrow @safe:
     static string conversion(string sqlKind, string fromValue, string toType) pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         return DbMessage.eMalformSQLStatementConversion.fmtMessage(sqlKind, fromValue, toType);
     }
 
     static string eos(string sqlKind) pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         return DbMessage.eMalformSQLStatementEos.fmtMessage(sqlKind);
     }
 
@@ -527,7 +527,7 @@ nothrow @safe:
     static string keyword(string sqlKind, string expected, string found) pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         return DbMessage.eMalformSQLStatementKeyword.fmtMessage(sqlKind, expected, found);
     }
 
@@ -539,7 +539,7 @@ nothrow @safe:
     static string other(string sqlKind, string expected, string found) pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         return DbMessage.eMalformSQLStatementOther.fmtMessage(sqlKind, expected, found);
     }
 
@@ -551,7 +551,7 @@ nothrow @safe:
     static string reKeyword(string sqlKind, string keyword) pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         return DbMessage.eMalformSQLStatementReKeyword.fmtMessage(sqlKind, keyword);
     }
 
@@ -587,7 +587,7 @@ do
             case DbTokenKind.parameterUnnamed:
                 if (result.length == 0)
                     result.capacity = sql.length;
-                    
+
                 // Leading text before parameter?
                 if (beginP < prevP)
                 {
@@ -623,10 +623,10 @@ do
     }
 
     debug(debug_pham_db_db_parser) debug writeln("\t", "tokenizer.kind=", tokenizer.kind, ", tokenizer.front=", tokenizer.front, ", parameterNumber=", parameterNumber);
-    
+
     if (parameterNumber == 0)
         return sql;
-        
+
     // Remaining text?
     if (beginP < sql.length)
     {
@@ -656,13 +656,13 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
 {
     import std.range.primitives : ElementEncodingType;
     //import std.traits : Unqual;
-    
+
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
     import pham.utl.utl_text : NamedValue, parseFormEncodedValues, simpleIndexOf, simpleIndexOfAny, simpleSplitter;
 
     //alias C = Unqual!(ElementEncodingType!S);
     alias C = ElementEncodingType!S;
-    
+
     auto currentURL = dbURL;
     size_t currentOffset = 0;
     DbURL!S result;
@@ -713,7 +713,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
         }
 
         const i = currentURL.simpleIndexOf('@');
-        
+
         // Identity is not specified
         if (i < 0)
             return true;
@@ -878,7 +878,7 @@ version(unittest)
 
     void checkTokenizer(T)(ref T tokenizer,
         bool empty, bool malformed, const(char)[] parameterIndicator, DbTokenKind kind, const(char)[] front,
-        in uint line = __LINE__)
+        uint line = __LINE__)
     {
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;

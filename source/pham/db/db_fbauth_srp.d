@@ -100,7 +100,7 @@ public:
         // ((saltLength + 1) * 2) + ((keyLength + 1) * 2)
         return (saltLength + keyLength + 2) * 2;  //+2 for leading size data
     }
-    
+
     final override CipherRawKey!ubyte sessionKey()
     {
         return _authClient.digest(_premasterKey);

@@ -14,7 +14,6 @@ module pham.utl.utl_timer_engine_windows;
 version(Windows):
 
 //version = WindowsSetTimer; // Application must have a message loop for it to work
-version = WindowsCreateTimerQueue;
 
 import core.atomic : atomicExchange, atomicLoad, atomicStore, cas;
 import core.time : Duration, dur;

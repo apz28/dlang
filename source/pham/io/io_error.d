@@ -22,7 +22,8 @@ class IOException : Exception
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorMessage, file, line, next);
         this.errorCode = errorCode;
@@ -59,7 +60,8 @@ class StreamException : IOException
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }
@@ -71,7 +73,8 @@ class StreamReadException : StreamException
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }
@@ -83,7 +86,8 @@ class StreamWriteException : StreamException
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }

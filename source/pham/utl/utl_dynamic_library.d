@@ -43,13 +43,13 @@ class DllException : Exception
     uint errorCode;
 
     this(string message, string libName,
-        Exception next = null, string file = __FILE__, uint line = __LINE__)
+        Exception next = null, string file = __FILE__, size_t line = __LINE__)
     {
         this(message, getLastErrorString(), getLastErrorCode(), libName, next, file, line);
     }
 
     this(string message, string lastErrorMessage, uint lastErrorCode, string libName,
-        Exception next = null, string file = __FILE__, uint line = __LINE__)
+        Exception next = null, string file = __FILE__, size_t line = __LINE__)
     {
         this.errorCode = lastErrorCode;
         this.libName = libName;
@@ -284,7 +284,7 @@ unittest // concateLineIf
 unittest // DllLibrary
 {
     import std.exception : assertThrown;
-    
+
     version(Windows)
     {
         // Use any library that is always installed
@@ -296,7 +296,7 @@ unittest // DllLibrary
         assert(lib.libHandle !is null);
 
         assert(lib.loadProc("connect") !is null);
-        
+
         assert(lib.loadProc!(No.throwIfError)("what_is_this_function") is null);
         assertThrown!DllException(lib.loadProc("what_is_this_function"));
 

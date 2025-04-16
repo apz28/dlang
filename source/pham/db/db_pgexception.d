@@ -20,13 +20,15 @@ class PgException : SkException
 
 public:
     this(uint errorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, next, funcName, file, line);
     }
 
     this(uint errorCode, string errorMessage, string sqlState, uint socketCode, uint vendorCode,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        Throwable next = null,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         super(errorCode, errorMessage, sqlState, socketCode, vendorCode, next, funcName, file, line);
     }

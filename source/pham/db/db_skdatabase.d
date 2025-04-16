@@ -451,7 +451,7 @@ protected:
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(reasonState=", reasonState, ", socketActive=", socketActive, ")");
 
         const isFailing = isFatalError || reasonState == DbConnectionState.failing;
-        
+
         disposeSocket(DisposingReason.other, !isFailing);
     }
 

@@ -11,7 +11,7 @@
 
 module pham.utl.utl_test;
 
-version(TraceFunction) 
+version(TraceFunction)
     version = TraceLog;
 else version(TraceUnitTest)
     version = TraceLog;
@@ -20,7 +20,7 @@ import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
 version(TraceLog)
 {
-    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption, 
+    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption,
         LogLevel, LogLocation, OutputPattern;
 }
 
@@ -270,7 +270,7 @@ debug
     import std.conv : to;
     import std.format : format;
     import std.traits : isSomeChar;
-    
+
 	ubyte[] dgReadAllBinary(string fileName) nothrow @trusted
     {
 		import std.stdio;
@@ -463,7 +463,7 @@ shared static this() nothrow @trusted
     version(profile) PerfFunctionCounter.countersMutex = new Mutex();
     version(TraceLog)
     {
-        traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode), 
+        traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode),
             LoggerOption(LogLevel.trace, "unittestTrace", defaultOutputPattern, 10));
     }
 }

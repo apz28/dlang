@@ -1,15 +1,19 @@
 /*
- *
- * Source: $(PHOBOSSRC std/experimental/logger/core.d)
+ * Clone from std.logger with enhancement API
+ * https://github.com/dlang/phobos/blob/master/std/logger/core.d
+ * Copyright: Robert "burner" Schadek 2013
+ * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * Authors: $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html, Robert burner Schadek)
  *
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * Authors: Copyright Robert, An Pham
+ * Authors: An Pham
  *
- * Copyright Copyright Robert "burner" Schadek 2013, $(HTTP www.svs.informatik.uni-oldenburg.de/60865.html
+ * Copyright An Pham 2021 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
-*/
+ */
+
 module pham.external.std.log.log_logger;
 
 import core.atomic : atomicLoad, atomicExchange, atomicStore;
@@ -3390,7 +3394,7 @@ public:
     do
     {
         const setThreadLog = toThreadLog !is null;
-        
+
         this.done = false;
         this.save(setThreadLog);
 
@@ -5115,18 +5119,18 @@ unittest // default LogLevel
 {
     import std.conv : to;
     import std.stdio : writeln;
-    
+
     static class TestLogger : MemLogger
     {
     nothrow @safe:
-    
+
         string[] allMessages;
 
     protected:
         final override void writeLog(ref Logger.LogEntry payload)
         {
             //debug writeln("logLevel=", logLevel, ", payload.logLevel=", payload.header.logLevel);
-            
+
             allMessages ~= payload.message;
         }
     }
@@ -5137,13 +5141,13 @@ unittest // default LogLevel
         sharedLog.logLevel = saveLogLevelShare;
     scope (exit)
         threadLog.logLevel = saveLogLevelThread;
-    
+
     auto testLogger = new TestLogger();
     testLogger.logLevel = sharedLogLevel;
     auto restore = LogRestore(testLogger, null);
-    
+
     //debug writeln("sharedLogLevel=", sharedLogLevel, ", testLogger.logLevel=", testLogger.logLevel, ", sharedLog.logLevel=", sharedLog.logLevel);
-    
+
     // Since this is just a forward to shareLog and shareLog.logLevel is still equal to 'warn'
     // hence only capture warn, error & critical messages
     threadLog.logLevel = lowestLogLevel;
@@ -5155,16 +5159,16 @@ unittest // default LogLevel
     threadLog.critical("critical");
     assert(testLogger.allMessages == ["warn", "error", "critical"], testLogger.allMessages.to!string);
     testLogger.allMessages = null;
-    
+
     sharedLog.logLevel = lowestLogLevel;
     sharedLog.log("log");
     sharedLog.trace("trace");
     sharedLog.info("info");
     sharedLog.warn("warn");
     sharedLog.error("error");
-    sharedLog.critical("critical");    
+    sharedLog.critical("critical");
     assert(testLogger.allMessages == ["log", "trace", "info", "warn", "error", "critical"], testLogger.allMessages.to!string);
-    
+
     restore.restore();
 }
 

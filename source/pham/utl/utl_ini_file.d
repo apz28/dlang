@@ -54,7 +54,8 @@ nothrow @safe:
 class IniFileException : Exception
 {
     this(string message,
-        Exception next = null, string file = __FILE__, uint line = __LINE__)
+        Exception next = null,
+        string file = __FILE__, size_t line = __LINE__)
     {
         super(message, file, line, next);
     }
