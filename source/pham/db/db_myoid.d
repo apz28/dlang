@@ -99,8 +99,10 @@ enum MyDefaultSize
     /**
      * Sizes in bytes
      */
-	packetReadBufferLength = 131_000, // 1_024 * 128 = 131_072
-    parameterBufferLength = 98_000, // 1_024 * 96 = 98_304
+	packetReadBufferLength = 1_024 * 128,
+    parameterBufferLength = 1_024 * 96,
+    socketReadBufferLength = packetReadBufferLength * 2,
+    socketWriteBufferLength = parameterBufferLength + 1_024,    
 }
 
 enum MyPackageType : ubyte

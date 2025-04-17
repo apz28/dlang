@@ -734,6 +734,16 @@ protected:
         return new MyException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
+    final override DbReadBuffer createSocketReadBuffer() nothrow @safe
+    {
+        return new SkReadBuffer(this, MyDefaultSize.socketReadBufferLength);
+    }
+    
+    final override DbWriteBuffer createSocketWriteBuffer() nothrow @safe
+    {
+        return new SkWriteBuffer(this, MyDefaultSize.socketWriteBufferLength);
+    }
+
     final void disposePackageReadBuffers(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");

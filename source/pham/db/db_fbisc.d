@@ -575,6 +575,8 @@ enum FbIscSize
 	parameterBufferLength = 16 * 1_000,
 	prepareInfoBufferLength = 32 * 1_000,
 	rowsEffectedBufferLength = 100,
+    socketReadBufferLength = (1_024 * 64) * 2,
+    socketWriteBufferLength = (1_024 * 64) + 1_024,
 	statementTypeBufferLength = 100,
 }
 

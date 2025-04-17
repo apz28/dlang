@@ -1161,6 +1161,16 @@ protected:
         return new PgException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
+    final override DbReadBuffer createSocketReadBuffer() nothrow @safe
+    {
+        return new SkReadBuffer(this, PgDefaultSize.socketReadBufferLength);
+    }
+    
+    final override DbWriteBuffer createSocketWriteBuffer() nothrow @safe
+    {
+        return new SkWriteBuffer(this, PgDefaultSize.socketWriteBufferLength);
+    }
+
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");

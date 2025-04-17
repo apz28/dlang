@@ -126,21 +126,17 @@ public:
     }
 
 package(pham.db):
-    final DbReadBuffer acquireSocketReadBuffer(size_t capacity = DbDefault.socketReadBufferLength) nothrow @safe
+    final DbReadBuffer acquireSocketReadBuffer() nothrow @safe
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(capacity=", capacity, ")");
-
         if (_socketReadBuffer is null)
-            _socketReadBuffer = createSocketReadBuffer(capacity);
+            _socketReadBuffer = createSocketReadBuffer();
         return _socketReadBuffer;
     }
 
-    final DbWriteBuffer acquireSocketWriteBuffer(size_t capacity = DbDefault.socketWriteBufferLength) nothrow @safe
+    final DbWriteBuffer acquireSocketWriteBuffer() nothrow @safe
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(capacity=", capacity, ")");
-
         if (_socketWriteBuffers.empty)
-            return createSocketWriteBuffer(capacity);
+            return createSocketWriteBuffer();
         else
             return cast(DbWriteBuffer)(_socketWriteBuffers.remove(_socketWriteBuffers.last));
     }
@@ -374,15 +370,8 @@ protected:
         return new SkException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
-    DbReadBuffer createSocketReadBuffer(size_t capacity = DbDefault.socketReadBufferLength) nothrow @safe
-    {
-        return new SkReadBuffer(this, capacity);
-    }
-
-    DbWriteBuffer createSocketWriteBuffer(size_t capacity = DbDefault.socketWriteBufferLength) nothrow @safe
-    {
-        return new SkWriteBuffer(this, capacity);
-    }
+    abstract DbReadBuffer createSocketReadBuffer() nothrow @safe;
+    abstract DbWriteBuffer createSocketWriteBuffer() nothrow @safe;
 
     final void disposeSocket(const(DisposingReason) disposingReason, const(bool) includeShutdown) nothrow @safe
     {

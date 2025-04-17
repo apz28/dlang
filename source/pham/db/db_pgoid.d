@@ -16,7 +16,9 @@ enum PgDefaultSize
     /**
      * Sizes in bytes
      */
-	messageReadBufferLength = 65_000,
+	messageReadBufferLength = 1_024 * 64,
+    socketReadBufferLength = messageReadBufferLength * 2,
+    socketWriteBufferLength = messageReadBufferLength + 1_024,    
 }
 
 enum PgOIdDiag : char

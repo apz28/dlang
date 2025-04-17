@@ -1959,6 +1959,16 @@ protected:
         return new FbException(DbErrorCode.write, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_write_err, next, funcName, file, line);
     }
 
+    final override DbReadBuffer createSocketReadBuffer() nothrow @safe
+    {
+        return new SkReadBuffer(this, FbIscSize.socketReadBufferLength);
+    }
+    
+    final override DbWriteBuffer createSocketWriteBuffer() nothrow @safe
+    {
+        return new SkWriteBuffer(this, FbIscSize.socketWriteBufferLength);
+    }
+
     override void disposeCommands(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");

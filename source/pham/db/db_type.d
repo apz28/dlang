@@ -170,12 +170,6 @@ enum DbDefault
     connectionPoolInactiveTime = 360,
 
     /**
-     * Sizes in bytes
-     */
-    socketReadBufferLength = 131_000, // 1_024 * 128 = 131_072
-    socketWriteBufferLength = 98_000, // 1_024 * 96 = 98_304
-
-    /**
      * Default transaction lock timeout - value in seconds
      */
     transactionLockTimeout = 60,
