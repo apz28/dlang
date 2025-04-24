@@ -4342,22 +4342,22 @@ unittest  // Display object sizeof
 version(unittest)
 {
     private static immutable string sampleXml =
-    "<?xml version=\"1.2\" encoding=\"utf8\" standalone=\"yes\"?>" ~
-    "<root>" ~
-        "<prefix_e:localname a0=\"\">withPrefix</prefix_e:localname>" ~
-        "<a1 a1=\"value\"/>" ~
-        "<a2 a2=\"&amp;&lt;&gt;&apos;&quot;\"/>" ~
-        "<a3 prefix_a:a3=\"value\"/>" ~
-        "<a4 id=\"123\"/>" ~
-        "<c>" ~
-            "<!----comment---->" ~
-            "<cc/>" ~
-        "</c>" ~
-        "<t>text</t>" ~
-        "<t>text2</t>" ~
-        "<?target what to do with this processing instruction?>" ~
-        "<![CDATA[data &<>]]>" ~
-    "</root>";
+    `<?xml version="1.2" encoding="utf8" standalone="yes"?>` ~
+    `<root>` ~
+        `<prefix_e:localname a0="">withPrefix</prefix_e:localname>` ~
+        `<a1 a1="value"/>` ~
+        `<a2 a2="&amp;&lt;&gt;&apos;&quot;"/>` ~
+        `<a3 prefix_a:a3="value"/>` ~
+        `<a4 id="123"/>` ~
+        `<c>` ~
+            `<!----comment---->` ~
+            `<cc/>` ~
+        `</c>` ~
+        `<t>text</t>` ~
+        `<t>text2</t>` ~
+        `<?target what to do with this processing instruction?>` ~
+        `<![CDATA[data &<>]]>` ~
+    `</root>`;
 }
 
 unittest  // XmlDocument

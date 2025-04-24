@@ -82,7 +82,7 @@ protected:
         result["&apos;"] = "'";
         result["&gt;"] = ">";
         result["&lt;"] = "<";
-        result["&quot;"] = "\"";
+        result["&quot;"] = `"`;
 
         debug(debug_pham_xml_xml_entity_table) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");

@@ -4308,7 +4308,7 @@ unittest  // XPathParser
     xpathParser = XPathParser!string("/bookstore/book[3]/*");
     toOutput(xpathParser.parseExpression());
 
-    xpathParser = XPathParser!string("/bookstore//book[title=\"Harry Potter\"]");
+    xpathParser = XPathParser!string(`/bookstore//book[title="Harry Potter"]`);
     toOutput(xpathParser.parseExpression());
 
     xpathParser = XPathParser!string("/bookstore/book[1]/title/@lang");
