@@ -1046,6 +1046,7 @@ public:
     @property final bool isOnlyNode(XmlNode!S node) const nothrow
     {
         return node !is null &&
+            node.parent is this &&
             node.previousSibling is null &&
             node.nextSibling is null;
     }

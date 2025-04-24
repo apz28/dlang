@@ -17,8 +17,8 @@ enum JSONFloatLiteralType : ubyte
 {
     none,  /// Not a special float string literal
     nan,   /// Floating point NaN literal
-    pinf,  /// Floating point Infinity literal
     ninf,  /// Floating point negative Infinity literal
+    pinf,  /// Floating point Infinity literal
 }
 
 /**
@@ -30,8 +30,8 @@ enum JSONLiteral : string
     false_ = "false",   /// String representation of boolean false
     true_ = "true",     /// String representation of boolean true
     nan = "NaN",        /// String representation of floating point NaN
-    pinf = "Infinity",  /// String representation of floating point Infinity
     ninf = "-Infinity", /// String representation of floating point negative Infinity
+    pinf = "Infinity",  /// String representation of floating point Infinity
 }
 
 /**

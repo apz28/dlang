@@ -495,7 +495,7 @@ public:
                 break;
         }
         _type = XPathDataType.empty;
-        _dummy = 0;
+        _dummy[] = 0;
     }
 
     S toString() const nothrow
@@ -542,6 +542,7 @@ public:
         return _type == XPathDataType.text ? _text : null;
     }
 
+    pragma(inline, true)
     @property XPathDataType type() const nothrow
     {
         return _type;
@@ -549,10 +550,10 @@ public:
 
     union
     {
-        long _dummy = 0;     // 8 bytes - dummy declare so that it has zero intialized value
-        double number;  // 8 bytes
-        S _text;        // 8 or 16 bytes depending on pointer
-        bool boolean;   // 1 byte
+        size_t[2] _dummy; // First member to be initialized to all zero
+        double number;    // 8 bytes
+        S _text;          // 8 or 16 bytes depending on pointer
+        bool boolean;     // 1 byte
     }
 
 private:
@@ -4214,7 +4215,7 @@ if (isXmlString!S)
 {
     debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
-    return value == "1" || value == XmlConst!S.true_ || value == XmlConst!S.yes;
+    return value == "1" || value == XmlConst!S.boolTrue || value == XmlConst!S.yes;
 }
 
 double toNumber(bool value) nothrow pure
@@ -4236,7 +4237,7 @@ if (isXmlString!S)
 S toText(S)(bool value) nothrow pure
 if (isXmlString!S)
 {
-    return value ? XmlConst!S.true_ : XmlConst!S.false_;
+    return value ? XmlConst!S.boolTrue : XmlConst!S.boolFalse;
 }
 
 S toText(S)(double value) nothrow
@@ -4247,18 +4248,11 @@ if (isXmlString!S)
     scope (failure) assert(0, "Assume nothrow failed");
 
     if (isNaN(value))
-        return "NaN";
+        return XmlConst!S.floatNaN;
     else if (isInfinity(value))
-    {
-        if (signbit(value))
-            return "-Infinity";
-        else
-            return "Infinity";
-    }
+        return signbit(value) ? XmlConst!S.floatNInf : XmlConst!S.floatPInf;
     else
-    {
         return value.to!S();
-    }
 }
 
 S toText(S)(XmlNode!S node)

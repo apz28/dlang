@@ -84,9 +84,6 @@ public:
     static immutable S declarationStandaloneName = "standalone";
     static immutable S declarationVersionName = "version";
 
-    static immutable S true_ = "true";
-    static immutable S false_ = "false";
-
     static immutable S yes = "yes";
     static immutable S no = "no";
 
@@ -107,4 +104,11 @@ public:
     static immutable S xmlNS = "http://www.w3.org/XML/1998/namespace";
     static immutable S xmlns = "xmlns";
     static immutable S xmlnsNS = "http://www.w3.org/2000/xmlns/";
+    
+    static immutable S boolTrue = "true";
+    static immutable S boolFalse = "false";
+    
+    static immutable S floatNaN = "NaN";
+    static immutable S floatPInf = "Infinity";
+    static immutable S floatNInf = "-Infinity";    
 }
