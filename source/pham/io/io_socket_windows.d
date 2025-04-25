@@ -259,6 +259,11 @@ int getWriteTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @tru
     return r;
 }
 
+int ignoreSIGPIPE(SocketHandle handle) nothrow @trusted
+{
+    return 0;
+}
+
 uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
 {
     import std.internal.cstring : tempCString;

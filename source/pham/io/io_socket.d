@@ -319,7 +319,7 @@ public:
         this._handle = createSocket(family, type, protocol);
         if (this._handle == invalidSocketHandle)
             return lastError.setSystemError(getSocketAPIName("createSocket"), lastSocketError());
-
+            
         return resultOK;
     }
 

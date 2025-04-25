@@ -106,7 +106,10 @@ do
 pragma(inline, true)
 SocketHandle createSocket(int family, int type, int protocol) nothrow @trusted
 {
-    return socket(family, type, protocol);
+    auto result = socket(family, type, protocol);
+    if (result != invalidSocketHandle)
+        ignoreSIGPIPE(result);
+    return result;
 }
 
 pragma(inline, true)
@@ -180,6 +183,17 @@ int getReadTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trus
 int getWriteTimeoutSocket(SocketHandle handle, out TimeVal timeout) nothrow @trusted
 {
     return getOptionSocket!TimeVal(handle, SocketOptionItems.sendTimeout, timeout);
+}
+
+int ignoreSIGPIPE(SocketHandle handle) nothrow @trusted
+{
+    static if (is(typeof(SO_NOSIGPIPE)))
+    {
+        auto option = SocketOptionItem(SOL_SOCKET, SO_NOSIGPIPE);
+        return setOptionSocket!int(handle, option, 1);
+    }
+    else
+        return 0;
 }
 
 uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
