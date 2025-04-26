@@ -24,6 +24,7 @@ import pham.utl.utl_text : simpleIndexOf;
 version(Posix)
 {
     import core.sys.posix.netinet.in_;
+    import core.sys.posix.netinet.tcp;
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
     public import pham.io.io_socket_posix;

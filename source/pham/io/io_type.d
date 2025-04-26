@@ -14,6 +14,7 @@ module pham.io.io_type;
 import std.system : Endian;
 version(Posix)
 {
+    import core.stdc.stdio;
     import core.sys.posix.fcntl;
     import core.stdc.stdio : SEEK_SET, SEEK_CUR, SEEK_END;
 }
