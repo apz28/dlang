@@ -15,8 +15,8 @@ version(Posix):
 
 import core.sys.posix.fcntl : errno;
 import core.sys.posix.net.if_;
+import core.sys.posix.poll;
 import core.sys.posix.sys.ioctl;
-import core.sys.posix.sys.poll;
 import core.sys.posix.sys.select;
 import core.sys.posix.sys.socket;
 import core.sys.posix.sys.time : timeval;

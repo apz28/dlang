@@ -372,7 +372,7 @@ public:
         return sink;
     }
 
-    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt, auto scope ref DateTimeSetting setting) const
+    ref Writer toString(Writer, Char)(return ref Writer sink, scope const(Char)[] fmt, scope auto ref DateTimeSetting setting) const
     if (isOutputRange!(Writer, Char) && isSomeChar!Char)
     {
         auto fmtSpec = FormatDateTimeSpec!Char(fmt);

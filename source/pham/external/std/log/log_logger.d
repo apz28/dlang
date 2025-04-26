@@ -3151,7 +3151,7 @@ public:
         } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); }
     }
 
-    void write(Writer)(auto scope ref Writer sink, ref Logger.LogEntry payload) @trusted
+    void write(Writer)(scope auto ref Writer sink, ref Logger.LogEntry payload) @trusted
     {
         auto patternParser = LogOutputPatternParser(logger.outputPattern);
         while (!patternParser.empty)

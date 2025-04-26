@@ -479,16 +479,16 @@ private:
 
 enum formatedWriteError = uint.max;
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
-    auto scope ref FormatDateTimeValue fmtValue) nothrow
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
+    scope auto ref FormatDateTimeValue fmtValue) nothrow
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     auto setting = dateTimeSetting; // Use local var from a thread var for faster use
     return formattedWrite(sink, fmtSpec, fmtValue, setting);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
-    auto scope ref FormatDateTimeValue fmtValue, auto scope ref DateTimeSetting setting) nothrow
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec,
+    scope auto ref FormatDateTimeValue fmtValue, scope auto ref DateTimeSetting setting) nothrow
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     import std.math.algebraic : abs;
@@ -856,7 +856,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 version(none)
-void pad(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
+void pad(Writer, Char)(scope auto ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     import std.math : abs;

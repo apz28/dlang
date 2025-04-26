@@ -33,7 +33,7 @@ package(pham.external.dec):
 //coefficientEqu    - none
 //coefficientSqr    - inexact, overflow, underflow
 
-ExceptionFlags decimalAdd(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalAdd(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -102,7 +102,7 @@ if (isDecimal!(D1, D2))
     return flags;
 }
 
-ExceptionFlags decimalAdd(D, T)(ref D x, auto const ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalAdd(D, T)(ref D x, const auto ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -129,7 +129,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalAdd(D, F)(ref D x, auto const ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalAdd(D, F)(ref D x, const auto ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
@@ -182,14 +182,14 @@ if (isDecimal!D && isFloatingPoint!F)
     return x.adjustedPack(cx, ex, sx, precision, mode, flags);
 }
 
-ExceptionFlags decimalAdd(T, D)(auto const ref T x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalAdd(T, D)(const auto ref T x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     z = y;
     return decimalAdd(z, x, precision, mode);
 }
 
-ExceptionFlags decimalAdd(F, D)(auto const ref F x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalAdd(F, D)(const auto ref F x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     z = y;
@@ -851,7 +851,7 @@ if (isDecimal!D)
     return flags;
 }
 
-ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x, out D3 z, const(int) precision, const(RoundingMode) mode)
+ExceptionFlags decimalAtan2(D1, D2, D3)(const auto ref D1 y, const auto ref D2 x, out D3 z, const(int) precision, const(RoundingMode) mode)
 {
     alias D = CommonDecimal!(D1, D2);
 
@@ -924,7 +924,7 @@ ExceptionFlags decimalAtan2(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x
     }
 }
 
-ExceptionFlags decimalAtan2Pi(D1, D2, D3)(auto const ref D1 y, auto const ref D2 x, out D3 z,
+ExceptionFlags decimalAtan2Pi(D1, D2, D3)(const auto ref D1 y, const auto ref D2 x, out D3 z,
     const(int) precision, const(RoundingMode) mode)
 if (isDecimal!(D1, D2, D3))
 {
@@ -1244,7 +1244,7 @@ ExceptionFlags decimalDec(D)(ref D x, const(int) precision, const(RoundingMode) 
     }
 }
 
-ExceptionFlags decimalDiv(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalDiv(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -1308,7 +1308,7 @@ if (isDecimal!(D1, D2))
     return x.adjustedPack(cvt!T1(cx), ex, sx, precision, mode, flags);
 }
 
-ExceptionFlags decimalDiv(D, T)(ref D x, auto const ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalDiv(D, T)(ref D x, const auto ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -1342,7 +1342,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalDiv(T, D)(auto const ref T x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalDiv(T, D)(const auto ref T x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -1369,7 +1369,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalDiv(D, F)(ref D x, auto const ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalDiv(D, F)(ref D x, const auto ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
@@ -1432,7 +1432,7 @@ if (isDecimal!D && isFloatingPoint!F)
     return x.adjustedPack(cx, ex, sx, precision, mode, flags);
 }
 
-ExceptionFlags decimalDiv(F, D)(auto const ref F x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalDiv(F, D)(const auto ref F x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
@@ -2054,7 +2054,7 @@ if (isDecimal!D)
     return flags;
 }
 
-ExceptionFlags decimalFMA(D1, D2, D3, D)(auto const ref D1 x, auto const ref D2 y, auto const ref D3 z,
+ExceptionFlags decimalFMA(D1, D2, D3, D)(const auto ref D1 x, const auto ref D2 y, const auto ref D3 z,
     out D result, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2, D3) && is(D : CommonDecimal!(D1, D2, D3)))
 {
@@ -2177,7 +2177,7 @@ ExceptionFlags coefficientFMA(T)(ref T cx, ref int ex, ref bool sx, const(T) cy,
     return flags;
 }
 
-ExceptionFlags decimalHypot(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z,
+ExceptionFlags decimalHypot(D1, D2, D)(const auto ref D1 x, const auto ref D2 y, out D z,
     const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2) && is(D: CommonDecimal!(D1, D2)))
 {
@@ -2216,7 +2216,7 @@ if (isDecimal!(D1, D2) && is(D: CommonDecimal!(D1, D2)))
     return z.adjustedPack(cx, ex, false, precision, mode, flags);
 }
 
-ExceptionFlags coefficientHypot(T)(ref T cx, ref int ex, auto const ref T cy, const(int) ey) @safe pure nothrow @nogc
+ExceptionFlags coefficientHypot(T)(ref T cx, ref int ex, const auto ref T cy, const(int) ey) @safe pure nothrow @nogc
 {
     Unqual!T cyy = cy;
     int eyy = ey;
@@ -2248,7 +2248,7 @@ ExceptionFlags decimalInc(D)(ref D x, const(int) precision, const(RoundingMode) 
     }
 }
 
-ExceptionFlags decimalLog(D)(auto const ref D x, out int y) @safe pure nothrow @nogc
+ExceptionFlags decimalLog(D)(const auto ref D x, out int y) @safe pure nothrow @nogc
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
@@ -2500,7 +2500,7 @@ if (isDecimal!D)
     return flags;
 }
 
-ExceptionFlags decimalMax(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
+ExceptionFlags decimalMax(D1, D2, D)(const auto ref D1 x, const auto ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
     // Special try construct for grep
@@ -2585,7 +2585,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
-ExceptionFlags decimalMaxAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
+ExceptionFlags decimalMaxAbs(D1, D2, D)(const auto ref D1 x, const auto ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
     // Special try construct for grep
@@ -2663,7 +2663,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
-ExceptionFlags decimalMin(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
+ExceptionFlags decimalMin(D1, D2, D)(const auto ref D1 x, const auto ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
     // Special try construct for grep
@@ -2748,7 +2748,7 @@ if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
     } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
-ExceptionFlags decimalMinAbs(D1, D2, D)(auto const ref D1 x, auto const ref D2 y, out D z)
+ExceptionFlags decimalMinAbs(D1, D2, D)(const auto ref D1 x, const auto ref D2 y, out D z)
 if (isDecimal!(D1, D2, D) && is(D: CommonDecimal!(D1, D2)))
 {
 try {
@@ -2824,7 +2824,7 @@ try {
 } catch (Exception) return ExceptionFlags.invalidOperation;
 }
 
-ExceptionFlags decimalMod(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMod(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -2893,7 +2893,7 @@ if (isDecimal!(D1, D2))
     return flags;
 }
 
-ExceptionFlags decimalMod(D, T)(ref D x, auto const ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMod(D, T)(ref D x, const auto ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -2927,7 +2927,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalMod(T, D)(auto const ref T x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMod(T, D)(const auto ref T x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -2961,7 +2961,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalMod(D, F)(ref D x, auto const ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMod(D, F)(ref D x, const auto ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
@@ -3003,7 +3003,7 @@ if (isDecimal!D && isFloatingPoint!F)
     return x.adjustedPack(cx, ex, sx, precision, mode, flags);
 }
 
-ExceptionFlags decimalMod(F, D)(auto const ref F x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMod(F, D)(const auto ref F x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
@@ -3075,7 +3075,7 @@ ExceptionFlags coefficientMod2PI(T)(ref T cx, ref int ex)
     return flags;
 }
 
-ExceptionFlags decimalMul(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMul(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -3131,7 +3131,7 @@ if (isDecimal!(D1, D2))
     return x.adjustedPack(cx, ex, sx, precision, mode, flags);
 }
 
-ExceptionFlags decimalMul(D, T)(ref D x, auto const ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMul(D, T)(ref D x, const auto ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -3168,7 +3168,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalMul(D, F)(ref D x, auto const ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMul(D, F)(ref D x, const auto ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     alias T = CommonStorage!(D, F);
@@ -3222,14 +3222,14 @@ if (isDecimal!D && isFloatingPoint!F)
     return x.adjustedPack(cx, ex, sx, precision, mode, flags);
 }
 
-ExceptionFlags decimalMul(T, D)(auto const ref T x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMul(T, D)(const auto ref T x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
    z = y;
    return decimalMul(z, x, precision, mode);
 }
 
-ExceptionFlags decimalMul(F, D)(auto const ref F x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalMul(F, D)(const auto ref F x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     z = y;
@@ -3368,7 +3368,7 @@ if (isDecimal!D)
     }
 }
 
-ExceptionFlags decimalPoly(D1, D2, D)(auto const ref D1 x, const(D2)[] a, out D result)
+ExceptionFlags decimalPoly(D1, D2, D)(const auto ref D1 x, const(D2)[] a, out D result)
 if (isDecimal!(D1, D2) && is(D: CommonDecimal!(D1, D2)))
 {
     if (!a.length)
@@ -3483,7 +3483,7 @@ if (isDecimal!D & isIntegral!T)
     }
 }
 
-ExceptionFlags decimalPow(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode)
+ExceptionFlags decimalPow(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!(D1, D2))
 {
     long ip;
@@ -3497,7 +3497,7 @@ if (isDecimal!(D1, D2))
     return flags;
 }
 
-ExceptionFlags decimalPow(D, F)(ref D x, auto const ref F y, const(int) precision, const(RoundingMode) mode)
+ExceptionFlags decimalPow(D, F)(ref D x, const auto ref F y, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D && isFloatingPoint!F)
 {
     Unqual!D z;
@@ -3506,7 +3506,7 @@ if (isDecimal!D && isFloatingPoint!F)
     return flags;
 }
 
-ExceptionFlags decimalPow(T, D)(auto const ref T x, auto const ref D y, out D result, const(int) precision, const(RoundingMode) mode)
+ExceptionFlags decimalPow(T, D)(const auto ref T x, const auto ref D y, out D result, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D && isIntegral!T)
 {
     auto r = Decimal128(x, mode);
@@ -3515,7 +3515,7 @@ if (isDecimal!D && isIntegral!T)
     return flags;
 }
 
-ExceptionFlags decimalPow(F, D)(auto const ref F x, auto const ref D y, out D result, const(int) precision, const(RoundingMode) mode)
+ExceptionFlags decimalPow(F, D)(const auto ref F x, const auto ref D y, out D result, const(int) precision, const(RoundingMode) mode)
 if (isDecimal!D && isFloatingPoint!F)
 {
     auto r = Decimal128(x, mode, 0);
@@ -3904,7 +3904,7 @@ if (isDecimal!D)
     return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
-ExceptionFlags decimalQuantize(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalQuantize(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias U = CommonStorage!(D1, D2);
@@ -4663,13 +4663,13 @@ if (isDecimal!D)
     return result.adjustedPack(cvt!(DataType!(D.sizeof))(cr), er, sr, precision, mode, flags);
 }
 
-ExceptionFlags decimalSub(D1, D2)(ref D1 x, auto const ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalSub(D1, D2)(ref D1 x, const auto ref D2 y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
    return decimalAdd(x, -y, precision, mode);
 }
 
-ExceptionFlags decimalSub(D, T)(ref D x, auto const ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalSub(D, T)(ref D x, const auto ref T y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -4698,20 +4698,20 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-ExceptionFlags decimalSub(D, F)(ref D x, auto const ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalSub(D, F)(ref D x, const auto ref F y, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     return decimalAdd(x, -y, precision, mode);
 }
 
-ExceptionFlags decimalSub(T, D)(auto const ref T x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalSub(T, D)(const auto ref T x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     z = -y;
     return decimalAdd(z, x, precision, mode);
 }
 
-ExceptionFlags decimalSub(F, D)(auto const ref F x, auto const ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
+ExceptionFlags decimalSub(F, D)(const auto ref F x, const auto ref D y, out D z, const(int) precision, const(RoundingMode) mode) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     z = -y;

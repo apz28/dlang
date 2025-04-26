@@ -211,7 +211,7 @@ public:
     @IEEECompliant("convertFromHexCharacter", 22)
     @IEEECompliant("convertFromInt", 21)
     @IEEECompliant("decodeBinary", 23)
-    this(T)(auto const ref T value) @safe
+    this(T)(const auto ref T value) @safe
     if (isSomeString!T || (isInputRange!T && isSomeChar!(ElementType!T)))
     {
         ExceptionFlags flags;
@@ -252,7 +252,7 @@ public:
     }
 
     ///ditto
-    this(T)(auto const ref T value, const(RoundingMode) mode) @safe
+    this(T)(const auto ref T value, const(RoundingMode) mode) @safe
     if (isSomeString!T || (isInputRange!T && isSomeChar!(ElementType!T)))
     {
         ExceptionFlags flags;
@@ -289,7 +289,7 @@ public:
     }
 
     ///ditto
-    this(T)(auto const ref T value)
+    this(T)(const auto ref T value)
     if (!(isSomeString!T || (isInputRange!T && isSomeChar!(ElementType!T))))
     {
         static if (isIntegral!T)
@@ -346,7 +346,7 @@ public:
      * Params:
      *  mode = Rounding mode
      */
-    this(T)(auto const ref T value, const(RoundingMode) mode) pure @safe
+    this(T)(const auto ref T value, const(RoundingMode) mode) pure @safe
     if (isIntegral!T || isDecimal!T || isSomeChar!T)
     {
         static if (isIntegral!T)
@@ -385,7 +385,7 @@ public:
      *                             Decimal64("34567.89") vs Decimal64(34567.89, 2) => matched
      *  mode = Rounding mode
      */
-    this(T)(auto const ref T value, const(RoundingMode) mode, const(int) maxFractionalDigits) pure @safe
+    this(T)(const auto ref T value, const(RoundingMode) mode, const(int) maxFractionalDigits) pure @safe
     if (isFloatingPoint!T)
     {
         const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
@@ -399,7 +399,7 @@ public:
     Implementation of assignnment operator. It supports the same semantics as the constructor.
     */
     @IEEECompliant("copy", 23)
-    auto ref opAssign(T)(auto const ref T value)
+    auto ref opAssign(T)(const auto ref T value)
     {
         // Allow @nogc/nothrow/pure assignment
         static if (isDecimal!T && D.sizeof == T.sizeof)
@@ -545,7 +545,7 @@ public:
      */
     @IEEECompliant("compareQuietEqual", 24)
     @IEEECompliant("compareQuietNotEqual", 24)
-    bool opEquals(T)(auto const ref T value) const @nogc nothrow @safe
+    bool opEquals(T)(const auto ref T value) const @nogc nothrow @safe
     {
         static if (isDecimal!T || isIntegral!T)
         {
@@ -584,7 +584,7 @@ public:
     @IEEECompliant("compareSignalingLessUnordered", 24)
     @IEEECompliant("compareSignalingNotGreater", 24)
     @IEEECompliant("compareSignalingNotLess", 24)
-    float opCmp(T)(auto const ref T value) const @nogc nothrow @safe
+    float opCmp(T)(const auto ref T value) const @nogc nothrow @safe
     {
         static if (isDecimal!T || isIntegral!T)
             return cmp(this, value);
@@ -650,7 +650,7 @@ public:
     @IEEECompliant("powr", 42)
     @IEEECompliant("remainder", 25)
     @IEEECompliant("substraction", 21)
-    auto opBinary(string op, T)(auto const ref T value) const @safe
+    auto opBinary(string op, T)(const auto ref T value) const @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (isDecimal!T)
@@ -689,7 +689,7 @@ public:
     }
 
     ///ditto
-    auto opBinaryRight(string op, T)(auto const ref T value) const @safe
+    auto opBinaryRight(string op, T)(const auto ref T value) const @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (isDecimal!T)
@@ -732,7 +732,7 @@ public:
     }
 
     ///ditto
-    auto opOpAssign(string op, T)(auto const ref T value) @safe
+    auto opOpAssign(string op, T)(const auto ref T value) @safe
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^^")
     {
         static if (op == "+")
@@ -772,7 +772,7 @@ public:
      * Params:
      *  value = any integral
      */
-    static typeof(this) money(T)(auto const ref T value) @nogc nothrow pure @safe
+    static typeof(this) money(T)(const auto ref T value) @nogc nothrow pure @safe
     if (isIntegral!T)
     {
         return D(value, RoundingMode.banking);
@@ -786,7 +786,7 @@ public:
      *  maxFractionalDigits = perform round-up/truncate at specified fractional position
      *                        if the value <= 0 or value > PRECESION will be ignore
      */
-    static typeof(this) money(T)(auto const ref T value,
+    static typeof(this) money(T)(const auto ref T value,
         const(int) maxFractionalDigits = Precision.bankingScale) pure @safe
     if (isFloatingPoint!T)
     {
@@ -2232,7 +2232,7 @@ Returns:
     One of the members of $(MYREF DecimalClass) enumeration
 */
 @IEEECompliant("class", 25)
-DecimalClass decimalClass(D)(auto const ref D x)
+DecimalClass decimalClass(D)(const auto ref D x)
 if (isDecimal!D)
 {
     DataType!(D.sizeof) coefficient;
@@ -2334,7 +2334,7 @@ Params:
 Returns:
     One of the members of $(MYREF DecimalSubClass) enumeration
 */
-DecimalSubClass decimalSubClass(D)(auto const ref D x)
+DecimalSubClass decimalSubClass(D)(const auto ref D x)
 if (isDecimal!D)
 {
     static if (is(D: Decimal128))
@@ -2378,8 +2378,8 @@ Returns:
 Notes:
     This operation is silent, does not throw any exceptions and it doesn't set any error flags.
 */
-bool approxEqual(D1, D2, D3, D4)(auto const ref D1 x, auto const ref D2 y,
-    auto const ref D3 maxRelDiff, auto const ref D4 maxAbsDiff) @nogc nothrow @safe
+bool approxEqual(D1, D2, D3, D4)(const auto ref D1 x, const auto ref D2 y,
+    const auto ref D3 maxRelDiff, const auto ref D4 maxAbsDiff) @nogc nothrow @safe
 if (isDecimal!(D1, D2, D3, D4))
 {
     if (x.isInfinity != 0 && y.isInfinity != 0)
@@ -2405,8 +2405,8 @@ if (isDecimal!(D1, D2, D3, D4))
 }
 
 ///ditto
-bool approxEqual(D1, D2, D3)(auto const ref D1 x, auto const ref D2 y,
-    auto const ref D3 maxRelDiff) @nogc nothrow @safe
+bool approxEqual(D1, D2, D3)(const auto ref D1 x, const auto ref D2 y,
+    const auto ref D3 maxRelDiff) @nogc nothrow @safe
 if (isDecimal!(D1, D2, D3))
 {
     enum maxAbsDiff = CommonDecimal!(D1, D2, D3)("1e-5");
@@ -2414,7 +2414,7 @@ if (isDecimal!(D1, D2, D3))
 }
 
 ///ditto
-bool approxEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow @safe
+bool approxEqual(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow @safe
 if (isDecimal!(D1, D2))
 {
     enum maxAbsDiff = CommonDecimal!(D1, D2)("1e-5");
@@ -2435,7 +2435,7 @@ Notes:
     - for two $(B NaN) values the total order is defined based on the payload
 */
 pragma(inline, true)
-float cmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+float cmp(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     return decimalCmp(x, y);
@@ -2491,7 +2491,7 @@ unittest
 
 ///
 pragma(inline, true)
-float cmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode,
+float cmp(D, F)(const auto ref D x, const auto ref F y, const(int) yPrecision, const(RoundingMode) yMode,
     const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
@@ -2509,7 +2509,7 @@ if (isDecimal!D && isFloatingPoint!F)
 
 ///
 pragma(inline, true)
-float cmp(D, I)(auto const ref D x, auto const ref I y) @nogc nothrow pure @safe
+float cmp(D, I)(const auto ref D x, const auto ref I y) @nogc nothrow pure @safe
 if (isDecimal!D && isIntegral!I)
 {
     return decimalCmp(x, y);
@@ -2544,7 +2544,7 @@ Notes:
 */
 
 @IEEECompliant("compareSignalingEqual", 24)
-bool isEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isEqual(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     return decimalEqu(x, y) == 1;
@@ -2582,7 +2582,7 @@ unittest
 }
 
 @IEEECompliant("compareSignalingEqual", 24)
-bool isEqual(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode,
+bool isEqual(D, F)(const auto ref D x, const auto ref F y, const(int) yPrecision, const(RoundingMode) yMode,
     const(int) yMaxFractionalDigits) @nogc nothrow pure @safe
 if (isDecimal!D && isFloatingPoint!F)
 {
@@ -2601,7 +2601,7 @@ if (isDecimal!D && isFloatingPoint!F)
 }
 
 @IEEECompliant("compareSignalingEqual", 24)
-bool isEqual(D, I)(auto const ref D x, auto const ref I y) @nogc nothrow pure @safe
+bool isEqual(D, I)(const auto ref D x, const auto ref I y) @nogc nothrow pure @safe
 if (isDecimal!D && isIntegral!I)
 {
     return decimalEqu(x, y) == 1;
@@ -2626,7 +2626,7 @@ unittest
 
 ///ditto
 @IEEECompliant("compareSignalingNotEqual", 24)
-bool isNotEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isNotEqual(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalEqu(x, y);
@@ -2661,7 +2661,7 @@ Notes:
     if a $(B NaN) value is encountered.
 */
 @IEEECompliant("compareQuietGreater", 24)
-bool isGreater(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isGreater(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
@@ -2675,7 +2675,7 @@ if (isDecimal!(D1, D2))
 
 ///ditto
 @IEEECompliant("compareQuietGreaterEqual", 24)
-bool isGreaterOrEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isGreaterOrEqual(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
@@ -2689,7 +2689,7 @@ if (isDecimal!(D1, D2))
 
 ///ditto
 @IEEECompliant("compareQuietGreaterUnordered", 24)
-bool isGreaterOrUnordered(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isGreaterOrUnordered(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
@@ -2699,7 +2699,7 @@ if (isDecimal!(D1, D2))
 ///ditto
 @IEEECompliant("compareQuietLess", 24)
 @IEEECompliant("compareQuietNotLess", 24)
-bool isLess(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isLess(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
@@ -2713,7 +2713,7 @@ if (isDecimal!(D1, D2))
 
 ///ditto
 @IEEECompliant("compareQuietLessEqual", 24)
-bool isLessOrEqual(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isLessOrEqual(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
@@ -2731,7 +2731,7 @@ if (isDecimal!(D1, D2))
 
 ///ditto
 @IEEECompliant("compareQuietLessUnordered", 24)
-bool isLessOrUnordered(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isLessOrUnordered(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     const c = decimalCmp(x, y);
@@ -2741,7 +2741,7 @@ if (isDecimal!(D1, D2))
 ///ditto
 @IEEECompliant("compareQuietOrdered", 24)
 @IEEECompliant("compareQuietUnordered", 24)
-bool isUnordered(D1, D2)(auto const ref D1 x, auto const ref D2 y) @nogc nothrow pure @safe
+bool isUnordered(D1, D2)(const auto ref D1 x, const auto ref D2 y) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     return isNaN(decimalCmp(x, y));
@@ -2809,7 +2809,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("compound", 42)
-auto compound(D)(auto const ref D x, const(int) n)
+auto compound(D)(const auto ref D x, const(int) n)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -2852,7 +2852,7 @@ Returns:
     to with the sign of from
 */
 @IEEECompliant("copySign", 23)
-D1 copysign(D1, D2)(auto const ref D1 to, auto const ref D2 from) @nogc nothrow pure @safe
+D1 copysign(D1, D2)(const auto ref D1 to, const auto ref D2 from) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
     Unqual!D1 result = to;
@@ -2907,7 +2907,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("acos", 43)
-D acos(D)(auto const ref D x)
+D acos(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation;
@@ -2958,7 +2958,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("acosh", 43)
-D acosh(D)(auto const ref D x)
+D acosh(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation;
@@ -3017,7 +3017,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("cos", 42)
-D cos(D)(auto const ref D x)
+D cos(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -3048,7 +3048,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("cosh", 42)
-D cosh(D)(auto const ref D x)
+D cosh(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -3097,7 +3097,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("cosPi", 42)
-D cospi(D)(auto const ref D x)
+D cospi(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -3128,7 +3128,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("asin", 43)
-D asin(D)(auto const ref D x)
+D asin(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation;
@@ -3181,7 +3181,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("asinh", 43)
-D asinh(D)(auto const ref D x)
+D asinh(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.underflow;
@@ -3232,7 +3232,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("atan", 43)
-D atan(D)(auto const ref D x)
+D atan(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.underflow | ExceptionFlags.inexact;
@@ -3293,7 +3293,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("atan2", 43)
-auto atan2(D1, D2)(auto const ref D1 y, auto const ref D2 x)
+auto atan2(D1, D2)(const auto ref D1 y, const auto ref D2 x)
 if (isDecimal!(D1, D2))
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.underflow | ExceptionFlags.inexact;
@@ -3373,7 +3373,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("atan2Pi", 43)
-auto atan2pi(D1, D2)(auto const ref D1 y, auto const ref D2 x)
+auto atan2pi(D1, D2)(const auto ref D1 y, const auto ref D2 x)
 if (isDecimal!(D1, D2))
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.underflow | ExceptionFlags.inexact;
@@ -3449,7 +3449,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("atanh", 43)
-D atanh(D)(auto const ref D x)
+D atanh(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.underflow |
@@ -3489,7 +3489,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("atanPi", 43)
-D atanpi(D)(auto const ref D x)
+D atanpi(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.underflow | ExceptionFlags.inexact;
@@ -3541,7 +3541,7 @@ $(BOOKTABLE,
     $(TR $(TD ±∞) $(TD ±∞))
 )
 */
-D cbrt(D)(auto const ref D x)
+D cbrt(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -3570,7 +3570,7 @@ $(BOOKTABLE,
     $(TR $(TD ±∞) $(TD ±∞))
 )
 */
-D ceil(D)(auto const ref D x)
+D ceil(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -3644,7 +3644,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("exp", 42)
-D exp(D)(auto const ref D x)
+D exp(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation
@@ -3700,7 +3700,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("exp10", 42)
-D exp10(D)(auto const ref D x)
+D exp10(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation
@@ -3743,7 +3743,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("exp10m1", 42)
-D exp10m1(D)(auto const ref D x)
+D exp10m1(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation
@@ -3786,7 +3786,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("exp2", 42)
-D exp2(D)(auto const ref D x)
+D exp2(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation
@@ -3829,7 +3829,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("exp2m1", 42)
-D exp2m1(D)(auto const ref D x)
+D exp2m1(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation
@@ -3872,7 +3872,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("expm1", 42)
-D expm1(D)(auto const ref D x)
+D expm1(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation
@@ -3890,7 +3890,7 @@ Calculates |x|.
 This operation is silent, no error flags are set and no exceptions are thrown.
 */
 @IEEECompliant("abs", 23)
-D fabs(D)(auto const ref D x) @nogc nothrow pure @safe
+D fabs(D)(const auto ref D x) @nogc nothrow pure @safe
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -3928,7 +3928,7 @@ $(BOOKTABLE,
     $(TR $(TD x ≤ y) $(TD) $(TD 0.0))
 )
 */
-auto fdim(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto fdim(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 {
     alias D = CommonDecimal!(D1, D2);
     D result = x;
@@ -3974,7 +3974,7 @@ $(BOOKTABLE,
     $(TR $(TD ±∞) $(TD ±∞))
 )
 */
-D floor(D)(auto const ref D x)
+D floor(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -4049,7 +4049,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("fusedMultiplyAdd", 4)
-auto fma(D1, D2, D3)(auto const ref D1 x, auto const ref D2 y, auto const ref D3 z)
+auto fma(D1, D2, D3)(const auto ref D1 x, const auto ref D2 y, const auto ref D3 z)
 if (isDecimal!(D1, D2, D3))
 {
     alias D = CommonDecimal!(D1, D2, D3);
@@ -4082,7 +4082,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("maxNum", 19)
-auto fmax(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto fmax(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     CommonDecimal!(D1, D2) result;
@@ -4111,7 +4111,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("maxNumMag", 19)
-auto fmaxAbs(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto fmaxAbs(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     CommonDecimal!(D1, D2) result;
@@ -4140,7 +4140,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("minNum", 19)
-auto fmin(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto fmin(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     CommonDecimal!(D1, D2) result;
@@ -4169,7 +4169,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("minNumMag", 19)
-auto fminAbs(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto fminAbs(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     CommonDecimal!(D1, D2) result;
@@ -4214,7 +4214,7 @@ $(BOOKTABLE,
     $(TR $(TD any) $(TD ±∞) $(TD $(B NaN)))
 )
 */
-auto fmod(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto fmod(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 {
     alias D = CommonDecimal!(D1, D2);
     D result = x;
@@ -4251,7 +4251,7 @@ Notes:
     Signaling NaNs are quieted by this operation
 
 */
-D frexp(D)(auto const ref D x, out int y)
+D frexp(D)(const auto ref D x, out int y)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
     Unqual!D result;
@@ -4345,7 +4345,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("hypot", 42)
-auto hypot(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto hypot(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -4379,7 +4379,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("logB", 17)
-int ilogb(D)(auto const ref D x)
+int ilogb(D)(const auto ref D x)
 if (isDecimal!D)
 {
     int result;
@@ -4408,7 +4408,7 @@ Notes:
     - if the value is finite, the coefficient must be less than 10 $(SUPERSCRIPT precision).
 */
 @IEEECompliant("isCanonical", 25)
-bool isCanonical(D)(auto const ref D x)
+bool isCanonical(D)(const auto ref D x)
 if (isDecimal!D)
 {
     static if (is(D: Decimal32) || is(D: Decimal64))
@@ -4495,7 +4495,7 @@ Notes:
     - Finite _values must be represented based on same exponent to be considered identical;
       123 * 10$(SUPERSCRIPT -3) is not identical to 1.23 * 10$(SUPERSCRIPT -1)
 */
-bool isIdentical(D)(auto const ref D x, auto const ref D y)
+bool isIdentical(D)(const auto ref D x, const auto ref D y)
 if (isDecimal!D)
 {
     return x.data == y.data;
@@ -4582,7 +4582,7 @@ Returns:
     true if x is normal, false otherwise ($(B NaN), infinity, zero, subnormal)
 */
 @IEEECompliant("isNormal", 25)
-bool isNormal(D)(auto const ref D x)
+bool isNormal(D)(const auto ref D x)
 if (isDecimal!D)
 {
     DataType!(D.sizeof) coefficient;
@@ -4655,7 +4655,7 @@ Params:
 Returns:
     true if x is power of ten, false otherwise ($(B NaN), infinity, 0, negative)
 */
-bool isPowerOf10(D)(auto const ref D x)
+bool isPowerOf10(D)(const auto ref D x)
 if (isDecimal!D)
 {
     if (x.isNaN || x.isInfinity || x.isZero || signbit(x) != 0U)
@@ -4701,7 +4701,7 @@ Returns:
     true if x is subnormal, false otherwise ($(B NaN), infinity, zero, normal)
 */
 @IEEECompliant("isSubnormal", 25)
-bool isSubnormal(D)(auto const ref D x)
+bool isSubnormal(D)(const auto ref D x)
 if (isDecimal!D)
 {
     DataType!(D.sizeof) coefficient;
@@ -4810,7 +4810,7 @@ $(BOOKTABLE,
     $(TR $(TD any) $(TD 0) $(TD x))
 )
 */
-D ldexp(D)(auto const ref D x, const(int) n)
+D ldexp(D)(const auto ref D x, const(int) n)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -4853,7 +4853,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("log", 42)
-D log(D)(auto const ref D x)
+D log(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.divisionByZero;
@@ -4896,7 +4896,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("log10", 42)
-D log10(D)(auto const ref D x)
+D log10(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.divisionByZero;
@@ -4933,7 +4933,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("log10p1", 42)
-D log10p1(D)(auto const ref D x)
+D log10p1(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.divisionByZero;
@@ -4970,7 +4970,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("log2", 42)
-D log2(D)(auto const ref D x)
+D log2(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.divisionByZero;
@@ -5007,7 +5007,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("log2p1", 42)
-D log2p1(D)(auto const ref D x)
+D log2p1(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.divisionByZero;
@@ -5044,7 +5044,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("logp1", 42)
-D logp1(D)(auto const ref D x)
+D logp1(D)(const auto ref D x)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.inexact | ExceptionFlags.invalidOperation | ExceptionFlags.divisionByZero;
@@ -5076,7 +5076,7 @@ $(BOOKTABLE,
     $(TR $(TD +∞) $(TD long.max))
 )
 */
-long lrint(D)(auto const ref D x, const(RoundingMode) mode)
+long lrint(D)(const auto ref D x, const(RoundingMode) mode)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.inexact;
@@ -5087,7 +5087,7 @@ if (isDecimal!D)
 }
 
 ///ditto
-long lrint(D)(auto const ref D x)
+long lrint(D)(const auto ref D x)
 if (isDecimal!D)
 {
     return lrint(x, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
@@ -5110,7 +5110,7 @@ $(BOOKTABLE,
     $(TR $(TD +∞) $(TD long.max))
 )
 */
-long lround(D)(auto const ref D x)
+long lround(D)(const auto ref D x)
 {
     long result;
     const flags = decimalToSigned(x, result, RoundingMode.tiesToAway);
@@ -5138,7 +5138,7 @@ $(BOOKTABLE,
     $(TR $(TD ±∞) $(TD 0.0) $(TD ±∞))
 )
 */
-D modf(D)(auto const ref D x, ref D y)
+D modf(D)(const auto ref D x, ref D y)
 if (isDecimal!D)
 {
     if (x.isSignalNaN)
@@ -5220,7 +5220,7 @@ $(BOOKTABLE,
 @IEEECompliant("roundToIntegralTowardNegative", 19)
 @IEEECompliant("roundToIntegralTowardPositive", 19)
 @IEEECompliant("roundToIntegralTowardZero", 19)
-D nearbyint(D)(auto const ref D x, const(RoundingMode) mode)
+D nearbyint(D)(const auto ref D x, const(RoundingMode) mode)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -5230,7 +5230,7 @@ if (isDecimal!D)
 }
 
 ///ditto
-D nearbyint(D)(auto const ref D x)
+D nearbyint(D)(const auto ref D x)
 if (isDecimal!D)
 {
     return nearbyint(x, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
@@ -5260,7 +5260,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("nextDown", 19)
-D nextDown(D)(auto const ref D x)
+D nextDown(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -5286,7 +5286,7 @@ $(BOOKTABLE,
     $(TR $(TD ±0.0) $(TD +1.0))
 )
 */
-D nextPow10(D)(auto const ref D x)
+D nextPow10(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result;
@@ -5356,7 +5356,7 @@ $(BOOKTABLE,
     $(TR $(TD x > y)  $(TD) $(TD $(MYREF nextDown)(x)) )
 )
 */
-D1 nextAfter(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+D1 nextAfter(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     if (x.isSignalNaN)
@@ -5417,7 +5417,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("nextUp", 19)
-D nextUp(D)(auto const ref D x)
+D nextUp(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -5444,7 +5444,7 @@ Throws:
          $(TD result is inexact))
 )
 */
-auto poly(D1, D2)(auto const ref D1 x, const(D2)[] a)
+auto poly(D1, D2)(const auto ref D1 x, const(D2)[] a)
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -5485,7 +5485,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("pown", 42)
-D pow(D, T)(auto const ref D x, const(T) n)
+D pow(D, T)(const auto ref D x, const(T) n)
 if (isDecimal!D && isIntegral!T)
 {
     Unqual!D result = x;
@@ -5526,7 +5526,7 @@ $(BOOKTABLE,
 */
 @IEEECompliant("pow", 42)
 @IEEECompliant("powr", 42)
-auto pow(D1, D2)(auto const ref D1 x, auto const ref D2 x)
+auto pow(D1, D2)(const auto ref D1 x, const auto ref D2 x)
 {
     Unqual!D1 result = x;
     const flags = decimalPow(result, y,
@@ -5563,7 +5563,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("quantize", 18)
-D1 quantize(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+D1 quantize(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.inexact;
@@ -5592,7 +5592,7 @@ Notes:
 Unlike $(MYREF frexp) where the exponent is calculated for a |coefficient| < 1.0, this
 functions returns the raw encoded exponent.
 */
-int quantexp(D)(auto const ref D x)
+int quantexp(D)(const auto ref D x)
 if (isDecimal!D)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
@@ -5655,7 +5655,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("remainder", 25)
-auto remainder(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+auto remainder(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 {
     CommonDecimal!(D1, D2) result = x;
     const flags = decimalMod(result, y,
@@ -5686,7 +5686,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("roundToIntegralExact", 25)
-D rint(D)(auto const ref D x, const(RoundingMode) mode)
+D rint(D)(const auto ref D x, const(RoundingMode) mode)
 if (isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.inexact;
@@ -5698,7 +5698,7 @@ if (isDecimal!D)
 
 ///ditto
 @IEEECompliant("roundToIntegralExact", 25)
-D rint(D)(auto const ref D x)
+D rint(D)(const auto ref D x)
 if (isDecimal!D)
 {
     return rint(x, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
@@ -5737,7 +5737,7 @@ $(BOOKTABLE,
     $(TR $(TD ±0.0) $(TD ±0.0))
 )
 */
-D rndtonl(D)(auto const ref D x, const(RoundingMode) mode)
+D rndtonl(D)(const auto ref D x, const(RoundingMode) mode)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -5761,7 +5761,7 @@ if (isDecimal!D)
 
 ///ditto
 @safe
-D rndtonl(D)(auto const ref D x)
+D rndtonl(D)(const auto ref D x)
 if (isDecimal!D)
 {
     return rndtonl(x, __ctfe ? RoundingMode.tiesToAway : DecimalControl.rounding);
@@ -5797,7 +5797,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("rootn", 42)
-D root(D)(auto const ref D x, const(T) n)
+D root(D)(const auto ref D x, const(T) n)
 if (isDecimal!D & isIntegral!T)
 {
     Unqual!D1 result = x;
@@ -5819,7 +5819,7 @@ $(BOOKTABLE,
     $(TR $(TD ±∞) $(TD ±∞))
 )
 */
-D round(D)(auto const ref D x)
+D round(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -5843,7 +5843,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("rSqrt", 42)
-D rsqrt(D)(auto const ref D x)
+D rsqrt(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -5866,7 +5866,7 @@ Notes:
     Returns also true if both operands are $(B NaN) or both operands are infinite.
 */
 @IEEECompliant("sameQuantum", 26)
-bool sameQuantum(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+bool sameQuantum(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     if ((x.data & D1.MASK_INF) == D1.MASK_INF)
@@ -5918,7 +5918,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("scaleB", 17)
-D scalbn(D)(auto const ref D x, const(int) n)
+D scalbn(D)(const auto ref D x, const(int) n)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6070,7 +6070,7 @@ do
         static assert(0);
 }
 
-D scaleFrom(T, D)(auto const ref T value, const(int) scale,
+D scaleFrom(T, D)(const auto ref T value, const(int) scale,
     const(RoundingMode) roundingMode = RoundingMode.banking) pure @safe
 if (isDecimal!D && (is(Unqual!T == short) || is(Unqual!T == int) || is(Unqual!T == long)))
 in
@@ -6104,7 +6104,7 @@ unittest // scaleFrom
     assert(scaleFrom!(long, Decimal64)(1234567L, -2) == 12345.67);
 }
 
-T scaleTo(D, T)(auto const ref D value, const(int) scale,
+T scaleTo(D, T)(const auto ref D value, const(int) scale,
     const(RoundingMode) roundingMode = RoundingMode.banking) @nogc nothrow pure @safe
 if (isDecimal!D && (is(T == short) || is(T == int) || is(T == long)))
 in
@@ -6152,7 +6152,7 @@ Returns:
     -1.0 if x is negative, 0.0 if x is zero, 1.0 if x is positive
 */
 @safe pure nothrow @nogc
-D sgn(D: Decimal!bits, int bits)(auto const ref D x)
+D sgn(D: Decimal!bits, int bits)(const auto ref D x)
 {
     return x.isNeg ? D.negOne : (x.isZero ? D.zero : D.one);
 }
@@ -6211,7 +6211,7 @@ Returns:
     1 if the sign bit is set, 0 otherwise
 */
 @IEEECompliant("isSignMinus", 25)
-int signbit(D: Decimal!bytes, int bytes)(auto const ref D x)
+int signbit(D: Decimal!bytes, int bytes)(const auto ref D x)
 {
     static if (is(D: Decimal32) || is(D: Decimal64))
     {
@@ -6272,7 +6272,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("sin", 42)
-D sin(D)(auto const ref D x)
+D sin(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6303,7 +6303,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("sinh", 42)
-D sinh(D)(auto const ref D x)
+D sinh(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6342,7 +6342,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("sinPi", 42)
-D sinPi(D)(auto const ref D x)
+D sinPi(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6368,7 +6368,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("squareRoot", 42)
-D sqrt(D)(auto const ref D x)
+D sqrt(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6495,7 +6495,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("tan", 42)
-D tan(D)(auto const ref D x)
+D tan(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6528,7 +6528,7 @@ $(BOOKTABLE,
 )
 */
 @IEEECompliant("tanh", 42)
-D tanh(D)(auto const ref D x)
+D tanh(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -6558,7 +6558,7 @@ $(BOOKTABLE,
 @IEEECompliant("convertToIntegerTowardNegative", 22)
 @IEEECompliant("convertToIntegerTowardPositive", 22)
 @IEEECompliant("convertToIntegerTowardZero", 22)
-T to(T, D)(auto const ref D x, const(RoundingMode) mode)
+T to(T, D)(const auto ref D x, const(RoundingMode) mode)
 if (isIntegral!T && isDecimal!D)
 {
     Unqual!T result;
@@ -6575,7 +6575,7 @@ Converts x to the specified binary floating point type rounded if necessary by m
 Throws:
     $(MYREF UnderflowException), $(MYREF OverflowException)
 */
-F to(F, D)(auto const ref D x, const(RoundingMode) mode)
+F to(F, D)(const auto ref D x, const(RoundingMode) mode)
 if (isFloatingPoint!F && isDecimal!D)
 {
     Unqual!F result;
@@ -6799,7 +6799,7 @@ $(TR $(TD ±0.0) $(TD 0))
 @IEEECompliant("convertToIntegerExactTowardNegative", 22)
 @IEEECompliant("convertToIntegerExactTowardPositive", 22)
 @IEEECompliant("convertToIntegerExactTowardZero", 22)
-T toExact(T, D)(auto const ref D x, const(RoundingMode) mode)
+T toExact(T, D)(const auto ref D x, const(RoundingMode) mode)
 if (isIntegral!T && isDecimal!D)
 {
     enum checkFlags = ExceptionFlags.invalidOperation | ExceptionFlags.inexact;
@@ -6818,7 +6818,7 @@ Throws:
     $(MYREF UnderflowException), $(MYREF OverflowException),
     $(MYREF InexactException)
 */
-F toExact(F, D)(auto const ref D x, const(RoundingMode) mode)
+F toExact(F, D)(const auto ref D x, const(RoundingMode) mode)
 if (isFloatingPoint!F && isDecimal!D)
 {
     Unqual!F result;
@@ -6844,7 +6844,7 @@ Notes:
     The Microsoft currency data type is stored as long
     always scaled by 10$(SUPERSCRIPT -4)
 */
-long toMsCurrency(D)(auto const ref D x)
+long toMsCurrency(D)(const auto ref D x)
 if (isDecimal!D)
 {
     if (x.isNaN)
@@ -6901,7 +6901,7 @@ Notes:
     The Microsoft _decimal data type is stored as a 96 bit integral
     scaled by a variable exponent between 10$(SUPERSCRIPT -28) and 10$(SUPERSCRIPT 0).
 */
-DECIMAL toMsDecimal(D)(auto const ref D x)
+DECIMAL toMsDecimal(D)(const auto ref D x)
 {
     DECIMAL result;
 
@@ -6972,7 +6972,7 @@ DECIMAL toMsDecimal(D)(auto const ref D x)
 }
 
 ///ditto
-D fromMsDecimal(D)(auto const ref DECIMAL x)
+D fromMsDecimal(D)(const auto ref DECIMAL x)
 {
     Unqual!D result;
 
@@ -7002,7 +7002,7 @@ See_Also:
     $(MYREF cmp)
 */
 @IEEECompliant("totalOrder", 25)
-bool totalOrder(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+bool totalOrder(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     return cmp(x, y) <= 0;
@@ -7010,7 +7010,7 @@ if (isDecimal!(D1, D2))
 
 ///ditto
 @IEEECompliant("totalOrderAbs", 25)
-bool totalOrderAbs(D1, D2)(auto const ref D1 x, auto const ref D2 y)
+bool totalOrderAbs(D1, D2)(const auto ref D1 x, const auto ref D2 y)
 if (isDecimal!(D1, D2))
 {
     return cmp(fabs(x), fabs(y)) <= 0;
@@ -7037,7 +7037,7 @@ $(TR $(TD ±∞) $(TD ±∞))
 )
 */
 @safe pure nothrow @nogc
-D trunc(D)(auto const ref D x)
+D trunc(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -7060,7 +7060,7 @@ $(BOOKTABLE,
     $(TR $(TD ±0.0) $(TD ±0.0))
 )
 */
-D truncPow10(D)(auto const ref D x)
+D truncPow10(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result;
@@ -7305,7 +7305,7 @@ else
 /* DECIMAL TO DECIMAL CONVERSION                                                                                      */
 /* ****************************************************************************************************************** */
 
-ExceptionFlags decimalToDecimal(D1, D2)(auto const ref D1 source, out D2 target,
+ExceptionFlags decimalToDecimal(D1, D2)(const auto ref D1 source, out D2 target,
     const(int) precision, const(RoundingMode) mode) @nogc nothrow pure @safe
 if (isDecimal!(D1, D2))
 {
@@ -7335,7 +7335,7 @@ if (isDecimal!(D1, D2))
     }
 }
 
-ExceptionFlags decimalToUnsigned(D, T)(auto const ref D source, out T target, const(RoundingMode) mode)
+ExceptionFlags decimalToUnsigned(D, T)(const auto ref D source, out T target, const(RoundingMode) mode)
 if (isDecimal!D && isUnsigned!T)
 {
     alias U = CommonStorage!(D, T);
@@ -7372,7 +7372,7 @@ if (isDecimal!D && isUnsigned!T)
     }
 }
 
-ExceptionFlags decimalToSigned(D, T)(auto const ref D source, out T target, const(RoundingMode) mode)
+ExceptionFlags decimalToSigned(D, T)(const auto ref D source, out T target, const(RoundingMode) mode)
 if (isDecimal!D && isSigned!T)
 {
     alias U = CommonStorage!(D, T);
@@ -7405,7 +7405,7 @@ if (isDecimal!D && isSigned!T)
     }
 }
 
-ExceptionFlags decimalToFloat(D, T)(auto const ref D source, out T target, const(RoundingMode) mode)
+ExceptionFlags decimalToFloat(D, T)(const auto ref D source, out T target, const(RoundingMode) mode)
 if (isDecimal!D && isFloatingPoint!T)
 {
     DataType!(D.sizeof) cx; int ex; bool sx;
@@ -7581,7 +7581,7 @@ if (isDecimal!D && isFloatingPoint!F)
 }
 
 @safe pure nothrow @nogc
-D canonical(D)(auto const ref D x)
+D canonical(D)(const auto ref D x)
 if (isDecimal!D)
 {
     Unqual!D result = x;
@@ -7615,7 +7615,7 @@ if (isDecimal!D)
 }
 
 @safe pure nothrow @nogc
-DecimalClass decimalDecode(D, T)(auto const ref D x, out T cx, out int ex, out bool sx)
+DecimalClass decimalDecode(D, T)(const auto ref D x, out T cx, out int ex, out bool sx)
 if (isDecimal!D && is(T: DataType!(D.sizeof)))
 {
     sx = cast(bool)(x.data & D.MASK_SGN);
@@ -7661,7 +7661,7 @@ if (isDecimal!D && is(T: DataType!(D.sizeof)))
 }
 
 @safe pure nothrow @nogc
-FastClass fastDecode(D, T)(auto const ref D x, out T cx, out int ex, out bool sx)
+FastClass fastDecode(D, T)(const auto ref D x, out T cx, out int ex, out bool sx)
 if ((is(D: Decimal32) || is(D: Decimal64)) && isAnyUnsignedBit!T)
 {
     static assert(T.sizeof >= D.sizeof);
@@ -7701,7 +7701,7 @@ if ((is(D: Decimal32) || is(D: Decimal64)) && isAnyUnsignedBit!T)
 }
 
 @safe pure nothrow @nogc
-FastClass fastDecode(D, T)(auto const ref D x, out T cx, out int ex, out bool sx)
+FastClass fastDecode(D, T)(const auto ref D x, out T cx, out int ex, out bool sx)
 if (is(D: Decimal128) && isAnyUnsignedBit!T)
 {
     static assert(T.sizeof >= D.sizeof);
@@ -7741,7 +7741,7 @@ if (is(D: Decimal128) && isAnyUnsignedBit!T)
 }
 
 @safe pure nothrow @nogc
-FastClass fastDecode(F, T)(auto const ref F x, out T cx, out int ex, out bool sx,
+FastClass fastDecode(F, T)(const auto ref F x, out T cx, out int ex, out bool sx,
     const(RoundingMode) mode, out ExceptionFlags flags)
 if (isFloatingPoint!F && isAnyUnsignedBit!T)
 {

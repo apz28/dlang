@@ -108,14 +108,14 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
     enum min = THIS();
     enum max = THIS(HALF.max, HALF.max);
 
-    this(T, U)(auto const ref T hi, auto const ref U lo) pure
+    this(T, U)(const auto ref T hi, const auto ref U lo) pure
     if (isUnsignedAssignableBit!(HALF, T) && isUnsignedAssignableBit!(HALF, U))
     {
         this.hi = hi;
         this.lo = lo;
     }
 
-    this(T)(auto const ref T x) pure
+    this(T)(const auto ref T x) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo = x;
@@ -200,7 +200,7 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
         }
     }
 
-    auto ref opAssign(T)(auto const ref T x) pure
+    auto ref opAssign(T)(const auto ref T x) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo = x;
@@ -245,7 +245,7 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
         return hi == 0U && lo == value;
     }
 
-    bool opEquals(T : THIS)(auto const ref T value) const pure
+    bool opEquals(T : THIS)(const auto ref T value) const pure
     {
         return hi == value.hi && lo == value.lo;
     }
@@ -263,7 +263,7 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
             return 0;
     }
 
-    int opCmp(T: THIS)(auto const ref T value) const pure
+    int opCmp(T: THIS)(const auto ref T value) const pure
     {
         if (hi > value.hi)
             return 1;
@@ -277,50 +277,50 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
             return 0;
     }
 
-    auto opBinary(string op : "|", T : THIS)(auto const ref T value) const pure
+    auto opBinary(string op : "|", T : THIS)(const auto ref T value) const pure
     {
         return THIS(this.hi | value.hi, this.lo | value.lo);
     }
 
-    auto opBinary(string op: "|", T)(auto const ref T value) const pure
+    auto opBinary(string op: "|", T)(const auto ref T value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(this.hi, this.lo | value);
     }
 
-    auto ref opOpAssign(string op : "|", T : THIS)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "|", T : THIS)(const auto ref T value) pure
     {
         this.hi |= value.hi;
         this.lo |= value.lo;
         return this;
     }
 
-    auto ref opOpAssign(string op : "|", T)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "|", T)(const auto ref T value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.lo |= value;
         return this;
     }
 
-    auto opBinary(string op : "&", T : THIS)(auto const ref T value) const pure
+    auto opBinary(string op : "&", T : THIS)(const auto ref T value) const pure
     {
         return THIS(this.hi & value.hi, this.lo & value.lo);
     }
 
-    auto opBinary(string op : "&", T)(auto const ref T value) const pure
+    auto opBinary(string op : "&", T)(const auto ref T value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(0U, this.lo & value);
     }
 
-    auto ref opOpAssign(string op : "&", T: THIS)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "&", T: THIS)(const auto ref T value) pure
     {
         this.hi &= value.hi;
         this.lo &= value.lo;
         return this;
     }
 
-    auto ref opOpAssign(string op : "&", T)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "&", T)(const auto ref T value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.hi = 0U;
@@ -328,25 +328,25 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
         return this;
     }
 
-    auto opBinary(string op : "^", T : THIS)(auto const ref T value) const pure
+    auto opBinary(string op : "^", T : THIS)(const auto ref T value) const pure
     {
         return THIS(this.hi ^ value.hi, this.lo ^ value.lo);
     }
 
-    auto opBinary(string op : "^", T)(auto const ref T value) const pure
+    auto opBinary(string op : "^", T)(const auto ref T value) const pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         return THIS(this.hi ^ 0UL, this.lo ^ value);
     }
 
-    auto ref opOpAssign(string op : "^", T : THIS)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "^", T : THIS)(const auto ref T value) pure
     {
         this.hi ^= value.hi;
         this.lo ^= value.lo;
         return this;
     }
 
-    auto ref opOpAssign(string op : "^", T)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "^", T)(const auto ref T value) pure
     if (isUnsignedAssignableBit!(HALF, T))
     {
         this.hi ^= 0U;
@@ -494,7 +494,7 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op : "+", T : THIS)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "+", T : THIS)(const auto ref T value) pure
     {
         hi += xadd(this.lo, value.lo);
         hi += value.hi;
@@ -524,7 +524,7 @@ if (Bytes >= 16 && (Bytes & (Bytes - 1)) == 0)
         return ret;
     }
 
-    auto ref opOpAssign(string op : "-", T : THIS)(auto const ref T value) pure
+    auto ref opOpAssign(string op : "-", T : THIS)(const auto ref T value) pure
     {
         this.hi -= xsub(this.lo, value.lo);
         this.hi -= value.hi;
@@ -1195,7 +1195,7 @@ uint xadd(ref ulong x, const(uint) y) @safe pure nothrow @nogc
     return xadd(x, cast(ulong)y);
 }
 
-uint xadd(T)(ref T x, auto const ref T y) @safe pure nothrow @nogc
+uint xadd(T)(ref T x, const auto ref T y) @safe pure nothrow @nogc
 if (isCustomUnsignedBit!T)
 {
     auto carry = xadd(x.lo, y.lo);
@@ -1203,7 +1203,7 @@ if (isCustomUnsignedBit!T)
     return xadd(x.hi, y.hi) + carry;
 }
 
-uint xadd(T, U)(ref T x, auto const ref U y) @safe pure nothrow @nogc
+uint xadd(T, U)(ref T x, const auto ref U y) @safe pure nothrow @nogc
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     const carry = xadd(x.lo, y);
@@ -1233,7 +1233,7 @@ uint xsub(ref ulong x, const(uint) y)
 }
 
 @safe pure nothrow @nogc
-uint xsub(T)(ref T x, auto const ref T y)
+uint xsub(T)(ref T x, const auto ref T y)
 if (isCustomUnsignedBit!T)
 {
     auto carry = xsub(x.lo, y.lo);
@@ -1242,7 +1242,7 @@ if (isCustomUnsignedBit!T)
 }
 
 @safe pure nothrow @nogc
-uint xsub(T, U)(ref T x, auto const ref U y)
+uint xsub(T, U)(ref T x, const auto ref U y)
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     const carry = xsub(x.lo, y);
@@ -1267,7 +1267,7 @@ ulong fma(const(ulong) x, const(uint) y, const(uint) z, ref bool overflow) @safe
     return addu(result, cast(ulong)z, overflow);
 }
 
-T fma(T)(auto const ref T x, auto const ref T y, auto const ref T z, ref bool overflow) @safe pure nothrow @nogc
+T fma(T)(const auto ref T x, const auto ref T y, const auto ref T z, ref bool overflow) @safe pure nothrow @nogc
 if (isCustomUnsignedBit!T)
 {
     auto result = mulu(x, y, overflow);
@@ -1276,7 +1276,7 @@ if (isCustomUnsignedBit!T)
     return result;
 }
 
-T fma(T, U)(auto const ref T x, auto const ref U y, auto const ref U z, ref bool overflow) @safe pure nothrow @nogc
+T fma(T, U)(const auto ref T x, const auto ref U y, const auto ref U z, ref bool overflow) @safe pure nothrow @nogc
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     auto result = mulu(x, y, overflow);
@@ -1381,7 +1381,7 @@ uint128 xmul(const(ulong) x, const(uint) y)
     return uint128(w2, (w1 << 32) + w0);
 }
 
-auto xmul(T)(auto const ref T x, auto const ref T y)
+auto xmul(T)(const auto ref T x, const auto ref T y)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
@@ -1412,7 +1412,7 @@ if (isCustomUnsignedBit!T)
     return R(xmul(x.hi, y.hi) + w2 + t.hi, (t << (bits / 2)) + w0);
 }
 
-T mulu(T)(auto const ref T x, auto const ref T y, ref bool overflow)
+T mulu(T)(const auto ref T x, const auto ref T y, ref bool overflow)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
@@ -1459,7 +1459,7 @@ if (isCustomUnsignedBit!T)
     return (t << (bits / 2)) + w0;
 }
 
-auto xsqr(T)(auto const ref T x)
+auto xsqr(T)(const auto ref T x)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
@@ -1479,7 +1479,7 @@ if (isCustomUnsignedBit!T)
     return R(xsqr(x.hi) + w2 + t.hi, (t << (bits / 2)) + w0);
 }
 
-T sqru(T)(auto const ref T x, ref bool overflow)
+T sqru(T)(const auto ref T x, ref bool overflow)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
@@ -1502,7 +1502,7 @@ if (isCustomUnsignedBit!T)
     return (t << (bits / 2)) + w0;
 }
 
-auto xmul(T, U)(auto const ref T x, auto const ref U y)
+auto xmul(T, U)(const auto ref T x, const auto ref U y)
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     enum bits = T.sizeof * 8;
@@ -1531,7 +1531,7 @@ if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
     return R(w2, (t << (bits / 2)) + w0);
 }
 
-T mulu(T, U)(auto const ref T x, auto const ref U y, ref bool overflow)
+T mulu(T, U)(const auto ref T x, const auto ref U y, ref bool overflow)
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     enum bits = T.sizeof * 8;
@@ -1599,7 +1599,7 @@ auto clz(const(ulong) x)
         static assert(0);
 }
 
-auto clz(T)(auto const ref T x)
+auto clz(T)(const auto ref T x)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
@@ -1632,7 +1632,7 @@ auto ctz(const(ulong) x)
         static assert(0);
 }
 
-auto ctz(T)(auto const ref T x)
+auto ctz(T)(const auto ref T x)
 if (isCustomUnsignedBit!T)
 {
     enum bits = T.sizeof * 8;
@@ -1640,13 +1640,13 @@ if (isCustomUnsignedBit!T)
     return ret == bits / 2 ? ret + ctz(x.hi) : ret;
 }
 
-bool isPow2(T)(auto const ref T x)
+bool isPow2(T)(const auto ref T x)
 if (isAnyUnsignedBit!T)
 {
     return x != 0U && (x & (x - 1U)) == 0;
 }
 
-bool isPow10(T)(auto const ref T x)
+bool isPow10(T)(const auto ref T x)
 if (isAnyUnsignedBit!T)
 {
     if (x == 0U)
@@ -1686,7 +1686,7 @@ ulong divrem(ref ulong x, const(uint) y)
     return ret;
 }
 
-T divrem(T)(ref T x, auto const ref T y)
+T divrem(T)(ref T x, const auto ref T y)
 if (isCustomUnsignedBit!T)
 {
     alias UT = Unqual!T;
@@ -1777,7 +1777,7 @@ if (isCustomUnsignedBit!T)
     return r;
 }
 
-T divrem(T, U)(ref T x, auto const ref U y)
+T divrem(T, U)(ref T x, const auto ref U y)
 if (isCustomUnsignedBit!T && isUnsignedAssignableBit!(T.HALF, U))
 {
     alias UT = Unqual!T;
@@ -1835,7 +1835,7 @@ if (isUnsigned!T || is(T : uint128) || is(T : uint256) || is(T : uint512))
 
 //returns power of 10 if x is power of 10, -1 otherwise
 @safe pure nothrow @nogc
-int getPow10(T)(auto const ref T x)
+int getPow10(T)(const auto ref T x)
 if (isUnsigned!T || is(T : uint128) || is(T : uint256))
 {
     static foreach_reverse(i, p; pow10!T)
@@ -1848,7 +1848,7 @@ if (isUnsigned!T || is(T : uint128) || is(T : uint256))
     return 0;
 }
 
-T cvt(T, U)(auto const ref U value)
+T cvt(T, U)(const auto ref U value)
 if (isAnyUnsignedBit!T && isAnyUnsignedBit!U)
 {
     static if (T.sizeof > U.sizeof)

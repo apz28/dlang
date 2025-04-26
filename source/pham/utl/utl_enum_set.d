@@ -471,7 +471,7 @@ public:
         return isOn(value);
     }
 
-    bool opEquals()(auto const ref EnumSet!E source) const @nogc pure
+    bool opEquals()(const auto ref EnumSet!E source) const @nogc pure
     {
         return _values == source.values;
     }

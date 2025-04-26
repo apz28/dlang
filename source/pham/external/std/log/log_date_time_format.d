@@ -361,7 +361,7 @@ public:
             : null;
     }
 
-    void toString(Writer)(auto scope ref Writer sink) const pure
+    void toString(Writer)(scope auto ref Writer sink) const pure
     {
         if (_length)
         {
@@ -637,7 +637,7 @@ private:
     }
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec, scope ref FormatDateTimeValue fmtValue)
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope ref FormatDateTimeSpec!Char fmtSpec, scope ref FormatDateTimeValue fmtValue)
 if (isSomeChar!Char)
 {
     const context = threadDateTimeContext;
@@ -891,7 +891,7 @@ if (isSomeChar!Char)
     return result;
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(Date) date)
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope const(Char)[] fmt, scope const(Date) date)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -899,7 +899,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(DateTime) dateTime)
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope const(Char)[] fmt, scope const(DateTime) dateTime)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -907,7 +907,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(SysTime) sysTime)
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope const(Char)[] fmt, scope const(SysTime) sysTime)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -915,7 +915,7 @@ if (isSomeChar!Char)
     return formattedWrite(sink, fmtSpec, fmtValue);
 }
 
-uint formattedWrite(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] fmt, scope const(Time) time)
+uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope const(Char)[] fmt, scope const(Time) time)
 if (isSomeChar!Char)
 {
     auto fmtSpec = FormatDateTimeSpec!Char(fmt);
@@ -959,7 +959,7 @@ if (isSomeString!Fmt)
     return buffer.toString();
 }
 
-void pad(Writer, Char)(auto scope ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
+void pad(Writer, Char)(scope auto ref Writer sink, scope const(Char)[] value, ptrdiff_t size, Char c) nothrow pure
 if (isSomeChar!Char)
 {
     import std.math : abs;

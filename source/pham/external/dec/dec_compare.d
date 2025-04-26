@@ -20,7 +20,7 @@ package(pham.external.dec):
 alias signbit = signDec;
 alias signbit = signStd;
 
-float decimalCmp(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
+float decimalCmp(D1, D2)(const auto ref D1 x, const auto ref D2 y) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -62,7 +62,7 @@ if (isDecimal!(D1, D2))
     }
 }
 
-float decimalCmp(D, T)(auto const ref D x, auto const ref T y) @safe pure nothrow @nogc
+float decimalCmp(D, T)(const auto ref D x, const auto ref T y) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -89,7 +89,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-float decimalCmp(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
+float decimalCmp(D, F)(const auto ref D x, const auto ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     if (x.isSignalNaN)
@@ -231,7 +231,7 @@ int coefficientCmp(T)(const T cx, const(int) ex, const(T) cy, const(int) ey) @sa
         return 0;
 }
 
-float decimalEqu(D1, D2)(auto const ref D1 x, auto const ref D2 y) @safe pure nothrow @nogc
+float decimalEqu(D1, D2)(const auto ref D1 x, const auto ref D2 y) @safe pure nothrow @nogc
 if (isDecimal!(D1, D2))
 {
     alias D = CommonDecimal!(D1, D2);
@@ -271,7 +271,7 @@ if (isDecimal!(D1, D2))
     }
 }
 
-float decimalEqu(D, T)(auto const ref D x, auto const ref T y) @safe pure nothrow @nogc
+float decimalEqu(D, T)(const auto ref D x, const auto ref T y) @safe pure nothrow @nogc
 if (isDecimal!D && isIntegral!T)
 {
     alias U = CommonStorage!(D, T);
@@ -296,7 +296,7 @@ if (isDecimal!D && isIntegral!T)
     }
 }
 
-float decimalEqu(D, F)(auto const ref D x, auto const ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
+float decimalEqu(D, F)(const auto ref D x, const auto ref F y, const(int) yPrecision, const(RoundingMode) yMode, const(int) yMaxFractionalDigits) @safe pure nothrow @nogc
 if (isDecimal!D && isFloatingPoint!F)
 {
     if (x.isSignalNaN)

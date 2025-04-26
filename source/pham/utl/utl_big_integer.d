@@ -255,7 +255,7 @@ public:
             this.opUnary!"-"();
     }
 
-    ref BigInteger opAssign(T)(auto scope ref T x) nothrow pure scope return
+    ref BigInteger opAssign(T)(scope auto ref T x) nothrow pure scope return
     if (is(Unqual!T == BigInteger))
     {
         setSignInts(x._bits, x._sign);

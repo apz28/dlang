@@ -265,7 +265,7 @@ if (isSomeChar!T || isIntegral!T)
     alias ShortStringBuffer = ShortStringBufferSize!(T, 256u - overheadSize);
 }
 
-char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
+char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, const auto ref T value) @nogc nothrow pure @safe
 if (isUnsignedBit!T)
 {
     size_t i = buffer.clear(true).length;
@@ -278,7 +278,7 @@ if (isUnsignedBit!T)
     return buffer.right(buffer.length - i);
 }
 
-char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, auto const ref T value) @nogc nothrow pure @safe
+char[] dataTypeToString(T)(return ref ShortStringBuffer!char buffer, const auto ref T value) @nogc nothrow pure @safe
 if (is(Unqual!T == ushort) || is(Unqual!T == uint) || is(Unqual!T == ulong))
 {
     size_t i = buffer.clear(true).length;
@@ -328,7 +328,7 @@ bool isValidDecimalSpec(Char)(scope const ref FormatSpec!Char spec) @nogc nothro
  *  value = The repeating character to output range
  *  count = Indicate how many times the value for count > 0
  */
-void sinkRepeat(Writer, Char)(auto scope ref Writer sink, const(Char) value, int count)
+void sinkRepeat(Writer, Char)(scope auto ref Writer sink, const(Char) value, int count)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (count <= 0)
@@ -348,7 +348,7 @@ package(pham.external.dec):
 
 //sinks a decimal value
 void sinkDecimal(Writer, Char, D)(ref Writer sink, scope const ref FormatSpec!Char spec,
-    auto const ref D decimal, const(RoundingMode) mode) @safe
+    const auto ref D decimal, const(RoundingMode) mode) @safe
 if (isOutputRange!(Writer, Char) && isSomeChar!Char && isDecimal!D)
 in
 {
@@ -706,7 +706,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 
 //sinks %a
 void sinkHexadecimal(Writer, Char, T)(ref Writer sink, scope const ref FormatSpec!Char spec,
-    auto const ref T coefficient, const(int) exponent, const(bool) signed) nothrow @safe
+    const auto ref T coefficient, const(int) exponent, const(bool) signed) nothrow @safe
 if (isOutputRange!(Writer, Char) && isSomeChar!Char && isAnyUnsignedBit!T)
 {
     int w = 4; //0x, p, exponent sign
@@ -772,7 +772,7 @@ if (isSomeChar!C)
 }
 
 //dumps value to buffer right aligned, assumes buffer has enough space
-int dumpUnsigned(C, T)(C[] buffer, auto const ref T value, bool skipTrailingZeros) @nogc pure
+int dumpUnsigned(C, T)(C[] buffer, const auto ref T value, bool skipTrailingZeros) @nogc pure
 if (isSomeChar!C && isAnyUnsignedBit!T)
 in
 {
@@ -826,7 +826,7 @@ do
 //static immutable char[] upHexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
 
 //dumps value to buffer right aligned, assumes buffer has enough space
-int dumpUnsignedHex(C, T)(C[] buffer, auto const ref T value, const(bool) uppercase = true) @nogc pure
+int dumpUnsignedHex(C, T)(C[] buffer, const auto ref T value, const(bool) uppercase = true) @nogc pure
 if (isSomeChar!C && isAnyUnsignedBit!T)
 in
 {
@@ -848,7 +848,7 @@ do
 }
 
 //sinks +/-/space
-void sinkSign(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed)
+void sinkSign(Writer, Char)(scope auto ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (!signed && spec.flPlus)
@@ -860,7 +860,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 //pads left according to spec
-void sinkPadLeft(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, ref int pad)
+void sinkPadLeft(Writer, Char)(scope auto ref Writer sink, scope const ref FormatSpec!Char spec, ref int pad)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (pad > 0 && !spec.flDash && !spec.flZero)
@@ -871,7 +871,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 //zero pads left according to spec
-void sinkPadZero(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, ref int pad)
+void sinkPadZero(Writer, Char)(scope auto ref Writer sink, scope const ref FormatSpec!Char spec, ref int pad)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (pad > 0 && spec.flZero && !spec.flDash)
@@ -882,7 +882,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 //pads right according to spec
-void sinkPadRight(Writer, Char)(auto scope ref Writer sink, ref int pad)
+void sinkPadRight(Writer, Char)(scope auto ref Writer sink, ref int pad)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     if (pad > 0)
@@ -893,7 +893,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 //sinks +/-(s)nan;
-void sinkNaN(Writer, Char, T)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed,
+void sinkNaN(Writer, Char, T)(scope auto ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed,
     const(bool) signaling, T payload, bool hex)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
@@ -940,7 +940,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 //sinks +/-(s)inf;
-void sinkInfinity(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed)
+void sinkInfinity(Writer, Char)(scope auto ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     FormatSpec!Char infspec = spec;
@@ -955,7 +955,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 }
 
 //sinks 0
-void sinkZero(Writer, Char)(auto scope ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed,
+void sinkZero(Writer, Char)(scope auto ref Writer sink, scope const ref FormatSpec!Char spec, const(bool) signed,
     const(bool) skipTrailingZeros)
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
