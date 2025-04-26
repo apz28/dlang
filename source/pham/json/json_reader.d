@@ -1118,7 +1118,6 @@ private:
         else
         {
             debug(debug_pham_utl_utl_json) _p++;
-
             const Char c = json.front;
             json.popFront();
         }
@@ -1127,6 +1126,31 @@ private:
         {
             _line++;
             _column = 0;
+        }
+        else if (c == '\r') // Check for crlf
+        {
+            _line++;
+            _column = 0;
+            if (!jsonEmpty())
+            {
+                static if (useTSlice)
+                    const Char nc = json[_p];
+                else
+                    const Char nc = json.front;
+                if (nc == '\n')
+                {
+                    static if (useTSlice)
+                    {
+                        _p++;
+                    }
+                    else
+                    {
+                        debug(debug_pham_utl_utl_json) _p++;
+                        json.popFront();
+                    }
+                    return nc;
+                }
+            }
         }
         else
         {
