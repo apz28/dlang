@@ -1415,8 +1415,9 @@ EOF";
     import std.math.traits : isNaN, isInfinity;
 
     // expected representations of NaN and Inf
-    enum {
-        nanString         = '"' ~ JSONLiteral.nan  ~ '"',
+    enum
+    {
+        nanString         = '"' ~ JSONLiteral.pnan ~ '"',
         infString         = '"' ~ JSONLiteral.pinf ~ '"',
         negativeInfString = '"' ~ JSONLiteral.ninf ~ '"',
     }
@@ -1445,7 +1446,7 @@ EOF";
     jvInf    = parseJSON!(JSONOptions.none)(infString);
     jvNegInf = parseJSON!(JSONOptions.none)(negativeInfString);
 
-    assert(jvNan.str    == JSONLiteral.nan);
+    assert(jvNan.str    == JSONLiteral.pnan);
     assert(jvInf.str    == JSONLiteral.pinf);
     assert(jvNegInf.str == JSONLiteral.ninf);
 }
@@ -1765,7 +1766,11 @@ unittest // comment + prettyString + objectName
     /* First
        Second
        Third */
-    b: "abc"
+    b: "abc",
+    f1: NaN,
+    f2: -NaN,
+    f3: Infinity,
+    f4: -Infinity
 }`;
 
     JSONValue json = parseJSON!(defaultOptions)(expectedPretty);

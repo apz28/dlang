@@ -16,7 +16,8 @@ nothrow @safe:
 enum JSONFloatLiteralType : ubyte
 {
     none,  /// Not a special float string literal
-    nan,   /// Floating point NaN literal
+    nnan,  /// Floating point negative NaN literal
+    pnan,  /// Floating point NaN literal
     ninf,  /// Floating point negative Infinity literal
     pinf,  /// Floating point Infinity literal
 }
@@ -29,7 +30,8 @@ enum JSONLiteral : string
     null_ = "null",     /// String representation of null
     false_ = "false",   /// String representation of boolean false
     true_ = "true",     /// String representation of boolean true
-    nan = "NaN",        /// String representation of floating point NaN
+    nnan = "-NaN",      /// String representation of floating point negative NaN
+    pnan = "NaN",       /// String representation of floating point positive NaN
     ninf = "-Infinity", /// String representation of floating point negative Infinity
     pinf = "Infinity",  /// String representation of floating point Infinity
 }
@@ -118,23 +120,21 @@ bool isCommentTokenKind(JSONTokenKind kind) @nogc pure
 
 bool tryGetSpecialFloat(scope const(char)[] str, ref double val) @nogc pure
 {
-    final switch (floatLiteralType(str))
+    static immutable double[JSONFloatLiteralType.max + 1] floats = [double.nan, -double.nan, double.nan, -double.infinity, double.infinity];
+    
+    const ft = floatLiteralType(str);
+    
+    bool trueFloat() @nogc nothrow pure @safe
     {
-        case JSONFloatLiteralType.none:
-            return false;
-
-        case JSONFloatLiteralType.nan:
-            val = double.nan;
-            return true;
-
-        case JSONFloatLiteralType.pinf:
-            val = double.infinity;
-            return true;
-
-        case JSONFloatLiteralType.ninf:
-            val = -double.infinity;
-            return true;
+        pragma(inline, true)
+        
+        val = floats[ft];
+        return true;
     }
+    
+    return ft == JSONFloatLiteralType.none
+        ? false
+        : trueFloat();
 }
 
 struct StackBuffer(ushort Size, Char)
@@ -202,16 +202,19 @@ shared static this() nothrow @trusted
 
     floatLiteralTypes = () nothrow
     {
-        auto result = Dictionary!(string, JSONFloatLiteralType)(25, 15);
+        auto result = Dictionary!(string, JSONFloatLiteralType)(25, 16);
 
         // Standard texts
-        result["NaN"] = JSONFloatLiteralType.nan;
+        result["NaN"] = JSONFloatLiteralType.pnan;
+        result["-NaN"] = JSONFloatLiteralType.nnan;
         result["Infinity"] = JSONFloatLiteralType.pinf;
         result["-Infinity"] = JSONFloatLiteralType.ninf;
 
         // Other support texts
-        result["nan"] = JSONFloatLiteralType.nan;
-        result["NAN"] = JSONFloatLiteralType.nan;
+        result["nan"] = JSONFloatLiteralType.pnan;
+        result["-nan"] = JSONFloatLiteralType.nnan;
+        result["NAN"] = JSONFloatLiteralType.pnan;
+        result["-NAN"] = JSONFloatLiteralType.nnan;
         result["inf"] = JSONFloatLiteralType.pinf;
         result["+inf"] = JSONFloatLiteralType.pinf;
         result["-inf"] = JSONFloatLiteralType.ninf;

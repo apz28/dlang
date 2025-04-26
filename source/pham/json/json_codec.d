@@ -61,10 +61,10 @@ struct JSONTextEncoder
     import std.algorithm.searching : canFind;
     import std.ascii : isControl;
     import std.format : sformat;
-    import std.math.traits : isNaN, isInfinity;
+    import std.math.traits : isNaN, isInfinity, signbit;
     import std.typecons : Yes;
     import std.utf : decode, encode;
-
+    
 @safe:
 
 public:
@@ -73,6 +73,7 @@ public:
         this.options = options;
         this.escapeNonAsciiChars = (options & JSONOptions.escapeNonAsciiChars) != 0;
         this.escapeSlash = (options & JSONOptions.doNotEscapeSlash) == 0;
+        this.json5 = (options & JSONOptions.json5) != 0;
         this.specialFloatLiterals = (options & JSONOptions.specialFloatLiterals) != 0;
     }
 
@@ -198,10 +199,12 @@ public:
     {
         if (value.isNaN)
         {
-            if (specialFloatLiterals)
+            if (json5)
+                json.put(signbit(value) ? cast(string)JSONLiteral.nnan : cast(string)JSONLiteral.pnan);
+            else if (specialFloatLiterals)
             {
                 json.put('"');
-                json.put(cast(string)JSONLiteral.nan);
+                json.put(signbit(value) ? cast(string)JSONLiteral.nnan : cast(string)JSONLiteral.pnan);
                 json.put('"');
             }
             else
@@ -209,10 +212,12 @@ public:
         }
         else if (value.isInfinity)
         {
-            if (specialFloatLiterals)
+            if (json5)
+                json.put(signbit(value) ? cast(string)JSONLiteral.ninf : cast(string)JSONLiteral.pinf);
+            else if (specialFloatLiterals)
             {
                 json.put('"');
-                json.put(value > 0 ? cast(string)JSONLiteral.pinf : cast(string)JSONLiteral.ninf);
+                json.put(signbit(value) ? cast(string)JSONLiteral.ninf : cast(string)JSONLiteral.pinf);
                 json.put('"');
             }
             else
@@ -302,5 +307,6 @@ public:
     JSONOptions options;
     bool escapeNonAsciiChars;
     bool escapeSlash;
+    bool json5;
     bool specialFloatLiterals;
 }

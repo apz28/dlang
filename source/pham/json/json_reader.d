@@ -60,7 +60,7 @@ public:
 
     void clear()
     {
-        errorMessage = [];
+        errorMessage = null;
         _kind = JSONTokenKind.none;
         _line = _column = 0;
         clearToken();
@@ -70,7 +70,7 @@ public:
     void clearToken() return
     {
         static if (useTSlice)
-            _token = [];
+            _token = null;
         else
             _token.clear();
     }
@@ -209,8 +209,8 @@ public:
 
         debug(debug_pham_utl_utl_json) if (!__ctfe) debug writeln(__FUNCTION__, "(_nextCharP=", _nextCharP, ", _p=", _p, ", _line=", _line, ", _column=", _column, ", c=", c, ")");
 
-        const sLine = _line;
-        const sColumn = _column;
+        sLine = _line;
+        sColumn = _column;
 
         switch (c)
         {
@@ -337,8 +337,8 @@ public:
                 {
                     if (isNameStart(c))
                     {
-                        getName(_p - 1, c);
-                        _token.setKind(JSONTokenKind.name, sLine, sColumn);
+                        const nt = getName(_p - 1, c);
+                        _token.setKind(nt, sLine, sColumn);
                         return;
                     }
                 }
@@ -581,6 +581,34 @@ private:
         }
     }
 
+    JSONTokenKind getFloatSymbol(const(size_t) bp, Char c)
+    {
+        debug(debug_pham_utl_utl_json) if (!__ctfe) debug writeln(__FUNCTION__, "(bp=", bp, ", c=", c, ")");
+
+        static if (!useTSlice)
+            _token.put(c);
+
+        while (true)
+        {
+            c = peekChar();
+            if (!isAlpha(c))
+                break;
+
+            skipChar();
+
+            static if (!useTSlice)
+                _token.put(c);
+        }
+
+        static if (useTSlice)
+            _token.put(json[bp.._nextCharP ? _nextCharP : _p]);
+
+        if (floatLiteralType(_token.text) == JSONFloatLiteralType.none)
+            return setTokenError(text("JSON - Invalid float symbol: ", _token.text), sLine, sColumn);
+
+        return JSONTokenKind.float_;
+    }
+
     JSONTokenKind getHChar(ref char c)
     {
         uint c1, c2;
@@ -658,7 +686,9 @@ private:
         static if (useTSlice)
             _token.put(json[bp.._nextCharP ? _nextCharP : _p]);
 
-        return JSONTokenKind.name;
+        return floatLiteralType(_token.text) == JSONFloatLiteralType.none
+            ? JSONTokenKind.name
+            : JSONTokenKind.float_;
     }
 
     JSONTokenKind getNull(const(size_t) bp, Char c)
@@ -692,9 +722,12 @@ private:
             }
             static if (useTSlice)
                 _token.put(json[bp.._nextCharP ? _nextCharP : _p]);
+
             return length == maxEqualLength && equalLength == maxEqualLength
                 ? JSONTokenKind.null_
-                : JSONTokenKind.name;
+                : (floatLiteralType(_token.text) == JSONFloatLiteralType.none
+                    ? JSONTokenKind.name
+                    : JSONTokenKind.float_);
         }
         else
         {
@@ -725,14 +758,14 @@ private:
         }
         else if (c == '+')
         {
-            bp = _p;
+            bp = _p; // Skip + sign
             if (!getChar(c))
                 return setTokenEofError();
         }
 
-        // Check for hex number?
         static if (options & JSONOptions.json5)
         {
+            // Check for hex number?
             if (c == '0')
             {
                 const n = peekChar();
@@ -747,6 +780,9 @@ private:
                     return getHexDigits(bp);
                 }
             }
+            // Check for special float symbol NaN or Infinity
+            else if (c == 'N' || c == 'n' || c == 'I' || c == 'i')
+                return getFloatSymbol(bp, c);
         }
 
         static if (options & JSONOptions.strictParsing)
@@ -1175,7 +1211,8 @@ public:
 private:
     JSONToken!T _token;
     size_t _p, _nextCharP;
-    uint _line, _column;
+    uint _line, _column; // Current location of parsing text
+    uint sLine, sColumn; // Starting location of parsing text
     Nullable!Char _nextChar;
 }
 
@@ -1246,7 +1283,7 @@ if (isSomeFiniteCharInputRange!T)
             parseComment();
         return tokenizer.front.kind;
     }
-    
+
     void parseValue(return ref JSONValue value)
     {
         depth++;
@@ -1275,13 +1312,26 @@ if (isSomeFiniteCharInputRange!T)
 
             case JSONTokenKind.integerHex:
                 auto hexText = tokenizer.front.text;
+                const isNeg = hexText[0] == '-';
+                if (isNeg)
+                    hexText = hexText[1..$];
                 if (hexText.length >= 2 && (hexText[0..2] == "0x" || hexText[0..2] == "0X"))
                     hexText = hexText[2..$];
-                const integerV = to!long(hexText, 16);
-                value.nullify(JSONType.integer)._store = JSONValue.Store(integer: integerV);
+                const integerV = hexText.length > 8 ? to!long(hexText, 16) : to!int(hexText, 16);
+                value.nullify(JSONType.integer)._store = JSONValue.Store(integer: isNeg ? -integerV : integerV);
                 break;
 
             case JSONTokenKind.float_:
+                static if (options & JSONOptions.json5)
+                {
+                    double floatingVS;
+                    if (tryGetSpecialFloat(tokenizer.front.text, floatingVS))
+                    {
+                        // found a special float, its value was placed in value.store.floating
+                        value.nullify(JSONType.float_)._store = JSONValue.Store(floating: floatingVS);
+                        break;
+                    }
+                }
                 const floatingV = to!double(tokenizer.front.text);
                 value.nullify(JSONType.float_)._store = JSONValue.Store(floating: floatingV);
                 break;
@@ -1327,7 +1377,7 @@ if (isSomeFiniteCharInputRange!T)
                     // Get array element
                     JSONValue elementValue;
                     parseValue(elementValue);
-                    
+
                     arrayV ~= elementValue;
                 }
                 value.nullify(JSONType.array)._store = JSONValue.Store(array: arrayV);
@@ -1375,7 +1425,7 @@ if (isSomeFiniteCharInputRange!T)
                         memberValue.comment = lastComment;
                         lastComment = null;
                     }
-                    
+
                     objectV[memberKey] = memberValue;
                 }
                 value.nullify(JSONType.object)._store = JSONValue.Store(object: objectV);
@@ -1577,6 +1627,18 @@ nothrow @safe unittest // JSONTextTokenizer(json5) - Ok
 
     tokens = Tokenizer(`ab1234`);
     checkTokens(tokens, [JSONToken!string("ab1234", JSONTokenKind.name, 1, 1)]);
+
+    tokens = Tokenizer(`NaN`);
+    checkTokens(tokens, [JSONToken!string("NaN", JSONTokenKind.float_, 1, 1)]);
+
+    tokens = Tokenizer(`-NaN`);
+    checkTokens(tokens, [JSONToken!string("-NaN", JSONTokenKind.float_, 1, 1)]);
+
+    tokens = Tokenizer(`Infinity`);
+    checkTokens(tokens, [JSONToken!string("Infinity", JSONTokenKind.float_, 1, 1)]);
+
+    tokens = Tokenizer(`-Infinity`);
+    checkTokens(tokens, [JSONToken!string("-Infinity", JSONTokenKind.float_, 1, 1)]);
 
     tokens = Tokenizer(`{"a":[1,2,3], "b":null, "c":false, "d":true,
 "E":-1234, "f":1.7E+3, "g":" +1234 ", xyzName:0x1234, }`);
