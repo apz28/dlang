@@ -13,7 +13,7 @@ module pham.io.io_socket_posix;
 
 version(Posix):
 
-import core.sys.posix.fcntl : errno;
+import core.stdc.errno : errno;
 import core.sys.posix.net.if_;
 import core.sys.posix.poll;
 import core.sys.posix.sys.ioctl;

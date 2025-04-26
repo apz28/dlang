@@ -23,9 +23,17 @@ import pham.utl.utl_text : simpleIndexOf;
 
 version(Posix)
 {
+    import core.sys.posix.netinet.in_;
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
     public import pham.io.io_socket_posix;
+    
+    private enum : int
+    {
+        SD_RECEIVE = SHUT_RD,
+        SD_SEND    = SHUT_WR,
+        SD_BOTH    = SHUT_RDWR
+    }    
 }
 else version(Windows)
 {
@@ -68,7 +76,7 @@ enum AddressFamily : int
     ieee12844           = 25,   // IEEE 1284.4 WG AF
     irda                = 26,   // IrDA
     networkDesigners    = 28,   // Network Designers OSI & gateway enabled protocols
-    max                 = AF_MAX,   // Max
+    //max                 = AF_MAX,   // Max
 }
 
 enum Protocol : int
