@@ -356,7 +356,7 @@ public:
             doClear();
     }
 
-    void opAssign(bool value) nothrow
+    void opAssign(bool value) nothrow @trusted
     {
         debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
@@ -439,7 +439,7 @@ public:
         return opCmp(other) == 0;
 	}
 
-	int opCmp(const ref typeof(this) other) const nothrow
+	int opCmp(const ref typeof(this) other) const nothrow @trusted
     {
         import std.math : cmp;
         import std.uni : sicmp;
@@ -498,7 +498,7 @@ public:
         _dummy[] = 0;
     }
 
-    S toString() const nothrow
+    S toString() const nothrow @trusted
     {
         final switch (_type)
         {
@@ -4094,7 +4094,7 @@ void fctTranslate(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
     //todo
 }
 
-bool normalizeValueToBoolean(S)(ref XPathValue!S v) nothrow
+bool normalizeValueToBoolean(S)(ref XPathValue!S v) nothrow @trusted
 if (isXmlString!S)
 {
     switch (v.type)
@@ -4114,7 +4114,7 @@ if (isXmlString!S)
     return v.boolean;
 }
 
-double normalizeValueToNumber(S)(ref XPathValue!S v)
+double normalizeValueToNumber(S)(ref XPathValue!S v) @trusted
 if (isXmlString!S)
 {
     switch (v.type)
@@ -4134,7 +4134,7 @@ if (isXmlString!S)
     return v.number;
 }
 
-S normalizeValueToText(S)(ref XPathValue!S v) nothrow
+S normalizeValueToText(S)(ref XPathValue!S v) nothrow @trusted
 if (isXmlString!S)
 {
     switch (v.type)

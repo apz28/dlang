@@ -146,7 +146,7 @@ public:
      *
      * Throws: `JSONException` if the right hand side argument `JSONType` is not `object`.
      */
-    inout(JSONValue)* opBinaryRight(string op : "in")(scope const(char)[] key) inout @safe
+    inout(JSONValue)* opBinaryRight(string op : "in")(scope const(char)[] key) inout return @safe
     {
         auto obj = this.object;
         return key in obj;
