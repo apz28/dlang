@@ -13,7 +13,7 @@ module pham.io.io_socket_posix;
 
 version(Posix):
 
-import core.stdc.errno : errno;
+import core.stdc.errno;
 import core.sys.posix.net.if_;
 import core.sys.posix.poll;
 import core.sys.posix.sys.ioctl;
@@ -170,7 +170,7 @@ in
 do
 {
     optVal = 0;
-    int optLen = T.sizeof;
+    uint optLen = T.sizeof;
     return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
 }
 

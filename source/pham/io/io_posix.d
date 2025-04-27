@@ -13,9 +13,10 @@ module pham.io.io_posix;
 
 version(Posix):
 
-import core.sys.posix.fcntl;
-import core.sys.posix.unistd : close, lseek64, pipe, read, ftruncate64, write;
+import core.stdc.errno;
 import core.stdc.stdio : remove;
+import core.sys.posix.fcntl;
+import core.sys.posix.unistd : close, fsync, ftruncate64, lseek64, pipe, read, write;
 
 import pham.io.io_type : SeekOrigin, StreamOpenInfo;
 

@@ -489,8 +489,8 @@ public:
             if (rule.hasDaylightSaving)
             {
                 isDaylightSavings = getIsDaylightSavingsFromUtc(utcDateTime, searchYear, baseUtcOffset, rule, ruleIndex);
-                return ZoneOffset(baseUtcOffset.toMinutes() 
-                    + rule.baseUtcOffsetDelta.toMinutes() 
+                return ZoneOffset(baseUtcOffset.toMinutes()
+                    + rule.baseUtcOffsetDelta.toMinutes()
                     + (isDaylightSavings ? rule.daylightDelta.toMinutes() : rule.standardDelta.toMinutes()));
             }
         }
@@ -1336,7 +1336,7 @@ nothrow @safe:
     {
         return ZoneOffset.isValid(this.hour, this.minute);
     }
-    
+
     static ErrorOp isValid(const(int) hour, const(int) minute) @nogc pure
     {
         return isValid(toMinutes(hour, minute));
@@ -1411,13 +1411,13 @@ nothrow @safe:
     {
         return toMinutes() * Tick.ticksPerMinute;
     }
-    
+
     pragma(inline, true)
     @property bool hasOffset() const @nogc pure scope
     {
         return hour != 0 || minute != 0;
     }
-    
+
     static @property ZoneOffset max() @nogc pure
     {
         return ZoneOffset(maxOffsetInHours - 1, Tick.minutesPerHour - 1);
@@ -1434,7 +1434,7 @@ nothrow @safe:
 private:
     // https://en.wikipedia.org/wiki/Time_zone
     // +/-1 for day light saving
-    enum maxOffsetInHours = 14 + 1;    
+    enum maxOffsetInHours = 14 + 1;
     enum maxOffsetInMinutes = toMinutes(maxOffsetInHours - 1, Tick.minutesPerHour - 1);
     //enum minOffsetInHours = -14 - 1;
     enum minOffsetInHours = -23; // -23 = see comment in isValidAdjustmentRule
@@ -1561,12 +1561,21 @@ version(Windows)
 }
 else version(Posix)
 {
+    import core.stdc.string : strlen;
+    import core.sys.posix.stdlib : getenv;
     import std.algorithm.searching : canFind, startsWith;
     import std.file : DirEntry, dirEntries, exists, read, readLink, SpanMode;
-    import std.process : environment;
+    import std.internal.cstring : tempCString;
     import std.path : absolutePath, dirName;
 
     //immutable string ZoneTabFileName = "zone.tab";
+
+    string environmentGet(scope const(char)[] name) nothrow
+    {
+        const nz = name.tempCString();
+        const vz = core.sys.posix.stdlib.getenv(nz);
+        return vz != null ? vz[0 .. strlen(vz)].idup ? null;
+    }
 
     TimeZoneInfo localTimeZonePosix(string useId) nothrow
     {
@@ -1605,16 +1614,21 @@ else version(Posix)
         return TimeZoneInfo.localId;
     }
 
-    string findTimeZoneIdUsingReadLink(string tzPath, string tzFilePath)
+    string findTimeZoneIdUsingReadLink(string tzPath, string tzFilePath) nothrow
     {
-        string symlinkPath = readLink(tzFilePath);
-        if (symlinkPath.length != 0)
+        try
         {
-            // symlinkPath can be relative path, use Path to get the full absolute path.
-            symlinkPath = absolutePath(symlinkPath, dirName(tzFilePath));
-            if (symlinkPath.startsWith(tzPath))
-                return symlinkPath[tzPath.length..$];
+            string symlinkPath = readLink(tzFilePath);
+            if (symlinkPath.length != 0)
+            {
+                // symlinkPath can be relative path, use Path to get the full absolute path.
+                symlinkPath = absolutePath(symlinkPath, dirName(tzFilePath));
+                if (symlinkPath.startsWith(tzPath))
+                    return symlinkPath[tzPath.length..$];
+            }
         }
+        catch (Exception)
+        {}
         return null;
     }
 
@@ -1622,7 +1636,7 @@ else version(Posix)
     {
         static immutable string timeZoneEnvironmentVariable = "TZ";
 
-        string result = environment.get(timeZoneEnvironmentVariable);
+        auto result = environmentGet(timeZoneEnvironmentVariable);
         // strip off the ':' prefix
         if (result.length != 0 && result[0] == ':')
             return result[1..$];
@@ -1635,7 +1649,7 @@ else version(Posix)
         static immutable string defaultTimeZoneDirectory = "/usr/share/zoneinfo/";
         static immutable string timeZoneDirectoryEnvironmentVariable = "TZDIR";
 
-        auto result = environment.get(timeZoneDirectoryEnvironmentVariable);
+        auto result = environmentGet(timeZoneDirectoryEnvironmentVariable);
         if (result.length == 0)
             return defaultTimeZoneDirectory;
         else if (result[$ - 1] == '/')
@@ -1715,7 +1729,7 @@ else version(Posix)
         catch (ArgumentException) { }
         catch (InvalidTimeZoneException) { }
         */
-        
+
         return false;  //TODO
     }
 
@@ -1875,7 +1889,7 @@ unittest // ZoneOffset
     assert(ZoneOffset(1, 10) > ZoneOffset(-1, 5));
     assert(ZoneOffset(-1, 5) < ZoneOffset(1, 10));
     assert(ZoneOffset.min < ZoneOffset.max);
-    
+
     assert(ZoneOffset.fromSystemBias(0).toMinutes() == 0);
     assert(ZoneOffset.fromSystemBias(0).toString() == "+00:00");
     assert(ZoneOffset.fromSystemBias(5).toMinutes() == -5);

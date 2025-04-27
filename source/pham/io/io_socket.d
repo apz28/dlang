@@ -22,6 +22,8 @@ import pham.io.io_stream : Stream;
 public import pham.io.io_type;
 version(Posix)
 {
+    import core.stdc.errno;
+    import core.sys.posix.netdb;
     import core.sys.posix.sys.socket;
     import pham.io.io_socket_posix;
 }
