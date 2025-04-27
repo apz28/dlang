@@ -1561,20 +1561,21 @@ version(Windows)
 }
 else version(Posix)
 {
-    import core.stdc.string : strlen;
     import core.sys.posix.stdlib : getenv;
     import std.algorithm.searching : canFind, startsWith;
     import std.file : DirEntry, dirEntries, exists, read, readLink, SpanMode;
-    import std.internal.cstring : tempCString;
     import std.path : absolutePath, dirName;
 
     //immutable string ZoneTabFileName = "zone.tab";
 
     string environmentGet(scope const(char)[] name) nothrow
     {
+        import core.stdc.string : strlen;
+        import std.internal.cstring : tempCString;
+        
         const nz = name.tempCString();
         const vz = core.sys.posix.stdlib.getenv(nz);
-        return vz != null ? vz[0 .. strlen(vz)].idup ? null;
+        return vz != null ? vz[0..strlen(vz)].idup : null;
     }
 
     TimeZoneInfo localTimeZonePosix(string useId) nothrow
