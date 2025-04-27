@@ -26,7 +26,7 @@ enum invalidFileHandle = -1;
 
 private enum limitEINTR = 5;
 pragma(inline, true)
-bool canRetry(int apiResult, ref int limit) @nogc nothrow pure
+bool canRetry(int apiResult, ref int limit) @nogc nothrow
 {
     return apiResult == errorIOResult && errno == EINTR && limit++ < limitEINTR;
 }

@@ -138,7 +138,7 @@ public:
         }
 
         ubyte[SocketAddress.sizeof] addrBuffer;
-        int addrLength = SocketAddress.sizeof;
+        socklen_t addrLength = SocketAddress.sizeof;
         peerHandle = acceptSocket(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (peerHandle == invalidSocketHandle)
         {
@@ -398,7 +398,7 @@ public:
         }
 
         ubyte[SocketAddress.sizeof] addrBuffer;
-        int addrLength = SocketAddress.sizeof;
+        socklen_t addrLength = SocketAddress.sizeof;
         const r = getsockname(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (r == resultOK)
             return SocketAddress(addrBuffer[0..addrLength]);
@@ -416,7 +416,7 @@ public:
         }
 
         ubyte[SocketAddress.sizeof] addrBuffer;
-        int addrLength = SocketAddress.sizeof;
+        socklen_t addrLength = SocketAddress.sizeof;
         const r = getpeername(_handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (r == resultOK)
             return SocketAddress(addrBuffer[0..addrLength]);
@@ -600,7 +600,7 @@ public:
         return this._address;
     }
 
-    @property final bool blocking() const @nogc nothrow
+    @property final bool blocking() nothrow
     {
         version(Windows)
             return _blocking;

@@ -123,7 +123,6 @@ extern(Windows)
                                                              // "= 0"=Return immediately; "< 0"= wait indefinitely
     void WSASetLastError(int iError); // Ws2_32.lib
     DWORD WSAWaitForMultipleEvents(DWORD cEvents, const WSAEVENT* lphEvents, BOOL fWaitAll, DWORD dwTimeout, BOOL fAlertable); // Ws2_32.lib
-
 }
 
 enum eHandleReset = WSAECONNRESET; // 10054
@@ -135,6 +134,7 @@ alias Linger = linger;
 alias PollFD = WSAPOLLFD;
 alias SocketHandle = SOCKET;
 alias TimeVal = timeval;
+alias socklen_t = int;
 
 enum errorSocketResult = SOCKET_ERROR;
 enum invalidSocketHandle = INVALID_SOCKET;
@@ -150,7 +150,7 @@ struct WSAStartupResult
 }
 
 pragma(inline, true)
-SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope int* nameLen) nothrow @trusted
+SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope socklen_t* nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -161,7 +161,7 @@ do
 }
 
 pragma(inline, true)
-int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, int nameLen) nothrow @trusted
+int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -183,7 +183,7 @@ do
 }
 
 pragma(inline, true)
-int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, int nameLen, bool blocking) nothrow @trusted
+int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen, bool blocking) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);

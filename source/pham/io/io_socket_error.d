@@ -80,8 +80,8 @@ bool needResetSocket(int errorCode) @nogc nothrow pure @safe
     }
     else version(Posix)
     {
-        //import core.stdc.errno;
-        import core.sys.posix.sys.socket;
+        import core.stdc.errno;
+        //import core.sys.posix.sys.socket;
 
         // https://linux.die.net/man/2/recv
         // https://linux.die.net/man/2/send

@@ -14,6 +14,7 @@ module pham.io.io_socket_posix;
 version(Posix):
 
 import core.stdc.errno;
+import core.sys.posix.fcntl;
 import core.sys.posix.net.if_;
 import core.sys.posix.poll;
 import core.sys.posix.sys.ioctl;
@@ -42,7 +43,7 @@ enum eInvalidHandle = 6;
 enum eTimeout = 10060;
 
 pragma(inline, true)
-SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope int* nameLen) nothrow @trusted
+SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope socklen_t* nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -60,7 +61,7 @@ do
 }
 
 pragma(inline, true)
-int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, int nameLen) nothrow @trusted
+int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -72,7 +73,7 @@ do
 
 private enum limitEINTR = 5;
 pragma(inline, true)
-bool canRetry(int apiResult, ref int limit) @nogc nothrow pure
+bool canRetry(int apiResult, ref int limit) @nogc nothrow
 {
     return apiResult == errorSocketResult && errno == EINTR && limit++ < limitEINTR;
 }
@@ -89,7 +90,7 @@ do
 }
 
 pragma(inline, true)
-int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, int nameLen, bool blocking) nothrow @trusted
+int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen, bool blocking) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -122,7 +123,7 @@ do
     int r, result, limit;
     do
     {
-        r = ioctl(fd, FIONREAD, &result);
+        r = ioctl(handle, FIONREAD, &result);
     }
     while (canRetry(r, limit));
     return r == 0 ? result : r;
@@ -148,13 +149,13 @@ in
 do
 {
     buffer[] = '\0';
-    uint size = cast(uint)(buffer.length - 1);
+    auto size = cast(socklen_t)(buffer.length - 1);
     if (gethostname(&buffer[0], size) == 0)
     {
         foreach (i; 0..buffer.length)
         {
             if (buffer[i] == '\0')
-                return cast(uint)i;
+                return cast(socklen_t)i;
         }
     }
 
@@ -170,7 +171,7 @@ in
 do
 {
     optVal = 0;
-    uint optLen = T.sizeof;
+    socklen_t optLen = T.sizeof;
     return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
 }
 

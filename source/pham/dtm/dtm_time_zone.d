@@ -1561,7 +1561,6 @@ version(Windows)
 }
 else version(Posix)
 {
-    import core.sys.posix.stdlib : getenv;
     import std.algorithm.searching : canFind, startsWith;
     import std.file : DirEntry, dirEntries, exists, read, readLink, SpanMode;
     import std.path : absolutePath, dirName;
@@ -1571,10 +1570,11 @@ else version(Posix)
     string environmentGet(scope const(char)[] name) nothrow
     {
         import core.stdc.string : strlen;
+        import core.sys.posix.stdlib : getenv;
         import std.internal.cstring : tempCString;
         
         const nz = name.tempCString();
-        const vz = core.sys.posix.stdlib.getenv(nz);
+        const vz = getenv(nz);
         return vz != null ? vz[0..strlen(vz)].idup : null;
     }
 
