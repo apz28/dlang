@@ -60,7 +60,7 @@ pragma(inline, true)
 int flushFile(FileHandle handle) nothrow @trusted
 in
 {
-    assert(handle != invalidHandle);
+    assert(handle != invalidFileHandle);
 }
 do
 {
@@ -77,7 +77,7 @@ pragma(inline, true)
 long getLengthFile(FileHandle handle) nothrow @trusted
 in
 {
-    assert(handle != invalidHandle);
+    assert(handle != invalidFileHandle);
 }
 do
 {
@@ -109,8 +109,7 @@ pragma(inline, true)
 int readFile(FileHandle handle, scope ubyte[] bytes) nothrow @trusted
 in
 {
-    assert(handle != invalidHandle);
-    assert(bytes.length > 0);
+    assert(handle != invalidFileHandle);
     assert(bytes.length <= int.max);
 }
 do
@@ -118,7 +117,7 @@ do
     int result, limit;
     do
     {
-        result = read(handle, bytes.ptr, cast(uint)bytes.length);
+        result = cast(int)read(handle, &bytes[0], bytes.length);
     }
     while (canRetry(result, limit));
     return result;
@@ -142,7 +141,7 @@ pragma(inline, true)
 long seekFile(FileHandle handle, long offset, SeekOrigin origin) nothrow @trusted
 in
 {
-    assert(handle != invalidHandle);
+    assert(handle != invalidFileHandle);
 }
 do
 {
@@ -152,7 +151,7 @@ do
     {
         result = lseek64(handle, offset, origin);
     }
-    while (canRetry(result, limit));
+    while (canRetry(cast(int)result, limit));
     return result;
 }
 
@@ -160,7 +159,7 @@ pragma(inline, true)
 int setLengthFile(FileHandle handle, long length) nothrow @trusted
 in
 {
-    assert(handle != invalidHandle);
+    assert(handle != invalidFileHandle);
 }
 do
 {
@@ -177,8 +176,7 @@ pragma(inline, true)
 int writeFile(FileHandle handle, scope const(ubyte)[] bytes) nothrow @trusted
 in
 {
-    assert(handle != invalidHandle);
-    assert(bytes.length >= 0);
+    assert(handle != invalidFileHandle);
     assert(bytes.length <= int.max);
 }
 do
@@ -186,7 +184,7 @@ do
     int result, limit;
     do
     {
-        result = write(handle, bytes.ptr, cast(uint)bytes.length);
+        result = cast(int)write(handle, &bytes[0], bytes.length);
     }
     while (canRetry(result, limit));
     return result;

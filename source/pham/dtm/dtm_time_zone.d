@@ -1562,7 +1562,7 @@ version(Windows)
 else version(Posix)
 {
     import std.algorithm.searching : canFind, startsWith;
-    import std.file : dirEntries, exists, read, readLink, SpanMode;
+    import std.file : DirEntry, dirEntries, exists, read, readLink, SpanMode;
     import std.process : environment;
     import std.path : absolutePath, dirName;
 
@@ -1618,7 +1618,7 @@ else version(Posix)
         return null;
     }
 
-    string getTzEnvironmentVariable()
+    string getTzEnvironmentVariable() nothrow
     {
         static immutable string timeZoneEnvironmentVariable = "TZ";
 
@@ -1630,7 +1630,7 @@ else version(Posix)
             return result;
     }
 
-    string getTzPath()
+    string getTzPath() nothrow
     {
         static immutable string defaultTimeZoneDirectory = "/usr/share/zoneinfo/";
         static immutable string timeZoneDirectoryEnvironmentVariable = "TZDIR";
@@ -1806,8 +1806,8 @@ else version(Posix)
 
             const byte version_ = data[index + 4];
             this.version_ = version_ == '2'
-                ? TZVersion.v2
-                : (version_ == '3' ? TZVersion.v3 : TZVersion.v1);
+                ? TZVersion.V2
+                : (version_ == '3' ? TZVersion.V3 : TZVersion.V1);
 
             // skip the 15 byte reserved field
 

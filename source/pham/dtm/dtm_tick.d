@@ -1147,7 +1147,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
     else version(linux)
     {
         import core.sys.linux.time : CLOCK_REALTIME_COARSE;
-        import core.sys.posix.time : clock_gettime, CLOCK_REALTIME;
+        import core.sys.posix.time : clock_gettime, CLOCK_REALTIME, timespec;
 
         static if (clockType == ClockType.coarse)       alias clockArg = CLOCK_REALTIME_COARSE;
         else static if (clockType == ClockType.normal)  alias clockArg = CLOCK_REALTIME;
