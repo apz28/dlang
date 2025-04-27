@@ -1136,7 +1136,7 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
     {
         import core.sys.posix.sys.time : gettimeofday, timeval;
 
-        timeval tv = void;
+        timeval tv;
         /*
         Posix gettimeofday called with a valid timeval address
         and a null second parameter doesn't fail.
@@ -1154,14 +1154,14 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         else static if (clockType == ClockType.precise) alias clockArg = CLOCK_REALTIME;
         else static assert(0);
 
-        timespec ts = void;
+        timespec ts;
         const error = clock_gettime(clockArg, &ts);
         /*
         Posix clock_gettime called with a valid address and valid clock_id is only
         permitted to fail if the number of seconds does not fit in time_t. If tv_sec
         is long or larger overflow won't happen before 292 billion years A.D.
         */
-        assert(!error && ts.tv_sec.max < long.max);
+        assert(!error && ts.tv_sec < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else version(FreeBSD)
@@ -1174,28 +1174,28 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         else static if (clockType == ClockType.precise) alias clockArg = CLOCK_REALTIME_PRECISE;
         else static assert(0);
 
-        timespec ts = void;
+        timespec ts;
         const error = clock_gettime(clockArg, &ts);
         /*
         Posix clock_gettime called with a valid address and valid clock_id is only
         permitted to fail if the number of seconds does not fit in time_t. If tv_sec
         is long or larger overflow won't happen before 292 billion years A.D.
         */
-        assert(!error && ts.tv_sec.max < long.max);
+        assert(!error && ts.tv_sec < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else version(NetBSD)
     {
         import core.sys.netbsd.time : clock_gettime, CLOCK_REALTIME;
 
-        timespec ts = void;
+        timespec ts;
         const error = clock_gettime(CLOCK_REALTIME, &ts);
         /*
         Posix clock_gettime called with a valid address and valid clock_id is only
         permitted to fail if the number of seconds does not fit in time_t. If tv_sec
         is long or larger overflow won't happen before 292 billion years A.D.
         */
-        assert(!error && ts.tv_sec.max < long.max);
+        assert(!error && ts.tv_sec < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else version(OpenBSD)
@@ -1207,9 +1207,9 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         else static if (clockType == ClockType.precise) alias clockArg = CLOCK_REALTIME;
         else static assert(0);
 
-        timespec ts = void;
+        timespec ts;
         const error = clock_gettime(clockArg, &ts);
-        assert(!error && ts.tv_sec.max < long.max);
+        assert(!error && ts.tv_sec < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else version(DragonFlyBSD)
@@ -1222,14 +1222,14 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         else static if (clockType == ClockType.precise) alias clockArg = CLOCK_REALTIME_PRECISE;
         else static assert(0);
 
-        timespec ts = void;
+        timespec ts;
         const error = clock_gettime(clockArg, &ts);
         /*
         Posix clock_gettime called with a valid address and valid clock_id is only
         permitted to fail if the number of seconds does not fit in time_t. If tv_sec
         is long or larger overflow won't happen before 292 billion years A.D.
         */
-        assert(!error && ts.tv_sec.max < long.max);
+        assert(!error && ts.tv_sec < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else version(Solaris)
@@ -1241,14 +1241,14 @@ if (clockType == ClockType.coarse || clockType == ClockType.normal || clockType 
         else static if (clockType == ClockType.precise) alias clockArg = CLOCK_REALTIME;
         else static assert(0);
 
-        timespec ts = void;
+        timespec ts;
         const error = clock_gettime(clockArg, &ts);
         /*
         Posix clock_gettime called with a valid address and valid clock_id is only
         permitted to fail if the number of seconds does not fit in time_t. If tv_sec
         is long or larger overflow won't happen before 292 billion years A.D.
         */
-        assert(!error && ts.tv_sec.max < long.max);
+        assert(!error && ts.tv_sec < long.max);
         return convert!("seconds", "hnsecs")(ts.tv_sec) + ts.tv_nsec / 100 + hnsecsToUnixEpoch;
     }
     else
