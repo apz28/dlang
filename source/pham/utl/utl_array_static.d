@@ -214,7 +214,7 @@ public:
         return this;
     }
 
-    void opPostMove(const ref typeof(this) old) @nogc nothrow @safe
+    void opPostMove(const ref typeof(this) old) @nogc nothrow return @safe
     {
         if (_length <= StaticSize && !staticUsed)
             setStaticReference();
@@ -612,7 +612,7 @@ private:
     }
 
     pragma(inline, false);
-    void reserveImpl(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow
+    void reserveImpl(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow return
     {
         if (_length + additionalLength <= StaticSize)
         {
@@ -624,7 +624,7 @@ private:
         arrayGrow!T(_items, _tryExtendBlock, additionalLength, usingLength, zeroInit);
     }
 
-    void switchToStatic(const(size_t) newLength) nothrow
+    void switchToStatic(const(size_t) newLength) nothrow return
     {
         moveTo(_items, _staticItems, newLength);
         setStaticReference();
@@ -683,7 +683,7 @@ private:
     }
 
     pragma(inline, true)
-    void setStaticReference() @nogc nothrow pure @safe
+    void setStaticReference() @nogc nothrow pure return @safe
     {
         _items = _staticItems[];
         _tryExtendBlock = false;
@@ -910,7 +910,7 @@ public:
         return this;
     }
 
-    void opPostMove(const ref typeof(this) old) @nogc nothrow @safe
+    void opPostMove(const ref typeof(this) old) @nogc nothrow return @safe
     {
         if (_length <= StaticSize && !staticUsed)
             setStaticReference();
@@ -1267,7 +1267,7 @@ private:
     }
 
     pragma(inline, false);
-    void reserveImpl(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow
+    void reserveImpl(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow return
     {
         if (_length + additionalLength <= StaticSize)
         {
@@ -1279,14 +1279,14 @@ private:
         arrayGrow!T(_items, _tryExtendBlock, additionalLength, usingLength, zeroInit);
     }
 
-    void switchToStatic(const(size_t) newLength) nothrow
+    void switchToStatic(const(size_t) newLength) nothrow return
     {
         _staticItems[0..newLength] = _items[0..newLength];
         setStaticReference();
     }
 
     pragma(inline, true)
-    void setStaticReference() @nogc nothrow pure @safe
+    void setStaticReference() @nogc nothrow pure return @safe
     {
         _items = _staticItems[];
         _tryExtendBlock = false;

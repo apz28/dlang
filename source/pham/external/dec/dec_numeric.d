@@ -215,9 +215,25 @@ bool dunpack(const(double) d, out int exp, out ulong mantissa, out bool inf, out
     return (du.u & 0x8000_0000_0000_0000UL) != 0;
 }
 
+version(none)
+struct RealRep
+{
+    import std.bitmanip;
+    
+    union
+    {
+        real value;
+        mixin(bitfields!(
+                  ulong,   "fraction", 63,
+                  ushort,  "exponent", 15,
+                  bool,    "sign",      1));
+    }
+    enum uint bias = 16383, signBits = 1, fractionBits = 63, exponentBits = 15;
+}
+
 union RU
 {
-    static struct
+    struct
     {   
     align(1):
         version(LittleEndian)
@@ -233,7 +249,7 @@ union RU
     }
     real r;
 }
-static assert(RU.sizeof == 10);
+static assert(RU.sizeof == 10 || RU.sizeof == 16);
 
 @safe pure nothrow @nogc
 real rpack(const(bool) sign, int exp, ulong mantissa)
@@ -264,6 +280,7 @@ real rpack(const(bool) sign, int exp, ulong mantissa)
     }
 
     RU ru = void;
+    ru.r = 0.0; // 0.0 = Make sure padding byte to be zero
     ru.m = mantissa;
     ru.e = cast(ushort)exp;
     if (sign)
