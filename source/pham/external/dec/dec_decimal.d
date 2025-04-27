@@ -1955,7 +1955,7 @@ unittest
 
         static foreach (T; FloatTypes)
         {
-            //pragma(msg, typeof(T.init ^^ D.init).stringof);
+            pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
             static assert(is(typeof(T.init - D.init) == D));
             static assert(is(typeof(T.init * D.init) == D));
