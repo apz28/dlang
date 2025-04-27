@@ -1,5 +1,7 @@
 module pham.external.dec.dec_type;
 
+import std.traits : isFloatingPoint;
+
 import pham.external.dec.dec_integral : uint128;
 
 nothrow @safe:
@@ -647,4 +649,14 @@ in
 do
 {
     return 9 * bytes * 8 / 32 - 2; //7, 16, 34
+}
+
+// real use 10 bytes but has 16 bytes storage
+uint floatSizeOf(T)() @nogc pure
+if (isFloatingPoint!T)
+{
+    static if (is(T == real))
+        return 10;
+    else
+        return T.sizeof;
 }

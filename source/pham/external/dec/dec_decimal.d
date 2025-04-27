@@ -309,7 +309,7 @@ public:
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding,
                             0);
 
-            static if (D.sizeof <= T.sizeof)
+            static if (D.sizeof <= floatSizeOf!T)
             if (!__ctfe)
                 DecimalControl.raiseFlags(flags);
         }
@@ -390,7 +390,7 @@ public:
     {
         const flags = packFloatingPoint(value, PRECISION, mode, maxFractionalDigits);
 
-        static if (D.sizeof <= T.sizeof)
+        static if (D.sizeof <= floatSizeOf!T)
         if (!__ctfe)
             DecimalControl.checkFlags(explicitModeTraps, flags);
     }
@@ -447,7 +447,7 @@ public:
             const flags = decimalToFloat(this, result,
                             __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
 
-            static if (D.sizeof > T.sizeof)
+            static if (D.sizeof > floatSizeOf!T)
             if (!__ctfe)
                 DecimalControl.setFlags(flags);
         }
@@ -1955,7 +1955,7 @@ unittest
 
         static foreach (T; FloatTypes)
         {
-            pragma(msg, typeof(T.init ^^ D.init).stringof);
+            //pragma(msg, typeof(T.init ^^ D.init).stringof);
             static assert(is(typeof(T.init + D.init) == D));
             static assert(is(typeof(T.init - D.init) == D));
             static assert(is(typeof(T.init * D.init) == D));
