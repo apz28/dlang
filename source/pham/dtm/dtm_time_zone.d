@@ -1567,7 +1567,7 @@ else version(Posix)
 
     //immutable string ZoneTabFileName = "zone.tab";
 
-    string environmentGet(scope const(char)[] name) nothrow
+    string environmentGet(scope const(char)[] name) nothrow @trusted
     {
         import core.stdc.string : strlen;
         import core.sys.posix.stdlib : getenv;

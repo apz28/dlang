@@ -17,6 +17,7 @@ import core.atomic : atomicExchange, atomicLoad, atomicStore, cas;
 import core.stdc.errno : errno;
 import core.time : Duration, dur;
 import core.stdc.string : memset;
+import core.sys.linux.time;
 import core.sys.posix.time;
 
 enum minResolutionInterval = dur!"msecs"(1);
@@ -115,7 +116,7 @@ private:
     sigevent se;
     itimerspec ts;
 
-    static void timerRun(sigval arg) nothrow @trusted
+    extern (C) static void timerRun(sigval arg) nothrow @trusted
     {
         debug(debug_pham_utl_utl_timer_engine_posix) debug writeln("TimerEngine.timerRun(begin)");
         assert(arg.sival_ptr !is null);

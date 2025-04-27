@@ -71,17 +71,16 @@ string currentProcessName() nothrow @trusted
         import core.sys.windows.winbase : GetModuleFileNameW;
 
         wchar[1_000] result = void;
-        const len = GetModuleFileNameW(null, &result[0], result.length - 1);
-        return osWCharToString(result[0..len]);
+        const readLen = GetModuleFileNameW(null, &result[0], result.length - 1);
+        return readLen != 0 ? osWCharToString(result[0..readLen]) : null;
     }
     else version(Posix)
     {
         import core.sys.posix.unistd : readlink;
 
-        char[1_000] result = '\0';
-        uint len = result.length - 1;
-        len = readlink("/proc/self/exe".ptr, &result[0], len);
-        return osCharToString(result[]);
+        char[1_000] result = void;
+        const readLen = readlink("/proc/self/exe".ptr, &result[0], result.length - 1);
+        return readLen != -1 ? osCharToString(result[0..readLen]) : null;
     }
     else
     {

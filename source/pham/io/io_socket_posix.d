@@ -25,7 +25,7 @@ import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : resultError, resultOK;
 import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
-    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems;
+    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs;
 
 alias FDSet = fd_set;
 alias Linger = linger;
@@ -170,7 +170,7 @@ in
 }
 do
 {
-    optVal = 0;
+    optVal = T.init;
     socklen_t optLen = T.sizeof;
     return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
 }
@@ -317,6 +317,7 @@ int receiveSocket(SocketHandle handle, scope ubyte[] bytes, int flags) nothrow @
 in
 {
     assert(handle != invalidSocketHandle);
+    assert(bytes.length <= int.max);
 }
 do
 {
@@ -324,7 +325,7 @@ do
     do
     {
         const len = cast(int)bytes.length;
-        r = recv(handle, len ? &bytes[0] : null, len, flags);
+        r = cast(int)recv(handle, len ? &bytes[0] : null, len, flags);
     }
     while (canRetry(r, limit));
     return r;
@@ -380,7 +381,7 @@ do
     SelectFDSet selectSets;
     selectSets.add(handle, queryModes);
     selectSocket(selectSets, timeout);
-    resultModes = selectSets.pollResults[0].mode;
+    resultModes = selectSets.pollResults[0].modes;
     if (isSelectMode(resultModes, SelectMode.error))
     {
         lastSocketError(selectSets.pollResults[0].errorCode);
@@ -403,7 +404,7 @@ do
     do
     {
         const len = cast(int)bytes.length;
-        r = send(handle, len ? &bytes[0] : null, len, flags);
+        r = cast(int)send(handle, len ? &bytes[0] : null, len, flags);
     }
     while (canRetry(r, limit));
     return r;
@@ -470,7 +471,7 @@ in
 do
 {
     auto optInd = SocketOptionItems.sendTimeout;
-    return setTimeoutSocket(handle, optInd.level, optInd.name, &timeout, TimeVal.sizeof);
+    return setsockopt(handle, optInd.level, optInd.name, &timeout, TimeVal.sizeof);
 }
 
 pragma(inline, true)

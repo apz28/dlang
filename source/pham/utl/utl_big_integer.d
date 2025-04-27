@@ -2035,7 +2035,7 @@ private:
 
         int sign = void, exp = void;
         ulong man = void;
-        bool fFinite = void;
+        bool fFinite;
         BigIntegerHelper.getDoubleParts(value, sign, exp, man, fFinite);
         assert(sign == +1 || sign == -1);
 
