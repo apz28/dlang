@@ -148,8 +148,7 @@ public:
      */
     inout(JSONValue)* opBinaryRight(string op : "in")(scope const(char)[] key) inout return @safe
     {
-        auto obj = this.object;
-        return key in obj;
+        return key in this.object;
     }
 
     /**
