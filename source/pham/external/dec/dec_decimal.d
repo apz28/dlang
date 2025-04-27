@@ -1286,7 +1286,7 @@ package(pham.external.dec):
         {
             static if (isSigned!T)
             {
-                bool isNegative = void;
+                bool isNegative;
                 V coefficient = unsign!V(value, isNegative);
             }
             else

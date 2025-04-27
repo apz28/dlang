@@ -1479,7 +1479,7 @@ ResultStatus currentError(string apiName) nothrow @trusted
     return currentError(apiName, opensslApi.ERR_get_error());
 }
 
-ResultStatus currentError(string apiName, int code) nothrow @trusted
+ResultStatus currentError(string apiName, c_long code) nothrow @trusted
 {
     const msg = fromStringz(opensslApi.ERR_reason_error_string(code));
     return ResultStatus.error(cast(int)code, msg.length != 0 ? msg.idup : apiName);
@@ -1489,7 +1489,7 @@ ResultStatus currentSSLError(SSL* ssl, int r, string apiName) nothrow @trusted
 {
     const code = opensslApi.SSL_get_error(ssl, r);
     const msg = fromStringz(opensslApi.ERR_reason_error_string(code));
-    return ResultStatus.error(code, msg.length != 0 ? msg.idup : apiName);
+    return ResultStatus.error(cast(int)code, msg.length != 0 ? msg.idup : apiName);
 }
 
 version(unittest)

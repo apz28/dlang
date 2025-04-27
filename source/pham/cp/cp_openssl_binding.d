@@ -61,6 +61,7 @@ version(Windows)
 }
 else version(OSX)
 {
+    import core.sys.posix.dlfcn : RTLD_LAZY;
     private static immutable loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 
     static immutable LibName[] libSslNames = [
@@ -73,6 +74,7 @@ else version(OSX)
 }
 else version(Posix)
 {
+    import core.sys.posix.dlfcn : RTLD_LAZY;
     private static immutable loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 
     static immutable LibName[] libSslNames = ["libssl.so.3.0", "libssl.so.1.1"];
@@ -702,12 +704,12 @@ public:
         return adapter_SSL_CTX_set_default_verify_paths(ctx);
     }
 
-    int SSL_CTX_set_max_proto_version(SSL_CTX* ctx, int v) const @nogc
+    c_long SSL_CTX_set_max_proto_version(SSL_CTX* ctx, int v) const @nogc
     {
         return adapter_SSL_CTX_ctrl(ctx, SSL_CTRL_SET_MAX_PROTO_VERSION, v, null);
     }
 
-    int SSL_CTX_set_min_proto_version(SSL_CTX* ctx, int v) const @nogc
+    c_long SSL_CTX_set_min_proto_version(SSL_CTX* ctx, int v) const @nogc
     {
         return adapter_SSL_CTX_ctrl(ctx, SSL_CTRL_SET_MIN_PROTO_VERSION, v, null);
     }

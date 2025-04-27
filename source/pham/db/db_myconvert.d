@@ -334,7 +334,7 @@ uint8 timeSpanEncodeString(ref char[maxTimeSpanStringSize] myTimeSpanString, sco
 	scope (failure) assert(0, "Assume nothrow failed");
 
 	int day = void, hour = void, minute = void, second = void, microsecond = void;
-	bool isNeg = void;
+	bool isNeg;
 	timeSpan.getTime(isNeg, day, hour, minute, second, microsecond);
 
 	ShortStringBuffer!char buffer;

@@ -354,7 +354,7 @@ public:
         // case and Loss-less Local special cases.
         //
         ZoneOffset sourceOffset = baseUtcOffset;
-        AdjustmentRule sourceRule = void;
+        AdjustmentRule sourceRule;
         ptrdiff_t sourceRuleIndex = void;
         if (findAdjustmentRule(dateTime, false, sourceRule, sourceRuleIndex))
         {
@@ -405,7 +405,7 @@ public:
     }
     do
     {
-        bool isDaylightSavings = void;
+        bool isDaylightSavings;
         const loffset = localTimeZone.getUtcOffsetFromUtc(utcDateTime, isDaylightSavings);
         const lticks = utcDateTime.sticks + loffset.toTicks();
         return lticks < DateTime.minTicks
@@ -479,7 +479,7 @@ public:
             searchYear = int.min; // Need adjustment
         }
 
-        AdjustmentRule rule = void;
+        AdjustmentRule rule;
         ptrdiff_t ruleIndex = void;
         if (findAdjustmentRule(searchDateTime, true, rule, ruleIndex))
         {
@@ -538,7 +538,7 @@ public:
         //
         // handle the normal cases...
         //
-        AdjustmentRule rule = void;
+        AdjustmentRule rule;
         ptrdiff_t ruleIndex = void;
         if (!findAdjustmentRule(adjustedTime, false, rule, ruleIndex))
             return false;
@@ -840,7 +840,7 @@ private:
                 : DateTime(TickData.createDateTime(ticks, DateTimeZoneKind.unspecified)));
 
         // verify the time is between MinValue and MaxValue in the new time zone
-        bool isDaylightSavings = void;
+        bool isDaylightSavings;
         const offset = destinationTimeZone.getUtcOffsetFromUtc(utcConverted, isDaylightSavings);
         ticks += offset.toTicks();
 
@@ -1570,18 +1570,18 @@ else version(Posix)
 
     TimeZoneInfo localTimeZonePosix(string useId) nothrow
     {
-        ubyte[] rawData = void;
-        string id = void;
+        ubyte[] rawData;
+        string id;
         if (tryGetLocalTzFile(rawData, id))
         {
-            TimeZoneInfo result = void;
+            TimeZoneInfo result;
             if (tryGetTimeZoneFromTzData(rawData, id, result, useId))
                 return result;
         }
         return notFoundLocalTimeZone(useId);
     }
 
-    string findTimeZoneId(string tzPath, scope const(ubyte)[] rawData)
+    string findTimeZoneId(string tzPath, scope const(ubyte)[] rawData) nothrow @trusted
     {
         const string localtimeFilePath = tzPath ~ "localtime";
         const string posixRulesFilePath = tzPath ~ "posixrules";
@@ -1651,7 +1651,7 @@ else version(Posix)
         return canFind(utcIds, id);
     }
 
-    bool tryGetLocalTzFile(out ubyte[] rawData, out string id)
+    bool tryGetLocalTzFile(out ubyte[] rawData, out string id) nothrow
     {
         bool notFound() @nogc nothrow
         {
@@ -1675,7 +1675,7 @@ else version(Posix)
         }
 
         // Otherwise, use the path from the env var.  If it's not absolute, make it relative
-            // to the system timezone directory
+        // to the system timezone directory
         string tzFilePath;
         if (tzVariable[0] != '/')
         {
@@ -1692,7 +1692,7 @@ else version(Posix)
             return notFound();
     }
 
-    bool tryGetTimeZoneFromTzData(ubyte[] rawData, string id, out TimeZoneInfo timeZone, string useId)
+    bool tryGetTimeZoneFromTzData(ubyte[] rawData, string id, out TimeZoneInfo timeZone, string useId) nothrow
     {
         if (isUtcId(id))
         {
@@ -1715,9 +1715,11 @@ else version(Posix)
         catch (ArgumentException) { }
         catch (InvalidTimeZoneException) { }
         */
+        
+        return false;  //TODO
     }
 
-    bool tryLoadTzFile(string tzPath, string tzFilePath, ref ubyte[] rawData, ref string id)
+    bool tryLoadTzFile(string tzPath, string tzFilePath, ref ubyte[] rawData, ref string id) nothrow @trusted
     {
         if (!exists(tzFilePath))
             return false;
@@ -1743,6 +1745,7 @@ else version(Posix)
     int TZif_ToInt32(scope const(ubyte)[] value, size_t beginIndex)
     {
         //todo => BinaryPrimitives.ReadInt32BigEndian(value.AsSpan(beginIndex));
+        return 0; // TODO
     }
 
     // Converts an array of bytes into a long
@@ -1750,6 +1753,7 @@ else version(Posix)
     long TZif_ToInt64(scope const(ubyte)[] value, size_t beginIndex)
     {
         //todo => BinaryPrimitives.ReadInt64BigEndian(value.AsSpan(beginIndex));
+        return 0; // TODO
     }
 
     struct TZifType
