@@ -17,6 +17,8 @@ version(Posix)
     import core.stdc.stdio;
     import core.sys.posix.fcntl;
     import core.stdc.stdio : SEEK_SET, SEEK_CUR, SEEK_END;
+    
+    enum O_BINARY = 0x8000; // Posix does not so just use same as Windows
 }
 else version(Windows)
 {

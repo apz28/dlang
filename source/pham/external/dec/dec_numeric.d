@@ -217,9 +217,9 @@ bool dunpack(const(double) d, out int exp, out ulong mantissa, out bool inf, out
 
 union RU
 {
+    static struct
+    {   
     align(1):
-    struct
-    {   align(1):
         version(LittleEndian)
         {
             ulong m;

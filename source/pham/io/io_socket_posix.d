@@ -34,7 +34,6 @@ alias TimeVal = timeval;
 
 enum errorSocketResult = -1;
 enum invalidSocketHandle = -1;
-enum IPV6_V6ONLY = 27;
 enum POLLRead = POLLRDNORM | POLLRDBAND;
 enum POLLWrite = POLLWRNORM | POLLWRBAND;
 

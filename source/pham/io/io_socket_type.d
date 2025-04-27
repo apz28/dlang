@@ -29,12 +29,17 @@ version(Posix)
     import core.sys.posix.sys.socket;
     public import pham.io.io_socket_posix;
     
-    private enum : int
+    enum : int
     {
         SD_RECEIVE = SHUT_RD,
         SD_SEND    = SHUT_WR,
         SD_BOTH    = SHUT_RDWR
     }    
+    
+    enum : int
+    {
+        SO_USELOOPBACK = 0x0040;
+    }
 }
 else version(Windows)
 {
