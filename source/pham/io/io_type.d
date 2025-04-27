@@ -12,15 +12,8 @@
 module pham.io.io_type;
 
 import std.system : Endian;
-version(Posix)
-{
-    import core.stdc.stdio;
-    import core.sys.posix.fcntl;
-    import core.stdc.stdio : SEEK_SET, SEEK_CUR, SEEK_END;
-    
-    enum O_BINARY = 0x8000; // Posix does not so just use same as Windows
-}
-else version(Windows)
+
+version(Windows)
 {
     import core.stdc.stdio : O_RDONLY, O_WRONLY, O_RDWR, O_APPEND, O_CREAT, O_TRUNC, O_BINARY,
         O_TMPFILE=O_TEMPORARY;
@@ -30,6 +23,14 @@ else version(Windows)
     import core.sys.windows.windef : DWORD;
     import core.sys.windows.winnt : FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_TEMPORARY,
         FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_GENERIC_WRITE, FILE_WRITE_DATA, GENERIC_READ, GENERIC_WRITE;
+}
+else
+{
+    import core.stdc.stdio;
+    import core.sys.posix.fcntl;
+    import core.stdc.stdio : SEEK_SET, SEEK_CUR, SEEK_END;
+    
+    enum O_BINARY = 0x8000; // Posix does not so just use same as Windows
 }
 
 public import pham.utl.utl_result : ResultIf;
