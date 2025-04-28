@@ -52,7 +52,7 @@ else
 
 @safe:
 
-enum AddressFamily : int
+enum AddressFamily : ushort
 {
     unspecified         = AF_UNSPEC,    // AF_UNSPEC - Unspecified
     unix                = AF_UNIX,    // local to host (pipes, portals)
@@ -140,7 +140,7 @@ public:
         Protocol protocol = Protocol.tcp) pure
     {
         AddressInfo result;
-        result.family = family;
+        result.address = IPSocketAddress(family);
         result.type = type;
         result.protocol = protocol;
         result.flags = AI_ADDRCONFIG | AI_V4MAPPED;
@@ -154,7 +154,7 @@ public:
         Protocol protocol = Protocol.tcp) pure
     {
         AddressInfo result;
-        result.family = family;
+        result.address = IPSocketAddress(family);
         result.type = type;
         result.protocol = protocol;
         result.flags = AI_ADDRCONFIG | AI_V4MAPPED;
@@ -171,10 +171,20 @@ public:
                 : null);
     }
 
+    @property AddressFamily family() const @nogc pure
+    {
+        return address.family;
+    }
+
+    @property ref typeof(this) family(AddressFamily value) @nogc return
+    {
+        address._family = value;
+        return this;
+    }
+    
 public:
     string canonName;
     IPSocketAddress address;
-    AddressFamily family;
     SocketType type;
     Protocol protocol;
     int flags;
@@ -971,12 +981,14 @@ public:
         if (address.isIPv4)
         {
             this._slen = _sin.sizeof;
+            this._sin.sin_family = address.family;
             this._sin.sin_addr.s_addr = fromBytes!uint(address.toBytes());
             this._sin.sin_port = htons(port);
         }
         else if (address.isIPv6)
         {
             this._slen = _sin6.sizeof;
+            this._sin6.sin6_family = address.family;
             this._sin6.sin6_addr.s6_addr[] = address.toBytes();
             this._sin6.sin6_port = htons(port);
             this._sin6.sin6_scope_id = address.scopeId;
@@ -990,11 +1002,13 @@ public:
         if (sockAddr.length == _sin.sizeof)
         {
             this._slen = _sin.sizeof;
+            //this._sin.sin_family = AddressFamily.ipv4;
             this._sin = *cast(sockaddr_in*)&sockAddr[0];
         }
         else if (sockAddr.length == _sin6.sizeof)
         {
             this._slen = _sin6.sizeof;
+            //this._sin6.sin6_family = AddressFamily.ipv6;
             this._sin6 = *cast(sockaddr_in6*)&sockAddr[0];
         }
         else
@@ -1092,11 +1106,13 @@ package(pham.io):
         if (ai_addrLen == _sin.sizeof)
         {
             this._slen = _sin.sizeof;
+            //this._sin.sin_family = AddressFamily.ipv4;
             this._sin = *cast(sockaddr_in*)ai_addr;
         }
         else if (ai_addrLen == _sin6.sizeof)
         {
             this._slen = _sin6.sizeof;
+            //this._sin6.sin6_family = AddressFamily.ipv6;
             this._sin6 = *cast(sockaddr_in6*)ai_addr;
         }
         else

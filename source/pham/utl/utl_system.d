@@ -136,6 +136,7 @@ nothrow @safe unittest // currentProcessId
     assert(currentProcessId() != 0);
 }
 
+version(Windows) // Posix - Not work for if not attached to terminal
 nothrow @safe unittest // currentUserName
 {
     assert(currentUserName().length != 0);

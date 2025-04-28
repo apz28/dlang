@@ -1329,6 +1329,7 @@ unittest // ReadonlyStream
     }
 }
 
+version(Windows)
 unittest // FileStream
 {
     ubyte[200] bufWrite = 42;

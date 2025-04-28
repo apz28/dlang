@@ -3308,7 +3308,7 @@ nothrow @safe unittest // Variant.peek
     static foreach (T; AliasSeq!(float, double, real))
     {
         {
-            T v = cast(T)T.sizeof + 0.1;
+            T v = cast(T)T.sizeof;
             Variant vt = v;
             assert(vt.peek!T && *vt.peek!T == v);
             assert(!vt.peek!long);
@@ -3316,14 +3316,14 @@ nothrow @safe unittest // Variant.peek
 
         // Static array
         {
-            T[1] tsa = [cast(T)T.sizeof + 0.1];
+            T[1] tsa = [cast(T)T.sizeof];
             Variant vsa = tsa;
             assert(vsa.peek!(T[1])&& *vsa.peek!(T[1]) == tsa);
         }
 
         // Dynamic array
         {
-            T[] dda = [cast(T)T.sizeof + 0.1];
+            T[] dda = [cast(T)T.sizeof];
             Variant vda = dda;
             assert(vda.peek!(T[]) && *vda.peek!(T[]) == dda);
         }
@@ -3331,7 +3331,7 @@ nothrow @safe unittest // Variant.peek
         // AssociativeArray
         {
             T[T] aaa;
-            aaa[1] = cast(T)T.sizeof + 0.1;
+            aaa[1] = cast(T)T.sizeof;
             Variant vaa = aaa;
             assert(vaa.peek!(T[T]) && *vaa.peek!(T[T]) == aaa);
         }

@@ -1040,16 +1040,24 @@ private:
 
 @safe unittest // FormatDateTimeSpecifier.utcSortableDateTimeZ - %U
 {
-    string s;
+    DateTime d;
+    string s, expected;
 
-    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%U");
-    assert(s == "2009/06/15T13:45:30.0000001-04:00", s);
-    s = DateTime(2009, 06, 15, 13, 45, 30, DateTimeZoneKind.utc).addTicks(1).toString("%U");
-    assert(s == "2009/06/15T13:45:30.0000001+00:00", s);
+    d = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1);    
+    s = d.toString("%U");
+    expected = "2009/06/15T13:45:30.0000001" ~ d.utcBias.toString();
+    assert(s == expected, s ~ " vs " ~ expected);
+
+    d = DateTime(2009, 06, 15, 13, 45, 30, DateTimeZoneKind.utc).addTicks(1);
+    s = d.toString("%U");
+    expected = "2009/06/15T13:45:30.0000001+00:00";
+    assert(s == expected, s ~ " vs " ~ expected);
 
     auto setting = DateTimeSetting.iso8601Utc;
-    s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%U", setting);
-    assert(s == "2009-06-15T13:45:30.0000001-04:00", s);
+    d = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1);
+    s = d.toString("%U", setting);
+    expected = "2009-06-15T13:45:30.0000001" ~ d.utcBias.toString();
+    assert(s == expected, s ~ " vs " ~ expected);
 }
 
 @safe unittest // FormatDateTimeSpecifier.custom, FormatDateTimeSpecifier.dateSeparator, FormatDateTimeSpecifier.timeSeparator - %custom....
