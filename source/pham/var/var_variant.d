@@ -3551,6 +3551,7 @@ nothrow @safe unittest // Variant.peek
         }
     }
 
+    version(none) // TODO Compiler bug if using AliasSeq
     static foreach (T; AliasSeq!(float, double, real))
     {
         {
