@@ -455,11 +455,12 @@ struct FbIscBlobSize
 @safe:
 
 public:
-    this(int32 maxSegment, int32 segmentCount, int32 length) nothrow pure
+    this(int32 maxSegment, int32 segmentCount, int32 length, int32 type) nothrow pure
     {
         this.maxSegment = maxSegment;
         this.segmentCount = segmentCount;
         this.length = length;
+        this.type = type;
     }
 
     this(scope const(ubyte)[] payload)
@@ -490,6 +491,10 @@ public:
                     this.length = parseInt32!true(payload, pos, len, typ);
                     break;
 
+                case FbIsc.isc_info_blob_type:
+                    this.type = parseInt32!true(payload, pos, len, typ);
+                    break;
+                    
                 default:
                     pos = payload.length; // break out while loop because of garbage
                     break;
@@ -501,21 +506,20 @@ public:
 
     ref typeof(this) reset() nothrow pure return
     {
-        maxSegment = 0;
-        segmentCount = 0;
-        length = 0;
+        maxSegment = segmentCount = length = type = 0;
         return this;
     }
 
     @property bool isInitialized() const nothrow pure
     {
-        return maxSegment != 0 || segmentCount != 0 || length != 0;
+        return maxSegment != 0 || segmentCount != 0 || length != 0 || type != 0;
     }
 
 public:
     int32 maxSegment;
     int32 segmentCount;
     int32 length;
+    int32 type;
 }
 
 struct FbIscBlrDescriptor

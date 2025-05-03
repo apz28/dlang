@@ -130,7 +130,7 @@ enum XPathFunctionType : ubyte
     localName,
     name,
     namespaceUri,
-    normalize,
+    normalizeSpace,
     not,
     number,
     position,
@@ -219,7 +219,7 @@ static immutable ToResultTypeTable toResultTypeTable = ToResultTypeTable(
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.localName, XPathResultType.text),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.name, XPathResultType.text),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.namespaceUri, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.normalize, XPathResultType.text),
+    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.normalizeSpace, XPathResultType.text),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.not, XPathResultType.boolean),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.number, XPathResultType.number),
     ToResultTypeTable.EnumArrayEntry(XPathFunctionType.position, XPathResultType.number),
@@ -1362,7 +1362,7 @@ protected:
         defaultFunctions[to!S(XPathFunctionType.localName)] = &fctLocalName!S;
         defaultFunctions[to!S(XPathFunctionType.name)] = &fctName!S;
         defaultFunctions[to!S(XPathFunctionType.namespaceUri)] = &fctNamespaceUri!S;
-        defaultFunctions[to!S(XPathFunctionType.normalize)] = &fctNormalize!S;
+        defaultFunctions[to!S(XPathFunctionType.normalizeSpace)] = &fctNormalizeSpace!S;
         defaultFunctions[to!S(XPathFunctionType.not)] = &fctNot!S;
         defaultFunctions[to!S(XPathFunctionType.number)] = &fctNumber!S;
         defaultFunctions[to!S(XPathFunctionType.position)] = &fctPosition!S;
@@ -2206,7 +2206,7 @@ protected:
         result["local-name"] = new XPathParamInfo!S(XPathFunctionType.localName, 0, 1, paramType1NodeSet);
         result["name"] = new XPathParamInfo!S(XPathFunctionType.name, 0, 1, paramType1NodeSet);
         result["namespace-uri"] = new XPathParamInfo!S(XPathFunctionType.namespaceUri, 0, 1, paramType1NodeSet);
-        result["normalize-space"] = new XPathParamInfo!S(XPathFunctionType.normalize, 0, 1, paramType1Text);
+        result["normalize-space"] = new XPathParamInfo!S(XPathFunctionType.normalizeSpace, 0, 1, paramType1Text);
         result["not"] = new XPathParamInfo!S(XPathFunctionType.not, 1, 1, paramType1Boolean);
         result["number"] = new XPathParamInfo!S(XPathFunctionType.number, 0, 1, paramType1Any);
         result["position"] = new XPathParamInfo!S(XPathFunctionType.position, 0, 0, paramTypeEmpty);
@@ -3952,10 +3952,31 @@ void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext
     outputContext.resValue = result;
 }
 
-void fctNormalize(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+/**
+ * The normalize-space function strips leading and trailing white-space from a string,
+ * replaces sequences of whitespace characters by a single space, and returns the resulting string.
+ */
+void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    throw new XmlInvalidOperationException(XmlMessage.eInvalidOpFunction, "normalize()");
-    //todo
+    const s = context.argumentList.length != 0
+        ? context.argumentList[0].get!S(inputContext)
+        : (!inputContext.resNodes.empty
+            ? inputContext.resNodes.front.toText()
+            : null);
+
+    if (s.length == 0)
+    {
+        outputContext.resValue = "";
+        return;
+    }
+
+    size_t b = 0, e = s.length;
+    while (b + 1 < e && isSpace(s[b]) && isSpace(s[b + 1]))
+        b++;
+    while (e > b + 1 && isSpace(s[e - 1]) && isSpace(s[e - 2]))
+        e--;
+
+    outputContext.resValue = e > b ? s[b..e] : "";
 }
 
 void fctNot(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -3980,7 +4001,7 @@ void fctPosition(S)(XPathFunction!S context, ref XPathContext!S inputContext, re
         result = inputContext.filterNodes.indexOf(inputContext.resNodes.front);
         // Convert to based 1 if found
         if (result >= 0)
-            ++result;
+            result += 1;
     }
 
     outputContext.resValue = result;
@@ -4008,15 +4029,16 @@ void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, 
 
 void fctStringLength(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    import std.uni : byGrapheme;
+    import std.uni : byCodePoint;
 
-    double result = 0;
-    S s;
-    if (context.argumentList.length != 0)
-        s = context.argumentList[0].get!S(inputContext);
-    else if (!inputContext.resNodes.empty)
-        s = inputContext.resNodes.front.toText();
-    foreach (e; s.byGrapheme)
+    const s = context.argumentList.length != 0
+        ? context.argumentList[0].get!S(inputContext)
+        : (!inputContext.resNodes.empty
+            ? inputContext.resNodes.front.toText()
+            : null);
+
+    double result = 0.0;
+    foreach (e; s.byCodePoint)
         result += 1;
 
     outputContext.resValue = result;
@@ -4090,8 +4112,35 @@ void fctText(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 
 void fctTranslate(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    throw new XmlInvalidOperationException(XmlMessage.eInvalidOpFunction, "translate()");
-    //todo
+    import std.array : array;
+    import std.string : indexOf;
+    import std.uni : byCodePoint;
+    import pham.utl.utl_array_append;
+
+    const s = context.argumentList[0].get!S(inputContext);
+    if (s.length == 0)
+    {
+        outputContext.resValue = "";
+        return;
+    }
+
+    const fromS = context.argumentList[1].get!S(inputContext).byCodePoint.array;
+    const toS = context.argumentList[2].get!S(inputContext).byCodePoint.array;
+
+    Appender!S result;
+    foreach (e; s.byCodePoint)
+    {
+        const i = fromS.indexOf(e);
+        // Keep the character ?
+        if (i < 0)
+            result.put(e);
+        // Replace the character
+        else if (i < toS.length)
+            result.put(toS[i]);
+        // Remove the character
+    }
+
+    outputContext.resValue = result.data;
 }
 
 bool normalizeValueToBoolean(S)(ref XPathValue!S v) nothrow @trusted
@@ -4376,3 +4425,62 @@ unittest  // XPathParser.selectNodes
     //foreach (e; nodeList)
     //    writeln("nodeName: ", e.name, ", position: ", e.position);
 }
+
+unittest // fctNormalizeSpace
+{
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, ""));
+        XPathContext!string inputContext, outputContext;
+        fctNormalizeSpace(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "");
+    }
+
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, " abc     "));
+        XPathContext!string inputContext, outputContext;
+        fctNormalizeSpace(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == " abc ");
+    }
+
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, "XYz "));
+        XPathContext!string inputContext, outputContext;
+        fctNormalizeSpace(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "XYz ");
+    }
+
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, "AbC"));
+        XPathContext!string inputContext, outputContext;
+        fctNormalizeSpace(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "AbC");
+    }
+}
+
+unittest // fctTranslate
+{
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, [new XPathOperand!string(null, ""),
+            new XPathOperand!string(null, "abcdefghijklmnopqrstuvwxyz"), new XPathOperand!string(null, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")]);
+        XPathContext!string inputContext, outputContext;
+        fctTranslate(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "", outputContext.resValue.toString());
+    }
+
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, [new XPathOperand!string(null, "The quick brown fox."),
+            new XPathOperand!string(null, "abcdefghijklmnopqrstuvwxyz"), new XPathOperand!string(null, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")]);
+        XPathContext!string inputContext, outputContext;
+        fctTranslate(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "THE QUICK BROWN FOX.", outputContext.resValue.toString());
+    }
+
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, [new XPathOperand!string(null, "The quick brown fox."),
+            new XPathOperand!string(null, "brown"), new XPathOperand!string(null, "red")]);
+        XPathContext!string inputContext, outputContext;
+        fctTranslate(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "The quick red fdx.", outputContext.resValue.toString());
+    }
+}
+

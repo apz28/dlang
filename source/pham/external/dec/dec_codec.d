@@ -64,11 +64,11 @@ public:
 				const notCombination = (firstByte & combination2) != combination2;
 				const firstByteAsInt = cast(int)firstByte;
 				const int exponentMSB = notCombination
-					? usignedRightShift(firstByteAsInt, 3) & 0b1100 | (firstByteAsInt & 0b0011)
-					: usignedRightShift(firstByteAsInt, 1) & 0b1100 | (firstByteAsInt & 0b0011);
+					? (firstByteAsInt >>> 3) & 0b1100 | (firstByteAsInt & 0b0011)
+					: (firstByteAsInt >>> 1) & 0b1100 | (firstByteAsInt & 0b0011);
 				const int firstDigit = notCombination
-					? usignedRightShift(firstByteAsInt, 2) & 0b0111
-					: 0b1000 | (usignedRightShift(firstByteAsInt, 2) & 0b01);
+					? (firstByteAsInt >>> 2) & 0b0111
+					: 0b1000 | ((firstByteAsInt >>> 2) & 0b01);
 				const exponentBitsRemaining = exponentContinuationBits - 2;
 
 				debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "exponentMSB=", exponentMSB, ", firstDigit=", firstDigit);
@@ -240,7 +240,7 @@ private:
 		if (exponentBitsRemaining > 0)
 		{
 			exponent = (exponent << exponentBitsRemaining)
-                | (usignedRightShift(decBytes[byteIndex] & 0xFF, 8 - exponentBitsRemaining));
+                | ((decBytes[byteIndex] & 0xFF) >>> (8 - exponentBitsRemaining));
 
 			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "exponent=", exponent, ", exponentBitsRemaining=", exponentBitsRemaining);
 		}
@@ -281,7 +281,7 @@ private:
 			const remainder = cast(uint)divrem(remainingValue, 1000u);
 			const currentGroup = bin2DPD[remainder];
 			const curByte = cast(ubyte)(decBytes[firstByteIndex] | (currentGroup << firstByteBitOffset));
-			const preByte = usignedRightShift(currentGroup, bitsPerByte - firstByteBitOffset);
+			const preByte = currentGroup >>> (bitsPerByte - firstByteBitOffset);
 			decBytes[firstByteIndex] = curByte;
 			decBytes[firstByteIndex - 1] = cast(ubyte)(decBytes[firstByteIndex - 1] | preByte);
 
@@ -303,7 +303,7 @@ private:
 		size_t expByteIndex = 1;
 		while (expBitsRemaining > 8)
 		{
-			decBytes[expByteIndex++] = cast(ubyte)usignedRightShift(biasedExponent, expBitsRemaining - 8);
+			decBytes[expByteIndex++] = cast(ubyte)(biasedExponent >>> (expBitsRemaining - 8));
 			expBitsRemaining -= 8;
 
 			debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "decBytes[expByteIndex]=", decBytes[expByteIndex - 1], ", expByteIndex=", expByteIndex - 1);
@@ -330,8 +330,8 @@ private:
         debug(debug_pham_external_dec_dec_codec) debug writeln("\t", "unbiasedExponent=", unbiasedExponent, ", biasedExponent=", biasedExponent, ", coefficient=", coefficient, ", isNeg=", isNeg);
 
 		const mostSignificantDigit = encodeCoefficient(coefficient, decBytes);
-		const expMSB = usignedRightShift(biasedExponent, exponentContinuationBits);
-		const expTwoBitCont = usignedRightShift(biasedExponent, exponentContinuationBits - 2) & 0b011;
+		const expMSB = biasedExponent >>> exponentContinuationBits;
+		const expTwoBitCont = (biasedExponent >>> (exponentContinuationBits - 2)) & 0b011;
 		if (mostSignificantDigit <= 7)
 		{
 			decBytes[0] |= cast(ubyte)((expMSB << 5)
@@ -390,23 +390,16 @@ private:
 		}
 	}
 
+    pragma(inline, true)
 	static int biasedExponent(const(int) unbiasedExponent) @nogc pure
 	{
 		return unbiasedExponent + exponentBias;
 	}
 
+    pragma(inline, true)
 	static int unbiasedExponent(const(int) biasedExponent) @nogc pure
 	{
 		return biasedExponent - exponentBias;
-	}
-
-	static int usignedRightShift(const(int) value, const(int) shift) @nogc pure
-	{
-		const result = cast(uint)(cast(uint)value >> shift);
-
-		debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "(value=", value, ", shift=", shift, ")\r\tresult=", result);
-
-		return result;
 	}
 
 private:

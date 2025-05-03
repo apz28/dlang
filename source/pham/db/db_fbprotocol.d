@@ -2280,10 +2280,13 @@ private:
     int32 _serverVersion;
 }
 
+// If change, please update FbIscBlobSize
 static immutable ubyte[] describeBlobSizeInfoItems = [
     FbIsc.isc_info_blob_max_segment,
     FbIsc.isc_info_blob_num_segments,
     FbIsc.isc_info_blob_total_length,
+    FbIsc.isc_info_blob_type,
+    FbIsc.isc_info_end,
     ];
 
 static immutable ubyte[] describeServerVersionInfoItems = [
