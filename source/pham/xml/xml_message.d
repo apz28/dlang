@@ -108,7 +108,8 @@ public:
     static immutable S boolTrue = "true";
     static immutable S boolFalse = "false";
     
-    static immutable S floatNaN = "NaN";
+    static immutable S floatNNaN = "-NaN";
+    static immutable S floatPNaN = "NaN";
     static immutable S floatNInf = "-Infinity";    
     static immutable S floatPInf = "Infinity";
 }

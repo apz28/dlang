@@ -118,13 +118,20 @@ enum XPathFunctionType : ubyte
 {
     boolean,
     ceiling,
+    //choose,
     concat,
     contains,
     count,
+    //current,
+    //document,
+    //elementAvailable,
     false_,
-    true_,
     floor,
+    //formatNumber,
+    //functionAvailable,
+    //generateId,
     id,
+    //key,
     lang,
     last,
     localName,
@@ -136,14 +143,59 @@ enum XPathFunctionType : ubyte
     position,
     round,
     startsWith,
+    string,
     stringLength,
     substring,
     substringAfter,
     substringBefore,
     sum,
-    text,
+    //systemProperty,
+    //text,
     translate,
+    true_,
+    //unparsedEntityUrl,
     userDefined,
+}
+
+alias FunctionTypeNameTable = EnumArray!(XPathFunctionType, string);
+static immutable FunctionTypeNameTable functionTypeNameTable = FunctionTypeNameTable(
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.boolean, "boolean"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.ceiling, "ceiling"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.concat, "concat"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.contains, "contains"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.count, "count"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.false_, "false"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.floor, "floor"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.id, "id"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.lang, "lang"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.last, "last"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.localName, "local-name"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.name, "name"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.namespaceUri, "namespace-uri"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.normalizeSpace, "normalize-space"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.not, "not"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.number, "number"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.position, "position"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.round, "round"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.startsWith, "starts-with"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.string, "string"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.stringLength, "string-length"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.substring, "substring"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.substringAfter, "substring-after"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.substringBefore, "substring-before"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.sum, "sum"),
+    //FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.text, "text"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.translate, "translate"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.true_, "true"),
+    FunctionTypeNameTable.EnumArrayEntry(XPathFunctionType.userDefined, "?UserDefined?"),
+    );
+
+pragma(inline, true)
+string functionTypeName(XPathFunctionType functionType, string userDefinedName = null) nothrow pure
+{
+    return functionType != XPathFunctionType.userDefined
+        ? functionTypeNameTable[functionType]
+        : userDefinedName;
 }
 
 enum XPathNodeType : ubyte
@@ -202,47 +254,46 @@ enum XPathSortOrder : ubyte
     descending,
 }
 
-alias ToResultTypeTable = EnumArray!(XPathFunctionType, XPathResultType);
-
-static immutable ToResultTypeTable toResultTypeTable = ToResultTypeTable(
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.boolean, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.ceiling, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.concat, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.contains, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.count, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.false_, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.true_, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.floor, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.id, XPathResultType.nodeSet),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.lang, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.last, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.localName, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.name, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.namespaceUri, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.normalizeSpace, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.not, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.number, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.position, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.round, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.startsWith, XPathResultType.boolean),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.stringLength, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.text, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.substring, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.substringAfter, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.substringBefore, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.sum, XPathResultType.number),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.translate, XPathResultType.text),
-    ToResultTypeTable.EnumArrayEntry(XPathFunctionType.userDefined, XPathResultType.any)
+alias FunctionTypeResultTable = EnumArray!(XPathFunctionType, XPathResultType);
+static immutable FunctionTypeResultTable functionTypeResultTable = FunctionTypeResultTable(
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.boolean, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.ceiling, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.concat, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.contains, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.count, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.false_, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.floor, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.id, XPathResultType.nodeSet),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.lang, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.last, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.localName, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.name, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.namespaceUri, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.normalizeSpace, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.not, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.number, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.position, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.round, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.startsWith, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.string, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.stringLength, XPathResultType.number),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.substring, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.substringAfter, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.substringBefore, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.sum, XPathResultType.number),
+    //FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.text, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.translate, XPathResultType.text),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.true_, XPathResultType.boolean),
+    FunctionTypeResultTable.EnumArrayEntry(XPathFunctionType.userDefined, XPathResultType.any),
     );
 
 pragma(inline, true)
-XPathResultType toResultType(XPathFunctionType functionType) nothrow pure
+XPathResultType functionResultType(XPathFunctionType functionType) nothrow pure
 {
-    return toResultTypeTable[functionType];
+    return functionTypeResultTable[functionType];
 }
 
 alias InvertedOpTable = EnumArray!(XPathOp, XPathOp);
-
 static immutable InvertedOpTable invertedOpTable = InvertedOpTable(
     InvertedOpTable.EnumArrayEntry(XPathOp.error, XPathOp.error),
     InvertedOpTable.EnumArrayEntry(XPathOp.and, XPathOp.or),
@@ -268,7 +319,6 @@ XPathOp invertedOp(XPathOp op) nothrow pure
 }
 
 alias ToXmlNodeTypeTable = EnumArray!(XPathNodeType, XmlNodeType);
-
 static immutable ToXmlNodeTypeTable toXmlNodeTypeTable = ToXmlNodeTypeTable(
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.all, XmlNodeType.unknown),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.attribute, XmlNodeType.attribute),
@@ -577,6 +627,7 @@ public:
         debug(debug_pham_xml_xml_xpath) nodeIndent = &_nodeIndent;
 
         this._xpathNode = xpathNode;
+        this.resNodes = XmlNodeList!S(null);
     }
 
     void clear() nothrow
@@ -589,7 +640,6 @@ public:
     XPathContext!S createOutputContext() nothrow
     {
         auto result = XPathContext!S(_xpathNode);
-        result._xpathDocumentElement = _xpathDocumentElement;
         result.variables = variables;
         result.filterNodes = filterNodes;
         return result;
@@ -642,7 +692,7 @@ package:
     }
 
 public:
-    XmlNodeList!S resNodes = XmlNodeList!S(null);
+    XmlNodeList!S resNodes;
     XPathValue!S resValue;
 
     XmlNodeList!S filterNodes;
@@ -665,6 +715,8 @@ abstract class XPathNode(S = string) : XmlObject!S
 @safe:
 
 public:
+    abstract void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext);
+    
     T get(T)(ref XPathContext!S inputContext)
     if (is(T == S) || is(T == double) || is(T == bool) || is(T == const(C)[]))
     {
@@ -701,13 +753,6 @@ public:
         }
     }
 
-    final S qualifiedName() nothrow
-    {
-        if (_qualifiedName.ptr is null)
-            _qualifiedName = combineName!S(_prefix, _localName);
-        return _qualifiedName;
-    }
-
     final S outerXml(Flag!"prettyOutput" prettyOutput = No.prettyOutput)
     {
         auto buffer = new XmlBuffer!(S, No.CheckEncoded)();
@@ -715,7 +760,12 @@ public:
         return buffer.value();
     }
 
-    abstract void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext);
+    final S qualifiedName() nothrow
+    {
+        if (_qualifiedName.ptr is null)
+            _qualifiedName = combineName!S(_prefix, _localName);
+        return _qualifiedName;
+    }
 
     abstract XmlWriter!S write(XmlWriter!S writer);
 
@@ -1335,7 +1385,7 @@ public:
     }
 
 public:
-    XPathUserDefinedFunctionEntry!S[S] userDefinedFunctions;
+    Dictionary!(S, XPathUserDefinedFunctionEntry!S) userDefinedFunctions;
 
 protected:
     static XPathFunctionTable!S createDefaultFunctionTable() nothrow pure
@@ -1345,37 +1395,46 @@ protected:
 
     final void initDefault() nothrow pure
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         defaultFunctions.reserve(35, 30);
-        defaultFunctions[to!S(XPathFunctionType.boolean)] = &fctBoolean!S;
-        defaultFunctions[to!S(XPathFunctionType.ceiling)] = &fctCeiling!S;
-        defaultFunctions[to!S(XPathFunctionType.concat)] = &fctConcat!S;
-        defaultFunctions[to!S(XPathFunctionType.contains)] = &fctContains!S;
-        defaultFunctions[to!S(XPathFunctionType.count)] = &fctCount!S;
-        defaultFunctions[to!S(XPathFunctionType.false_)] = &fctFalse!S;
-        defaultFunctions[to!S(XPathFunctionType.true_)] = &fctTrue!S;
-        defaultFunctions[to!S(XPathFunctionType.floor)] = &fctFloor!S;
-        defaultFunctions[to!S(XPathFunctionType.id)] = &fctId!S;
-        defaultFunctions[to!S(XPathFunctionType.lang)] = &fctLang!S;
-        defaultFunctions[to!S(XPathFunctionType.last)] = &fctLast!S;
-        defaultFunctions[to!S(XPathFunctionType.localName)] = &fctLocalName!S;
-        defaultFunctions[to!S(XPathFunctionType.name)] = &fctName!S;
-        defaultFunctions[to!S(XPathFunctionType.namespaceUri)] = &fctNamespaceUri!S;
-        defaultFunctions[to!S(XPathFunctionType.normalizeSpace)] = &fctNormalizeSpace!S;
-        defaultFunctions[to!S(XPathFunctionType.not)] = &fctNot!S;
-        defaultFunctions[to!S(XPathFunctionType.number)] = &fctNumber!S;
-        defaultFunctions[to!S(XPathFunctionType.position)] = &fctPosition!S;
-        defaultFunctions[to!S(XPathFunctionType.round)] = &fctRound!S;
-        defaultFunctions[to!S(XPathFunctionType.startsWith)] = &fctStartsWith!S;
-        defaultFunctions[to!S(XPathFunctionType.stringLength)] = &fctStringLength!S;
-        defaultFunctions[to!S(XPathFunctionType.substring)] = &fctSubstring!S;
-        defaultFunctions[to!S(XPathFunctionType.substringAfter)] = &fctSubstringAfter!S;
-        defaultFunctions[to!S(XPathFunctionType.substringBefore)] = &fctSubstringBefore!S;
-        defaultFunctions[to!S(XPathFunctionType.sum)] = &fctSum!S;
-        defaultFunctions[to!S(XPathFunctionType.text)] = &fctText!S;
-        defaultFunctions[to!S(XPathFunctionType.translate)] = &fctTranslate!S;
-        //defaultFunctions[to!S(XPathFunctionType.)] = &fct!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.boolean)] = &fctBoolean!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.ceiling)] = &fctCeiling!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.choose)] = &fctChoose!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.concat)] = &fctConcat!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.contains)] = &fctContains!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.count)] = &fctCount!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.current)] = &fctCurrent!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.document)] = &fctDocument!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.element-available)] = &fctElementAvailable!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.false_)] = &fctFalse!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.floor)] = &fctFloor!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.formatNumber)] = &fctFormatNumber!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.functionAvailable)] = &fctFunctionAvailable!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.generateId)] = &fctGenerateId!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.id)] = &fctId!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.key)] = &fctKey!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.lang)] = &fctLang!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.last)] = &fctLast!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.localName)] = &fctLocalName!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.name)] = &fctName!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.namespaceUri)] = &fctNamespaceUri!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.normalizeSpace)] = &fctNormalizeSpace!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.not)] = &fctNot!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.number)] = &fctNumber!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.position)] = &fctPosition!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.round)] = &fctRound!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.startsWith)] = &fctStartsWith!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.string)] = &fctString!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.stringLength)] = &fctStringLength!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.substring)] = &fctSubstring!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.substringAfter)] = &fctSubstringAfter!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.substringBefore)] = &fctSubstringBefore!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.sum)] = &fctSum!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.systemProperty)] = &fctSystemProperty!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.text)] = &fctText!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.translate)] = &fctTranslate!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.true_)] = &fctTrue!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.unparsedEntityUrl)] = &fctUnparsedEntityUrl!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.)] = &fct!S;
     }
 
 protected:
@@ -1515,7 +1574,7 @@ public:
         if (functionType == XPathFunctionType.userDefined)
             return userDefinedevaluateFct.returnType;
         else
-            return toResultType(functionType);
+            return functionResultType(functionType);
     }
 
 protected:
@@ -1523,10 +1582,11 @@ protected:
     {
         if (functionType != XPathFunctionType.userDefined)
         {
-            XPathFunctionTable!S.defaultFunctionTable().find(functionType.to!S(), evaluateFct);
+            const functionName = functionTypeName(functionType);
+            XPathFunctionTable!S.defaultFunctionTable().find(functionName, evaluateFct);
 
             if (evaluateFct is null)
-                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), functionType.to!S());
+                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), functionName);
         }
         else
         {
@@ -2138,7 +2198,7 @@ public:
 
     @property final XPathResultType returnType() const nothrow
     {
-        return toResultType(_functionType);
+        return functionResultType(_functionType);
     }
 
 private:
@@ -2193,33 +2253,33 @@ protected:
 
         auto result = Dictionary!(S, XPathParamInfo!S)(50, 30);
 
-        result["boolean"] = new XPathParamInfo!S(XPathFunctionType.boolean, 1, 1, paramType1Any);
-        result["ceiling"] = new XPathParamInfo!S(XPathFunctionType.ceiling, 1, 1, paramType1Number);
-        result["concat"] = new XPathParamInfo!S(XPathFunctionType.concat, 2, size_t.max, paramType1Text);
-        result["contains"] = new XPathParamInfo!S(XPathFunctionType.contains, 2, 2, paramType2Text);
-        result["count"] = new XPathParamInfo!S(XPathFunctionType.count, 1, 1, paramType1NodeSet);
-        result["false"] = new XPathParamInfo!S(XPathFunctionType.false_, 0, 0, paramType1Boolean);
-        result["floor"] = new XPathParamInfo!S(XPathFunctionType.floor, 1, 1, paramType1Number);
-        result["id"] = new XPathParamInfo!S(XPathFunctionType.id, 1, 1, paramType1Any);
-        result["lang"] = new XPathParamInfo!S(XPathFunctionType.lang, 1, 1, paramType1Text);
-        result["last"] = new XPathParamInfo!S(XPathFunctionType.last, 0, 0, paramTypeEmpty);
-        result["local-name"] = new XPathParamInfo!S(XPathFunctionType.localName, 0, 1, paramType1NodeSet);
-        result["name"] = new XPathParamInfo!S(XPathFunctionType.name, 0, 1, paramType1NodeSet);
-        result["namespace-uri"] = new XPathParamInfo!S(XPathFunctionType.namespaceUri, 0, 1, paramType1NodeSet);
-        result["normalize-space"] = new XPathParamInfo!S(XPathFunctionType.normalizeSpace, 0, 1, paramType1Text);
-        result["not"] = new XPathParamInfo!S(XPathFunctionType.not, 1, 1, paramType1Boolean);
-        result["number"] = new XPathParamInfo!S(XPathFunctionType.number, 0, 1, paramType1Any);
-        result["position"] = new XPathParamInfo!S(XPathFunctionType.position, 0, 0, paramTypeEmpty);
-        result["round"] = new XPathParamInfo!S(XPathFunctionType.round, 1, 1, paramType1Number);
-        result["starts-with"] = new XPathParamInfo!S(XPathFunctionType.startsWith, 2, 2, paramType2Text);
-        result["string"] = new XPathParamInfo!S(XPathFunctionType.text, 0, 1, paramType1Any);
-        result["string-length"] = new XPathParamInfo!S(XPathFunctionType.stringLength, 0, 1, paramType1Text);
-        result["substring"] = new XPathParamInfo!S(XPathFunctionType.substring, 2, 3, paramType1Text2Number);
-        result["substring-after"] = new XPathParamInfo!S(XPathFunctionType.substringAfter, 2, 2, paramType2Text);
-        result["substring-before"] = new XPathParamInfo!S(XPathFunctionType.substringBefore, 2, 2, paramType2Text);
-        result["sum"] = new XPathParamInfo!S(XPathFunctionType.sum, 1, 1, paramType1NodeSet);
-        result["translate"] = new XPathParamInfo!S(XPathFunctionType.translate, 3, 3, paramType3Text);
-        result["true"] = new XPathParamInfo!S(XPathFunctionType.true_, 0, 0, paramType1Boolean);
+        result[functionTypeName(XPathFunctionType.boolean)] = new XPathParamInfo!S(XPathFunctionType.boolean, 1, 1, paramType1Any);
+        result[functionTypeName(XPathFunctionType.ceiling)] = new XPathParamInfo!S(XPathFunctionType.ceiling, 1, 1, paramType1Number);
+        result[functionTypeName(XPathFunctionType.concat)] = new XPathParamInfo!S(XPathFunctionType.concat, 2, size_t.max, paramType1Text);
+        result[functionTypeName(XPathFunctionType.contains)] = new XPathParamInfo!S(XPathFunctionType.contains, 2, 2, paramType2Text);
+        result[functionTypeName(XPathFunctionType.count)] = new XPathParamInfo!S(XPathFunctionType.count, 1, 1, paramType1NodeSet);
+        result[functionTypeName(XPathFunctionType.false_)] = new XPathParamInfo!S(XPathFunctionType.false_, 0, 0, paramType1Boolean);
+        result[functionTypeName(XPathFunctionType.floor)] = new XPathParamInfo!S(XPathFunctionType.floor, 1, 1, paramType1Number);
+        result[functionTypeName(XPathFunctionType.id)] = new XPathParamInfo!S(XPathFunctionType.id, 1, 1, paramType1Any);
+        result[functionTypeName(XPathFunctionType.lang)] = new XPathParamInfo!S(XPathFunctionType.lang, 1, 1, paramType1Text);
+        result[functionTypeName(XPathFunctionType.last)] = new XPathParamInfo!S(XPathFunctionType.last, 0, 0, paramTypeEmpty);
+        result[functionTypeName(XPathFunctionType.localName)] = new XPathParamInfo!S(XPathFunctionType.localName, 0, 1, paramType1NodeSet);
+        result[functionTypeName(XPathFunctionType.name)] = new XPathParamInfo!S(XPathFunctionType.name, 0, 1, paramType1NodeSet);
+        result[functionTypeName(XPathFunctionType.namespaceUri)] = new XPathParamInfo!S(XPathFunctionType.namespaceUri, 0, 1, paramType1NodeSet);
+        result[functionTypeName(XPathFunctionType.normalizeSpace)] = new XPathParamInfo!S(XPathFunctionType.normalizeSpace, 0, 1, paramType1Text);
+        result[functionTypeName(XPathFunctionType.not)] = new XPathParamInfo!S(XPathFunctionType.not, 1, 1, paramType1Boolean);
+        result[functionTypeName(XPathFunctionType.number)] = new XPathParamInfo!S(XPathFunctionType.number, 0, 1, paramType1Any);
+        result[functionTypeName(XPathFunctionType.position)] = new XPathParamInfo!S(XPathFunctionType.position, 0, 0, paramTypeEmpty);
+        result[functionTypeName(XPathFunctionType.round)] = new XPathParamInfo!S(XPathFunctionType.round, 1, 1, paramType1Number);
+        result[functionTypeName(XPathFunctionType.startsWith)] = new XPathParamInfo!S(XPathFunctionType.startsWith, 2, 2, paramType2Text);
+        result[functionTypeName(XPathFunctionType.string)] = new XPathParamInfo!S(XPathFunctionType.string, 0, 1, paramType1Any);
+        result[functionTypeName(XPathFunctionType.stringLength)] = new XPathParamInfo!S(XPathFunctionType.stringLength, 0, 1, paramType1Text);
+        result[functionTypeName(XPathFunctionType.substring)] = new XPathParamInfo!S(XPathFunctionType.substring, 2, 3, paramType1Text2Number);
+        result[functionTypeName(XPathFunctionType.substringAfter)] = new XPathParamInfo!S(XPathFunctionType.substringAfter, 2, 2, paramType2Text);
+        result[functionTypeName(XPathFunctionType.substringBefore)] = new XPathParamInfo!S(XPathFunctionType.substringBefore, 2, 2, paramType2Text);
+        result[functionTypeName(XPathFunctionType.sum)] = new XPathParamInfo!S(XPathFunctionType.sum, 1, 1, paramType1NodeSet);
+        result[functionTypeName(XPathFunctionType.translate)] = new XPathParamInfo!S(XPathFunctionType.translate, 3, 3, paramType3Text);
+        result[functionTypeName(XPathFunctionType.true_)] = new XPathParamInfo!S(XPathFunctionType.true_, 0, 0, paramType1Boolean);
 
         debug(debug_pham_xml_xml_xpath) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
@@ -3432,7 +3492,7 @@ private:
                     foreach (i, a; argList)
                     {
                         if (a.returnType != XPathResultType.text)
-                            argList[i] = new XPathFunction!S(aInput, XPathFunctionType.text, a);
+                            argList[i] = new XPathFunction!S(aInput, XPathFunctionType.string, a);
                     }
                 }
                 else
@@ -3464,7 +3524,7 @@ private:
                                     argList[i] = new XPathFunction!S(aInput, XPathFunctionType.number, a);
                                     break;
                                 case XPathResultType.text:
-                                    argList[i] = new XPathFunction!S(aInput, XPathFunctionType.text, a);
+                                    argList[i] = new XPathFunction!S(aInput, XPathFunctionType.string, a);
                                     break;
                                 default:
                                     break;
@@ -3745,6 +3805,14 @@ void opBinary(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputCont
     outputContext.resValue = result;
 }
 
+/**
+ * boolean( expression )
+ * Evaluates an expression and returns true or false
+ * Params:
+ *  expression = To be evaluated. The expression can refer to numbers and node-sets as well as booleans
+ * Returns:
+ *  A boolean true or false after evaluating expression
+ */
 void fctBoolean(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     bool result = context.argumentList[0].get!bool(inputContext);
@@ -3752,6 +3820,14 @@ void fctBoolean(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref
     outputContext.resValue = result;
 }
 
+/**
+ * ceiling( number )
+ * Evaluates a decimal number and returns the smallest integer greater than or equal to the decimal number
+ * Params:
+ *  number = To be evaluated
+ * Returns:
+ *  A double - nearest integer greater than or equal to number
+ */
 void fctCeiling(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.math : ceil;
@@ -3761,6 +3837,17 @@ void fctCeiling(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref
     outputContext.resValue = result;
 }
 
+// choose( boolean, object1, object2 )
+//void fctChoose(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+/**
+ * concat( string1, string2 [,stringN]* )
+ * Concatenates two or more strings and returns the resulting string
+ * Params:
+ *  string...N = Aaccepts two or more arguments. Each of these arguments is a string
+ * Returns:
+ *  A string that is the concatenation of all the strings passed to the function as arguments
+ */
 void fctConcat(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     S s;
@@ -3770,6 +3857,15 @@ void fctConcat(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref 
     outputContext.resValue = s;
 }
 
+/**
+ * contains(haystack, needle)
+ * Determines whether the first argument string contains the second argument string and returns boolean true or false
+ * Params:
+ *  haystack = The string to be searched
+ *  needle = The string to look for as a substring of haystack
+ * Returns:
+ *  A boolean true if haystack contains needle. Otherwise, false
+ */
 void fctContains(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.string : indexOf;
@@ -3781,6 +3877,7 @@ void fctContains(S)(XPathFunction!S context, ref XPathContext!S inputContext, re
     outputContext.resValue = result;
 }
 
+// count( node-set )
 void fctCount(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     auto tempOutputContext = inputContext.createOutputContext();
@@ -3790,16 +3887,22 @@ void fctCount(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref X
     outputContext.resValue = result;
 }
 
+// current()
+//void fctCurrent(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// document( URI [,node-set] )
+//void fctDocument(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// element-available( QName )
+//void fctElementAvailable(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// false()
 void fctFalse(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     outputContext.resValue = false;
 }
 
-void fctTrue(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
-{
-    outputContext.resValue = true;
-}
-
+// floor( number )
 void fctFloor(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.math : floor;
@@ -3809,6 +3912,16 @@ void fctFloor(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref X
     outputContext.resValue = result;
 }
 
+// format-number( number, pattern ) | format-number( number, pattern, decimalFormat )
+//void fctFormatNumber(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// function-available( name )
+//void fctFunctionAvailable(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// generate-id( [node-set] )
+//void fctGenerateId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// id( expression )
 void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.algorithm.searching : find;
@@ -3851,6 +3964,10 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
     }
 }
 
+// key( keyname, value )
+//void fctKey(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+
+// lang( string )
 void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.algorithm.searching : startsWith;
@@ -3888,6 +4005,7 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
     outputContext.resValue = result;
 }
 
+// last()
 void fctLast(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     double result = inputContext.resNodes.length;
@@ -3895,6 +4013,7 @@ void fctLast(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
     outputContext.resValue = result;
 }
 
+// local-name( [node-set] )
 void fctLocalName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     S result;
@@ -3914,6 +4033,7 @@ void fctLocalName(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
     outputContext.resValue = result;
 }
 
+// name( [node-set] )
 void fctName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     S result;
@@ -3933,6 +4053,7 @@ void fctName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
     outputContext.resValue = result;
 }
 
+// namespace-uri( [node-set] )
 void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     S result;
@@ -3956,6 +4077,7 @@ void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext
  * The normalize-space function strips leading and trailing white-space from a string,
  * replaces sequences of whitespace characters by a single space, and returns the resulting string.
  */
+// normalize-space( [string] )
 void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     const s = context.argumentList.length != 0
@@ -3976,9 +4098,13 @@ void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputConte
     while (e > b + 1 && isSpace(s[e - 1]) && isSpace(s[e - 2]))
         e--;
 
-    outputContext.resValue = e > b ? s[b..e] : "";
+    outputContext.resValue = e > b
+        // Need to check for all spaces
+        ? (e - b != 1 || s[b..e] != " " ? s[b..e] : "")
+        : "";
 }
 
+// not( expression )
 void fctNot(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     bool result = !context.argumentList[0].get!bool(inputContext);
@@ -3986,6 +4112,7 @@ void fctNot(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
     outputContext.resValue = result;
 }
 
+// number( [object] )
 void fctNumber(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     double result = context.argumentList[0].get!double(inputContext);
@@ -3993,6 +4120,7 @@ void fctNumber(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref 
     outputContext.resValue = result;
 }
 
+// position()
 void fctPosition(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     double result;
@@ -4007,6 +4135,7 @@ void fctPosition(S)(XPathFunction!S context, ref XPathContext!S inputContext, re
     outputContext.resValue = result;
 }
 
+// round( decimal )
 void fctRound(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.math : round;
@@ -4016,6 +4145,7 @@ void fctRound(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref X
     outputContext.resValue = result;
 }
 
+// starts-with( haystack, needle )
 void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.algorithm.searching : startsWith;
@@ -4027,6 +4157,20 @@ void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, 
     outputContext.resValue = result;
 }
 
+/**
+ * string( [object] )
+ * Converts the given argument to a string
+ * Params:
+ *  object = To be converted to a string. If omitted, the context node is used
+ * Returns:
+ *  A string
+ */
+void fctString(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+{
+    outputContext.resValue = context.get!S(inputContext);
+}
+
+// string-length( [string] )
 void fctStringLength(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.uni : byCodePoint;
@@ -4044,6 +4188,7 @@ void fctStringLength(S)(XPathFunction!S context, ref XPathContext!S inputContext
     outputContext.resValue = result;
 }
 
+// substring( string, start ) | substring( string, start, length )
 void fctSubstring(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.algorithm.comparison : min;
@@ -4063,6 +4208,7 @@ void fctSubstring(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
     outputContext.resValue = result;
 }
 
+// substring-after( haystack, needle )
 void fctSubstringAfter(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.algorithm.searching : findSplit;
@@ -4074,6 +4220,7 @@ void fctSubstringAfter(S)(XPathFunction!S context, ref XPathContext!S inputConte
     outputContext.resValue = searchResult[2];
 }
 
+// substring-before( haystack, needle )
 void fctSubstringBefore(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.algorithm.searching : findSplit;
@@ -4088,6 +4235,7 @@ void fctSubstringBefore(S)(XPathFunction!S context, ref XPathContext!S inputCont
         outputContext.resValue = "";
 }
 
+// sum(node-set)
 void fctSum(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     auto tempOutputContext = inputContext.createOutputContext();
@@ -4105,11 +4253,10 @@ void fctSum(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
     outputContext.resValue = result;
 }
 
-void fctText(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
-{
-    outputContext.resValue = context.get!S(inputContext);
-}
+// system-property( name)
+//void fctSystemProperty(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 
+// translate( string, abc, XYZ )
 void fctTranslate(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.array : array;
@@ -4142,6 +4289,15 @@ void fctTranslate(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
 
     outputContext.resValue = result.data;
 }
+
+// true()
+void fctTrue(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+{
+    outputContext.resValue = true;
+}
+
+// unparsed-entity-url( string )
+//void fctUnparsedEntityUrl(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 
 bool normalizeValueToBoolean(S)(ref XPathValue!S v) nothrow @trusted
 if (isXmlString!S)
@@ -4280,7 +4436,7 @@ if (isXmlString!S)
     debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
 
     value = strip(value);
-    return (value.length == 0) ? double.nan : value.to!double();
+    return value.length == 0 ? double.nan : value.to!double();
 }
 
 S toText(S)(bool value) nothrow pure
@@ -4297,7 +4453,7 @@ if (isXmlString!S)
     scope (failure) assert(0, "Assume nothrow failed");
 
     if (isNaN(value))
-        return XmlConst!S.floatNaN;
+        return signbit(value) ? XmlConst!S.floatNNaN : XmlConst!S.floatPNaN;
     else if (isInfinity(value))
         return signbit(value) ? XmlConst!S.floatNInf : XmlConst!S.floatPInf;
     else
@@ -4433,6 +4589,13 @@ unittest // fctNormalizeSpace
         XPathContext!string inputContext, outputContext;
         fctNormalizeSpace(context, inputContext, outputContext);
         assert(outputContext.resValue.toString() == "");
+    }
+
+    {
+        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, "     "));
+        XPathContext!string inputContext, outputContext;
+        fctNormalizeSpace(context, inputContext, outputContext);
+        assert(outputContext.resValue.toString() == "", "<" ~ outputContext.resValue.toString() ~ ">");
     }
 
     {
