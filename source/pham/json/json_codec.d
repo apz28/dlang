@@ -121,30 +121,42 @@ public:
 
             default:
                 if (isControl(c) || (escapeNonAsciiChars && c >= 0x80))
-                {
-                    // Ensure non-BMP characters are encoded as a pair
-                    // of UTF-16 surrogate characters, as per RFC 4627.
-                    wchar[2] wchars; // 1 or 2 UTF-16 code units
-                    const len = encode!(Yes.useReplacementDchar)(wchars, c); // number of UTF-16 code units
-                    ubyte count;
-                    foreach (w; wchars[0..len])
-                    {
-                        s[count++] = '\\';
-                        s[count++] = 'u';
-                        foreach_reverse (i; 0..4)
-                        {
-                            char ch = (w >>> (4 * i)) & 0x0f;
-                            ch += ch < 10 ? '0' : 'A' - 10;
-                            s[count++] = ch;
-                        }
-                    }
-                    return s[0..count];
-                }
+                    return encodeCharImpl(c, s);
                 else
                     return [];
         }
     }
 
+    static char[] encodeCharImpl(dchar c, return ref char[12] s) nothrow pure
+    {
+        // Ensure non-BMP characters are encoded as a pair
+        // of UTF-16 surrogate characters, as per RFC 4627.
+        wchar[2] wchars; // 1 or 2 UTF-16 code units
+        const len = encode!(Yes.useReplacementDchar)(wchars, c); // number of UTF-16 code units
+        ubyte count;
+        foreach (w; wchars[0..len])
+        {
+            s[count++] = '\\';
+            s[count++] = 'u';
+            foreach_reverse (i; 0..4)
+            {
+                char ch = (w >>> (4 * i)) & 0x0f;
+                ch += ch < 10 ? '0' : 'A' - 10;
+                s[count++] = ch;
+            }
+        }
+        return s[0..count];
+    }
+
+    static string encodeChar(dchar c) nothrow pure
+    {
+        char[12] s;
+        if (isControl(c) || c >= 0x80)
+            return encodeCharImpl(c, s).idup;
+        else
+            return [cast(char)c].idup;
+    }
+    
     string toString(typeof(null)) nothrow pure
     {
         return JSONLiteral.null_;

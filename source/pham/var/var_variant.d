@@ -3312,10 +3312,9 @@ nothrow @safe unittest // Variant.peek
         }
     }
 
-    version(none) // TODO Compiler bug if using AliasSeq
     static foreach (T; AliasSeq!(float, double, real))
     {
-        import std.stdio : writeln; debug writeln("T=", T.stringof);
+        //import std.stdio : writeln; debug writeln("T=", T.stringof);
         
         {
             T v = T.sizeof;
@@ -3327,9 +3326,9 @@ nothrow @safe unittest // Variant.peek
         // Static array
         {
             T v = T.sizeof;
-            T[1] tsa = [v];
+            T[2] tsa = [v, v + 1.5];
             Variant vsa = tsa;
-            assert(vsa.peek!(T[1])() && *vsa.peek!(T[1])() == tsa, dtxt);
+            assert(vsa.peek!(T[2])() && *vsa.peek!(T[2])() == tsa);
         }
 
         // Dynamic array
@@ -3551,7 +3550,6 @@ nothrow @safe unittest // Variant.peek
         }
     }
 
-    version(none) // TODO Compiler bug if using AliasSeq
     static foreach (T; AliasSeq!(float, double, real))
     {
         {
@@ -3570,9 +3568,9 @@ nothrow @safe unittest // Variant.peek
 
         // Static array
         {
-            T[1] tsa = [cast(T)T.sizeof + 0.1];
+            T[2] tsa = [cast(T)T.sizeof, cast(T)T.sizeof + 0.1];
             Variant vsa = tsa;
-            assert(vsa.get!(T[1]) == tsa);
+            assert(vsa.get!(T[2]) == tsa);
         }
 
         // Dynamic array

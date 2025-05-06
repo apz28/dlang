@@ -22,7 +22,7 @@ public:
         super(msg, file, line, next);
     }
 
-    this(string msg, size_t line, uint column, string file = __FILE__, Exception next = null) nothrow pure @safe
+    this(string msg, size_t line, size_t column, string file = __FILE__, Exception next = null) nothrow pure @safe
     {
         if (column)
             super(text(msg, " (", line, ":", column, ")"), file, 0, next);

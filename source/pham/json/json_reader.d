@@ -38,7 +38,7 @@ struct JSONToken(T)
 nothrow @safe:
 
 public:
-    this(const(char)[] token, JSONTokenKind kind, uint line, uint column,
+    this(const(char)[] token, JSONTokenKind kind, size_t line, size_t column,
         string errorMessage = null)
     {
         static if (useTSlice)
@@ -75,7 +75,7 @@ public:
             _token.clear();
     }
 
-    void setError(JSONTokenKind kind, uint line, uint column, string errorMessage)
+    void setError(JSONTokenKind kind, size_t line, size_t column, string errorMessage)
     {
         _kind = kind;
         _line = line;
@@ -84,7 +84,7 @@ public:
     }
 
     pragma(inline, true)
-    void setKind(JSONTokenKind kind, uint line, uint column)
+    void setKind(JSONTokenKind kind, size_t line, size_t column)
     {
         _kind = kind;
         _line = line;
@@ -100,7 +100,7 @@ public:
         return errorMessage.length == 0 ? r : (r ~ ": " ~ errorMessage);
     }
 
-    @property uint column() const
+    @property size_t column() const
     {
         return _column;
     }
@@ -111,7 +111,7 @@ public:
         return _kind;
     }
 
-    @property uint line() const
+    @property size_t line() const
     {
         return _line;
     }
@@ -159,7 +159,7 @@ private:
         const(char)[] _token;
     else
         Appender!(char[]) _token;
-    uint _line, _column;
+    size_t _line, _column;
     JSONTokenKind _kind;
 }
 
@@ -345,8 +345,8 @@ public:
 
                 static if (!useTSlice)
                     _token.put(c);
-
-                setTokenError(text("JSON - Unexpected character '", c, "'"), _line, _column);
+    
+                setTokenError(text("JSON - Unexpected character '", JSONTextEncoder.encodeChar(c), "'"), _line, _column);
                 return;
         }
     }
@@ -507,7 +507,7 @@ private:
     JSONTokenKind getDigits(Char c)
     {
         if (!isDigit(c))
-            return setTokenError(text("JSON - Digit expected: ", c), _line, _column);
+            return setTokenError(text("JSON - Digit expected: ", JSONTextEncoder.encodeChar(c)), _line, _column);
 
     Next:
         static if (!useTSlice)
@@ -535,9 +535,9 @@ private:
         {
             enum maxEqualLength = 4;
             static if (options & JSONOptions.strictParsing)
-                static immutable char[maxEqualLength] equalChars = "alse";
+                static immutable Char[maxEqualLength] equalChars = "alse";
             else
-                static immutable char[2][maxEqualLength] equalChars = ["aA", "lL", "sS", "eE"];
+                static immutable Char[2][maxEqualLength] equalChars = ["aA", "lL", "sS", "eE"];
 
             size_t length, equalLength;
             while (true)
@@ -627,7 +627,7 @@ private:
             return setTokenEofError();
 
         if (!isHexDigit(c))
-            return setTokenError(text("JSON - Expecting hex character: ", c), _line, _column);
+            return setTokenError(text("JSON - Expecting hex character: ", JSONTextEncoder.encodeChar(c)), _line, _column);
 
         n = isDigit(c) ? cast(ubyte)(c - '0') : cast(ubyte)((c | 0x20) - 'a' + 10);
         return JSONTokenKind.string;
@@ -645,10 +645,9 @@ private:
                 if (length == 0)
                     return jsonEmpty
                         ? setTokenEofError()
-                        : setTokenError(text("JSON - Expecting hex character: ", c), _line, _column);
+                        : setTokenError(text("JSON - Expecting hex character: ", JSONTextEncoder.encodeChar(c)), _line, _column);
                 break;
             }
-
 
             length++;
             static if (!useTSlice)
@@ -700,9 +699,9 @@ private:
         {
             enum maxEqualLength = 3;
             static if (options & JSONOptions.strictParsing)
-                static immutable char[maxEqualLength] equalChars = "ull";
+                static immutable Char[maxEqualLength] equalChars = "ull";
             else
-                static immutable char[2][maxEqualLength] equalChars = ["uU", "lL", "lL"];
+                static immutable Char[2][maxEqualLength] equalChars = ["uU", "lL", "lL"];
 
             size_t length, equalLength;
             while (true)
@@ -854,6 +853,31 @@ private:
             Appender!string str;
             bool useStr;
             size_t ep;
+
+            void copyTSlice() nothrow
+            {
+                debug(debug_pham_utl_utl_json) if (!__ctfe) writeln("\t", "bp=", bp, ", ep=", ep, ", c=", c);
+
+                if (ep > bp)
+                    str.put(json[bp..ep]);
+
+                useStr = true;
+            }
+        }
+
+        bool checkSeparator(const(dchar) c) nothrow
+        {
+            if (c == '\u2028' || c == '\u2029')
+            {
+                static if (useTSlice)
+                {
+                    if (!useStr)
+                        copyTSlice();
+                }
+                return true;
+            }
+            else
+                return false;
         }
 
         void putChar(char c) nothrow
@@ -861,13 +885,8 @@ private:
             static if (useTSlice)
             {
                 if (!useStr)
-                {
-                    debug(debug_pham_utl_utl_json) if (!__ctfe) writeln("\t", "bp=", bp, ", ep=", ep, ", c=", c);
+                    copyTSlice();
 
-                    if (ep > bp)
-                        str.put(json[bp..ep]);
-                    useStr = true;
-                }
                 str.put(c);
             }
             else
@@ -896,6 +915,10 @@ private:
                     if (!getDChar(val))
                         return JSONTokenKind.none;
 
+                    // Line separator | Paragraph separator
+                    if (checkSeparator(val))
+                        goto Next;
+
                     char[4] buf;
                     const len = encode!(Yes.useReplacementDchar)(buf, val);
                     foreach (e; buf[0..len])
@@ -910,12 +933,17 @@ private:
                             char val;
                             if (!getHChar(val))
                                 return JSONTokenKind.none;
+
+                            // Line separator | Paragraph separator
+                            if (checkSeparator(val))
+                                goto Next;
+
                             putChar(val);
                             goto Next;
                         }
                     }
 
-                    return setTokenError(text("JSON - Invalid escape sequence '\\", c, "'"), _line, _column);
+                    return setTokenError(text("JSON - Invalid escape sequence '\\", JSONTextEncoder.encodeChar(c), "'"), _line, _column);
                 }
 
                 goto Next;
@@ -923,6 +951,13 @@ private:
             default:
                 if (c == endingQuote)
                     break;
+
+                // Line separator | Paragraph separator
+                static if (Char.sizeof >= 2)
+                {
+                    if (checkSeparator(c))
+                        goto Next;
+                }
 
                 // RFC 7159 states that control characters U+0000 through
                 // U+001F must not appear unescaped in a JSON string.
@@ -975,9 +1010,9 @@ private:
         {
             enum maxEqualLength = 3;
             static if (options & JSONOptions.strictParsing)
-                static immutable char[maxEqualLength] equalChars = "rue";
+                static immutable Char[maxEqualLength] equalChars = "rue";
             else
-                static immutable char[2][maxEqualLength] equalChars = ["rR", "uU", "eE"];
+                static immutable Char[2][maxEqualLength] equalChars = ["rR", "uU", "eE"];
 
             size_t length, equalLength;
             while (true)
@@ -1117,6 +1152,8 @@ private:
         }
         else
         {
+            import std.range : front, popFront;
+            
             debug(debug_pham_utl_utl_json) _p++;
             const Char c = json.front;
             json.popFront();
@@ -1178,7 +1215,7 @@ private:
         return JSONTokenKind.none;
     }
 
-    JSONTokenKind setTokenError(string errorMessage, uint line, uint column)
+    JSONTokenKind setTokenError(string errorMessage, size_t line, size_t column)
     {
         _token.setError(JSONTokenKind.error, line, column, errorMessage);
         return JSONTokenKind.none;
@@ -1235,8 +1272,8 @@ public:
 private:
     JSONToken!T _token;
     size_t _p, _nextCharP;
-    uint _line, _column; // Current location of parsing text
-    uint sLine, sColumn; // Starting location of parsing text
+    size_t _line, _column; // Current location of parsing text
+    size_t sLine, sColumn; // Starting location of parsing text
     Nullable!Char _nextChar;
 }
 
@@ -1250,7 +1287,7 @@ private:
  *  options = enable decoding string representations of NaN/Inf as float values
  *  maxDepth = maximum depth of nesting allowed, 0 disables depth checking
  */
-JSONValue parseJSON(T, JSONOptions options = defaultOptions)(T json, uint maxDepth = 0)
+JSONValue parseJSON(T, JSONOptions options = defaultOptions)(T json, size_t maxDepth = 0)
 if (isSomeFiniteCharInputRange!T)
 {
     JSONValue root;
@@ -1497,7 +1534,7 @@ if (isSomeFiniteCharInputRange!T)
     return root;
 }
 
-JSONValue parseJSON(JSONOptions options, T)(T json, uint maxDepth = 0)
+JSONValue parseJSON(JSONOptions options, T)(T json, size_t maxDepth = 0)
 if (isSomeFiniteCharInputRange!T)
 {
     return parseJSON!(T, options)(json, maxDepth);
@@ -1531,7 +1568,7 @@ version(unittest)
             : null;
     }
 
-    package static void checkTokens(Tokenizer)(ref Tokenizer tokens, JSONToken!string[] expectTokens, uint line = __LINE__) nothrow @safe
+    package static void checkTokens(Tokenizer, S)(ref Tokenizer tokens, JSONToken!S[] expectTokens, uint line = __LINE__) nothrow @safe
     {
         uint count;
         while (!tokens.empty)
@@ -1756,4 +1793,20 @@ nothrow @safe unittest // JSONTextTokenizer(json5) - Failed
 
     tokens = Tokenizer(`"0x'`); // unterminated hex integer
     checkTokens(tokens, [JSONToken!string(null, JSONTokenKind.error, 0, 0, tokens.eofErrorMessage)]);
+}
+
+unittest
+{
+    alias Tokenizer = JSONTextTokenizer!(dstring, optionsOf([JSONOptions.specialFloatLiterals, JSONOptions.json5]));
+    Tokenizer tokens;
+    
+    tokens = Tokenizer(`" "`d);
+    checkTokens(tokens, [JSONToken!dstring("", JSONTokenKind.string, 1, 1)]);
+    
+    tokens = Tokenizer(`[" "]`d);
+    checkTokens(tokens, [
+        JSONToken!dstring(null, JSONTokenKind.beginArray, 1, 1),
+        JSONToken!dstring("", JSONTokenKind.string, 1, 2),
+        JSONToken!dstring(null, JSONTokenKind.endArray, 1, 5),
+        ]);
 }
