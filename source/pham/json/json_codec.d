@@ -148,11 +148,14 @@ public:
         return s[0..count];
     }
 
-    static string encodeChar(dchar c) nothrow pure
+    static string encodeUtf8(dchar c) nothrow pure
     {
-        char[12] s;
-        if (isControl(c) || c >= 0x80)
-            return encodeCharImpl(c, s).idup;
+        if (c >= 0x80)
+        {
+            char[4] s;
+            const len = encode!(Yes.useReplacementDchar)(s, c);
+            return s.idup;
+        }
         else
             return [cast(char)c].idup;
     }

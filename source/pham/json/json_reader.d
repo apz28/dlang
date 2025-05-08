@@ -346,7 +346,7 @@ public:
                 static if (!useTSlice)
                     _token.put(c);
     
-                setTokenError(text("JSON - Unexpected character '", JSONTextEncoder.encodeChar(c), "'"), _line, _column);
+                setTokenError(text("JSON - Unexpected character '", JSONTextEncoder.encodeUtf8(c), "'"), _line, _column);
                 return;
         }
     }
@@ -379,7 +379,7 @@ private:
 
         return isEqualChar(c, expectC1)
             ? c
-            : setTokenError(text("JSON - Found '", c, "' when expecting '", expectC1, "'"), _line, _column);
+            : setTokenError(text("JSON - Found '", c, "' when expecting '", JSONTextEncoder.encodeUtf8(expectC1), "'"), _line, _column);
     }
 
     Char checkChar(bool SkipWhitespace = true)(const(Char) expectC1, const(Char) expectC2)
@@ -393,7 +393,7 @@ private:
 
         return isEqualChar(c, expectC1, expectC2)
             ? c
-            : setTokenError(text("JSON - Found '", c, "' when expecting '", expectC1, "'"), _line, _column);
+            : setTokenError(text("JSON - Found '", c, "' when expecting '", JSONTextEncoder.encodeUtf8(expectC1), "'"), _line, _column);
     }
 
     pragma(inline, true)
@@ -507,7 +507,7 @@ private:
     JSONTokenKind getDigits(Char c)
     {
         if (!isDigit(c))
-            return setTokenError(text("JSON - Digit expected: ", JSONTextEncoder.encodeChar(c)), _line, _column);
+            return setTokenError(text("JSON - Digit expected: ", JSONTextEncoder.encodeUtf8(c)), _line, _column);
 
     Next:
         static if (!useTSlice)
@@ -627,7 +627,7 @@ private:
             return setTokenEofError();
 
         if (!isHexDigit(c))
-            return setTokenError(text("JSON - Expecting hex character: ", JSONTextEncoder.encodeChar(c)), _line, _column);
+            return setTokenError(text("JSON - Expecting hex character: ", JSONTextEncoder.encodeUtf8(c)), _line, _column);
 
         n = isDigit(c) ? cast(ubyte)(c - '0') : cast(ubyte)((c | 0x20) - 'a' + 10);
         return JSONTokenKind.string;
@@ -645,7 +645,7 @@ private:
                 if (length == 0)
                     return jsonEmpty
                         ? setTokenEofError()
-                        : setTokenError(text("JSON - Expecting hex character: ", JSONTextEncoder.encodeChar(c)), _line, _column);
+                        : setTokenError(text("JSON - Expecting hex character: ", JSONTextEncoder.encodeUtf8(c)), _line, _column);
                 break;
             }
 
@@ -788,9 +788,9 @@ private:
         {
             if (c == '0')
             {
-                const n = peekChar();
-                if (isDigit(n))
-                    return setTokenError(text("JSON - Additional digits not allowed after initial zero digit: ", n), _line, _column);
+                const pc = peekChar();
+                if (isDigit(pc))
+                    return setTokenError(text("JSON - Additional digits not allowed after initial zero digit: ", JSONTextEncoder.encodeUtf8(pc)), _line, _column);
             }
         }
 
@@ -943,7 +943,7 @@ private:
                         }
                     }
 
-                    return setTokenError(text("JSON - Invalid escape sequence '\\", JSONTextEncoder.encodeChar(c), "'"), _line, _column);
+                    return setTokenError(text("JSON - Invalid escape sequence '\\", JSONTextEncoder.encodeUtf8(c), "'"), _line, _column);
                 }
 
                 goto Next;
