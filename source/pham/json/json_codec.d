@@ -64,7 +64,7 @@ struct JSONTextEncoder
     import std.math.traits : isNaN, isInfinity, signbit;
     import std.typecons : Yes;
     import std.utf : decode, encode;
-    
+
 @safe:
 
 public:
@@ -123,7 +123,7 @@ public:
                 if (isControl(c) || (escapeNonAsciiChars && c >= 0x80))
                     return encodeCharImpl(c, s);
                 else
-                    return [];
+                    return null;
         }
     }
 
@@ -159,7 +159,7 @@ public:
         else
             return [cast(char)c].idup;
     }
-    
+
     string toString(typeof(null)) nothrow pure
     {
         return JSONLiteral.null_;
@@ -281,11 +281,10 @@ public:
         {
             foreach (const(char) c; value)
             {
-                auto e = encodeChar(c, buffer);
-                if (e.length == 0)
-                    json.put(c);
-                else
+                if (const e = encodeChar(c, buffer))
                     json.put(e);
+                else
+                    json.put(c);
             }
         }
         else
@@ -294,11 +293,10 @@ public:
             while (p < value.length)
             {
                 const c = decode!(Yes.useReplacementDchar)(value, p);
-                const e = encodeChar(c, buffer);
-                if (e.length == 0)
-                    json.put(c);
-                else
+                if (const e = encodeChar(c, buffer))
                     json.put(e);
+                else
+                    json.put(c);
             }
         }
 
