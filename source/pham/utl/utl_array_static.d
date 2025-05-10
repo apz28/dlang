@@ -104,13 +104,18 @@ public:
      * Params:
      *  rhs = source data from an other StaticArray
      */
-    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow return
+    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow scope return
     {
         clear();
         this._tryExtendBlock = false;
-        this._staticItems = rhs._staticItems;
         this._length = rhs._length;
-        this._items = rhs._length <= StaticSize ? this._staticItems[] : rhs._items;
+        if (rhs._length <= StaticSize)
+        {
+            this._staticItems = rhs._staticItems;
+            this.setStaticReference();
+        }
+        else
+            this._items = rhs._items;        
         return this;
     }
 
@@ -683,7 +688,7 @@ private:
     }
 
     pragma(inline, true)
-    void setStaticReference() @nogc nothrow pure return @safe
+    void setStaticReference() @nogc nothrow pure return @safe scope
     {
         _items = _staticItems[];
         _tryExtendBlock = false;
@@ -742,13 +747,18 @@ public:
      * Params:
      *  rhs = source data from an other StaticStringBuffer
      */
-    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow return
+    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow scope return
     {
         clear();
         this._tryExtendBlock = false;
-        this._staticItems = rhs._staticItems;
         this._length = rhs._length;
-        this._items = rhs._length <= StaticSize ? this._staticItems[] : rhs._items;
+        if (rhs._length <= StaticSize)
+        {
+            this._staticItems = rhs._staticItems;
+            this.setStaticReference();
+        }
+        else
+            this._items = rhs._items;        
         return this;
     }
 
@@ -1286,7 +1296,7 @@ private:
     }
 
     pragma(inline, true)
-    void setStaticReference() @nogc nothrow pure return @safe
+    void setStaticReference() @nogc nothrow pure return @safe scope
     {
         _items = _staticItems[];
         _tryExtendBlock = false;
