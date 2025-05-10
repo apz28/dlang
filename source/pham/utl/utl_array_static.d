@@ -1333,95 +1333,100 @@ nothrow @safe unittest // StaticArray
     assert(a.indexOf(2) == 1);
     assert(a[1] == 2);
 
-    // Append element & remove
-    a += 10;
-    assert(a.length == 3);
-    assert(a.indexOf(10) == 2);
-    assert(a[2] == 10);
+    version(D_BetterC)
+    {}
+    else
+    {
+        // Append third element & remove
+        a += 10;
+        assert(a.length == 3);
+        assert(a.indexOf(10) == 2);
+        assert(a[2] == 10);
 
-    a -= 10;
-    assert(a.indexOf(10) == -1);
-    assert(a.length == 2);
-    assert(a.indexOf(2) == 1);
-    assert(a[1] == 2);
+        a -= 10;
+        assert(a.indexOf(10) == -1);
+        assert(a.length == 2);
+        assert(a.indexOf(2) == 1);
+        assert(a[1] == 2);
 
-    // Check duplicate
-    assert(a[].dup == [1, 2]);
+        // Check duplicate
+        assert(a[].dup == [1, 2]);
 
-    // Set new element at index (which is at the end for this case)
-    a.expand(3)[2] = 3;
-    assert(a.length == 3);
-    assert(a.indexOf(3) == 2);
-    assert(a[2] == 3);
+        // Set new element at index (which is at the end for this case)
+        a.expand(3)[2] = 3;
+        assert(a.length == 3);
+        assert(a.indexOf(3) == 2);
+        assert(a[2] == 3);
 
-    // Replace element at index
-    a[1] = -1;
-    assert(a.length == 3);
-    assert(a.indexOf(-1) == 1);
-    assert(a[1] == -1);
+        // Replace element at index
+        a[1] = -1;
+        assert(a.length == 3);
+        assert(a.indexOf(-1) == 1);
+        assert(a[1] == -1);
 
-    // Check duplicate
-    assert(a[].dup == [1, -1, 3]);
+        // Check duplicate
+        assert(a[].dup == [1, -1, 3]);
 
-    // Remove element
-    auto r = a.remove(-1);
-    assert(r == -1);
-    assert(a.length == 2);
-    assert(a.indexOf(-1) == -1);
+        // Remove element
+        auto r = a.remove(-1);
+        assert(r == -1);
+        assert(a.length == 2);
+        assert(a.indexOf(-1) == -1);
 
-    // Remove element at
-    r = a.removeAt(0);
-    assert(r == 1);
-    assert(a.length == 1);
-    assert(a.indexOf(1) == -1);
-    assert(a[0] == 3);
+        // Remove element at
+        r = a.removeAt(0);
+        assert(r == 1);
+        assert(a.length == 1);
+        assert(a.indexOf(1) == -1);
+        assert(a[0] == 3);
 
-    // Clear all elements
-    a.clear();
-    assert(a.empty);
-    assert(a.length == 0);
-    assert(a.remove(1) == 0);
-    assert(a.removeAt(1) == 0);
+        // Clear all elements
+        a.clear();
+        assert(a.empty);
+        assert(a.length == 0);
+        assert(a.remove(1) == 0);
+        assert(a.removeAt(1) == 0);
 
-    a.expand(1)[0] = 1;
-    assert(!a.empty);
-    assert(a.length == 1);
+        a.expand(1)[0] = 1;
+        assert(!a.empty);
+        assert(a.length == 1);
 
-    a.clear();
-    assert(a.empty);
-    assert(a.length == 0);
-    assert(a.remove(1) == 0);
-    assert(a.removeAt(1) == 0);
+        a.clear();
+        assert(a.empty);
+        assert(a.length == 0);
+        assert(a.remove(1) == 0);
+        assert(a.removeAt(1) == 0);
 
-    a.put(1);
-    a.fill(10);
-    assert(a.length == 1);
-    assert(a[0] == 10);
+        a.put(1);
+        a.fill(10);
+        assert(a.length == 1);
+        assert(a[0] == 10);
 
-    a.clear();
-    a.put(1);
-    a.put(2);
-    a.put(3);
-    assert(a.length == 3);
-    assert(a[0] == 1);
-    assert(a[1] == 2);
-    assert(a[2] == 3);
+        a.clear();
+        a.put(1);
+        a.put(2);
+        a.put(3);
+        assert(a.length == 3);
+        assert(a[0] == 1);
+        assert(a[1] == 2);
+        assert(a[2] == 3);
 
-    a = [1, 2, 3];
-    assert(a[3..4] == []);
-    assert(a[0..2] == [1, 2]);
-    assert(a[] == [1, 2, 3]);
-    a.fill(10);
-    assert(a[0..9] == [10, 10, 10]);
+        a = [1, 2, 3];
+        assert(a[3..4] == []);
+        assert(a[0..2] == [1, 2]);
+        assert(a[] == [1, 2, 3]);
+        a.fill(10);
+        assert(a[0..9] == [10, 10, 10]);
 
-    a.clear();
-    assert(a.empty);
-    assert(a.length == 0);
-    foreach (i; 0..2000)
-        a.put(i);
-    assert(a.length == 2000);
-    assert(a[0] == 0);
-    assert(a[a.length - 1] == 1999);
+        a.clear();
+        assert(a.empty);
+        assert(a.length == 0);
+        foreach (i; 0..2000)
+            a.put(i);
+        assert(a.length == 2000);
+        assert(a[0] == 0);
+        assert(a[a.length - 1] == 1999);
+    }
 }
 
 nothrow unittest // StaticArray.reverse
@@ -1431,8 +1436,13 @@ nothrow unittest // StaticArray.reverse
     a.clear().put([1, 2]);
     assert(a.reverse()[] == [2, 1]);
 
-    a.clear().put([1, 2, 3, 4, 5]);
-    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
+    version(D_BetterC)
+    {}
+    else
+    {
+        a.clear().put([1, 2, 3, 4, 5]);
+        assert(a.reverse()[] == [5, 4, 3, 2, 1]);
+    }
 }
 
 @safe unittest // StaticStringBuffer
@@ -1445,111 +1455,121 @@ nothrow unittest // StaticArray.reverse
     assert(s.length == 1);
     s.put("234");
     assert(s.length == 4);
-    assert(s.toString() == "1234");
     assert(s[] == "1234");
-    s.clear();
-    assert(s.length == 0);
-    s.put("abc");
-    assert(s.length == 3);
-    assert(s.toString() == "abc");
-    assert(s[] == "abc");
-    assert(s.left(1) == "a");
-    assert(s.left(10) == "abc");
-    assert(s.right(2) == "bc");
-    assert(s.right(10) == "abc");
-    s.put("defghijklmnopqrstuvxywz");
-    assert(s.length == 26);
-    assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
-    assert(s[] == "abcdefghijklmnopqrstuvxywz");
-    assert(s.left(5) == "abcde");
-    assert(s.left(20) == "abcdefghijklmnopqrst");
-    assert(s.right(5) == "vxywz");
-    assert(s.right(20) == "ghijklmnopqrstuvxywz");
+    version(D_BetterC)
+    {}
+    else
+    {
+        assert(s.toString() == "1234");
+        s.clear();
+        assert(s.length == 0);
+        s.put("abc");
+        assert(s.length == 3);
+        assert(s.toString() == "abc");
+        assert(s[] == "abc");
+        assert(s.left(1) == "a");
+        assert(s.left(10) == "abc");
+        assert(s.right(2) == "bc");
+        assert(s.right(10) == "abc");
+        s.put("defghijklmnopqrstuvxywz");
+        assert(s.length == 26);
+        assert(s.toString() == "abcdefghijklmnopqrstuvxywz");
+        assert(s[] == "abcdefghijklmnopqrstuvxywz");
+        assert(s.left(5) == "abcde");
+        assert(s.left(20) == "abcdefghijklmnopqrst");
+        assert(s.right(5) == "vxywz");
+        assert(s.right(20) == "ghijklmnopqrstuvxywz");
 
-    TestBuffer5 s2;
-    s2 ~= s[];
-    assert(s2.length == 26);
-    assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
-    assert(s2[] == "abcdefghijklmnopqrstuvxywz");
+        TestBuffer5 s2;
+        s2 ~= s[];
+        assert(s2.length == 26);
+        assert(s2.toString() == "abcdefghijklmnopqrstuvxywz");
+        assert(s2[] == "abcdefghijklmnopqrstuvxywz");
 
-    s = s2[];
-    assert(s == s2);
+        s = s2[];
+        assert(s == s2);
+    }
 }
 
-@safe unittest // StaticStringBuffer
+version(D_BetterC)
+{}
+else
 {
-    alias TestBuffer5 = StaticStringBuffer!(char, 5);
-    TestBuffer5 s, s2;
+    @safe unittest // StaticStringBuffer
+    {
+        alias TestBuffer5 = StaticStringBuffer!(char, 5);
+        TestBuffer5 s, s2;
 
-    assert(s.opAssign("123") == "123");
-    assert(s.opAssign("123") != "234");
-    assert(s.opAssign("123456") == "123456");
-    assert(s.opAssign("123456") == s2.opAssign("123456"));
-    assert(s.opAssign("123456") != s2.opAssign("345678"));
+        assert(s.opAssign("123") == "123");
+        assert(s.opAssign("123") != "234");
+        assert(s.opAssign("123456") == "123456");
+        assert(s.opAssign("123456") == s2.opAssign("123456"));
+        assert(s.opAssign("123456") != s2.opAssign("345678"));
 
-    // Over short length
-    s = "12345678";
-    assert(s[] == "12345678");
-    assert(s[2] == '3');
-    assert(s[10..20] == []);
-    s[2] = '?';
-    assert(s == "12?45678");
-    s.chopTail(1);
-    assert(s == "12?4567");
-    s.chopFront(1);
-    assert(s == "2?4567");
-    s.chopTail(2);
-    assert(s == "2?45");
-    s.chopFront(100);
-    assert(s.length == 0);
+        // Over short length
+        s = "12345678";
+        assert(s[] == "12345678");
+        assert(s[2] == '3');
+        assert(s[10..20] == []);
+        s[2] = '?';
+        assert(s == "12?45678");
+        s.chopTail(1);
+        assert(s == "12?4567");
+        s.chopFront(1);
+        assert(s == "2?4567");
+        s.chopTail(2);
+        assert(s == "2?45");
+        s.chopFront(100);
+        assert(s.length == 0);
 
-    s = "123456";
-    assert(s.consume() == "123456");
-    assert(s.length == 0);
+        s = "123456";
+        assert(s.consume() == "123456");
+        assert(s.length == 0);
 
-    s = "123456";
-    assert(s.consumeUnique() == "123456");
-    assert(s.length == 0);
+        s = "123456";
+        assert(s.consumeUnique() == "123456");
+        assert(s.length == 0);
 
-    s = "123456";
-    s.dispose();
-    assert(s.length == 0);
+        s = "123456";
+        s.dispose();
+        assert(s.length == 0);
 
-    s = "123456";
-    assert(s.removeFront('1') == "23456");
-    assert(s.removeTail('5') == "23456");
-    assert(s.removeTail('6') == "2345");
+        s = "123456";
+        assert(s.removeFront('1') == "23456");
+        assert(s.removeTail('5') == "23456");
+        assert(s.removeTail('6') == "2345");
 
-    // Within short length
-    s = "123";
-    assert(s[] == "123");
-    assert(s[2] == '3');
-    assert(s[7..10] == []);
-    s[2] = '?';
-    assert(s == "12?");
-    s.chopTail(1);
-    assert(s == "12");
-    s.chopFront(1);
-    assert(s == "2");
-    s.chopTail(100);
-    assert(s.length == 0);
+        // Within short length
+        s = "123";
+        assert(s[] == "123");
+        assert(s[2] == '3');
+        assert(s[7..10] == []);
+        s[2] = '?';
+        assert(s == "12?");
+        s.chopTail(1);
+        assert(s == "12");
+        s.chopFront(1);
+        assert(s == "2");
+        s.chopTail(100);
+        assert(s.length == 0);
 
-    s = "123";
-    assert(s.consume() == "123");
-    assert(s.length == 0);
+        s = "123";
+        assert(s.consume() == "123");
+        assert(s.length == 0);
 
-    s = "123";
-    assert(s.consumeUnique() == "123");
-    assert(s.length == 0);
+        s = "123";
+        assert(s.consumeUnique() == "123");
+        assert(s.length == 0);
 
-    s = "123";
-    s.dispose();
-    assert(s.length == 0);
+        s = "123";
+        s.dispose();
+        assert(s.length == 0);
 
-    s = "123";
-    assert(s.removeFront('1') == "23");
-    assert(s.removeTail('2') == "23");
-    assert(s.removeTail('3') == "2");
+        s = "123";
+        assert(s.removeFront('1') == "23");
+        assert(s.removeTail('2') == "23");
+        assert(s.removeTail('3') == "2");
+    }
 }
 
 nothrow @safe unittest // StaticStringBuffer.reverse
@@ -1559,6 +1579,11 @@ nothrow @safe unittest // StaticStringBuffer.reverse
     a.clear().put([1, 2]);
     assert(a.reverse()[] == [2, 1]);
 
-    a.clear().put([1, 2, 3, 4, 5]);
-    assert(a.reverse()[] == [5, 4, 3, 2, 1]);
+    version(D_BetterC)
+    {}
+    else
+    {
+        a.clear().put([1, 2, 3, 4, 5]);
+        assert(a.reverse()[] == [5, 4, 3, 2, 1]);
+    }
 }
