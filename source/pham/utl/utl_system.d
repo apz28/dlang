@@ -133,7 +133,7 @@ void sleep(uint milliseconds) nothrow @trusted
     }
     else version(Posix)
     {
-        import core.stdc.errno : errno;
+        import core.stdc.errno : EINTR, errno;
         import core.sys.posix.time : psxSleep = nanosleep, timespec;
         
         timespec tin;
