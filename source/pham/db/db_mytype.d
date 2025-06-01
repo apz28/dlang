@@ -180,7 +180,7 @@ static immutable DbTypeInfo[] myNativeTypes = [
     {dbName:"bit", dbType:DbType.int64, dbId:MyTypeId.bit, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
     {dbName:"char(32)", dbType:DbType.uuid, dbId:MyTypeIdEx.uuid, nativeName:"UUID", nativeSize:DbTypeSize.uuid, displaySize:DbTypeDisplaySize.uuid},
     {dbName:"char(?)", dbType:DbType.stringFixed, dbId:MyTypeId.fixedVarChar, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed},
-    {dbName:"longblob", dbType:DbType.binaryVary, dbId:MyTypeId.longBlob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"longblob", dbType:DbType.blob, dbId:MyTypeId.longBlob, nativeName:"ubyte[]", nativeSize:DbTypeSize.blob, displaySize:DbTypeDisplaySize.blob},
     {dbName:"float", dbType:DbType.float32, dbId:MyTypeId.float32, nativeName:"float32", nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
     {dbName:"date", dbType:DbType.date, dbId:MyTypeId.date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
     {dbName:"newdate", dbType:DbType.datetime, dbId:MyTypeId.newDate, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
@@ -193,7 +193,7 @@ static immutable DbTypeInfo[] myNativeTypes = [
     {dbName:"int", dbType:DbType.int32, dbId:MyTypeId.int32, nativeName:"int32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
     {dbName:"int24", dbType:DbType.int32, dbId:MyTypeId.int24, nativeName:"int32", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
     {dbName:"json", dbType:DbType.json, dbId:MyTypeId.json, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.json},
-    {dbName:"longtext", dbType:DbType.text, dbId:MyTypeIdEx.longText, nativeName:"string", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"longtext", dbType:DbType.text, dbId:MyTypeIdEx.longText, nativeName:"string", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},
     {dbName:"mediumblob", dbType:DbType.binaryVary, dbId:MyTypeId.mediumBlob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
     {dbName:"mediumtext", dbType:DbType.text, dbId:MyTypeIdEx.mediumText, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.text},
     {dbName:"set", dbType:DbType.int64, dbId:MyTypeId.set, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
@@ -284,8 +284,13 @@ public:
             result = (*e).dbType;
             if (result == DbType.decimal || result == DbType.numeric)
                 result = decimalDbType(result, precision);
-            else if ((result == DbType.binaryVary || typeId == MyTypeId.enum_ || typeId == MyTypeId.set) && isText)
-                result = DbType.text;
+            else if (result == DbType.binaryVary || typeId == MyTypeId.enum_ || typeId == MyTypeId.set)
+            {
+                if (isText)
+                    result = DbType.text;
+                else if (isBlob)
+                    result = DbType.blob;
+            }
         }
         return result;
     }
@@ -345,6 +350,9 @@ public:
                 case longText:
                     _dbType = DbType.text;
                     break;
+                //case longBlob:
+                //    _dbType = DbType.blob;
+                //    break;
                 case uuid:
                     _dbType = DbType.uuid;
                     break;
@@ -561,7 +569,7 @@ public:
     }
 
 public:
-    MyColumnTypeMapKind[string] columnNames;
+    MyColumnTypeMapKind[string] columnNames; //TODO Dictionary
 
     deprecated("please use columnNames")
     alias fieldNames = columnNames;
@@ -643,10 +651,10 @@ shared static this() nothrow @safe
         result["varchar"] = DbType.stringVary;
         result["binary"] = DbType.binaryFixed;
         result["varbinary"] = DbType.binaryVary;
-        result["blob"] = DbType.binaryVary;
+        result["blob"] = DbType.blob;
         result["tinyblob"] = DbType.binaryVary;
         result["mediumblob"] = DbType.binaryVary;
-        result["longblob"] = DbType.binaryVary;
+        result["longblob"] = DbType.blob;
         result["text"] = DbType.text;
         result["tinytext"] = DbType.text;
         result["mediumtext"] = DbType.text;

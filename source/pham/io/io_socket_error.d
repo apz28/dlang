@@ -29,19 +29,20 @@ int lastSocketError() @nogc nothrow @trusted
 {
     version(Windows)
     {
-        import core.sys.windows.winsock2;
+        import core.sys.windows.winsock2 : WSAGetLastError;
 
         return WSAGetLastError();
     }
     else version(Posix)
     {
-        import core.stdc.errno;
+        import core.stdc.errno : errno;
 
         return errno;
     }
     else
     {
-        static assert(0, "Unsupported system for " ~ __FUNCTION__);
+        pragma(msg, __FUNCTION__ ~ "() not supported");
+        return 0;
     }
 }
 
@@ -102,7 +103,8 @@ bool needResetSocket(int errorCode) @nogc nothrow pure @safe
     }
     else
     {
-        static assert(0, "Unsupported system for " ~ __FUNCTION__);
+        pragma(msg, __FUNCTION__ ~ "() not supported");
+        return false;
     }
 }
 
@@ -180,5 +182,7 @@ shared static this() nothrow @trusted
         mapSocketAPINames = cast(immutable)names;
     }
     else
-        pragma(msg, "Unsupported system for " ~ __MODULE__);
+    {
+        pragma(msg, __MODULE__ ~ " not supported");
+    }
 }

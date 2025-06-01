@@ -55,16 +55,30 @@ public:
         this._connection = null;
         this.sequenceByte = 0;
         this._packetLength = cast(int32)packetData.length;
+        this._bufferOwner = DbBufferOwner.owned;
         this._buffer = new DbReadBuffer(packetData);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        if (_buffer !is null && _connection !is null)
-            _connection.releasePackageReadBuffer(_buffer);
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releasePackageReadBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
 
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-
         if (isDisposing(disposingReason))
             _connection = null;
     }
@@ -120,17 +134,21 @@ private:
     void readPacketData(MyConnection connection)
     {
         this.sequenceByte = 0;
-        auto socketBuffer = connection.acquireSocketReadBuffer();
+        auto socketBuffer = connection.getSocketReadBuffer();
         auto socketReader = DbValueReader!(Endian.littleEndian)(socketBuffer);
+
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquirePackageReadBuffer();
+
         auto blockBuffer = connection.acquirePackageReadBuffer();
         scope (exit)
             connection.releasePackageReadBuffer(blockBuffer);
+
         while (true)
         {
             MyBlockHeader blockHeader;
             blockHeader.a = socketReader.consume(4);
-            size_t blockSize = void;
+            size_t blockSize;
             blockHeaderDecode(blockHeader, blockSize, sequenceByte);
 
             debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(blockSize=", blockSize, ", sequenceByte=", sequenceByte, ", blockHeader=", blockHeader.a[].dgToHex(), ")");
@@ -160,6 +178,7 @@ private:
     DbReadBuffer _buffer;
     MyConnection _connection;
     int32 _packetLength;
+    DbBufferOwner _bufferOwner;
 }
 
 struct MyXdrReader
@@ -185,8 +204,9 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _buffer = null;
         _reader.dispose(disposingReason);
+
+        _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
     }
@@ -631,10 +651,10 @@ public:
 
     this(MyConnection connection, uint maxSinglePackage) nothrow
     {
-        this._socketBuffer = true;
         this._reserveLenghtOffset = -1;
         this._maxSinglePackage = maxSinglePackage;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireSocketWriteBuffer();
         this._writer = DbValueWriter!(Endian.littleEndian)(this._buffer);
     }
@@ -642,10 +662,10 @@ public:
     this(MyConnection connection, uint maxSinglePackage, DbWriteBuffer buffer) nothrow
     {
         buffer.reset();
-        this._socketBuffer = false;
         this._reserveLenghtOffset = -1;
         this._maxSinglePackage = maxSinglePackage;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.none;
         this._buffer = buffer;
         this._writer = DbValueWriter!(Endian.littleEndian)(buffer);
     }
@@ -667,8 +687,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_socketBuffer && _buffer !is null && _connection !is null)
-            _connection.releaseSocketWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseSocketWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -1095,7 +1131,7 @@ private:
     ptrdiff_t _reserveLenghtOffset;
     uint _maxSinglePackage;
     ubyte _sequenceByte;
-    bool _socketBuffer;
+    DbBufferOwner _bufferOwner;
 }
 
 

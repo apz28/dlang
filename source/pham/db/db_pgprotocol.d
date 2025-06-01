@@ -18,7 +18,7 @@ import std.string : indexOf, lastIndexOf, representation;
 import std.system : Endian;
 import std.traits : Unqual;
 
-debug(debug_pham_db_db_pgprotocol) import std.stdio : writeln;
+debug(debug_pham_db_db_pgprotocol) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
@@ -60,8 +60,8 @@ public:
     {
         this._connection = connection;
     }
-
-    final PgOIdColumnInfo[] bindCommandParameterRead(PgCommand command)
+    
+    final PgOIdRowDescription bindCommandParameterRead(PgCommand command)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
@@ -74,22 +74,10 @@ public:
                 goto receiveAgain;
 
             case 'T': // RowDescription (response to Describe)
-                const count = reader.readInt16();
-                PgOIdColumnInfo[] result = new PgOIdColumnInfo[](count);
-                foreach (i; 0..count)
-                {
-                    result[i].name = reader.readCString();
-                    result[i].tableOid = reader.readOId();
-                    result[i].ordinal = reader.readInt16();
-                    result[i].type = reader.readOId();
-                    result[i].size = reader.readInt16();
-                    result[i].modifier = reader.readOId();
-                    result[i].formatCode = reader.readInt16();
-                }
-                return result;
+                return readRowDescription(reader);
 
             case 'n': // NoData (response to Describe)
-                return null;
+                return PgOIdRowDescription.init;
 
             case 'E': // ErrorResponse
                 auto EResponse = readGenericResponse(reader);
@@ -297,7 +285,7 @@ public:
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto socketBuffer = connection.acquireSocketReadBuffer();
+        auto socketBuffer = connection.getSocketReadBuffer();
         auto socketReader = DbValueReader!(Endian.bigEndian)(socketBuffer);
         const messageType = socketReader.readChar();
         switch (messageType)
@@ -398,6 +386,9 @@ public:
 	receiveAgain:
         reader = PgReader(connection);
         result.messageType = reader.messageType;
+            
+        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "reader.messageType=", reader.messageType, ", result.messageType=", result.messageType);
+        
 		switch (reader.messageType)
         {
             case 'C': // CommandComplete
@@ -573,6 +564,27 @@ public:
         writer.flush();
     }
 
+    final PgOIdRowDescription readRowDescription(ref PgReader reader)
+    {
+        const count = reader.readInt16();
+        PgOIdRowDescription result;
+        if (count == 0)
+            return result;
+            
+        result.columns = new PgOIdColumnInfo[](count);
+        foreach (i; 0..count)
+        {
+            result.columns[i].name = reader.readCString();
+            result.columns[i].tableOid = reader.readOId();
+            result.columns[i].ordinal = reader.readInt16();
+            result.columns[i].type = reader.readOId();
+            result.columns[i].size = reader.readInt16();
+            result.columns[i].modifier = reader.readOId();
+            result.columns[i].formatCode = reader.readInt16();
+        }
+        return result;
+    }
+
     final DbValue readValue(ref PgReader reader, PgCommand command, DbNameColumn column, const(int32) valueLength)
     in
     {
@@ -639,6 +651,7 @@ public:
                     return DbValue(readValueArray!string(reader, command, column, valueLength), dbType);
                 case DbType.binaryFixed:
                 case DbType.binaryVary:
+                case DbType.blob:
                     return DbValue(readValueArray!(ubyte[])(reader, command, column, valueLength), dbType);
                 case DbType.record:
                 case DbType.unknown:
@@ -716,6 +729,7 @@ public:
                 return DbValue(checkValueLength(0).readString(valueLength), dbType);
             case DbType.binaryFixed:
             case DbType.binaryVary:
+            case DbType.blob:
                 return DbValue(checkValueLength(0).readBytes(valueLength), dbType);
             case DbType.record:
             case DbType.unknown:
@@ -859,7 +873,7 @@ protected:
     final void connectAuthenticationProcess(ref PgConnectingStateInfo stateInfo, const(ubyte)[] serverAuthData)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(stateInfo.nextAuthState=", stateInfo.nextAuthState,
-            ", stateInfo.authMethod=", stateInfo.authMethod, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+            ", stateInfo.authMethod=", stateInfo.authMethod, ", serverAuthData=", serverAuthData.dgToString(), ")");
 
         auto useCSB = connection.pgConnectionStringBuilder;
 
@@ -943,96 +957,94 @@ protected:
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(inputParameters.length=", inputParameters.length, ")");
 
         writer.writeInt16(cast(int16)inputParameters.length);
-        foreach (param; inputParameters)
-            describeValue(writer, param, param.value);
+        foreach (parameter; inputParameters)
+            describeParameter(writer, parameter); // parameter.value);
     }
 
-    final void describeValue(ref PgWriter writer, DbNameColumn column, ref DbValue value)
+    final void describeParameter(ref PgWriter writer, PgParameter parameter)
     {
-        if (value.isNull)
-        {
-            writer.writeInt32(pgNullValueLength);
-            return;
-        }
+        if (parameter.isNull)
+            return writer.writeInt32(pgNullValueLength);
 
-        void unsupportDataError()
+        noreturn unsupportDataError()
         {
-            auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
+            auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ "." ~ __FUNCTION__, toName!DbType(parameter.type));
             throw new PgException(DbErrorCode.write, msg);
         }
 
-        if (column.isArray)
+        if (parameter.isArray)
         {
-            final switch (column.type)
+            final switch (parameter.type)
             {
                 case DbType.boolean:
-                    return describeValueArray!bool(writer, column, value, PgOIdType.bool_);
+                    return describeParameterArray!bool(writer, parameter, PgOIdType.bool_);
                 case DbType.int8:
-                    return describeValueArray!int8(writer, column, value, PgOIdType.int2);
+                    return describeParameterArray!int8(writer, parameter, PgOIdType.int2);
                 case DbType.int16:
-                    return describeValueArray!int16(writer, column, value, PgOIdType.int2);
+                    return describeParameterArray!int16(writer, parameter, PgOIdType.int2);
                 case DbType.int32:
-                    return describeValueArray!int32(writer, column, value, PgOIdType.int4);
+                    return describeParameterArray!int32(writer, parameter, PgOIdType.int4);
                 case DbType.int64:
-                    return describeValueArray!int64(writer, column, value, PgOIdType.int8);
+                    return describeParameterArray!int64(writer, parameter, PgOIdType.int8);
                 case DbType.int128:
-                    //return describeValueArray!int64(writer, column, value, PgOIdType.unknown);
+                    //return describeParameterArray!int64(writer, parameter, PgOIdType.unknown);
                     return unsupportDataError();
                 case DbType.decimal:
-                    return describeValueArray!Decimal(writer, column, value, PgOIdType.numeric);
+                    return describeParameterArray!Decimal(writer, parameter, PgOIdType.numeric);
                 case DbType.decimal32:
-                    return describeValueArray!Decimal32(writer, column, value, PgOIdType.numeric);
+                    return describeParameterArray!Decimal32(writer, parameter, PgOIdType.numeric);
                 case DbType.decimal64:
-                    return describeValueArray!Decimal64(writer, column, value, PgOIdType.numeric);
+                    return describeParameterArray!Decimal64(writer, parameter, PgOIdType.numeric);
                 case DbType.decimal128:
-                    return describeValueArray!Decimal128(writer, column, value, PgOIdType.numeric);
+                    return describeParameterArray!Decimal128(writer, parameter, PgOIdType.numeric);
                 case DbType.numeric:
-                    return describeValueArray!Numeric(writer, column, value, PgOIdType.numeric);
+                    return describeParameterArray!Numeric(writer, parameter, PgOIdType.numeric);
                 case DbType.float32:
-                    return describeValueArray!float32(writer, column, value, PgOIdType.float4);
+                    return describeParameterArray!float32(writer, parameter, PgOIdType.float4);
                 case DbType.float64:
-                    return describeValueArray!float64(writer, column, value, PgOIdType.float8);
+                    return describeParameterArray!float64(writer, parameter, PgOIdType.float8);
                 case DbType.date:
-                    return describeValueArray!Date(writer, column, value, PgOIdType.date);
+                    return describeParameterArray!Date(writer, parameter, PgOIdType.date);
                 case DbType.datetime:
-                    return describeValueArray!DbDateTime(writer, column, value, PgOIdType.timestamp);
+                    return describeParameterArray!DbDateTime(writer, parameter, PgOIdType.timestamp);
                 case DbType.datetimeTZ:
-                    return describeValueArray!DbDateTime(writer, column, value, PgOIdType.timestamptz);
+                    return describeParameterArray!DbDateTime(writer, parameter, PgOIdType.timestamptz);
                 case DbType.time:
-                    return describeValueArray!DbTime(writer, column, value, PgOIdType.time);
+                    return describeParameterArray!DbTime(writer, parameter, PgOIdType.time);
                 case DbType.timeTZ:
-                    return describeValueArray!DbTime(writer, column, value, PgOIdType.timetz);
+                    return describeParameterArray!DbTime(writer, parameter, PgOIdType.timetz);
                 case DbType.uuid:
-                    return describeValueArray!UUID(writer, column, value, PgOIdType.uuid);
+                    return describeParameterArray!UUID(writer, parameter, PgOIdType.uuid);
                 case DbType.stringFixed:
-                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.bpchar);
+                    return describeParameterArray!(const(char)[])(writer, parameter, PgOIdType.bpchar);
                 case DbType.stringVary:
-                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.varchar);
+                    return describeParameterArray!(const(char)[])(writer, parameter, PgOIdType.varchar);
                 case DbType.json:
-                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.json);
+                    return describeParameterArray!(const(char)[])(writer, parameter, PgOIdType.json);
                 case DbType.xml:
-                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.xml);
+                    return describeParameterArray!(const(char)[])(writer, parameter, PgOIdType.xml);
                 case DbType.text:
-                    return describeValueArray!(const(char)[])(writer, column, value, PgOIdType.text);
+                    return describeParameterArray!(const(char)[])(writer, parameter, PgOIdType.text);
                 case DbType.binaryFixed:
                 case DbType.binaryVary:
-                    return describeValueArray!(const(ubyte)[])(writer, column, value, PgOIdType.bytea);
+                case DbType.blob:
+                    return describeParameterArray!(const(ubyte)[])(writer, parameter, PgOIdType.bytea);
                 case DbType.record:
                 case DbType.unknown:
-                    switch (column.baseSubTypeId)
+                    switch (parameter.baseSubTypeId)
                     {
                         case PgOIdType.interval:
-                            return describeValueArray!PgOIdInterval(writer, column, value, PgOIdType.interval);
+                            return describeParameterArray!PgOIdInterval(writer, parameter, PgOIdType.interval);
                         case PgOIdType.point:
-                            return describeValueArray!DbGeoPoint(writer, column, value, PgOIdType.point);
+                            return describeParameterArray!DbGeoPoint(writer, parameter, PgOIdType.point);
                         case PgOIdType.path:
-                            return describeValueArray!DbGeoPath(writer, column, value, PgOIdType.path);
+                            return describeParameterArray!DbGeoPath(writer, parameter, PgOIdType.path);
                         case PgOIdType.box:
-                            return describeValueArray!DbGeoBox(writer, column, value, PgOIdType.box);
+                            return describeParameterArray!DbGeoBox(writer, parameter, PgOIdType.box);
                         case PgOIdType.polygon:
-                            return describeValueArray!DbGeoPolygon(writer, column, value, PgOIdType.polygon);
+                            return describeParameterArray!DbGeoPolygon(writer, parameter, PgOIdType.polygon);
                         case PgOIdType.circle:
-                            return describeValueArray!DbGeoCircle(writer, column, value, PgOIdType.circle);
+                            return describeParameterArray!DbGeoCircle(writer, parameter, PgOIdType.circle);
                         default:
                             return unsupportDataError();
                     }
@@ -1041,77 +1053,85 @@ protected:
             }
 
             // Never reach here
-            assert(0, toName!DbType(column.type));
+            assert(0, toName!DbType(parameter.type));
         }
 
         auto valueWriter = PgXdrWriter(connection, writer.buffer);
         // Use coerce for implicit basic type conversion
-        final switch (column.type)
+        final switch (parameter.type)
         {
             case DbType.boolean:
-                return valueWriter.writeBool(value.coerce!bool());
+                return valueWriter.writeBool(parameter.value.coerce!bool());
             case DbType.int8:
-                return valueWriter.writeInt16(value.coerce!int8());
+                return valueWriter.writeInt16(parameter.value.coerce!int8());
             case DbType.int16:
-                return valueWriter.writeInt16(value.coerce!int16());
+                return valueWriter.writeInt16(parameter.value.coerce!int16());
             case DbType.int32:
-                return valueWriter.writeInt32(value.coerce!int32());
+                return valueWriter.writeInt32(parameter.value.coerce!int32());
             case DbType.int64:
-                return valueWriter.writeInt64(value.coerce!int64());
+                return valueWriter.writeInt64(parameter.value.coerce!int64());
             case DbType.int128:
-                return valueWriter.writeInt128(value.get!BigInteger());
+                return valueWriter.writeInt128(parameter.value.get!BigInteger());
             case DbType.decimal:
-                return valueWriter.writeDecimal!Decimal(value.get!Decimal(), column.baseType);
+                return valueWriter.writeDecimal!Decimal(parameter.value.get!Decimal(), parameter.baseType);
             case DbType.decimal32:
-                return valueWriter.writeDecimal!Decimal32(value.get!Decimal32(), column.baseType);
+                return valueWriter.writeDecimal!Decimal32(parameter.value.get!Decimal32(), parameter.baseType);
             case DbType.decimal64:
-                return valueWriter.writeDecimal!Decimal64(value.get!Decimal64(), column.baseType);
+                return valueWriter.writeDecimal!Decimal64(parameter.value.get!Decimal64(), parameter.baseType);
             case DbType.decimal128:
-                return valueWriter.writeDecimal!Decimal128(value.get!Decimal128(), column.baseType);
+                return valueWriter.writeDecimal!Decimal128(parameter.value.get!Decimal128(), parameter.baseType);
             case DbType.numeric:
-                return valueWriter.writeDecimal!Numeric(value.get!Numeric(), column.baseType);
+                return valueWriter.writeDecimal!Numeric(parameter.value.get!Numeric(), parameter.baseType);
             case DbType.float32:
-                return valueWriter.writeFloat32(value.coerce!float32());
+                return valueWriter.writeFloat32(parameter.value.coerce!float32());
             case DbType.float64:
-                return valueWriter.writeFloat64(value.coerce!float64());
+                return valueWriter.writeFloat64(parameter.value.coerce!float64());
             case DbType.date:
-                return valueWriter.writeDate(value.get!Date());
+                return valueWriter.writeDate(parameter.value.get!Date());
             case DbType.datetime:
-                return valueWriter.writeDateTime(value.get!DbDateTime());
+                return valueWriter.writeDateTime(parameter.value.get!DbDateTime());
             case DbType.datetimeTZ:
-                return valueWriter.writeDateTimeTZ(value.get!DbDateTime());
+                return valueWriter.writeDateTimeTZ(parameter.value.get!DbDateTime());
             case DbType.time:
-                return valueWriter.writeTime(value.get!DbTime());
+                return valueWriter.writeTime(parameter.value.get!DbTime());
             case DbType.timeTZ:
-                return valueWriter.writeTimeTZ(value.get!DbTime());
+                return valueWriter.writeTimeTZ(parameter.value.get!DbTime());
             case DbType.uuid:
-                return valueWriter.writeUUID(value.get!UUID());
+                return valueWriter.writeUUID(parameter.value.get!UUID());
             case DbType.stringFixed:
             case DbType.stringVary:
             case DbType.text:
             case DbType.json:
             case DbType.xml:
-                return valueWriter.writeChars(value.get!(const(char)[])());
+                const(char)[] data;
+                if (parameter.loadClob(0, size_t.max, data) == 0)
+                    return writer.writeInt32(pgNullValueLength);
+                else
+                    return valueWriter.writeChars(data);
             case DbType.binaryFixed:
             case DbType.binaryVary:
-                return valueWriter.writeBytes(value.get!(const(ubyte)[])());
+            case DbType.blob:
+                const(ubyte)[] data;
+                if (parameter.loadBlob(0, size_t.max, data) == 0)
+                    return writer.writeInt32(pgNullValueLength);
+                else
+                    return valueWriter.writeBytes(data);
             case DbType.record:
             case DbType.unknown:
-                switch (column.baseTypeId)
+                switch (parameter.baseTypeId)
                 {
                     case PgOIdType.interval:
-                        return valueWriter.writeInterval(value.get!PgOIdInterval());
+                        return valueWriter.writeInterval(parameter.value.get!PgOIdInterval());
                     case PgOIdType.point:
-                        return valueWriter.writeGeoPoint(value.get!DbGeoPoint());
+                        return valueWriter.writeGeoPoint(parameter.value.get!DbGeoPoint());
                     case PgOIdType.path:
-                        return valueWriter.writeGeoPath(value.get!DbGeoPath());
+                        return valueWriter.writeGeoPath(parameter.value.get!DbGeoPath());
                     case PgOIdType.box:
-                        return valueWriter.writeGeoBox(value.get!DbGeoBox());
+                        return valueWriter.writeGeoBox(parameter.value.get!DbGeoBox());
                     case PgOIdType.polygon:
-                        return valueWriter.writeGeoPolygon(value.get!DbGeoPolygon());
+                        return valueWriter.writeGeoPolygon(parameter.value.get!DbGeoPolygon());
                     case PgOIdType.circle:
-                        return valueWriter.writeGeoCircle(value.get!DbGeoCircle());
-
+                        return valueWriter.writeGeoCircle(parameter.value.get!DbGeoCircle());
                     default:
                         return unsupportDataError();
                 }
@@ -1121,16 +1141,16 @@ protected:
         }
 
         // Never reach here
-        assert(0, toName!DbType(column.type));
+        assert(0, toName!DbType(parameter.type));
     }
 
-    final void describeValueArray(T)(ref PgWriter writer, DbNameColumn column, ref DbValue value, const(int32) elementOid)
+    final void describeParameterArray(T)(ref PgWriter writer, PgParameter parameter, const(int32) elementOid)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(column.name=", column.name, ", elementOid=", elementOid, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(parameter.name=", parameter.name, ", elementOid=", elementOid, ")");
 
         alias UT = Unqual!T;
 
-        auto values = value.get!(T[])();
+        auto values = parameter.value.get!(T[])();
         const int32 length = cast(int32)values.length;
         auto valueWriter = PgXdrWriter(connection, writer.buffer);
         const marker = valueWriter.writeArrayBegin();
@@ -1155,7 +1175,7 @@ protected:
             else static if (is(UT == int64))
                 valueWriter.writeInt64(values[i]);
             else static if (is(UT == Decimal32) || is(UT == Decimal64) || is(UT == Decimal128))
-                valueWriter.writeDecimal!T(values[i], column.baseType);
+                valueWriter.writeDecimal!T(values[i], parameter.baseType);
             else static if (is(UT == float32))
                 valueWriter.writeFloat32(values[i]);
             else static if (is(UT == float64))

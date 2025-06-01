@@ -676,6 +676,7 @@ public:
                 return textValue.length != 0 ? DbValue(textValue, dbType) : DbValue.dbNull(dbType);
             case DbType.binaryFixed:
             case DbType.binaryVary:
+            case DbType.blob:
                 auto binaryValue = reader.readBytesValue(readColumnLength);
                 return binaryValue.length != 0 ? DbValue(binaryValue, dbType) : DbValue.dbNull(dbType);
             case DbType.record:
@@ -877,7 +878,7 @@ protected:
         if (parameter.isNull)
             writer.writeOpaqueChars("NULL");
         else
-            describeValue(writer, parameter, parameter.value);
+            describeParameterValue(writer, parameter);
     }
 
     final void describeParameter(ref MyXdrWriter typeWriter, ref MyXdrWriter valueWriter, ref BitArrayImpl!ubyte nullBitmap,
@@ -887,7 +888,7 @@ protected:
 
         if (parameter.hasInputValue())
         {
-            describeValue(typeWriter, valueWriter, parameter, parameter.value, queryAttributes);
+            describeParameterValue(typeWriter, valueWriter, parameter, queryAttributes);
         }
         else
         {
@@ -911,77 +912,80 @@ protected:
         }
     }
 
-    final void describeValue(ref MyXdrWriter writer, DbNameColumn column, ref DbValue value)
+    final void describeParameterValue(ref MyXdrWriter writer, MyParameter parameter)
     in
     {
-        assert(!value.isNull);
+        assert(!parameter.isNull);
     }
     do
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", toName!DbType(column.type), ", values.offset=", writer.buffer.offset, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", toName!DbType(parameter.type), ", values.offset=", writer.buffer.offset, ")");
 
-        void unsupportDataError()
+        noreturn unsupportDataError()
         {
-            auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
+            auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ "." ~ __FUNCTION__, toName!DbType(parameter.type));
             throw new MyException(DbErrorCode.write, msg);
         }
 
-        if (column.isArray)
+        if (parameter.isArray)
             return unsupportDataError();
 
         // Use coerce for implicit basic type conversion
-        final switch (column.type)
+        final switch (parameter.type)
         {
             case DbType.boolean:
-                int8 v = value.coerce!bool() ? 1 : 0;
+                int8 v = parameter.value.coerce!bool() ? 1 : 0;
                 return writer.writeInt32String(v);
             case DbType.int8:
             case DbType.int16:
             case DbType.int32:
-                return writer.writeInt32String(value.coerce!int32());
+                return writer.writeInt32String(parameter.value.coerce!int32());
             case DbType.int64:
-                return writer.writeInt64String(value.coerce!int64());
+                return writer.writeInt64String(parameter.value.coerce!int64());
             case DbType.int128:
                 return unsupportDataError();
             case DbType.decimal:
-                return writer.writeDecimalString!Decimal(value.get!Decimal());
+                return writer.writeDecimalString!Decimal(parameter.value.get!Decimal());
             case DbType.decimal32:
-                return writer.writeDecimalString!Decimal32(value.get!Decimal32());
+                return writer.writeDecimalString!Decimal32(parameter.value.get!Decimal32());
             case DbType.decimal64:
-                return writer.writeDecimalString!Decimal64(value.get!Decimal64());
+                return writer.writeDecimalString!Decimal64(parameter.value.get!Decimal64());
             case DbType.decimal128:
-                return writer.writeDecimalString!Decimal128(value.get!Decimal128());
+                return writer.writeDecimalString!Decimal128(parameter.value.get!Decimal128());
             case DbType.numeric:
-                return writer.writeDecimalString!Numeric(value.get!Numeric());
+                return writer.writeDecimalString!Numeric(parameter.value.get!Numeric());
             case DbType.float32:
-                return writer.writeFloat32String(value.coerce!float32());
+                return writer.writeFloat32String(parameter.value.coerce!float32());
             case DbType.float64:
-                return writer.writeFloat64String(value.coerce!float64());
+                return writer.writeFloat64String(parameter.value.coerce!float64());
             case DbType.date:
-                return writer.writeDateString(value.get!DbDate());
+                return writer.writeDateString(parameter.value.get!DbDate());
             case DbType.datetime:
             case DbType.datetimeTZ:
-                return writer.writeDateTimeString(value.get!DbDateTime());
+                return writer.writeDateTimeString(parameter.value.get!DbDateTime());
             case DbType.time:
             case DbType.timeTZ:
-                return writer.writeTimeString(value.get!DbTime());
+                return writer.writeTimeString(parameter.value.get!DbTime());
             case DbType.uuid:
-                return writer.writeUUIDString(value.get!UUID());
+                return writer.writeUUIDString(parameter.value.get!UUID());
             case DbType.stringFixed:
             case DbType.stringVary:
             case DbType.json:
             case DbType.text:
             case DbType.xml:
-                return writer.writeStringString(value.get!(const(char)[])());
+                const(char)[] data;
+                parameter.loadClob(0, size_t.max, data);
+                return writer.writeStringString(data);
             case DbType.binaryFixed:
             case DbType.binaryVary:
-                return writer.writeBytesString(value.get!(const(ubyte)[])());
+            case DbType.blob:
+                const(ubyte)[] data;
+                parameter.loadBlob(0, size_t.max, data);
+                return writer.writeBytesString(data);
             case DbType.record:
             case DbType.unknown:
-                if (column.baseTypeId == MyTypeId.geometry)
-                {
-                    return writer.writeGeometryString(value.get!MyGeometry());
-                }
+                if (parameter.baseTypeId == MyTypeId.geometry)
+                    return writer.writeGeometryString(parameter.value.get!MyGeometry());
                 return unsupportDataError();
 
             case DbType.array:
@@ -989,26 +993,26 @@ protected:
         }
 
         // Never reach here
-        assert(0, toName!DbType(column.type));
+        assert(0, toName!DbType(parameter.type));
     }
 
-    final void describeValue(ref MyXdrWriter typeWriter, ref MyXdrWriter valueWriter,
-        DbNameColumn column, ref DbValue value, const(bool) queryAttributes)
+    final void describeParameterValue(ref MyXdrWriter typeWriter, ref MyXdrWriter valueWriter,
+        MyParameter parameter, const(bool) queryAttributes)
     in
     {
-        assert(!value.isNull);
+        assert(!parameter.isNull);
     }
     do
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", toName!DbType(column.type), ", values.offset=", valueWriter.buffer.offset, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(type=", toName!DbType(parameter.type), ", values.offset=", valueWriter.buffer.offset, ")");
 
-        void unsupportDataError()
+        noreturn unsupportDataError()
         {
-            auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ ".describeValue", toName!DbType(column.type));
+            auto msg = DbMessage.eUnsupportDataType.fmtMessage(shortClassName(this) ~ "." ~ __FUNCTION__, toName!DbType(parameter.type));
             throw new MyException(DbErrorCode.write, msg);
         }
 
-        if (column.isArray)
+        if (parameter.isArray)
             return unsupportDataError();
 
         void writeType(const(MyTypeId) typeId, const(ubyte) typeSign)
@@ -1016,92 +1020,103 @@ protected:
             typeWriter.writeUInt8(typeId);
             typeWriter.writeUInt8(typeSign);
             if (queryAttributes)
-                typeWriter.writeString(column.name);
+                typeWriter.writeString(parameter.name);
         }
 
         // Use coerce for implicit basic type conversion
-        final switch (column.type)
+        final switch (parameter.type)
         {
             case DbType.boolean:
                 writeType(MyTypeId.int8, myTypeSignedValue);
-                return valueWriter.writeBool(value.coerce!bool());
+                return valueWriter.writeBool(parameter.value.coerce!bool());
             case DbType.int8:
                 writeType(MyTypeId.int8, myTypeSignedValue);
-                return valueWriter.writeInt8(value.coerce!int8());
+                return valueWriter.writeInt8(parameter.value.coerce!int8());
             case DbType.int16:
                 writeType(MyTypeId.int16, myTypeSignedValue);
-                return valueWriter.writeInt16(value.coerce!int16());
+                return valueWriter.writeInt16(parameter.value.coerce!int16());
             case DbType.int32:
                 writeType(MyTypeId.int32, myTypeSignedValue);
-                return valueWriter.writeInt32(value.coerce!int32());
+                return valueWriter.writeInt32(parameter.value.coerce!int32());
             case DbType.int64:
                 writeType(MyTypeId.int64, myTypeSignedValue);
-                return valueWriter.writeInt64(value.coerce!int64());
+                return valueWriter.writeInt64(parameter.value.coerce!int64());
             case DbType.int128:
                 return unsupportDataError();
                 //return valueWriter.writeInt128(value.get!BigInteger());
             case DbType.decimal:
                 writeType(MyTypeId.decimal, myTypeSignedValue);
-                return valueWriter.writeDecimal!Decimal(value.get!Decimal());
+                return valueWriter.writeDecimal!Decimal(parameter.value.get!Decimal());
             case DbType.decimal32:
                 writeType(MyTypeId.decimal, myTypeSignedValue);
-                return valueWriter.writeDecimal!Decimal32(value.get!Decimal32());
+                return valueWriter.writeDecimal!Decimal32(parameter.value.get!Decimal32());
             case DbType.decimal64:
                 writeType(MyTypeId.decimal, myTypeSignedValue);
-                return valueWriter.writeDecimal!Decimal64(value.get!Decimal64());
+                return valueWriter.writeDecimal!Decimal64(parameter.value.get!Decimal64());
             case DbType.decimal128:
                 writeType(MyTypeId.decimal, myTypeSignedValue);
-                return valueWriter.writeDecimal!Decimal128(value.get!Decimal128());
+                return valueWriter.writeDecimal!Decimal128(parameter.value.get!Decimal128());
             case DbType.numeric:
                 writeType(MyTypeId.decimal, myTypeSignedValue);
-                return valueWriter.writeDecimal!Numeric(value.get!Numeric());
+                return valueWriter.writeDecimal!Numeric(parameter.value.get!Numeric());
             case DbType.float32:
                 writeType(MyTypeId.float32, myTypeSignedValue);
-                return valueWriter.writeFloat32(value.coerce!float32());
+                return valueWriter.writeFloat32(parameter.value.coerce!float32());
             case DbType.float64:
                 writeType(MyTypeId.float64, myTypeSignedValue);
-                return valueWriter.writeFloat64(value.coerce!float64());
+                return valueWriter.writeFloat64(parameter.value.coerce!float64());
             case DbType.date:
                 writeType(MyTypeId.date, myTypeSignedValue);
-                return valueWriter.writeDate(value.get!Date());
+                return valueWriter.writeDate(parameter.value.get!Date());
             case DbType.datetime:
                 writeType(MyTypeId.datetime, myTypeSignedValue);
-                return valueWriter.writeDateTime(value.get!DbDateTime());
+                return valueWriter.writeDateTime(parameter.value.get!DbDateTime());
             case DbType.datetimeTZ:
                 writeType(MyTypeId.datetime, myTypeSignedValue);
-                return valueWriter.writeDateTime(value.get!DbDateTime());
+                return valueWriter.writeDateTime(parameter.value.get!DbDateTime());
             case DbType.time:
                 writeType(MyTypeId.time, myTypeSignedValue);
-                return valueWriter.writeTime(value.get!DbTime());
+                return valueWriter.writeTime(parameter.value.get!DbTime());
             case DbType.timeTZ:
                 writeType(MyTypeId.time, myTypeSignedValue);
-                return valueWriter.writeTime(value.get!DbTime());
+                return valueWriter.writeTime(parameter.value.get!DbTime());
             case DbType.uuid:
                 writeType(MyTypeId.fixedVarChar, myTypeSignedValue);
-                return valueWriter.writeUUID(value.get!UUID());
+                return valueWriter.writeUUID(parameter.value.get!UUID());
             case DbType.stringFixed:
                 writeType(MyTypeId.fixedVarChar, myTypeSignedValue);
-                return valueWriter.writeString(value.get!(const(char)[])());
+                const(char)[] data;
+                parameter.loadClob(0, size_t.max, data);
+                return valueWriter.writeString(data);
             case DbType.stringVary:
                 writeType(MyTypeId.varChar, myTypeSignedValue);
-                return valueWriter.writeString(value.get!(const(char)[])());
+                const(char)[] data;
+                parameter.loadClob(0, size_t.max, data);
+                return valueWriter.writeString(data);
             case DbType.json:
                 writeType(MyTypeId.json, myTypeSignedValue);
-                return valueWriter.writeString(value.get!(const(char)[])());
+                const(char)[] data;
+                parameter.loadClob(0, size_t.max, data);
+                return valueWriter.writeString(data);
             case DbType.text:
             case DbType.xml:
                 writeType(MyTypeId.longBlob, myTypeSignedValue);
-                return valueWriter.writeString(value.get!(const(char)[])());
+                const(char)[] data;
+                parameter.loadClob(0, size_t.max, data);
+                return valueWriter.writeString(data);
             case DbType.binaryFixed:
             case DbType.binaryVary:
+            case DbType.blob:
                 writeType(MyTypeId.longBlob, myTypeSignedValue);
-                return valueWriter.writeBytes(value.get!(const(ubyte)[])());
+                const(ubyte)[] data;
+                parameter.loadBlob(0, size_t.max, data);
+                return valueWriter.writeBytes(data);
             case DbType.record:
             case DbType.unknown:
-                if (column.baseTypeId == MyTypeId.geometry)
+                if (parameter.baseTypeId == MyTypeId.geometry)
                 {
                     writeType(MyTypeId.geometry, myTypeSignedValue);
-                    return valueWriter.writeGeometry(value.get!MyGeometry());
+                    return valueWriter.writeGeometry(parameter.value.get!MyGeometry());
                 }
                 return unsupportDataError();
 
@@ -1110,7 +1125,7 @@ protected:
         }
 
         // Never reach here
-        assert(0, toName!DbType(column.type));
+        assert(0, toName!DbType(parameter.type));
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -1138,7 +1153,7 @@ protected:
             auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword, stateInfo.serverAuthData[], stateInfo.authData);
             if (status.isError)
                 throw new MyException(DbErrorCode.read, status.errorMessage);
-            
+
             if (authMethodChanged && stateInfo.authData.length == 0)
                 stateInfo.authData.put(0x00);
         }
@@ -1280,9 +1295,9 @@ protected:
             auto errorResult = valueReader.readError();
             throw new MyException(errorResult);
         }
-        
+
         debug(debug_pham_db_db_myprotocol) debug writeln("\t", "sequenceByte=", result.sequenceByte, ", packetLength=", result.packetLength);
-        
+
         return result;
     }
 

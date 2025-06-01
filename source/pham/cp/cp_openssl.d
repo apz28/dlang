@@ -189,6 +189,17 @@ public:
         dispose(DisposingReason.destructor);
     }
 
+    int availableBytes() @trusted
+    in
+    {
+        assert(isInitialized);
+        assert(isConnected);
+    }
+    do
+    {
+        return opensslApi.SSL_pending(_ssl);
+    }
+
     ResultStatus close() @trusted
     {
         auto rs = ResultStatus.ok();
@@ -329,12 +340,6 @@ public:
         }
 
         return ResultStatus.error(0, "SSL_read failed");
-    }
-
-    version(none)
-    int receivePending() @trusted
-    {
-        return opensslApi.SSL_pending(_ssl);
     }
 
     ResultStatus send(scope const(ubyte)[] data, out size_t writtenSize) @trusted

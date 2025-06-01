@@ -21,9 +21,11 @@ import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.db.db_buffer;
 import pham.db.db_convert;
+import pham.db.db_message;
 import pham.db.db_type;
-import pham.db.db_pgdatabase;
 import pham.db.db_pgconvert;
+import pham.db.db_pgdatabase;
+import pham.db.db_pgexception;
 import pham.db.db_pgoid;
 import pham.db.db_pgtype;
 
@@ -50,6 +52,7 @@ public:
         this._connection = null;
         this._messageType = 0;
         this._messageLength = cast(int32)packetData.length;
+        this._bufferOwner = DbBufferOwner.owned;
         this._buffer = new DbReadBuffer(packetData);
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
@@ -61,11 +64,28 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseMessageReadBuffer(_buffer);
-
-        _buffer = null;
         _reader.dispose(disposingReason);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseMessageReadBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
+        _buffer = null;
+        _messageType = 0;
+        _messageLength = 0;
         if (isDisposing(disposingReason))
             _connection = null;
     }
@@ -183,22 +203,38 @@ public:
 private:
     void readPacketData(PgConnection connection)
     {
-        auto socketBuffer = connection.acquireSocketReadBuffer();
+        scope (failure)
+            connection.fatalError(DbFatalErrorReason.readData, connection.state);
+    
+        auto socketBuffer = connection.getSocketReadBuffer();
         auto socketReader = DbValueReader!(Endian.bigEndian)(socketBuffer);
         _messageType = socketReader.readChar();
         _messageLength = socketReader.readInt32();
-        _messageLength -= int32.sizeof; // Substract message length size
+        if (_messageLength >= int32.sizeof)
+            _messageLength -= int32.sizeof; // Substract message length size
 
-        this._buffer = connection.acquireMessageReadBuffer();
+        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(messageType=", _messageType, ", messageType#=", cast(ubyte)_messageType, ", messageLength=", _messageLength, ")");
+
         // Read message data?
-        if (_messageLength > 0)
+        if (_messageType != '\0' && _messageLength > 0)
         {
-            auto bufferData = this._buffer.expand(_messageLength);
+            _bufferOwner = DbBufferOwner.acquired;
+            _buffer = connection.acquireMessageReadBuffer().reset();
+        
+            auto bufferData = _buffer.expand(_messageLength);
+            
+            debug(debug_pham_db_db_pgbuffer) debug writeln("\t", "_buffer.offset=", _buffer.offset, ", _buffer.length=", _buffer.length, ", bufferData.length=", bufferData.length);
+            
             socketReader.readBytes(bufferData);
+        
+            _reader = DbValueReader!(Endian.bigEndian)(_buffer);
         }
-        this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
-
-        debug(debug_pham_db_db_pgbuffer) debug writeln(__FUNCTION__, "(messageType=", _messageType, ", messageLength=", _messageLength, ")");
+        
+        if (_messageType == '\0')
+        {
+            auto msg = DbMessage.eUnexpectOperation.fmtMessage(cast(ubyte)_messageType);
+            throw new PgException(DbErrorCode.read, msg);
+        }
     }
 
 private:
@@ -207,6 +243,7 @@ private:
     DbValueReader!(Endian.bigEndian) _reader;
     int32 _messageLength;
     char _messageType;
+    DbBufferOwner _bufferOwner;
 }
 
 struct PgWriter
@@ -219,18 +256,18 @@ public:
 
     this(PgConnection connection) nothrow
     {
-        this._needBuffer = true;
         this._reserveLenghtOffset = -1;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireSocketWriteBuffer();
         this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
 
     this(PgConnection connection, DbWriteBuffer buffer) nothrow
     {
-        this._needBuffer = false;
         this._reserveLenghtOffset = -1;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.none;
         this._buffer = buffer;
         this._writer = DbValueWriter!(Endian.bigEndian)(buffer.reset());
     }
@@ -262,16 +299,29 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        if (_needBuffer && _buffer !is null && _connection !is null)
-            _connection.releaseSocketWriteBuffer(_buffer);
+        _writer.dispose(disposingReason);
 
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseSocketWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         _reserveLenghtOffset = -1;
         if (isDisposing(disposingReason))
-        {
-            _needBuffer = false;
             _connection = null;
-        }
     }
 
     pragma(inline, true)
@@ -374,7 +424,7 @@ private:
     {
         this._connection = null;
         this._reserveLenghtOffset = -1;
-        this._needBuffer = false;
+        this._bufferOwner = DbBufferOwner.owned;
         this._buffer = new DbWriteBuffer(4_000);
         this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
@@ -398,7 +448,7 @@ private:
     PgConnection _connection;
     DbValueWriter!(Endian.bigEndian) _writer;
     ptrdiff_t _reserveLenghtOffset;
-    bool _needBuffer;
+    DbBufferOwner _bufferOwner;
 }
 
 struct PgXdrReader
@@ -418,8 +468,9 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _buffer = null;
         _reader.dispose(disposingReason);
+
+        _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
     }
@@ -631,7 +682,7 @@ public:
         static assert(UUID.sizeof == 16);
 
         ubyte[UUID.sizeof] buffer = void;
-        return UUID(_reader.readBytes(buffer)[0..UUID.sizeof]);
+        return UUID(_reader.readBytes(buffer[])[0..UUID.sizeof]);
     }
 
     @property DbReadBuffer buffer() nothrow pure
@@ -682,8 +733,9 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _buffer = null;
         _writer.dispose(disposingReason);
+
+        _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
     }

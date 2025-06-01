@@ -95,7 +95,7 @@ static immutable PgMappedParameterNames pgMappedParameterNames;
 static immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"bigint", dbType:DbType.int64, dbId:PgOIdType.int8, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
     {dbName:"bool", dbType:DbType.boolean, dbId:PgOIdType.bool_, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean},
-    {dbName:"bytea", dbType:DbType.binaryVary, dbId:PgOIdType.bytea, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"bytea", dbType:DbType.blob, dbId:PgOIdType.bytea, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
     {dbName:"char(?)", dbType:DbType.stringFixed, dbId:PgOIdType.bpchar, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed}, // Prefer multi chars[] over 1 char type
     {dbName:"char(1)", dbType:DbType.stringFixed, dbId:PgOIdType.char_, nativeName:"char", nativeSize:char.sizeof, displaySize:char.sizeof}, // Native 1 char
     {dbName:"date", dbType:DbType.date, dbId:PgOIdType.date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
@@ -118,7 +118,7 @@ static immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"xml", dbType:DbType.xml, dbId:PgOIdType.xml, nativeName:"string", nativeSize:DbTypeSize.xml, displaySize:DbTypeDisplaySize.xml},
     {dbName:"array_bool(?)", dbType:DbType.boolean|DbType.array, dbId:PgOIdType.array_bool, nativeName:"bool[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
     {dbName:"array_bpchar(?)", dbType:DbType.stringFixed|DbType.array, dbId:PgOIdType.array_bpchar, nativeName:"string[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array}, // Prefer multi chars[] over 1 char type
-    {dbName:"array_bytea(?)", dbType:DbType.binaryVary|DbType.array, dbId:PgOIdType.array_bytea, nativeName:"ubyte[][]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
+    {dbName:"array_bytea(?)", dbType:DbType.blob|DbType.array, dbId:PgOIdType.array_bytea, nativeName:"ubyte[][]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
     {dbName:"array_char(?)", dbType:DbType.stringFixed|DbType.array, dbId:PgOIdType.array_char, nativeName:"char[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
     {dbName:"array_date(?)", dbType:DbType.date|DbType.array, dbId:PgOIdType.array_date, nativeName:"DbDate[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
     {dbName:"array_float4(?)", dbType:DbType.float32|DbType.array, dbId:PgOIdType.array_float4, nativeName:"float32[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
@@ -623,6 +623,16 @@ public:
 	int16 weight;		/* weight of first digit */
 	int16 sign;			/* NUMERIC_POS=0x0000, NUMERIC_NEG=0x4000, or NUMERIC_NAN=0xC000 */
 	int16 dscale;		/* display scale */
+}
+
+// MessageType=T
+struct PgOIdRowDescription
+{
+nothrow @safe:
+
+public:
+    //int16 colCount;
+    PgOIdColumnInfo[] columns;
 }
 
 struct PgOIdScramSHA256FinalMessage

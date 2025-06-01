@@ -95,7 +95,11 @@ static immutable string[] fbValidConnectionParameterNames = [
 
 static immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"BIGINT", dbType:DbType.int64, dbId:FbIscType.sql_int64, nativeName:"int64", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
-    {dbName:"BLOB", dbType:DbType.binaryVary, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"BLOB", dbType:DbType.blob, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.blob, displaySize:DbTypeDisplaySize.blob},
+    {dbName:"BLOB SUB_TYPE 0", dbType:DbType.blob, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.blob, displaySize:DbTypeDisplaySize.blob},
+    {dbName:"BLOB SUB_TYPE BINARY", dbType:DbType.blob, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.blob, displaySize:DbTypeDisplaySize.blob},
+    {dbName:"BLOB SUB_TYPE 1", dbType:DbType.text, dbId:FbIscType.sql_blob, nativeName:"char[]", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},
+    {dbName:"BLOB SUB_TYPE TEXT", dbType:DbType.text, dbId:FbIscType.sql_blob, nativeName:"char[]", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},    
     {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:FbIscType.sql_boolean, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean}, // fb3
     {dbName:"CHAR(?)", dbType:DbType.stringFixed, dbId:FbIscType.sql_text, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed}, //char[]
     {dbName:"DATE", dbType:DbType.date, dbId:FbIscType.sql_date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
@@ -494,14 +498,14 @@ public:
                 case FbIsc.isc_info_blob_type:
                     this.type = parseInt32!true(payload, pos, len, typ);
                     break;
-                    
+
                 default:
-                    pos = payload.length; // break out while loop because of garbage
-                    break;
+                    auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
+                    throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
             }
         }
 
-        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length, ")");
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length, ", type=", type, ")");
     }
 
     ref typeof(this) reset() nothrow pure return
@@ -846,8 +850,13 @@ public:
     {
         const t = fbType;
 
-        if (t == FbIscType.sql_blob && subType == textBlob)
-            return DbType.text;
+        if (t == FbIscType.sql_blob)
+        {
+            if (subType == textBlob)
+                return DbType.text;
+            else if (subType == binaryBlob)
+                return DbType.blob;
+        }
 
         if (numericScale != 0)
         {
@@ -1095,6 +1104,7 @@ public:
     }
 
 public:
+    enum binaryBlob = 0;
     enum textBlob = 1;
 
     const(char)[] aliasName;

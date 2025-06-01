@@ -216,7 +216,7 @@ do
     return r == 0 ? cast(int)result : r;
 }
 
-uint getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
+uint getComputerNameOS(return scope char[] buffer) @nogc nothrow @trusted
 in
 {
     assert(buffer.length > 1);

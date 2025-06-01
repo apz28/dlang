@@ -39,12 +39,14 @@ struct DbMessage
     static immutable eReadData = "Unable to receive data from '%s'\n%s";
     static immutable eReadInvalidData = "Unable to convert data from '%s' to type '%s'";
     static immutable eWriteData = "Unable to send data to '%s'\n%s";
-    static immutable eUnexpectReadOperation = "Unexpected received operation code %d; expecting %d";
-    static immutable eUnexpectReadValue = "Unexpected %s for datatype %s with length %d; expecting %d";
+    static immutable eUnexpectOperation = "Unexpected received operation code %d";
+    static immutable eUnexpectReadOperation = "Unexpected received operation code %d, expecting %d";
+    static immutable eUnexpectReadValue = "Unexpected %s for datatype %s with length %d, expecting %d";
     static immutable eUnexpectValue = "Unexpected %s for %s; found %s expecting %s";
     static immutable eUnhandleIntOperation = "Unable to process operation %d for %s";
     static immutable eUnhandleStrOperation = "Unable to process operation %s for %s";
     static immutable eUnsupportDataType = "Unsupport %s for datatype %s";
+    static immutable eUnsupportFunction = "Unsupport function %s";
 
     static immutable eInvalidCommandText = "Command text is not set/empty";
     static immutable eInvalidCommandConnection = "Cannot perform %s when connection is not set or not active";

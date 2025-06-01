@@ -44,6 +44,7 @@ public:
     this(FbConnection connection) nothrow
     {
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireParameterWriteBuffer();
         this._writer = FbParameterWriter(this._buffer);
     }
@@ -56,8 +57,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseParameterWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseParameterWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -123,6 +140,7 @@ private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
     FbParameterWriter _writer;
+    DbBufferOwner _bufferOwner;
 }
 
 struct FbBatchWriter
@@ -137,6 +155,7 @@ public:
     {
         this._connection = connection;
         this._versionId = versionId;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireParameterWriteBuffer();
         this._writer = FbParameterWriter(this._buffer);
     }
@@ -149,8 +168,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseParameterWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseParameterWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -234,6 +269,7 @@ private:
     FbConnection _connection;
     FbParameterWriter _writer;
     uint8 _versionId;
+    DbBufferOwner _bufferOwner;
 }
 
 enum FbBlrWriteType
@@ -254,16 +290,17 @@ public:
     this(DbWriteBuffer buffer) nothrow pure
     {
         this._connection = null;
+        this._bufferOwner = DbBufferOwner.none;
         this._buffer = buffer;
         this._writer = FbParameterWriter(buffer);
     }
 
     this(FbConnection connection) nothrow
     {
-        DbWriteBuffer conBuffer = connection.acquireParameterWriteBuffer();
         this._connection = connection;
-        this._buffer = conBuffer;
-        this._writer = FbParameterWriter(conBuffer);
+        this._bufferOwner = DbBufferOwner.acquired;
+        this._buffer = connection.acquireParameterWriteBuffer();
+        this._writer = FbParameterWriter(this._buffer);
     }
 
     ~this() nothrow
@@ -274,8 +311,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseParameterWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseParameterWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -478,6 +531,7 @@ private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
     FbParameterWriter _writer;
+    DbBufferOwner _bufferOwner;
 }
 
 struct FbConnectionWriter
@@ -492,6 +546,7 @@ public:
     {
         this._connection = connection;
         this._versionId = versionId;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireParameterWriteBuffer();
         this._writer = FbParameterWriter(this._buffer);
     }
@@ -504,8 +559,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseParameterWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseParameterWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -637,6 +708,7 @@ private:
     FbConnection _connection;
     FbParameterWriter _writer;
     uint8 _versionId;
+    DbBufferOwner _bufferOwner;
 }
 
 struct FbTransactionWriter
@@ -650,6 +722,7 @@ public:
     this(FbConnection connection) nothrow
     {
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireParameterWriteBuffer();
         this._writer = FbParameterWriter(this._buffer);
     }
@@ -662,8 +735,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_buffer !is null && _connection !is null)
-            _connection.releaseParameterWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseParameterWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -730,6 +819,7 @@ private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
     FbParameterWriter _writer;
+    DbBufferOwner _bufferOwner;
 }
 
 struct FbXdrReader
@@ -741,16 +831,16 @@ public:
 
     this(FbConnection connection) nothrow
     {
-        this._connectionBuffer = true;
         this._connection = connection;
-        this._buffer = connection.acquireSocketReadBuffer();
+        this._bufferOwner = DbBufferOwner.none;
+        this._buffer = connection.getSocketReadBuffer();
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
     this(FbConnection connection, ubyte[] bufferData) nothrow
     {
-        this._connectionBuffer = false;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.owned;
         this._buffer = new DbReadBuffer(bufferData);
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
@@ -758,8 +848,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _reader.dispose(disposingReason);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    assert(0);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-        _connectionBuffer = false;
         if (isDisposing(disposingReason))
             _connection = null;
     }
@@ -1064,7 +1170,7 @@ private:
     DbReadBuffer _buffer;
     FbConnection _connection;
     DbValueReader!(Endian.bigEndian) _reader;
-    bool _connectionBuffer;
+    DbBufferOwner _bufferOwner;
 }
 
 struct FbXdrWriter
@@ -1077,8 +1183,8 @@ public:
 
     this(FbConnection connection) nothrow
     {
-        this._socketBuffer = true;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquireSocketWriteBuffer();
         this._writer = DbValueWriter!(Endian.bigEndian)(this._buffer);
     }
@@ -1086,8 +1192,8 @@ public:
     this(FbConnection connection, DbWriteBuffer buffer) nothrow
     {
         buffer.reset();
-        this._socketBuffer = false;
         this._connection = connection;
+        this._bufferOwner = DbBufferOwner.none;
         this._buffer = buffer;
         this._writer = DbValueWriter!(Endian.bigEndian)(buffer);
     }
@@ -1100,8 +1206,24 @@ public:
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _writer.dispose(disposingReason);
-        if (_socketBuffer && _buffer !is null && _connection !is null)
-            _connection.releaseSocketWriteBuffer(_buffer);
+
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseSocketWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         if (isDisposing(disposingReason))
             _connection = null;
@@ -1121,20 +1243,13 @@ public:
     }
 
     void writeBlob(scope const(ubyte)[] v) nothrow
-    in
     {
-        assert(v.length < FbIscSize.maxPackageLength);
-    }
-    do
-    {
-        const len = cast(uint16)v.length;
+        const len = cast(int32)v.length;
 
-        // Bizarre with three copies of the length
-        writeInt32(cast(int32)len);
-        writeInt32(cast(int32)len);
-        _writer.writeUInt16(len);
+        writeInt32(len); // segmentLength
+        writeInt32(len); // dataLength
         _writer.writeBytes(v);
-        writePad(len + 2);
+        writePad(len);
     }
 
     pragma(inline, true)
@@ -1145,11 +1260,6 @@ public:
     }
 
     void writeBytes(scope const(ubyte)[] v) nothrow
-    in
-    {
-        assert(v.length < FbIscSize.maxPackageLength);
-    }
-    do
     {
         const nBytes = cast(int32)v.length;
         _writer.writeInt32(nBytes);
@@ -1159,11 +1269,6 @@ public:
 
     pragma(inline, true)
     void writeChars(scope const(char)[] v) nothrow
-    in
-    {
-        assert(v.length < FbIscSize.maxPackageLength);
-    }
-    do
     {
         writeBytes(v.representation);
     }
@@ -1232,12 +1337,6 @@ public:
     }
 
     void writeFixedChars(scope const(char)[] v, scope const(DbBaseTypeInfo) baseType) nothrow
-    in
-    {
-        assert(v.length < FbIscSize.maxPackageLength);
-        assert(baseType.size < FbIscSize.maxPackageLength);
-    }
-    do
     {
         _writer.writeBytes(v.representation);
         if (baseType.size > v.length)
@@ -1318,12 +1417,6 @@ public:
     }
 
     void writeOpaqueBytes(scope const(ubyte)[] v, const(size_t) forLength) nothrow
-    in
-    {
-        assert(v.length < FbIscSize.maxPackageLength);
-        assert(forLength < FbIscSize.maxPackageLength);
-    }
-    do
     {
         _writer.writeBytes(v);
         if (forLength > v.length)
@@ -1429,7 +1522,7 @@ private:
     DbWriteBuffer _buffer;
     FbConnection _connection;
     DbValueWriter!(Endian.bigEndian) _writer;
-    bool _socketBuffer;
+    DbBufferOwner _bufferOwner;
 }
 
 

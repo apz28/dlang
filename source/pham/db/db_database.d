@@ -17,7 +17,6 @@ public import core.time : Duration, dur;
 public import std.ascii : newline;
 import std.conv : to;
 import std.traits : FieldNameTuple, Unqual;
-import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_database) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
@@ -41,8 +40,32 @@ public import pham.db.db_type;
 import pham.db.db_util;
 public import pham.db.db_value;
 
-alias DbNotificationMessageEvent = void delegate(scope DbNotificationMessage[] notificationMessages);
-
+/**
+ * A delegate to load blob/clob data to send to database server
+ * Params:
+ *  sender = an object that the delegate calling from (DbParameter...)
+ *  loadedSize = an accumulated size in bytes that loaded so far
+ *  segmentSize = an adviced size in bytes that sending to database server at once
+ *  data = set to ubyte array that contains the data to be sent
+ * Returns:
+ *  a size in bytes that data held or 0 if no data to be sent
+ */
+alias LoadLongData = size_t delegate(Object sender, uint64 loadedSize, size_t segmentSize,
+    ref scope const(ubyte)[] data) @safe;
+    
+/**
+ * A delegate to save blob/clob data to receive from database server
+ * Params:
+ *  sender = an object that the delegate calling from (DbParameter...)
+ *  savedSize = an accumulated size in bytes that saved so far
+ *  blobSize = total size of blob if known, -1 otherwise
+ *  data = set to ubyte array that contains the data to be received
+ * Returns:
+ *  0=continue saving, none zero=stop saving
+ */
+alias SaveLongData = int delegate(Object sender, uint64 savedSize, int64 blobSize,
+    scope const(ubyte)[] data) @safe;
+    
 abstract class DbCancelCommandData
 {}
 
@@ -474,14 +497,14 @@ public:
 
     abstract string getExecutionPlan(uint vendorMode = 0) @safe;
 
-    final T[] inputParameters(T : DbParameter)(const(bool) inputOnly = false) nothrow @safe
+    final T[] inputParameters(T : DbParameter)(InputDirectionOnly inputOnly = InputDirectionOnly.no) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         return hasParameters ? parameters.inputs!T(inputOnly) : null;
     }
 
-    final T[] outParameters(T : DbParameter)(const(bool) outputOnly = false) nothrow @safe
+    final T[] outParameters(T : DbParameter)(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
@@ -520,6 +543,7 @@ public:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.command.prepare() - %s%s%s", forLogInfo(), e.msg, newline, _executeCommandText, e);
             throw e;
@@ -574,8 +598,24 @@ public:
         return this;
     }
 
-    abstract DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
+    abstract DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
         DbValue optionalBlobValueId = DbValue.init) @safe;
+
+    final DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
+        DbValue optionalBlobValueId = DbValue.init) @safe
+    {
+        size_t loadLongData(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        {
+            if (loadedSize == 0)
+            {
+                data = blobValue;
+                return blobValue.length;
+            }
+            else
+                return 0;
+        }
+        return writeBlob(blobColumn, &loadLongData, optionalBlobValueId);
+    }
 
     final DbValue writeClob(DbNameColumn clobColumn, scope const(char)[] clobValue,
         DbValue optionalClobValueId = DbValue.init) @safe
@@ -687,7 +727,7 @@ public:
         return _connection !is null ? _connection.database : null;
     }
 
-    @property final uint executedCount() const nothrow @safe
+    @property final size_t executedCount() const nothrow @safe
     {
         return _executedCount;
     }
@@ -733,12 +773,12 @@ public:
         return _handle;
     }
 
-    @property final bool hasInputParameters(const(bool) inputOnly = false) nothrow @safe
+    @property final bool hasInputParameters(InputDirectionOnly inputOnly = InputDirectionOnly.no) nothrow @safe
     {
         return _parameters !is null ? _parameters.hasInput(inputOnly) : false;
     }
 
-    @property final bool hasOutputParameters(const(bool) outputOnly = false) nothrow @safe
+    @property final bool hasOutputParameters(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) nothrow @safe
     {
         return _parameters !is null ? _parameters.hasOutput(outputOnly) : false;
     }
@@ -1080,7 +1120,10 @@ protected:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
         if (_connection is null || _connection.state != DbConnectionState.opened)
-            throw new DbException(DbErrorCode.connect, DbMessage.eInvalidCommandConnection, null, funcName, file, line);
+        {
+            auto msg = DbMessage.eInvalidCommandConnection.fmtMessage(funcName);
+            throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
+        }
 
         checkActiveReader(funcName, file, line);
 
@@ -1111,6 +1154,7 @@ protected:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.command.doDispose() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
@@ -1153,6 +1197,8 @@ protected:
 
     final void doNotifyMessage() nothrow @trusted
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        
         if (notificationMessages.length == 0)
             return;
         scope (exit)
@@ -1166,6 +1212,7 @@ protected:
             }
             catch (Exception e)
             {
+                debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
                     log.errorf("%s.command.doNotifyMessage() - %s%s%s", forLogInfo(), e.msg, newline, _executeCommandText, e);
             }
@@ -1195,8 +1242,7 @@ protected:
             while (i < params.length)
             {
                 auto param = params[i++];
-                enum outputOnly = false;
-                if (param.isOutput(outputOnly))
+                if (param.isOutput(OutputDirectionOnly.no))
                 {
                     param.value = value;
                     break;
@@ -1244,6 +1290,7 @@ protected:
             }
             catch (Exception e)
             {
+                debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
                     log.errorf("%s.command.removeReaderCompleted() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
             }
@@ -1414,8 +1461,7 @@ protected:
             size_t i;
             foreach (parameter; parameters)
             {
-                enum outputOnly = false;
-                if (i < values.length && parameter.isOutput(outputOnly))
+                if (i < values.length && parameter.isOutput(OutputDirectionOnly.no))
                     parameter.value = values[i++];
             }
         }
@@ -1438,8 +1484,8 @@ protected:
     DbHandle _handle;
  	DbRowValueQueue _fetchedRows;
     Duration _commandTimeout;
-    uint _executedCount; // Number of execute calls after prepare
-    uint _fetchedCount; // Number of fetch calls
+    size_t _executedCount; // Number of execute calls after prepare
+    size_t _fetchedCount; // Number of fetch calls
     uint _fetchRecordCount;
     int _baseCommandType;
     EnumSet!DbCommandFlag _flags;
@@ -1863,7 +1909,7 @@ public:
         }
 
         scope (failure)
-            fatalError(FatalErrorReason.open, previousState);
+            fatalError(DbFatalErrorReason.open, previousState);
 
         doBeginStateChange(DbConnectionState.opening);
         doOpenImpl();
@@ -1975,7 +2021,7 @@ public:
      */
     @property final bool isFatalError() const nothrow @safe
     {
-        return _fatalError != FatalErrorReason.none;
+        return _fatalError != DbFatalErrorReason.none;
     }
 
     @property final DbTransaction lastTransaction(bool excludeDefaultTransaction) nothrow @safe
@@ -2063,6 +2109,7 @@ package(pham.db):
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.connection.doClose() - %s", forLogInfo(), e.msg, e);
         }
@@ -2070,19 +2117,11 @@ package(pham.db):
         _handle.reset();
     }
 
-    enum FatalErrorReason : ubyte
-    {
-        none,
-        open,
-        readData,
-        writeData,
-    }
-    
-    void fatalError(const(FatalErrorReason) fatalError, const(DbConnectionState) previousState,
+    void fatalError(const(DbFatalErrorReason) fatalError, const(DbConnectionState) previousState,
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     in
     {
-        assert(fatalError != FatalErrorReason.none);
+        assert(fatalError != DbFatalErrorReason.none);
     }
     do
     {
@@ -2093,7 +2132,7 @@ package(pham.db):
         scope (exit)
             _state = DbConnectionState.failed;
 
-        if (fatalError != FatalErrorReason.open)
+        if (fatalError != DbFatalErrorReason.open)
             doBeginStateChange(DbConnectionState.failing);
         doCloseImpl(DbConnectionState.failing); //todo
         doEndStateChange(previousState);
@@ -2113,6 +2152,37 @@ package(pham.db):
     {
         return _readerCounter;
     }
+
+public:
+    /**
+     * Delegate to get notify when a state change
+     * Occurs when the before state of the event changes
+     * Params:
+     *  newState = new state value
+     */
+    DelegateList!(DbConnection, DbConnectionState) beginStateChange;
+
+    /**
+     * Delegate to get notify when a state change
+     * Occurs when the after state of the event changes
+     * Params:
+     *  oldState = old state value
+     */
+    DelegateList!(DbConnection, DbConnectionState) endStateChange;
+
+    DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
+
+    DbNotificationMessage[] notificationMessages;
+
+    /**
+     * Populate when connection is established
+     */
+    DbCustomAttributeList serverInfo;
+
+    /**
+     * For logging various operation or error message
+     */
+    Logger logger;
 
 protected:
     final DbTransaction createTransactionImpl(DbIsolationLevel isolationLevel, bool defaultTransaction) @safe
@@ -2183,6 +2253,8 @@ protected:
 
     final void doNotifyMessage() nothrow @safe
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+
         if (notificationMessages.length == 0)
             return;
         scope (exit)
@@ -2196,6 +2268,7 @@ protected:
             }
             catch (Exception e)
             {
+                debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
                     log.errorf("%s.connection.doNotifyMessage() - %s", forLogInfo(), e.msg, e);
             }
@@ -2237,7 +2310,7 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        _fatalError = FatalErrorReason.none;
+        _fatalError = DbFatalErrorReason.none;
         _nextCounter = 0;
         _readerCounter = _activeTransactionCounter = 0;
         _inactiveTime = DateTime.zero;
@@ -2260,37 +2333,6 @@ protected:
     abstract void doOpenImpl() @safe;
     abstract string getServerVersionImpl() @safe;
 
-public:
-    /**
-     * Delegate to get notify when a state change
-     * Occurs when the before state of the event changes
-     * Params:
-     *  newState = new state value
-     */
-    DelegateList!(DbConnection, DbConnectionState) beginStateChange;
-
-    /**
-     * Delegate to get notify when a state change
-     * Occurs when the after state of the event changes
-     * Params:
-     *  oldState = old state value
-     */
-    DelegateList!(DbConnection, DbConnectionState) endStateChange;
-
-    DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
-
-    DbNotificationMessage[] notificationMessages;
-
-    /**
-     * Populate when connection is established
-     */
-    DbCustomAttributeList serverInfo;
-
-    /**
-     * For logging various operation or error message
-     */
-    Logger logger;
-
 protected:
     DbConnectionStringBuilder _connectionStringBuilder;
     DbDatabase _database;
@@ -2302,7 +2344,7 @@ protected:
     int _readerCounter, _activeTransactionCounter;
     DbConnectionState _state;
     DbConnectionType _type;
-    FatalErrorReason _fatalError;
+    DbFatalErrorReason _fatalError;
 
 private:
     DLinkDbCommandTypes.DLinkList _commands;
@@ -3453,6 +3495,11 @@ public:
         return _valueSeparator;
     }
 
+public:
+    DbCustomAttributeList customAttributes;
+    string forErrorInfoCustom;
+    string forLogInfoCustom;
+
 protected:
     enum customAttributeInfo = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, 200);
 
@@ -3542,11 +3589,6 @@ protected:
         auto msg = DbMessage.eInvalidConnectionStringValue.fmtMessage(scheme, name, value);
         throw new DbException(DbErrorCode.parse, msg, null, funcName, file, line);
     }
-
-public:
-    DbCustomAttributeList customAttributes;
-    string forErrorInfoCustom;
-    string forLogInfoCustom;
 
 protected:
     DbDatabase _database;
@@ -4487,21 +4529,58 @@ public:
             .data;
     }
 
-    final bool hasInputValue() const nothrow @safe
+    final size_t loadBlob(uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) @safe
+    in
     {
-        return isInput() && !_dbValue.isNull;
+        assert(!isNull);
+    }
+    do
+    {
+        if (loadLongData !is null)
+            return loadLongData(this, loadedSize, segmentSize, data);
+        else
+        {
+            data = value.get!(const(ubyte)[])();
+            return data.length;
+        }
     }
 
-    final bool isInput(const(bool) inputOnly = false) const nothrow @safe
+    final size_t loadClob(uint64 loadedSize, size_t segmentSize, ref scope const(char)[] data) @safe
+    in
     {
-        static immutable inputFlags = [inputDirections(false), inputDirections(true)];
+        assert(!isNull);
+    }
+    do
+    {
+        if (loadLongData !is null)
+        {
+            const(ubyte)[] dataBytes;
+            const result = loadLongData(this, loadedSize, segmentSize, dataBytes);
+            data = cast(const(char)[])dataBytes;
+            return result;
+        }
+        else
+        {
+            data = value.get!(const(char)[])();
+            return data.length;
+        }
+    }
+
+    final bool hasInputValue() const nothrow @safe
+    {
+        return isInput() && (!this.isNull || loadLongData !is null);
+    }
+
+    final bool isInput(InputDirectionOnly inputOnly = InputDirectionOnly.no) const nothrow @safe
+    {
+        static immutable inputFlags = [inputDirections(InputDirectionOnly.no), inputDirections(InputDirectionOnly.yes)];
 
         return inputFlags[inputOnly].isOn(direction);
     }
 
-    final bool isOutput(const(bool) outputOnly = false) const nothrow @safe
+    final bool isOutput(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) const nothrow @safe
     {
-        static immutable outputFlags = [outputDirections(false), outputDirections(true)];
+        static immutable outputFlags = [outputDirections(OutputDirectionOnly.no), outputDirections(OutputDirectionOnly.yes)];
 
         return outputFlags[outputOnly].isOn(direction);
     }
@@ -4514,7 +4593,7 @@ public:
     }
     do
     {
-        updateName(noneEmptyName);
+        name = noneEmptyName;
         return this;
     }
 
@@ -4534,7 +4613,10 @@ public:
 
     @property final bool isNull() const nothrow @safe
     {
-        return _dbValue.isNull || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
+        if (isInput() && loadLongData !is null)
+            return false;
+        else
+            return _dbValue.isNull || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
     }
 
     @property final Variant variant() nothrow @safe
@@ -4563,6 +4645,9 @@ public:
         this.valueAssigned();
         return this;
     }
+
+public:
+    LoadLongData loadLongData;
 
 protected:
     override void assignTo(DbNameColumn dest) nothrow @safe
@@ -4596,7 +4681,7 @@ protected:
         else if (type != DbType.unknown)
             _dbValue.type = type;
     }
-
+    
 protected:
     DbValue _dbValue;
     DbParameterDirection _direction;
@@ -4740,12 +4825,12 @@ public:
         return DbParameter.generateName(cast(uint)(length + 1));
     }
 
-    final bool hasInput(const(bool) inputOnly = false) const nothrow @safe
+    final bool hasInput(InputDirectionOnly inputOnly = InputDirectionOnly.no) const nothrow @safe
     {
         return parameterHasOfs(inputDirections(inputOnly));
     }
 
-    final bool hasOutput(const(bool) outputOnly = false) const nothrow @safe
+    final bool hasOutput(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) const nothrow @safe
     {
         return parameterHasOfs(outputDirections(outputOnly));
     }
@@ -4762,8 +4847,7 @@ public:
         foreach (i; 0..length)
         {
             result = this[i];
-            enum outputOnly = false;
-            if (result.isOutput(outputOnly))
+            if (result.isOutput(OutputDirectionOnly.no))
             {
                 if (outIndex++ == outputIndex)
                     return result;
@@ -4773,12 +4857,12 @@ public:
         return null;
     }
 
-    final size_t inputCount(const(bool) inputOnly = false) const nothrow @safe
+    final size_t inputCount(InputDirectionOnly inputOnly = InputDirectionOnly.no) const nothrow @safe
     {
         return parameterCountOfs(inputDirections(inputOnly));
     }
 
-    final T[] inputs(T : DbParameter)(const(bool) inputOnly = false) nothrow @safe
+    final T[] inputs(T : DbParameter)(InputDirectionOnly inputOnly = InputDirectionOnly.no) nothrow @safe
     {
         return parameterOfs!T(inputDirections(inputOnly));
     }
@@ -4787,18 +4871,17 @@ public:
     {
         foreach (parameter; this)
         {
-            enum outputOnly = true;
-            if (parameter.isOutput(outputOnly))
+            if (parameter.isOutput(OutputDirectionOnly.yes))
                 parameter.nullifyValue();
         }
     }
 
-    final size_t outputCount(const(bool) outputOnly = false) const nothrow @safe
+    final size_t outputCount(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) const nothrow @safe
     {
         return parameterCountOfs(outputDirections(outputOnly));
     }
 
-    final T[] outputs(T : DbParameter)(const(bool) outputOnly = false) nothrow @safe
+    final T[] outputs(T : DbParameter)(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) nothrow @safe
     {
         return parameterOfs!T(outputDirections(outputOnly));
     }
@@ -5098,11 +5181,11 @@ public:
     in
     {
         assert(!_flags.checkRows);
-        assert(columns.indexOfSafe(colName) >= 0);
+        assert(columns.indexOf(colName) >= 0);
     }
     do
     {
-        return getDbValue(columns.indexOfSafe(colName));
+        return getDbValue(columns.indexOfCheck(colName));
     }
 
     /**
@@ -5164,11 +5247,11 @@ public:
     in
     {
         assert(!_flags.checkRows);
-        assert(columns.indexOfSafe(colName) >= 0);
+        assert(columns.indexOf(colName) >= 0);
     }
     do
     {
-        return getValue(columns.indexOfSafe(colName));
+        return getValue(columns.indexOfCheck(colName));
     }
 
     bool isNull(const(size_t) colIndex) @safe
@@ -5189,11 +5272,11 @@ public:
     in
     {
         assert(!_flags.checkRows);
-        assert(columns.indexOfSafe(colName) >= 0);
+        assert(columns.indexOf(colName) >= 0);
     }
     do
     {
-        return isNull(columns.indexOfSafe(colName));
+        return isNull(columns.indexOfCheck(colName));
     }
 
     void popFront() @safe
@@ -5842,6 +5925,7 @@ package(pham.db):
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);            
             if (auto log = canErrorLog())
                 log.errorf("%s.transaction.rollbackError(isolationLevel=%s) - %s", forLogInfo(), toName!DbIsolationLevel(isolationLevel), e.msg, e);
 
@@ -5955,6 +6039,7 @@ protected:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.transaction.doDispose() - %s", forLogInfo(), e.msg, e);
         }

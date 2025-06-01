@@ -30,19 +30,39 @@ import pham.db.db_type;
 
 @safe:
 
+enum DbBufferOwner : ubyte
+{
+    none,
+    acquired,
+    owned,
+}
+
 // Network byte order is BigEndian
 
 class DbBuffer : DbDisposableObject
 {
 @safe:
 
+public:
+    enum cachedCapacityLimit = 1024 * 1024;
+
+    final bool isOverCachedCapacityLimit() const nothrow pure
+    {
+        return capacity > cachedCapacityLimit;
+    }
+
+    pragma(inline, true)
+    @property final size_t capacity() const nothrow pure
+    {
+        return _data.length;
+    }
+
 protected:
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _data = null;
         _offset = 0;
-        _next = null;
-        _prev = null;
+        _next = _prev = null;
     }
 
 protected:
@@ -102,14 +122,12 @@ public:
     {
         version(profile) debug auto p = PerfFunction.create();
 
-        if ((_offset + nBytes) > _maxLength)
+        const endLength = _offset + nBytes;
+        if (endLength > _maxLength)
         {
-            fill(nBytes, false);
+            fill(nBytes, endLength - _maxLength);
             if ((_offset + nBytes) > _maxLength)
-            {
-                auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(nBytes, length);
-                throw new DbException(DbErrorCode.read, msg);
-            }
+                noReadingDataRemainingError(nBytes, length);
         }
     }
 
@@ -129,10 +147,10 @@ public:
         return _data[endOffset..endOffset + nBytes];
     }
 
-    void fill(const(size_t) additionalBytes, bool mustSatisfied)
+    void fill(const(size_t) additionalBytes, const(size_t) mustSatisfiedBytes)
     {}
 
-    final void fill(ubyte[] additionalBytes) nothrow
+    final void fill(scope ubyte[] additionalBytes) nothrow
     {
         const nBytes = additionalBytes.length;
         reserve(nBytes);
@@ -223,6 +241,15 @@ protected:
         _maxLength = saveLength;
     }
 
+    noreturn noReadingDataRemainingError(const(size_t) requiredBytes, const(size_t) availableBytes) @safe
+    {
+        assert(requiredBytes > availableBytes);
+        //assert(connection.availableBytes() <= 0);
+        
+        auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(requiredBytes, availableBytes);
+        throw new DbException(DbErrorCode.read, msg);
+    }
+    
     final ubyte[] readBytesImpl(const(size_t) nBytes)
     {
         ubyte[] result = new ubyte[](nBytes);
@@ -241,6 +268,8 @@ protected:
 
     final void reserve(const(size_t) additionalBytes) nothrow @trusted
     {
+        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(offset=", _offset, ", length=", length, ", additionalBytes=", additionalBytes, ", _data.length=", _data.length, ")");
+
         const curLength = length;
         if (_data.length < (_offset + curLength + additionalBytes))
         {
@@ -375,7 +404,7 @@ public:
 
     void readTwoInt32(out int32 i1, out int32 i2)
     {
-        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof * 2, ", total=", totalReadOf(uint32.sizeof * 2), ")");
+        //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof * 2, ", total=", totalReadOf(uint32.sizeof * 2), ")");
 
         const bytes = _buffer.consume(uint32.sizeof * 2);
         i1 = cast(int32)uintDecode!(uint32, EndianKind)(bytes[0..uint32.sizeof]);
@@ -390,7 +419,7 @@ public:
 
     uint8 readUInt8()
     {
-        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint8.sizeof, ", total=", totalReadOf(uint8.sizeof), ")");
+        //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint8.sizeof, ", total=", totalReadOf(uint8.sizeof), ")");
 
         _buffer.ensureAvailableIf(uint8.sizeof);
         return _buffer._data[_buffer._offset++];
@@ -398,7 +427,7 @@ public:
 
     uint16 readUInt16()
     {
-        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint16.sizeof, ", total=", totalReadOf(uint16.sizeof), ")");
+        //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint16.sizeof, ", total=", totalReadOf(uint16.sizeof), ")");
 
         const bytes = _buffer.consume(uint16.sizeof);
         return uintDecode!(uint16, EndianKind)(bytes);
@@ -406,7 +435,7 @@ public:
 
     uint32 readUInt32()
     {
-        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof, ", total=", totalReadOf(uint32.sizeof), ")");
+        //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof, ", total=", totalReadOf(uint32.sizeof), ")");
 
         const bytes = _buffer.consume(uint32.sizeof);
         return uintDecode!(uint32, EndianKind)(bytes);
@@ -414,7 +443,7 @@ public:
 
     uint64 readUInt64()
     {
-        debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint64.sizeof, ", total=", totalReadOf(uint64.sizeof), ")");
+        //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint64.sizeof, ", total=", totalReadOf(uint64.sizeof), ")");
 
         const bytes = _buffer.consume(uint64.sizeof);
         return uintDecode!(uint64, EndianKind)(bytes);

@@ -158,18 +158,21 @@ public:
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
-        return Variant.varNull();
+        auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
+        throw new MyException(0, msg);
     }
 
     final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
     {
-        return null;
+        auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
+        throw new MyException(0, msg);
     }
 
-    final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
+    final override DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
-        return DbValue(null);
+        auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
+        throw new MyException(0, msg);
     }
 
     @property final MyConnection myConnection() nothrow pure @safe
@@ -256,7 +259,7 @@ protected:
                 foreach (param; parameters)
                 {
                     addInputName(param.name);
-                    if (param.isOutput(false))
+                    if (param.isOutput(OutputDirectionOnly.no))
                         addOutputName(param.name);
                 }
             }
@@ -285,6 +288,7 @@ protected:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_mydatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.command.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
@@ -548,6 +552,7 @@ protected:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_mydatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.command.purgePendingRows() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
@@ -697,7 +702,9 @@ package(pham.db):
 
     final void releasePackageReadBuffer(DbReadBuffer item) nothrow @safe
     {
-        if (!isDisposing(lastDisposingReason))
+        if (isDisposing(lastDisposingReason) || (!_packageReadBuffers.empty && item.isOverCachedCapacityLimit()))
+            item.dispose(DisposingReason.dispose);
+        else
             _packageReadBuffers.insertEnd(item.reset());
     }
 
@@ -711,7 +718,9 @@ package(pham.db):
 
     final void releaseParameterWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
-        if (!isDisposing(lastDisposingReason))
+        if (isDisposing(lastDisposingReason) || (!_parameterWriteBuffers.empty && item.isOverCachedCapacityLimit()))
+            item.dispose(DisposingReason.dispose);
+        else
             _parameterWriteBuffers.insertEnd(item.reset());
     }
 
@@ -738,7 +747,7 @@ protected:
     {
         return new SkReadBuffer(this, MyDefaultSize.socketReadBufferLength);
     }
-    
+
     final override DbWriteBuffer createSocketWriteBuffer() nothrow @safe
     {
         return new SkWriteBuffer(this, MyDefaultSize.socketWriteBufferLength);
@@ -797,6 +806,7 @@ protected:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_mydatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.connection.doCloseImpl() - %s", forLogInfo(), e.msg, e);
         }
@@ -1432,8 +1442,8 @@ version(UnitTestMYDatabase)
         auto csb = (cast(MyConnection)result).myConnectionStringBuilder;
         csb.databaseName = "test";
         csb.userPassword = "masterkey";
-        csb.receiveTimeout = dur!"seconds"(20);
-        csb.sendTimeout = dur!"seconds"(10);
+        csb.receiveTimeout = dur!"seconds"(40);
+        csb.sendTimeout = dur!"seconds"(20);
         csb.encrypt = encrypt;
         csb.compress = compress;
         csb.sslCa = "my_ca.pem";
@@ -1446,8 +1456,8 @@ version(UnitTestMYDatabase)
         assert(csb.userName == "root");
         assert(csb.databaseName == "test");
         assert(csb.userPassword == "masterkey");
-        assert(csb.receiveTimeout == dur!"seconds"(20));
-        assert(csb.sendTimeout == dur!"seconds"(10));
+        assert(csb.receiveTimeout == dur!"seconds"(40));
+        assert(csb.sendTimeout == dur!"seconds"(20));
         assert(csb.encrypt == encrypt);
         assert(csb.compress == compress);
         assert(csb.sslCa == "my_ca.pem");
@@ -2103,6 +2113,74 @@ unittest // DbDatabaseList.createConnectionByURL
     assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
 }
 
+version(UnitTestMYDatabase)
+unittest // MyConnection.DML.execute...
+{
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
+    assert(INT_FIELD.get!int() == 1); // First field
+
+    auto reader = connection.executeReader(simpleSelectCommandText());
+    validateSelectCommandTextReader(reader);
+    reader.dispose();
+
+    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
+    assert(TEXT_FIELD.get!string() == "TEXT");
+}
+
+version(UnitTestMYDatabase)
+unittest // MyDatabase.currentTimeStamp...
+{
+    import pham.dtm.dtm_date : DateTime;
+
+    void countZero(string s, uint expectedLength)
+    {
+        import std.format : format;
+
+        //import std.stdio : writeln; debug writeln("s=", s, ", expectedLength=", expectedLength);
+
+        assert(s.length == expectedLength, format("%s - %d", s, expectedLength));
+    }
+
+    // 2024-10-14 12:06:39
+    // 2024-10-14 12:06:39.xxxxxx
+    enum baseLength = "2024-10-14 12:06:39".length;
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(0) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(1) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+1);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(2) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+2);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(3) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+3);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(4) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+4);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(5) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+5);
+
+    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(6) ~ " as CHAR)");
+    countZero(v.value.toString(), baseLength+1+6);
+
+    auto n = DateTime.now;
+    auto t = connection.currentTimeStamp(6);
+    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+}
+
 version(UnitTestPerfMYDatabase)
 {
     import pham.utl.utl_test : PerfTestResult;
@@ -2236,74 +2314,6 @@ unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 
     const perfResult = unitTestPerfMYDatabase();
     debug writeln("MY-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
-}
-
-version(UnitTestMYDatabase)
-unittest // MyConnection.DML.execute...
-{
-    auto connection = createUnitTestConnection();
-    scope (exit)
-        connection.dispose();
-    connection.open();
-
-    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
-    assert(INT_FIELD.get!int() == 1); // First field
-
-    auto reader = connection.executeReader(simpleSelectCommandText());
-    validateSelectCommandTextReader(reader);
-    reader.dispose();
-
-    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
-    assert(TEXT_FIELD.get!string() == "TEXT");
-}
-
-version(UnitTestMYDatabase)
-unittest // MyDatabase.currentTimeStamp...
-{
-    import pham.dtm.dtm_date : DateTime;
-
-    void countZero(string s, uint expectedLength)
-    {
-        import std.format : format;
-
-        //import std.stdio : writeln; debug writeln("s=", s, ", expectedLength=", expectedLength);
-
-        assert(s.length == expectedLength, format("%s - %d", s, expectedLength));
-    }
-
-    // 2024-10-14 12:06:39
-    // 2024-10-14 12:06:39.xxxxxx
-    enum baseLength = "2024-10-14 12:06:39".length;
-
-    auto connection = createUnitTestConnection();
-    scope (exit)
-        connection.dispose();
-    connection.open();
-
-    auto v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(0) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength);
-
-    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(1) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength+1+1);
-
-    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(2) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength+1+2);
-
-    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(3) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength+1+3);
-
-    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(4) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength+1+4);
-
-    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(5) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength+1+5);
-
-    v = connection.executeScalar("SELECT cast(" ~ connection.database.currentTimeStamp(6) ~ " as CHAR)");
-    countZero(v.value.toString(), baseLength+1+6);
-
-    auto n = DateTime.now;
-    auto t = connection.currentTimeStamp(6);
-    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
 }
 
 version(UnitTestMYDatabase)

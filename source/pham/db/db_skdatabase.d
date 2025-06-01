@@ -119,26 +119,29 @@ public:
             return _socket !is null && _socket.handle != socket_t.init;
     }
 
+    version(none)
+    {
     pragma(inline, true)
     @property final bool socketSSLActive() const nothrow pure @safe
     {
         return socketActive && _sslSocket.isConnected;
     }
-
-package(pham.db):
-    final DbReadBuffer acquireSocketReadBuffer() nothrow @safe
-    {
-        if (_socketReadBuffer is null)
-            _socketReadBuffer = createSocketReadBuffer();
-        return _socketReadBuffer;
     }
 
+package(pham.db):
     final DbWriteBuffer acquireSocketWriteBuffer() nothrow @safe
     {
         if (_socketWriteBuffers.empty)
             return createSocketWriteBuffer();
         else
             return cast(DbWriteBuffer)(_socketWriteBuffers.remove(_socketWriteBuffers.last));
+    }
+
+    final int availableBytes() @safe
+    {
+        return socketActive
+            ? (_sslSocket.isConnected ? _sslSocket.availableBytes() : _socket.availableBytes())
+            : -1;
     }
 
     final ResultStatus doOpenSSL() @safe
@@ -157,33 +160,76 @@ package(pham.db):
         return ResultStatus.ok();
     }
 
+    final DbReadBuffer getSocketReadBuffer() nothrow @safe
+    {
+        if (_socketReadBuffer is null)
+            _socketReadBuffer = createSocketReadBuffer();
+        return _socketReadBuffer;
+    }
+
     final void releaseSocketWriteBuffer(DbWriteBuffer item) nothrow @safe
     {
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
 
-        if (!isDisposing(lastDisposingReason))
+        if (isDisposing(lastDisposingReason) || (!_socketWriteBuffers.empty && item.isOverCachedCapacityLimit()))
+            item.dispose(DisposingReason.dispose);
+        else
             _socketWriteBuffers.insertEnd(item.reset());
     }
 
     debug(debug_pham_db_db_skdatabase) static size_t socketReadDataCounter;
-    final size_t socketReadData(ubyte[] data) @trusted
+    final size_t socketReadData(ubyte[] data, size_t mustSatisfiedBytes) @trusted
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()", " - counter=", ++socketReadDataCounter,
-            ", _sslSocket.isConnected=", _sslSocket.isConnected);
+        assert(mustSatisfiedBytes <= data.length);
+
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(counter=", ++socketReadDataCounter,
+            ", _sslSocket.isConnected=", _sslSocket.isConnected, ", data.length=", data.length, ", mustSatisfiedBytes=", mustSatisfiedBytes, ")");
         version(profile) debug auto p = PerfFunction.create();
 
+        bool canReadAgain(const(size_t) readBytes, const(size_t) totalBytes) const @trusted
+        {
+            import pham.utl.utl_system : sleep;
+
+            if (readBytes == 0 || totalBytes >= mustSatisfiedBytes)
+               return false;
+
+            // Try for maximum 1 second
+            enum oneMillisecond = 1;
+            foreach (i; 0..1_000)
+            {
+                sleep(oneMillisecond);
+                if (availableBytes() > 0)
+                    return true;
+            }
+            return false;
+        }
+
         size_t result;
+
         if (_sslSocket.isConnected)
         {
-            const rs = _sslSocket.receive(data, result);
+        receiveAgainSslSocket:
+            size_t receiveBytes;
+            const rs = _sslSocket.receive(data[result..$], receiveBytes);
+
+            debug(debug_pham_db_db_skdatabase) debug writeln("\t", "rs=", rs, ", receiveBytes=", receiveBytes);
+
             if (rs.isError)
                 throwReadDataError(rs.errorCode, rs.errorMessage);
+
+            result += receiveBytes;
+            if (canReadAgain(receiveBytes, result))
+                goto receiveAgainSslSocket;
         }
         else
         {
+        receiveAgainSocket:
             version(pham_io_socket)
             {
-                const rs = _socket.receive(data);
+                const rs = _socket.receive(data[result..$]);
+
+                debug(debug_pham_db_db_skdatabase) debug writeln("\t", "rs=", rs);
+
                 if ((rs < 0) || (rs == 0 && data.length != 0))
                 {
                     auto msg = _socket.lastError.errorMessage;
@@ -191,16 +237,26 @@ package(pham.db):
                         msg = DbMessage.eNoReadingData.fmtMessage(cast(int)data.length);
                     throwReadDataError(_socket.lastError.errorCode, msg);
                 }
-                result = cast(size_t)(rs);
+
+                result += cast(size_t)rs;
+                if (canReadAgain(cast(size_t)rs, result))
+                    goto receiveAgainSocket;
             }
             else
             {
-                result = _socket.receive(data);
-                if ((result == Socket.ERROR) || (result == 0 && data.length != 0))
+                const rs = _socket.receive(data[result..$]);
+
+                debug(debug_pham_db_db_skdatabase) debug writeln("\t", "rs=", rs);
+
+                if ((rs == Socket.ERROR) || (rs == 0 && data.length != 0))
                 {
                     auto status = lastSocketError("receive", DbMessage.eNoReadingData.fmtMessage(cast(int)data.length));
                     throwReadDataError(status.errorCode, status.errorMessage);
                 }
+
+                result += cast(size_t)rs;
+                if (canReadAgain(cast(size_t)rs, result))
+                    goto receiveAgainSocket;
             }
         }
 
@@ -209,20 +265,31 @@ package(pham.db):
             ubyte[] filteredData = data[0..result];
             for (auto nextFilter = _socketReadBufferFilters; nextFilter !is null; nextFilter = nextFilter.next)
             {
-                debug(debug_pham_db_db_skdatabase) debug writeln("\t", "filter=", nextFilter.processName,
-                    ", length=", filteredData.length, ", data=", filteredData.dgToHex());
+                debug(debug_pham_db_db_skdatabase) debug
+                {
+                    if (filteredData.length <= 2_000)
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToString());
+                    else
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", filteredData.length);
+                }
 
                 if (!nextFilter.process(filteredData, filteredData))
                     throwReadDataError(nextFilter.errorCode, nextFilter.errorMessage);
 
-                debug(debug_pham_db_db_skdatabase) debug writeln("\t", "filter=", nextFilter.processName,
-                    ", length=", filteredData.length, ", data=", filteredData.dgToHex());
+                debug(debug_pham_db_db_skdatabase) debug
+                {
+                    if (filteredData.length <= 2_000)
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToString());
+                    else
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", filteredData.length);
+                }
             }
+
             // TODO check for data.length - expand it?
             result = filteredData.length;
             data[0..result] = filteredData[0..result];
 
-            debug(debug_pham_db_db_skdatabase) debug writeln("\t", "data=", data[0..result].dgToHex());
+            debug(debug_pham_db_db_skdatabase) if (result <= 2_000) debug writeln("\t", "data=", data[0..result].dgToString());
         }
 
         return result;
@@ -231,8 +298,13 @@ package(pham.db):
     debug(debug_pham_db_db_skdatabase) static size_t socketWriteDataCounter;
     final size_t socketWriteData(scope const(ubyte)[] data) @trusted
     {
-        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()", " - counter=", ++socketWriteDataCounter,
-            ", _sslSocket.isConnected=", _sslSocket.isConnected, ", data=", data.dgToHex());
+        debug(debug_pham_db_db_skdatabase) debug
+        {
+            if (data.length <= 2_000)
+                writeln(__FUNCTION__, "(counter=", ++socketWriteDataCounter, ", _sslSocket.isConnected=", _sslSocket.isConnected, ") - data=", data.dgToString());
+            else
+                writeln(__FUNCTION__, "(counter=", ++socketWriteDataCounter, ", _sslSocket.isConnected=", _sslSocket.isConnected, ")");
+        }
 
         const(ubyte)[] sendingData;
 
@@ -242,18 +314,25 @@ package(pham.db):
             ubyte[] filteredData;
             for (auto nextFilter = _socketWriteBufferFilters; nextFilter !is null; nextFilter = nextFilter.next)
             {
-                debug(debug_pham_db_db_skdatabase)
+                debug(debug_pham_db_db_skdatabase) debug
                 {
                     const(ubyte)[] logData = firstFilter ? data : filteredData;
-                    debug writeln("\t", "filter=", nextFilter.processName, ", length=", logData.length,
-                        ", data=", logData.dgToHex());
+                    if (logData.length <= 2_000)
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", logData.length, ", data=", logData.dgToString());
+                    else
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", logData.length);
                 }
 
                 if (!nextFilter.process(firstFilter ? data : filteredData, filteredData))
                     throwWriteDataError(nextFilter.errorCode, nextFilter.errorMessage);
 
-                debug(debug_pham_db_db_skdatabase) debug writeln("\t", "filter=", nextFilter.processName,
-                    ", length=", filteredData.length, ", data=", filteredData.dgToHex());
+                debug(debug_pham_db_db_skdatabase) debug
+                {
+                    if (filteredData.length <= 2_000)
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", filteredData.length, ", data=", filteredData.dgToString());
+                    else
+                        writeln("\t", "filter=", nextFilter.processName, ", length=", filteredData.length);
+                }
 
                 firstFilter = false;
             }
@@ -324,7 +403,7 @@ package(pham.db):
         auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
 
         if (needResetSocket(rawErrorCode))
-            fatalError(FatalErrorReason.readData, state);
+            fatalError(DbFatalErrorReason.readData, state);
 
         throw createReadDataError(rawErrorCode, msg, next, funcName, file, line);
     }
@@ -341,7 +420,7 @@ package(pham.db):
         auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
 
         if (needResetSocket(rawErrorCode))
-            fatalError(FatalErrorReason.writeData, state);
+            fatalError(DbFatalErrorReason.writeData, state);
 
         throw createWriteDataError(rawErrorCode, msg, next, funcName, file, line);
     }
@@ -743,7 +822,7 @@ public:
     }
 
     debug(debug_pham_db_db_skdatabase) static size_t readCounter = 0;
-    final override void fill(const(size_t) additionalBytes, bool mustSatisfied)
+    final override void fill(const(size_t) additionalBytes, const(size_t) mustSatisfiedBytes)
     {
         version(profile) debug auto p = PerfFunction.create();
 
@@ -751,27 +830,29 @@ public:
             mergeOffset();
 
         reserve(additionalBytes);
-        const nOffset = _offset + length;
 
-        debug(debug_pham_db_db_skdatabase) { debug writeln(__FUNCTION__, "(nOffset=", nOffset, ", _data.length=", _data.length,
-            ", additionalBytes=", additionalBytes.dgToHex(), ", length=", length, ")"); }
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(_offset=", _offset, ", _maxLength=", _maxLength, ", _data.length=", _data.length, ", length=", length, ", additionalBytes=", additionalBytes, ")");
 
         // n=size_t.max -> no data returned
-        const n = connection.socketReadData(_data[nOffset.._data.length]);
+        const n = _connection.socketReadData(_data[_maxLength..$], mustSatisfiedBytes);
         const hasReadData = n != size_t.max;
         if (hasReadData)
         {
+            debug(debug_pham_db_db_skdatabase) debug
+            {
+                readCounter++;
+                const readBytes = _data[_maxLength.._maxLength + n];
+                if (readBytes.length <= 2_000)
+                    writeln("\t", "counter=", readCounter, ", _offset=", _offset, ", _maxlength=", _maxLength + n, ", read_length=", n, ", read_data=", readBytes.dgToString());
+                else
+                    writeln("\t", "counter=", readCounter, ", _offset=", _offset, ", _maxlength=", _maxLength + n, ", read_length=", n);
+            }
+
             _maxLength += n;
-
-            debug(debug_pham_db_db_skdatabase) { readCounter++; const readBytes = _data[nOffset..nOffset + n];
-                debug writeln("\t", "counter=", readCounter, ", read_length=", n, ", read_data=", readBytes.dgToHex(), ", _offset=", _offset, ", _maxlength=", _maxLength); }
         }
 
-        if (mustSatisfied && (!hasReadData || n < additionalBytes))
-        {
-            auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(additionalBytes, hasReadData ? n : 0);
-            connection.throwReadDataError(0, msg);
-        }
+        if (mustSatisfiedBytes && (!hasReadData || n < mustSatisfiedBytes))
+            noReadingDataRemainingError(mustSatisfiedBytes, hasReadData ? n : 0);
     }
 
     @property final SkConnection connection() nothrow pure
@@ -785,6 +866,15 @@ protected:
         if (isDisposing(disposingReason))
             _connection = null;
         super.doDispose(disposingReason);
+    }
+
+    final override noreturn noReadingDataRemainingError(const(size_t) requiredBytes, const(size_t) availableBytes) @safe
+    {
+        assert(requiredBytes > availableBytes);
+        assert(_connection.availableBytes() <= 0, _connection.availableBytes().to!string);
+
+        auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(requiredBytes, availableBytes);
+        _connection.throwReadDataError(0, msg);
     }
 
 protected:
@@ -808,8 +898,14 @@ public:
     {
         auto flushBytes = peekBytes();
 
-        debug(debug_pham_db_db_skdatabase) { flushCounter++;
-            debug writeln(__FUNCTION__, "() - counter=", flushCounter, ", length=", flushBytes.length, ", data=", flushBytes.dgToHex()); }
+        debug(debug_pham_db_db_skdatabase) debug
+        {
+            flushCounter++;
+            if (flushBytes.length <= 2_000)
+                writeln(__FUNCTION__, "(counter=", flushCounter, ", length=", flushBytes.length, ") - data=", flushBytes.dgToString());
+            else
+                writeln(__FUNCTION__, "(counter=", flushCounter, ", length=", flushBytes.length, ")");
+        }
 
         connection.socketWriteData(flushBytes);
         super.flush();

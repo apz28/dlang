@@ -46,7 +46,7 @@ string currentComputerName() nothrow @trusted
     }
     else
     {
-        pragma(msg, "currentComputerName() not supported");
+        pragma(msg, __FUNCTION__ ~ "() not supported");
         return null;
     }
 }
@@ -84,7 +84,7 @@ string currentProcessName() nothrow @trusted
     }
     else
     {
-        pragma(msg, "currentProcessName() not supported");
+        pragma(msg, __FUNCTION__ ~ "() not supported");
         return null;
     }
 }
@@ -118,8 +118,40 @@ string currentUserName() nothrow @trusted
     }
     else
     {
-        pragma(msg, "currentUserName() not supported");
-        return "";
+        pragma(msg, __FUNCTION__ ~ "() not supported");
+        return null;
+    }
+}
+
+void sleep(uint milliseconds) nothrow @trusted
+{
+    version(Windows)
+    {
+        import core.sys.windows.winbase : winSleep = Sleep;
+        
+        winSleep(milliseconds);
+    }
+    else version(Posix)
+    {
+        import core.stdc.errno : errno;
+        import core.sys.posix.time : psxSleep = nanosleep, timespec;
+        
+        timespec tin;
+        tin.tv_sec = milliseconds / 1_000;
+        tin.tv_nsec = (milliseconds % 1_000) * 1_000_000;
+    
+        do
+        {
+            timespec tout;
+            if (!psxSleep(&tin, &tout))
+                return;
+            tin = tout;
+        }
+        while (errno == EINTR && tin != timespec.init);
+    }
+    else
+    {
+        pragma(msg, __FUNCTION__ ~ "() not supported");
     }
 }
 

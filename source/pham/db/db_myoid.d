@@ -101,7 +101,7 @@ enum MyDefaultSize
      */
 	packetReadBufferLength = 1_024 * 128,
     parameterBufferLength = 1_024 * 96,
-    socketReadBufferLength = packetReadBufferLength * 2,
+    socketReadBufferLength = packetReadBufferLength + (1_024 * 2),
     socketWriteBufferLength = parameterBufferLength + 1_024,    
 }
 

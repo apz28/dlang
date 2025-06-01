@@ -384,7 +384,7 @@ public:
     dchar replacementChar = dchar.max;
 
 public:
-    this(scope return const(char)[] source) pure
+    this(return scope const(char)[] source) pure
     {
         this._source = source;
         this.reset();

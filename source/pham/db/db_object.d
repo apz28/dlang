@@ -67,9 +67,10 @@ nothrow @safe:
 public:
     this(Duration maxAge, DbExpirationKind kind)
     {
-        this.maxAge = maxAge;
-        this.kind = kind;
-        this.created = this.lastTouched = DateTime.utcNow;
+        this._maxAge = maxAge;
+        this._kind = kind;
+        this._created = this._lastTouched = DateTime.utcNow;
+        this._maxAgeMilliseconds = maxAge.total!"msecs";
     }
 
     /**
@@ -77,27 +78,49 @@ public:
      */
     bool canEvicted(scope const(DateTime) utcNow) const
     {
-        if (maxAge <= Duration.zero)
+        if (_maxAgeMilliseconds <= 0)
             return false;
 
-        return kind == DbExpirationKind.created
-            ? ((utcNow - created).totalMinutes > maxAge.total!"minutes")
-            : ((utcNow - lastTouched).totalMinutes > maxAge.total!"minutes");
+        return _kind == DbExpirationKind.created
+            ? ((utcNow - _created).totalMilliseconds > _maxAgeMilliseconds)
+            : ((utcNow - _lastTouched).totalMilliseconds > _maxAgeMilliseconds);
     }
 
     /**
      * Update last used time to current time
      */
-    void touch()
+    ref typeof(this) touch() return
     {
-        this.lastTouched = DateTime.utcNow;
+        this._lastTouched = DateTime.utcNow;
+        return this;
     }
 
-public:
-    DateTime created;
-    DateTime lastTouched;
-    Duration maxAge;
-    DbExpirationKind kind;
+    @property DateTime created() const pure
+    {
+        return _created;
+    }
+
+    @property DbExpirationKind kind() const pure
+    {
+        return _kind;
+    }
+
+    @property DateTime lastTouched() const
+    {
+        return _lastTouched;
+    }
+
+    @property Duration maxAge() const pure
+    {
+        return _maxAge;
+    }    
+    
+private:
+    DateTime _created;
+    DateTime _lastTouched;
+    Duration _maxAge;
+    long _maxAgeMilliseconds;
+    DbExpirationKind _kind;
 }
 
 struct DbCacheItem(K)
@@ -612,27 +635,41 @@ public:
         return _name.toHash();
     }
 
-    final void updateName(DbIdentitier newName)
-    {
-        updateNameImpl(newName);
-    }
-
-    final void updateName(string newName)
-    {
-        updateNameImpl(DbIdentitier(newName));
-    }
-
+    /**
+     * The list which this object belong to if applicable
+     */
     alias List = DbNameObjectList!DbNameObject;
     @property final List list() pure @trusted
     {
         return cast(List)_list;
     }
 
+    /**
+     * The name of an object to reflect its purpose in the current application
+     */
     @property final DbIdentitier name() const pure
     {
         return _name;
     }
 
+    @property final typeof(this) name(DbIdentitier newName)
+    {
+        updateNameImpl(newName);
+        return this;
+    }
+
+    @property final typeof(this) name(string newName)
+    {
+        updateNameImpl(DbIdentitier(newName));
+        return this;
+    }
+    
+public:    
+    /**
+     * Additional integer value for the convenience of developers
+     */
+    size_t tag;
+    
 protected:
     //pragma(inline, true)
     final void updateNameImpl(DbIdentitier newName)
@@ -784,18 +821,18 @@ public:
         return items.indexOf(DbIdentitier(name));
     }
 
-    final ptrdiff_t indexOfSafe(scope const(DbIdentitier) name) const @safe
+    final ptrdiff_t indexOfCheck(scope const(DbIdentitier) name) const @safe
     {
-        return indexOfSafeImpl(name);
+        return indexOfCheckImpl(name);
     }
 
-    final ptrdiff_t indexOfSafe(string name) const @safe
+    final ptrdiff_t indexOfCheck(string name) const @safe
     {
-        return indexOfSafeImpl(DbIdentitier(name));
+        return indexOfCheckImpl(DbIdentitier(name));
     }
 
     //pragma(inline, true)
-    private final ptrdiff_t indexOfSafeImpl(const(DbIdentitier) name) const @safe
+    private final ptrdiff_t indexOfCheckImpl(const(DbIdentitier) name) const @safe
     {
         const result = indexOf(name);
         if (result < 0)
@@ -947,13 +984,17 @@ public:
         return _name.toHash();
     }
 
-    /* Properties */
-
+    /**
+     * The list which this struct belong to if applicable
+     */
     @property List list()
     {
         return _list;
     }
 
+    /**
+     * The name of a struct to reflect its purpose in the current application
+     */
     @property DbIdentitier name() const pure
     {
         return _name;

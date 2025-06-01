@@ -28,7 +28,6 @@ import pham.utl.utl_array : arrayCalcCapacity, arrayGrow, arrayShrink;
 struct Appender(T)
 if (isDynamicArray!T)
 {
-
     alias ET = ElementEncodingType!T;
     alias UET = Unqual!ET;
 
@@ -89,6 +88,19 @@ public:
         return cast(typeof(return))(_data ? _data.values[0.._data.length] : null);
     }
 
+    inout(ET)[] opSlice(size_t begin, size_t end) inout nothrow @trusted
+    in
+    {
+        assert(begin <= end);
+        assert(begin <= length);
+        assert(end <= length);
+    }
+    do
+    {
+        // @trusted operation: casting Unqual!ET[] to inout(ET)[]
+        return cast(typeof(return))(_data ? _data.values[begin..end] : null);
+    }
+
     /**
      * Clears the managed array. This allows the elements of the array to be reused
      * for appending.
@@ -115,7 +127,7 @@ public:
         {
             import std.typecons : Yes;
             import std.utf : encode;
-            
+
             UET[ET.sizeof == 1 ? 4 : 2] encoded;
             const len = encode!(Yes.useReplacementDchar)(encoded, item);
             put(encoded[0..len]);
@@ -273,35 +285,32 @@ public:
     {
         import std.traits : isSomeString;
 
-        auto spec = singleSpec("%s");
-
-        // Different reserve lengths because each element in a
-        // non-string-like array uses two extra characters for `, `.
         static if (isSomeString!T)
         {
-            const cap = this.length + 25;
+            static if (is(T: string))
+                return data;
+            else
+                return data.idup;
         }
         else
         {
-            // Multiplying by three is a very conservative estimate of
-            // length, as it assumes each element is only one char
-            const cap = (this.length * 3) + 25;
+            // Different reserve lengths because each element in a
+            // non-string-like array uses two extra characters for `, `.
+            auto spec = singleSpec("%s");
+
+            // Assume each element will have 9 characters
+            // [abc, xyz,...]
+            const cap = this.length * 9;
+            auto buffer = Appender!string(cap);
+            return toString(buffer, spec).data;
         }
-        auto buffer = Appender!string(cap);
-        return toString(buffer, spec).data;
     }
 
     /// ditto
     ref Writer toString(Writer)(return ref Writer writer, scope const ref FormatSpec!char fmt) const
     if (isOutputRange!(Writer, char))
     {
-        import std.range.primitives : formatPut = put;
-
-        formatPut(writer, Unqual!(typeof(this)).stringof);
-        formatPut(writer, '(');
         formatValue(writer, data, fmt);
-        formatPut(writer, ')');
-
         return writer;
     }
 
@@ -478,17 +487,23 @@ pure @safe unittest // Appender
     app.put(1);
     app.put(2);
     app.put(3);
-    assert("%s".format(app) == "Appender!(int[])(%s)".format([1,2,3]));
+    assert("%s".format(app) == "%s".format([1,2,3]));
 
     Appender!string app2;
     auto spec = singleSpec("%s");
     app.toString(app2, spec);
-    assert(app2[] == "Appender!(int[])([1, 2, 3])");
+    assert(app2[] == "[1, 2, 3]");
 
     Appender!string app3;
     spec = singleSpec("%(%04d, %)");
     app.toString(app3, spec);
-    assert(app3[] == "Appender!(int[])(0001, 0002, 0003)");
+    assert(app3[] == "0001, 0002, 0003");
+
+    Appender!string app4;
+    app4.put('A');
+    app4.put("0123456789");
+    app4.put('B');
+    assert(app4.toString() == "A0123456789B");
 }
 
 // https://issues.dlang.org/show_bug.cgi?id=17251

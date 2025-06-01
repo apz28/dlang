@@ -49,13 +49,11 @@ import pham.db.db_fbtype;
 size_t parseBlob(W)(scope ref W sink, scope const(ubyte)[] data) @safe
 if (isOutputRange!(W, ubyte))
 {
-    size_t result;
-
     if (data.length <= 2)
-        return result;
+        return 0;
 
     const endPos = data.length - 2; // -2 for item length
-	size_t pos = 0;
+    size_t result, pos;
 	while (pos < endPos)
 	{
         const len = parseInt32!true(data, pos, 2, FbIscType.sql_blob);
@@ -345,13 +343,13 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        const trunkLength = blob.maxSegmentLength;
-        const dataSegment = 0;
+        const segmentLength = blob.maxSegmentLength;
+        const dataLength = 0;
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_get_segment);
 		writer.writeHandle(blob.fbHandle);
-        writer.writeInt32(trunkLength);
-        writer.writeInt32(dataSegment);
+        writer.writeInt32(segmentLength);
+        writer.writeInt32(dataLength);
         writer.flush();
     }
 
@@ -369,7 +367,7 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = FbXdrWriter(connection);
-		writer.writeOperation(FbIsc.op_batch_segments);
+		writer.writeOperation(FbIsc.op_put_segment);
 		writer.writeHandle(blob.fbHandle);
         writer.writeBlob(segment);
         writer.flush();
@@ -514,7 +512,7 @@ public:
         FbXdrReader reader;
         FbOperation op = readOperation(reader, 0);
 
-        size_t limitCounter = 20; // Avoid malicious response
+        int limitCounter = 100; // Avoid malicious response
         while (op == FbIsc.op_crypt_key_callback && limitCounter--)
         {
             auto rCryptKeyCallback = readCryptKeyCallbackResponseImpl(reader, FbIsc.protocol_version15);
@@ -1196,6 +1194,7 @@ public:
             case DbType.text:
             case DbType.binaryFixed:
             case DbType.binaryVary:
+            case DbType.blob:
                 return DbValue.entity(reader.readId(), dbType);
 
             case DbType.record:
@@ -1276,6 +1275,9 @@ public:
     {
         return _serverVersion;
     }
+
+public:
+    FbDeferredResponse[] deferredResponses;
 
 protected:
     final void cancelRequestWrite(FbHandle handle, int32 cancelKind)
@@ -1602,6 +1604,7 @@ protected:
 		    writer.writeInt32(FbIsc.isc_dpb_no_db_triggers, 1);
 		if (!useCSB.garbageCollect)
 		    writer.writeInt32(FbIsc.isc_dpb_no_garbage_collect, 1);
+            
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
@@ -1643,6 +1646,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
 		if (createDatabaseInfo.pageSize > 0)
 			writer.writeInt32(FbIsc.isc_dpb_page_size, createDatabaseInfo.toKnownPageSize(createDatabaseInfo.pageSize));
+            
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
@@ -1664,6 +1668,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
 		if (createDatabaseInfo.pageSize > 0)
 			writer.writeInt32(FbIsc.isc_dpb_page_size, createDatabaseInfo.pageSize);
+            
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
@@ -1788,7 +1793,7 @@ protected:
 
     final ubyte[] describeTransaction(return ref FbTransactionWriter writer, FbTransaction transaction) nothrow
     {
-        ubyte lockTableBehavior(const ref DbLockTable lockedTable) nothrow @safe
+        static ubyte lockTableBehavior(const ref DbLockTable lockedTable) nothrow pure @safe
         {
             final switch (lockedTable.lockBehavior)
             {
@@ -1801,7 +1806,7 @@ protected:
             }
         }
 
-        ubyte lockTableReadOrWrite(const ref DbLockTable lockedTable) nothrow @safe
+        static ubyte lockTableReadOrWrite(const ref DbLockTable lockedTable) nothrow pure @safe
         {
             return lockedTable.lockType == DbLockType.read
                 ? FbIsc.isc_tpb_lock_read
@@ -1984,6 +1989,7 @@ protected:
             case DbType.xml:
             case DbType.binaryFixed:
             case DbType.binaryVary:
+            case DbType.blob:
                 return writer.writeId(value.get!FbId());
 
             case DbType.record:
@@ -2234,7 +2240,7 @@ protected:
         }
 
         scope (failure)
-            connection.fatalError(FbConnection.FatalErrorReason.readData, connection.state);
+            connection.fatalError(DbFatalErrorReason.readData, connection.state);
 
         reader = FbXdrReader(connection);
         auto result = reader.readOperation();
@@ -2271,9 +2277,6 @@ protected:
             throw new FbException(DbErrorCode.connect, msg, null, 0, FbIscResultCode.isc_wirecrypt_incompatible);
         }
     }
-
-public:
-    FbDeferredResponse[] deferredResponses;
 
 private:
     FbConnection _connection;

@@ -174,6 +174,14 @@ enum DbDefault
      */
     transactionLockTimeout = 60,
 }
+    
+enum DbFatalErrorReason : ubyte
+{
+    none,
+    open,
+    readData,
+    writeData,
+}
 
 /**
  * Describes how to client and server exchanged data
@@ -499,11 +507,12 @@ enum DbType : int
     uuid,
     stringFixed,  // fixed length string - char[] (static length)
     stringVary, // variable length string - string (has length limit)
-    text,   // similar to string type but with special construct for each database (no length limit) - string
+    text,   // similar to stringVary but with special construct for each database (no length limit) - string
     json,   // string with json format - ubyte[]
     xml,    // string with xml format - ubyte[]
     binaryFixed,
     binaryVary,
+    blob,   // similar to binaryVary but with special construct for each database (no length limit) - binary
     record,     // struct is reserved keyword
     array = 1 << 31,
 }
@@ -543,6 +552,7 @@ enum DbTypeDisplaySize : int
     xml = dynamicTypeSize, // string with xml format - ubyte[]
     binaryFixed = runtimeTypeSize,
     binaryVary = dynamicTypeSize,
+    blob = dynamicTypeSize,
     record = runtimeTypeSize, // struct is reserved keyword
     array = dynamicTypeSize,
 }
@@ -576,6 +586,7 @@ enum DbTypeSize : int
     xml = dynamicTypeSize,
     binaryFixed = runtimeTypeSize,
     binaryVary = dynamicTypeSize,
+    blob = dynamicTypeSize,
     record = runtimeTypeSize,
     array = dynamicTypeSize,
 }
@@ -2082,18 +2093,30 @@ do
     return decimalType;
 }
 
-pragma(inline, true)
-EnumSet!DbParameterDirection inputDirections(const(bool) inputOnly) @nogc pure
+enum InputDirectionOnly
 {
-    return inputOnly
+    no,
+    yes,
+}
+
+pragma(inline, true)
+EnumSet!DbParameterDirection inputDirections(InputDirectionOnly inputOnly) @nogc pure
+{
+    return inputOnly == InputDirectionOnly.yes
         ? EnumSet!DbParameterDirection([DbParameterDirection.input])
         : EnumSet!DbParameterDirection([DbParameterDirection.input, DbParameterDirection.inputOutput]);
 }
 
-pragma(inline, true)
-EnumSet!DbParameterDirection outputDirections(const(bool) outputOnly) @nogc pure
+enum OutputDirectionOnly
 {
-    return outputOnly
+    no,
+    yes,
+}
+
+pragma(inline, true)
+EnumSet!DbParameterDirection outputDirections(OutputDirectionOnly outputOnly) @nogc pure
+{
+    return outputOnly == OutputDirectionOnly.yes
         ? EnumSet!DbParameterDirection([DbParameterDirection.output, DbParameterDirection.returnValue])
         : EnumSet!DbParameterDirection([DbParameterDirection.output, DbParameterDirection.returnValue, DbParameterDirection.inputOutput]);
 }
@@ -2130,6 +2153,7 @@ bool isDbTypeHasSize(const(DbType) rawType) @nogc pure
         case DbType.xml:
         case DbType.binaryFixed:
         case DbType.binaryVary:
+        case DbType.blob:
         case DbType.record:
         case DbType.array:
             return true;
@@ -2146,6 +2170,7 @@ bool isDbTypeHasZeroSizeAsNull(const(DbType) rawType) @nogc pure
         case DbType.json:
         case DbType.xml:
         case DbType.binaryVary:
+        case DbType.blob:
         case DbType.record:
         case DbType.array:
             return true;
@@ -2202,16 +2227,16 @@ bool isDbTrue(scope const(char)[] s) @nogc pure
     return false;
 }
 
-bool isParameterInput(const(DbParameterDirection) direction, const(bool) inputOnly = false) @nogc pure
+bool isParameterInput(DbParameterDirection direction, InputDirectionOnly inputOnly = InputDirectionOnly.no) @nogc pure
 {
-    static immutable inputFlags = [inputDirections(false), inputDirections(true)];
+    static immutable inputFlags = [inputDirections(InputDirectionOnly.no), inputDirections(InputDirectionOnly.yes)];
 
     return inputFlags[inputOnly].isOn(direction);
 }
 
-bool isParameterOutput(const(DbParameterDirection) direction, const(bool) outputOnly = false) @nogc pure
+bool isParameterOutput(DbParameterDirection direction, OutputDirectionOnly outputOnly = OutputDirectionOnly.no) @nogc pure
 {
-    static immutable outputFlags = [outputDirections(false), outputDirections(true)];
+    static immutable outputFlags = [outputDirections(OutputDirectionOnly.no), outputDirections(OutputDirectionOnly.yes)];
 
     return outputFlags[outputOnly].isOn(direction);
 }

@@ -141,7 +141,7 @@ do
     return r < 0 ? r : ((r & O_NONBLOCK) == O_NONBLOCK ? 0 : 1);
 }
 
-uint getComputerNameOS(scope return char[] buffer) @nogc nothrow @trusted
+uint getComputerNameOS(return scope char[] buffer) @nogc nothrow @trusted
 in
 {
     assert(buffer.length > 1);
@@ -155,7 +155,7 @@ do
         foreach (i; 0..buffer.length)
         {
             if (buffer[i] == '\0')
-                return cast(socklen_t)i;
+                return cast(uint)i;
         }
     }
 

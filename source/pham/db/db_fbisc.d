@@ -32,9 +32,9 @@ enum FbIsc
 	// Protocol Version
 	protocol_flag = 0x8000,
 	protocol_mask = ~protocol_flag,
-	//protocol_version10 = 10, // Obsolete - Not supported
-	protocol_version11 = protocol_flag | 11, // Obsolete - Not supported
-	//protocol_version12 = protocol_flag | 12, // Obsolete - Not supported
+	//protocol_version10 = 10,                  // Obsolete - Not supported
+	protocol_version11 = protocol_flag | 11,    // Obsolete - Not supported
+	//protocol_version12 = protocol_flag | 12,  // Obsolete - Not supported
 	protocol_version13 = protocol_flag | 13,
 	protocol_version15 = protocol_flag | 15,
 	protocol_version16 = protocol_flag | 16,
@@ -488,6 +488,7 @@ enum FbIsc
         isc_info_blob_total_length = 6,
         isc_info_blob_type = 7,
 	op_batch_segments = 44, // For putting all blob
+    op_open_blob2 = 56,
 	op_create_blob2 = 57,
 
 	// Array operations
@@ -570,12 +571,12 @@ enum FbIscSize
     executePlanBufferLength = 32 * 1_000,
     maxBatchBufferLength = 16 * 1_000 * 1_000, // max 256 * 1024 * 1024
     maxCharsLength = 32_767, // char[]
-    maxPackageLength = 32_767,
+    //maxPackageLength = 32_767,
     maxVarCharsLength = maxCharsLength - 2, // varchar[] - '-2' for size place holder
 	parameterBufferLength = 16 * 1_000,
 	prepareInfoBufferLength = 32 * 1_000,
 	rowsEffectedBufferLength = 100,
-    socketReadBufferLength = (1_024 * 64) * 2,
+    socketReadBufferLength = (1_024 * 64) + (1_024 * 2),
     socketWriteBufferLength = (1_024 * 64) + 1_024,
 	statementTypeBufferLength = 100,
 }

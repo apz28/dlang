@@ -36,42 +36,51 @@ import pham.db.db_pgprotocol;
 import pham.db.db_pgtype;
 
 // Require in active transaction block
-struct PgLargeBlob
+struct PgBlob
 {
 public:
-    enum maxBlockLength = 32_000;
+    enum maxSegmentLength = 1_024 * 8;
 
     enum OpenMode : int32
     {
         write = 0x0002_0000,
         read  = 0x0004_0000,
-        readWrite = read | write
+        readWrite = read | write,
     }
 
     enum SeekOrigin : int32
     {
         begin = 0,
         current = 1,
-        end = 2
+        end = 2,
     }
 
 public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(PgConnection connection) nothrow pure @safe
+    this(PgConnection connection, PgCommand command) nothrow pure @safe
     in
     {
         assert(connection !is null);
     }
     do
     {
+        this._length = -1;
         this._connection = connection;
+        this._command = command;
     }
 
-    this(PgConnection connection, PgOId id) nothrow pure @safe
+    this(PgConnection connection, PgCommand command, PgOId id) nothrow pure @safe
+    in
     {
+        assert(connection !is null);
+    }
+    do
+    {
+        this._length = -1;
         this._connection = connection;
+        this._command = command;
         this._id = id;
     }
 
@@ -86,8 +95,8 @@ public:
     }
 
     // Temporary hack until bug http://d.puremagic.com/issues/show_bug.cgi?id=5747 is fixed.
-    PgLargeBlob opCast(T)() const nothrow @safe
-    if (is(Unqual!T == PgLargeBlob))
+    PgBlob opCast(T)() const nothrow @safe
+    if (is(Unqual!T == PgBlob))
     {
         return this;
     }
@@ -108,7 +117,7 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        doClose(DisposingReason.other);
+        doClose(DisposingReason.none);
     }
 
     void create(PgOId preferredId = 0) @safe
@@ -121,7 +130,7 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        _id = pgConnection.largeBlobManager.createPreferred(preferredId);
+        _id = pgConnection.blobManager.createPreferred(preferredId);
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
@@ -130,7 +139,10 @@ public:
 
         doClose(disposingReason);
         if (isDisposing(disposingReason))
+        {
+            _command = null;
             _connection = null;
+        }
     }
 
     string forLogInfo() nothrow @safe
@@ -165,13 +177,13 @@ public:
     }
     do
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(mode=", mode, ")");
 
         this._mode = mode;
-        this._descriptorId = pgConnection.largeBlobManager.open(pgId, mode);
+        this._descriptorId = pgConnection.blobManager.open(pgId, mode);
     }
 
-    ubyte[] openRead() @safe
+    int64 openRead(Object saveSender, SaveLongData saveLongData) @safe
     in
     {
         assert(pgConnection !is null);
@@ -184,22 +196,31 @@ public:
         scope (exit)
             close();
 
-        const blobLength = cast(size_t)length;
-        if (blobLength <= 0)
-            return null;
-
-        size_t readOffset = 0;
-        ubyte[] result = new ubyte[](blobLength);
-        while (readOffset < blobLength)
-        {
-            const leftLength = blobLength - readOffset;
-            const readLength = leftLength > maxBlockLength ? maxBlockLength : leftLength;
-            readOffset += read(result[readOffset..readOffset + readLength]);
-        }
-        return result;
+        return read(saveSender, saveLongData);
     }
 
-    void openWrite(scope const(ubyte)[] value) @safe
+    ubyte[] openRead() @safe
+    in
+    {
+        assert(pgConnection !is null);
+    }
+    do
+    {
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+
+        Appender!(ubyte[]) result;
+        int saveLongData(Object, uint64, int64 blobSize, scope const(ubyte)[] data) nothrow @safe
+        {
+            if (blobSize > 0 && result.length == 0)
+                result.reserve(cast(size_t)blobSize);
+            result.put(data);
+            return 0;
+        }
+        openRead(null, &saveLongData);
+        return result.data;
+    }
+
+    int64 openWrite(Object loadSender, LoadLongData loadLongData) @safe
     in
     {
         assert(pgConnection !is null);
@@ -214,12 +235,36 @@ public:
         scope (exit)
             close();
 
-        write(value);
+        return write(loadSender, loadLongData);
     }
 
-    size_t read(ubyte[] data) @safe
+    int64 openWrite(scope const(ubyte)[] value) @safe
     in
     {
+        assert(pgConnection !is null);
+    }
+    do
+    {
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+
+        size_t loadLongData(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        {
+            if (loadedSize == 0)
+            {
+                data = value;
+                return value.length;
+            }
+            else
+                return 0;
+        }
+
+        return openWrite(null, &loadLongData);
+    }
+
+    int64 read(Object saveSender, SaveLongData saveLongData) @safe
+    in
+    {
+        assert(saveLongData !is null);
         assert(pgConnection !is null);
         assert(isOpen);
     }
@@ -227,18 +272,8 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        size_t result = 0;
-        while (result < data.length)
-        {
-            const leftLength = data.length - result;
-            const readLength = leftLength > maxBlockLength ? maxBlockLength : cast(int32)leftLength;
-            auto readData = pgConnection.largeBlobManager.read(pgDescriptorId, readLength);
-            if (readData.length == 0)
-                break;
-            data[result..readData.length] = readData[];
-            _offset += readData.length;
-            result += readData.length;
-        }
+        const result = pgConnection.blobManager.read(saveSender, saveLongData, maxSegmentLength, length(), pgDescriptorId);
+        _offset += result;
         return result;
     }
 
@@ -256,10 +291,10 @@ public:
             close();
         scope (exit)
             reset();
-        pgConnection.largeBlobManager.unlink(pgId);
+        pgConnection.blobManager.unlink(pgId);
     }
 
-    size_t write(scope const(ubyte)[] data) @safe
+    int64 write(Object loadSender, LoadLongData loadLongData) @safe
     in
     {
         assert(pgConnection !is null);
@@ -269,22 +304,16 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        _length = -1; // Need to reset the length
-        size_t result = 0;
-        while (result < data.length)
-        {
-            const leftLength = data.length - result;
-            auto writeLength = leftLength > maxBlockLength ? maxBlockLength : cast(int32)leftLength;
-            writeLength = pgConnection.largeBlobManager.write(pgDescriptorId, data[result..result + writeLength]);
-            if (writeLength == 0)
-                break;
-            _offset += writeLength;
-            result += writeLength;
-        }
+        _length = -1; // Need to reset the length to not initialized
+        const result = pgConnection.blobManager.write(loadSender, loadLongData, maxSegmentLength, pgDescriptorId);
+        _offset += result;
         return result;
     }
 
-    /* Properties */
+    @property PgCommand pgCommand() nothrow pure @safe
+    {
+        return _command;
+    }
 
     @property PgConnection pgConnection() nothrow pure @safe
     {
@@ -306,7 +335,7 @@ public:
         return _descriptorId.isValid();
     }
 
-    @property final Logger logger() nothrow pure @safe
+    @property Logger logger() nothrow pure @safe
     {
         return _connection !is null ? _connection.logger : null;
     }
@@ -349,19 +378,22 @@ package(pham.db):
         if (isDisposing(disposingReason) && !isOpen)
             return;
 
+        if (pgConnection is null || !pgConnection.isActive)
+            return;
+
         try
         {
             if (isDisposing(disposingReason))
             {
-                if (pgConnection !is null)
-                    pgConnection.largeBlobManager.close(pgDescriptorId);
+                pgConnection.blobManager.close(pgDescriptorId);
                 return;
             }
 
-            pgConnection.largeBlobManager.close(pgDescriptorId);
+            pgConnection.blobManager.close(pgDescriptorId);
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.blob.doClose() - %s", forLogInfo(), e.msg, e);
         }
@@ -384,20 +416,21 @@ package(pham.db):
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(offset=", offset, ", origin=", origin, ")");
 
-        return pgConnection.largeBlobManager.seek(pgDescriptorId, offset, origin);
+        return pgConnection.blobManager.seek(pgDescriptorId, offset, origin);
     }
 
 package(pham.db):
+    PgCommand _command;
     PgConnection _connection;
     DbHandle _descriptorId;
     DbId _id;
-    int64 _length = -1;
+    int64 _length;
     int64 _offset;
     OpenMode _mode;
 }
 
 // https://www.postgresql.org/docs/9.2/lo-interfaces.html
-struct PgLargeBlobManager
+struct PgBlobManager
 {
 public:
     this(PgConnection connection) nothrow pure @safe
@@ -439,6 +472,7 @@ public:
 
         if (!_close)
             _close = createFunction("lo_close", [Argument("descriptorId", PgOIdType.int4)]);
+
         _close.parameters.get("descriptorId").value = descriptorId;
         return _close.executeScalar().get!int32();
     }
@@ -449,6 +483,7 @@ public:
 
         if (!_createNew)
             _createNew = createFunction("lo_creat", [Argument("blobId", PgOIdType.int4)]);
+
         _createNew.parameters.get("blobId").value = -1;
         return _createNew.executeScalar().get!PgOId();
     }
@@ -459,6 +494,7 @@ public:
 
         if (!_createPreferred)
             _createPreferred = createFunction("lo_create", [Argument("blobId", PgOIdType.oid)]);
+
         _createPreferred.parameters.get("blobId").value = preferredId;
         return _createPreferred.executeScalar().get!PgOId();
     }
@@ -469,21 +505,43 @@ public:
 
         if (!_open)
             _open = createFunction("lo_open", [Argument("blobId", PgOIdType.oid), Argument("mode", PgOIdType.int4)]);
+
         _open.parameters.get("blobId").value = blobId;
         _open.parameters.get("mode").value = mode;
         return _open.executeScalar().get!PgDescriptorId();
     }
 
-    ubyte[] read(PgDescriptorId descriptorId, int32 nBytes) @safe
+    int64 read(Object saveSender, SaveLongData saveLongData, const(uint) segmentSize, const(int64) blobLength, PgDescriptorId descriptorId) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", nBytes=", nBytes, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentSize=", segmentSize, ", blobLength=", blobLength, ")");
 
         if (!_read)
             _read = createFunction("loread", [Argument("descriptorId", PgOIdType.int4), Argument("nBytes", PgOIdType.int4)]);
-        _read.parameters.get("descriptorId").value = descriptorId;
-        _read.parameters.get("nBytes").value = nBytes;
-        auto result = _read.executeScalar();
-        return !result.isNull ? result.get!(ubyte[])() : null;
+
+        int64 result;
+        bool keepGoing = true;
+        while (result < blobLength && keepGoing)
+        {
+            const leftLength = blobLength - result;
+            const readLength = leftLength > segmentSize ? segmentSize : cast(int32)leftLength;
+            _read.parameters.get("descriptorId").value = descriptorId;
+            _read.parameters.get("nBytes").value = readLength;
+            auto read = _read.executeScalar();
+            if (read.isNull)
+                break;
+
+            auto data = read.get!(ubyte[])();
+            const dataLength = data.length;
+            if (dataLength == 0)
+                break;
+
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "savedSize=", result, ", dataLength=", dataLength);
+
+            if (saveLongData(saveSender, result, blobLength, data) != 0)
+                keepGoing = false;
+            result += dataLength;
+        }
+        return result;
     }
 
     int64 seek(PgDescriptorId descriptorId, int64 offset, int32 origin) @safe
@@ -492,21 +550,55 @@ public:
 
         if (!_seek)
             _seek = createFunction("lo_lseek64", [Argument("descriptorId", PgOIdType.int4), Argument("offset", PgOIdType.int8), Argument("origin", PgOIdType.int4)]);
+
         _seek.parameters.get("descriptorId").value = descriptorId;
         _seek.parameters.get("offset").value = offset;
         _seek.parameters.get("origin").value = origin;
         return _seek.executeScalar().get!int64();
     }
 
-    int32 write(PgDescriptorId descriptorId, scope const(ubyte)[] bytes) @safe
+    int64 write(Object loadSender, LoadLongData loadLongData, const(uint) segmentSize, PgDescriptorId descriptorId) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentSize=", segmentSize, ")");
 
         if (!_write)
             _write = createFunction("lowrite", [Argument("descriptorId", PgOIdType.int4), Argument("bytes", PgOIdType.bytea)]);
+
+        const(ubyte)[] writeData;
+        size_t writeLength;
+        size_t loadLongDataSegment(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        {
+            data = writeData[0..writeLength];
+            return writeLength;
+        }
+
         _write.parameters.get("descriptorId").value = descriptorId;
-        _write.parameters.get("bytes").value = bytes.dup;
-        return _write.executeScalar().get!int32();
+        auto blobParam = _write.parameters.get("bytes");
+        blobParam.loadLongData = &loadLongDataSegment;
+        scope (exit)
+        {
+            blobParam.loadLongData = null;
+            blobParam.value = null;
+        }
+
+        int64 result;
+        while (true)
+        {
+            const dataSize = loadLongData(loadSender, result, segmentSize, writeData);
+            if (dataSize == 0)
+                break;
+
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "loadedSize=", result, ", dataSize=", dataSize);
+
+            while (writeData.length != 0)
+            {
+                writeLength = writeData.length > segmentSize ? segmentSize : writeData.length;
+                writeLength = _write.executeScalar().get!int32();
+                writeData = writeData[writeLength..$];
+            }
+            result += dataSize;
+        }
+        return result;
     }
 
     int32 unlink(PgOId blobId) @safe
@@ -515,13 +607,14 @@ public:
 
         if (!_unlink)
             _unlink = createFunction("lo_unlink", [Argument("blobId", PgOIdType.oid)]);
+
         _unlink.parameters.get("blobId").value = blobId;
         return _unlink.executeScalar().get!int32();
     }
 
     /* Properties */
 
-    @property final PgConnection pgConnection() nothrow pure @safe
+    @property PgConnection pgConnection() nothrow pure @safe
     {
         return _connection;
     }
@@ -728,16 +821,15 @@ public:
         return result.data;
     }
 
-    final PgParameter[] pgInputParameters(const(bool) inputOnly = false) nothrow @safe
+    final PgParameter[] pgInputParameters(InputDirectionOnly inputOnly = InputDirectionOnly.no) nothrow @safe
     {
         return inputParameters!PgParameter(inputOnly);
     }
 
     final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
-
-        return Variant.varNull();
+        auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
+        throw new PgException(0, msg);
     }
 
     final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
@@ -747,21 +839,23 @@ public:
         if (blobValueId.isNull)
             return null;
 
-        auto blob = PgLargeBlob(pgConnection, blobValueId.get!PgOId());
+        auto blob = PgBlob(pgConnection, this, blobValueId.get!PgOId());
         return blob.openRead();
     }
 
-    final override DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
+    final override DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         auto blob = optionalBlobValueId.isNull
-                    ? PgLargeBlob(pgConnection)
-                    : PgLargeBlob(pgConnection, optionalBlobValueId.get!PgOId());
-        blob.openWrite(blobValue);
+                    ? PgBlob(pgConnection, this)
+                    : PgBlob(pgConnection, this, optionalBlobValueId.get!PgOId());
+        blob.openWrite(blobColumn, loadLongData);
         return DbValue(blob.pgId, blobColumn.type);
     }
+
+    alias writeBlob = SkCommand.writeBlob;
 
     @property final PgConnection pgConnection() nothrow pure @safe
     {
@@ -827,6 +921,7 @@ protected:
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.connection.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
@@ -877,33 +972,18 @@ protected:
         auto protocol = pgConnection.protocol;
         protocol.executeCommandWrite(this, type);
         PgReader reader;  // Since it is package message, need reader to continue reading row values
-        auto response = protocol.executeCommandRead(this, type, reader);
+        auto executeResponse = protocol.executeCommandRead(this, type, reader);
         if (!fetchAgain)
         {
-            _recordsAffected = response.recordsAffected;
+            _recordsAffected = executeResponse.recordsAffected;
             debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "_recordsAffected=", _recordsAffected);
         }
 
-        const result = response.fetchStatus();
-        final switch (result)
-        {
-            // Defer subsequence row for fetch call
-            case DbFetchResultStatus.hasData:
-                auto row = readRow(reader, type == DbCommandExecuteType.scalar);
-                _fetchedRows.enqueue(row);
-                break;
-
-            case DbFetchResultStatus.completed:
-                debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
-                allRowsFetched = true;
-                break;
-
-            // Next for fetch call
-            case DbFetchResultStatus.ready:
-                break;
-        }
-
-        return result;
+        PgOIdFetchResult fetchResponse;
+        fetchResponse.messageType = executeResponse.messageType;
+        bool isSuspended = false;
+        doFetching(type == DbCommandExecuteType.scalar, isSuspended, fetchResponse, reader);
+        return executeResponse.fetchStatus();
     }
 
     final override void doFetch(const(bool) isScalar) @safe
@@ -920,19 +1000,34 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
+        PgReader reader; // Since it is package message, need reader to continue reading row values
+        bool isSuspended = false;
         auto protocol = pgConnection.protocol;
-        uint continueFetchingCount = isScalar ? 1 : fetchRecordCount;
-        bool continueFetching = true, isSuspended = false;
+        auto fetchResponse = protocol.fetchCommandRead(this, isSuspended, reader);
+        doFetching(isScalar, isSuspended, fetchResponse, reader);
+    }
+    
+    final void doFetching(const(bool) isScalar, ref bool isSuspended, ref PgOIdFetchResult response, ref PgReader reader) @safe
+    in
+    {
+        assert(!allRowsFetched);
+    }
+    do
+    {
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", fetchRecordCount=", fetchRecordCount, ")");
+        
+        auto protocol = pgConnection.protocol;
+        uint continueFetchingCount = fetchRecordCount;
+        bool continueFetching = true;
         while (continueFetching && continueFetchingCount)
         {
-            PgReader reader; // Since it is package message, need reader to continue reading row values
-            auto response = protocol.fetchCommandRead(this, isSuspended, reader);
             final switch (response.fetchStatus())
             {
                 case DbFetchResultStatus.hasData:
                     auto row = readRow(reader, isScalar);
                     _fetchedRows.enqueue(row);
                     continueFetchingCount--;
+                    response = protocol.fetchCommandRead(this, isSuspended, reader);
                     break;
 
                 case DbFetchResultStatus.completed:
@@ -969,8 +1064,29 @@ protected:
                     break;
             }
         }
-    }
+        
+        /*
+        final switch (result)
+        {
+            // Defer subsequence row for fetch call
+            case DbFetchResultStatus.hasData:
+                auto row = readRow(reader, type == DbCommandExecuteType.scalar);
+                _fetchedRows.enqueue(row);
+                break;
 
+            case DbFetchResultStatus.completed:
+                debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
+                allRowsFetched = true;
+                break;
+
+            // Next for fetch call
+            case DbFetchResultStatus.ready:
+                break;
+        }
+
+            */
+    }
+    
     final override void doPrepare() @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
@@ -1018,20 +1134,20 @@ protected:
         column.size = oidColumn.dbTypeSize();
     }
 
-    final void processBindResponse(scope PgOIdColumnInfo[] oidColumnInfos) @safe
+    final void processBindResponse(PgOIdRowDescription oidRowDescription) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(oidRowDescription.columns.length=", oidRowDescription.columns.length, ")");
 
-        if (oidColumnInfos.length == 0)
+        if (oidRowDescription.columns.length == 0)
             return;
 
         const localIsStoredProcedure = isStoredProcedure;
         auto params = localIsStoredProcedure ? parameters : null; // Use local var to avoid function call
         if (localIsStoredProcedure)
-            params.reserve(oidColumnInfos.length);
+            params.reserve(oidRowDescription.columns.length);
         auto localColumns = columns; // Use local var to avoid function call
-        localColumns.reserve(oidColumnInfos.length);
-        foreach (i, ref oidColumn; oidColumnInfos)
+        localColumns.reserve(oidRowDescription.columns.length);
+        foreach (i, ref oidColumn; oidRowDescription.columns)
         {
             auto newColumn = localColumns.create(this, oidColumn.name);
             fillNamedColumn(newColumn, oidColumn, true);
@@ -1073,25 +1189,25 @@ public:
     this(PgDatabase database) nothrow @safe
     {
         super(database !is null ? database : pgDB);
-        this._largeBlobManager = PgLargeBlobManager(this);
+        this._blobManager = PgBlobManager(this);
     }
 
     this(PgDatabase database, string connectionString) @safe
     {
         super(database !is null ? database : pgDB, connectionString);
-        this._largeBlobManager = PgLargeBlobManager(this);
+        this._blobManager = PgBlobManager(this);
     }
 
     this(PgDatabase database, PgConnectionStringBuilder connectionString) nothrow @safe
     {
         super(database !is null ? database : pgDB, connectionString);
-        this._largeBlobManager = PgLargeBlobManager(this);
+        this._blobManager = PgBlobManager(this);
     }
 
     this(PgDatabase database, DbURL!string connectionString) @safe
     {
         super(database !is null ? database : pgDB, connectionString);
-        this._largeBlobManager = PgLargeBlobManager(this);
+        this._blobManager = PgBlobManager(this);
     }
 
     final override DbCancelCommandData createCancelCommandData(DbCommand command) @safe
@@ -1099,9 +1215,9 @@ public:
         return new PgCancelCommandData(this);
     }
 
-    @property final ref PgLargeBlobManager largeBlobManager() nothrow @safe
+    @property final ref PgBlobManager blobManager() nothrow @safe
     {
-        return _largeBlobManager;
+        return _blobManager;
     }
 
     @property final PgConnectionStringBuilder pgConnectionStringBuilder() nothrow pure @safe
@@ -1138,7 +1254,9 @@ package(pham.db):
 
     final void releaseMessageReadBuffer(DbReadBuffer item) nothrow @safe
     {
-        if (!isDisposing(lastDisposingReason))
+        if (isDisposing(lastDisposingReason) || (!_messageReadBuffers.empty && item.isOverCachedCapacityLimit()))
+            item.dispose(DisposingReason.dispose);
+        else
             _messageReadBuffers.insertEnd(item.reset());
     }
 
@@ -1165,7 +1283,7 @@ protected:
     {
         return new SkReadBuffer(this, PgDefaultSize.socketReadBufferLength);
     }
-    
+
     final override DbWriteBuffer createSocketWriteBuffer() nothrow @safe
     {
         return new SkWriteBuffer(this, PgDefaultSize.socketWriteBufferLength);
@@ -1176,9 +1294,9 @@ protected:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (isDisposing(disposingReason))
-            this._largeBlobManager.dispose(disposingReason);
+            this._blobManager.dispose(disposingReason);
         else
-            this._largeBlobManager.close();
+            this._blobManager.close();
         super.disposeCommands(disposingReason);
     }
 
@@ -1221,13 +1339,14 @@ protected:
         try
         {
             if (!isFailing)
-                _largeBlobManager.doClose(DisposingReason.other);
+                _blobManager.doClose(DisposingReason.other);
 
             if (!isFailing && _protocol !is null && canWriteDisconnectMessage())
                 _protocol.disconnectWrite();
         }
         catch (Exception e)
         {
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.connection.doCloseImpl() - %s", forLogInfo(), e.msg, e);
         }
@@ -1346,7 +1465,7 @@ ORDER BY oid
     }
 
 protected:
-    PgLargeBlobManager _largeBlobManager;
+    PgBlobManager _blobManager;
     PgProtocol _protocol;
 
 private:
@@ -1797,8 +1916,8 @@ version(UnitTestPGDatabase)
         auto csb = (cast(PgConnection)result).pgConnectionStringBuilder;
         csb.databaseName = "test";
         csb.userPassword = "masterkey";
-        csb.receiveTimeout = dur!"seconds"(20);
-        csb.sendTimeout = dur!"seconds"(10);
+        csb.receiveTimeout = dur!"seconds"(40);
+        csb.sendTimeout = dur!"seconds"(20);
         csb.encrypt = encrypt;
         csb.compress = compress;
         csb.sslCa = "pg_ca.pem";
@@ -1811,8 +1930,8 @@ version(UnitTestPGDatabase)
         assert(csb.userName == "postgres");
         assert(csb.databaseName == "test");
         assert(csb.userPassword == "masterkey");
-        assert(csb.receiveTimeout == dur!"seconds"(20));
-        assert(csb.sendTimeout == dur!"seconds"(10));
+        assert(csb.receiveTimeout == dur!"seconds"(40));
+        assert(csb.sendTimeout == dur!"seconds"(20));
         assert(csb.encrypt == encrypt);
         assert(csb.compress == compress);
         assert(csb.sslCa == "pg_ca.pem");
@@ -2233,16 +2352,46 @@ ORDER BY pg_proc.proname
 }
 
 version(UnitTestPGDatabase)
-unittest // PgLargeBlob
+unittest // PgBlob
 {
+    import std.string : representation;
+    import pham.utl.utl_array_append : Appender;
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create testData blob");
+
+    ubyte[] testData = "asdfghjkl;1234567890".dup.representation;
+    testData.reserve(300_000);
+    while (testData.length < 300_000)
+    {
+        const len = testData.length;
+        testData.length = len * 2;
+        testData[len..$] = testData[0..len];
+    }
+    size_t loadTestData(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    {
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ")");
+    
+        assert(segmentSize != 0);
+
+        if (loadedSize >= testData.length)
+            return 0;
+
+        const leftOver = testData.length - loadedSize;
+        if (segmentSize > leftOver)
+            segmentSize = cast(size_t)leftOver;
+
+        data = testData[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
+        return segmentSize;
+    }
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
 
-    static immutable ubyte[] testData = [1,2,3,4,5,6,7,8,9,10];
-
     auto transaction = connection.createTransaction();
+    scope (exit)
+        transaction.dispose();
     transaction.start();
     scope (failure)
     {
@@ -2250,34 +2399,53 @@ unittest // PgLargeBlob
             transaction.rollback();
     }
 
-    auto blob = PgLargeBlob(connection);
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - CREATE blob");
+
+    auto blob = PgBlob(connection, null);
     scope (exit)
         blob.dispose();
     blob.create();
     assert(blob.pgId != 0);
 
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - OPEN blob");
+
     blob.open();
     assert(blob.isOpen);
 
-    blob.write(testData);
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - WRITE blob");
+
+    const writeLength = blob.write(null, &loadTestData);
+    assert(writeLength == testData.length);
     assert(blob.length == testData.length);
 
-    ubyte[] readData = new ubyte[](testData.length);
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - READ blob");
+
+    Appender!(ubyte[]) readData;
+    int saveLongData(Object, uint64, int64 blobSize, scope const(ubyte)[] data) nothrow @safe
+    {
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(blobSize=", blobSize, ")");
+        
+        if (blobSize > 0 && readData.length == 0)
+            readData.reserve(cast(size_t)blobSize);
+        readData.put(data);
+        return 0;
+    }
     blob.offset = 0;
-    const readLenght = blob.read(readData);
+    const readLenght = blob.read(null, &saveLongData);
     assert(readLenght == testData.length);
-    assert(readData == testData);
+    assert(readData[] == testData);
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - CLOSE blob");
 
     blob.close();
     assert(!blob.isOpen);
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - REMOVE blob");
 
     blob.remove();
     assert(blob.pgId == 0);
 
     transaction.commit();
-
-    transaction.dispose();
-    transaction = null;
 }
 
 version(UnitTestPGDatabase)
@@ -2535,6 +2703,219 @@ unittest // DbDatabaseList.createConnectionByURL
     assert(connectionString.integratedSecurity == DbIntegratedSecurityConnection.legacy);
 }
 
+version(UnitTestPGDatabase)
+unittest // PgConnection.DML.execute...
+{
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
+    assert(INT_FIELD.get!int() == 1); // First field
+
+    auto reader = connection.executeReader(simpleSelectCommandText());
+    validateSelectCommandTextReader(reader);
+    reader.dispose();
+
+    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
+    assert(TEXT_FIELD.get!string() == "TEXT");
+}
+
+version(UnitTestPGDatabase)
+unittest // PgConnection.DML.returning...
+{
+    import std.conv : to;
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    connection.createTableOrEmpty("UnitTestReturning",
+        "CREATE TABLE UnitTestReturning(pk INTEGER generated by default as identity primary key, i INTEGER, s VARCHAR(100))");
+    scope (exit)
+        connection.executeNonQuery("DROP TABLE UnitTestReturning");
+
+    int pk = 0;
+    auto reader = connection.executeReader("INSERT INTO UnitTestReturning(i, s) VALUES(100, 'AbC') RETURNING pk, i, s");
+    assert(reader.hasRows());
+    if (reader.read())
+    {
+        pk = reader.getValue("pk").get!int();
+        assert(pk > 0, reader.getValue("pk").toString());
+        assert(reader.getValue("i") == 100);
+        assert(reader.getValue("s") == "AbC");
+    }
+    reader.dispose();
+
+    auto i = connection.executeScalar("UPDATE UnitTestReturning SET i = 1000 WHERE pk = " ~ pk.to!string() ~ " RETURNING i");
+    assert(i.value == 1000);
+}
+
+version(UnitTestPGDatabase)
+unittest // PgDatabase.currentTimeStamp...
+{
+    import pham.dtm.dtm_date : DateTime;
+
+    void countZero(string s, uint leastCount)
+    {
+        import std.format : format;
+
+        //import std.stdio : writeln; debug writeln("s=", s, ", leastCount=", leastCount);
+
+        uint count;
+        size_t left = s.length;
+        while (left && s[left-1] == '0')
+        {
+            count++;
+            left--;
+        }
+        assert(count >= leastCount, format("%s - %d vs %d", s, count, leastCount));
+    }
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto s = "SELECT to_char(" ~ connection.database.currentTimeStamp(0) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')";
+    //import std.stdio : writeln; debug writeln("s=", s);
+    auto v = connection.executeScalar(s);
+    countZero(v.value.toString(), 6);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(1) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 5);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(2) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 4);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(3) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 3);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(4) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 2);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(5) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 1);
+
+    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(6) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
+    countZero(v.value.toString(), 0);
+
+    auto n = DateTime.now;
+    auto t = connection.currentTimeStamp(6);
+    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+}
+
+version(UnitTestPGDatabase)
+unittest // blob
+{
+    import std.string : representation;
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
+    
+    char[] textBlob = "1234567890qwertyuiop".dup;
+    textBlob.reserve(200_000);
+    while (textBlob.length < 200_000)
+    {
+        const len = textBlob.length;
+        textBlob.length = len * 2;
+        textBlob[len..$] = textBlob[0..len];
+    }
+    size_t loadLongText(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    {
+        assert(segmentSize != 0);
+
+        if (loadedSize >= textBlob.length)
+            return 0;
+
+        const leftOver = textBlob.length - loadedSize;
+        if (segmentSize > leftOver)
+            segmentSize = cast(size_t)leftOver;
+
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
+
+        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
+        return segmentSize;
+    }
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
+
+    ubyte[] binaryBlob = "asdfghjkl;1234567890".dup.representation;
+    binaryBlob.reserve(300_000);
+    while (binaryBlob.length < 300_000)
+    {
+        const len = binaryBlob.length;
+        binaryBlob.length = len * 2;
+        binaryBlob[len..$] = binaryBlob[0..len];
+    }
+    size_t loadLongBinary(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    {
+        assert(segmentSize != 0);
+
+        if (loadedSize >= binaryBlob.length)
+            return 0;
+
+        const leftOver = binaryBlob.length - loadedSize;
+        if (segmentSize > leftOver)
+            segmentSize = cast(size_t)leftOver;
+
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
+
+        data = binaryBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
+        return segmentSize;
+    }
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+       command.dispose();
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create table");
+
+    if (!connection.existTable("create_then_drop_blob"))
+    {
+        command.commandDDL = "CREATE TABLE create_then_drop_blob (txt text, bin bytea)";
+        command.executeNonQuery();
+    }
+    scope (exit)
+    {
+        if (connection.isActive)
+        {
+            command.commandDDL = "DROP TABLE create_then_drop_blob";
+            command.executeNonQuery();
+        }
+    }
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - insert blob");
+
+    command.commandText = "INSERT INTO create_then_drop_blob(txt, bin) VALUES(@txt, @bin)";
+    auto txt = command.parameters.add("txt", DbType.text);
+    txt.loadLongData = &loadLongText;
+    auto bin = command.parameters.add("bin", DbType.blob);
+    bin.loadLongData = &loadLongBinary;
+    const insertResult = command.executeNonQuery();
+    assert(insertResult == 1);
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
+    
+    command.commandText = "SELECT txt, bin FROM create_then_drop_blob LIMIT 1";
+    command.prepare();
+    auto reader = command.executeReader();
+    scope (exit)
+        reader.dispose();
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
+    
+    reader.read();
+    assert(reader.getValue("txt") == textBlob);
+    assert(reader.getValue("bin") == binaryBlob);
+}
+
 version(UnitTestPerfPGDatabase)
 {
     import pham.utl.utl_test : PerfTestResult;
@@ -2668,110 +3049,6 @@ unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
 
     const perfResult = unitTestPerfPGDatabase();
     debug writeln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
-}
-
-version(UnitTestPGDatabase)
-unittest // PgConnection.DML.execute...
-{
-    auto connection = createUnitTestConnection();
-    scope (exit)
-        connection.dispose();
-    connection.open();
-
-    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
-    assert(INT_FIELD.get!int() == 1); // First field
-
-    auto reader = connection.executeReader(simpleSelectCommandText());
-    validateSelectCommandTextReader(reader);
-    reader.dispose();
-
-    auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
-    assert(TEXT_FIELD.get!string() == "TEXT");
-}
-
-version(UnitTestPGDatabase)
-unittest // PgConnection.DML.returning...
-{
-    import std.conv : to;
-
-    auto connection = createUnitTestConnection();
-    scope (exit)
-        connection.dispose();
-    connection.open();
-
-    connection.createTableOrEmpty("UnitTestReturning",
-        "CREATE TABLE UnitTestReturning(pk INTEGER generated by default as identity primary key, i INTEGER, s VARCHAR(100))");
-    scope (exit)
-        connection.executeNonQuery("DROP TABLE UnitTestReturning");
-
-    int pk = 0;
-    auto reader = connection.executeReader("INSERT INTO UnitTestReturning(i, s) VALUES(100, 'AbC') RETURNING pk, i, s");
-    assert(reader.hasRows());
-    if (reader.read())
-    {
-        pk = reader.getValue("pk").get!int();
-        assert(pk > 0, reader.getValue("pk").toString());
-        assert(reader.getValue("i") == 100);
-        assert(reader.getValue("s") == "AbC");
-    }
-    reader.dispose();
-
-    auto i = connection.executeScalar("UPDATE UnitTestReturning SET i = 1000 WHERE pk = " ~ pk.to!string() ~ " RETURNING i");
-    assert(i.value == 1000);
-}
-
-version(UnitTestPGDatabase)
-unittest // PgDatabase.currentTimeStamp...
-{
-    import pham.dtm.dtm_date : DateTime;
-
-    void countZero(string s, uint leastCount)
-    {
-        import std.format : format;
-
-        //import std.stdio : writeln; debug writeln("s=", s, ", leastCount=", leastCount);
-
-        uint count;
-        size_t left = s.length;
-        while (left && s[left-1] == '0')
-        {
-            count++;
-            left--;
-        }
-        assert(count >= leastCount, format("%s - %d vs %d", s, count, leastCount));
-    }
-
-    auto connection = createUnitTestConnection();
-    scope (exit)
-        connection.dispose();
-    connection.open();
-
-    auto s = "SELECT to_char(" ~ connection.database.currentTimeStamp(0) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')";
-    //import std.stdio : writeln; debug writeln("s=", s);
-    auto v = connection.executeScalar(s);
-    countZero(v.value.toString(), 6);
-
-    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(1) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
-    countZero(v.value.toString(), 5);
-
-    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(2) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
-    countZero(v.value.toString(), 4);
-
-    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(3) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
-    countZero(v.value.toString(), 3);
-
-    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(4) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
-    countZero(v.value.toString(), 2);
-
-    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(5) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
-    countZero(v.value.toString(), 1);
-
-    v = connection.executeScalar("SELECT to_char(" ~ connection.database.currentTimeStamp(6) ~ ", 'YYYY-MM-DD HH24:MI:SS.US')");
-    countZero(v.value.toString(), 0);
-
-    auto n = DateTime.now;
-    auto t = connection.currentTimeStamp(6);
-    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
 }
 
 version(UnitTestPGDatabase)
