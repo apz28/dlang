@@ -691,6 +691,12 @@ public:
         return false;
     }
 
+public:
+    MyColumnTypeMap columnTypeMaps;
+
+    deprecated("please use columnTypeMaps")
+    alias fieldTypeMaps = columnTypeMaps;
+
 package(pham.db):
     final DbReadBuffer acquirePackageReadBuffer(size_t capacity = MyDefaultSize.packetReadBufferLength) nothrow @safe
     {
@@ -862,6 +868,12 @@ ORDER BY ORDINAL_POSITION
 
         if (reader.hasRows())
         {
+            debug(debug_pham_db_db_mydatabase)
+            {
+                foreach (column; reader.columns)
+                    debug writeln("\t", column.traceString());
+            }
+            
             auto result = new MyStoredProcedureInfo(cast(MyDatabase)database, storedProcedureName);
             while (reader.read())
             {
@@ -949,12 +961,6 @@ ORDER BY ORDINAL_POSITION
         _sslSocket.dhg = myDH2048_g;
         _sslSocket.ciphers = myCiphers;
     }
-
-public:
-    MyColumnTypeMap columnTypeMaps;
-
-    deprecated("please use columnTypeMaps")
-    alias fieldTypeMaps = columnTypeMaps;
 
 protected:
     MyProtocol _protocol;
@@ -2179,6 +2185,115 @@ unittest // MyDatabase.currentTimeStamp...
     auto n = DateTime.now;
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+}
+
+version(UnitTestMYDatabase)
+unittest // blob
+{
+    import std.string : representation;
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
+    
+    char[] textBlob = "1234567890qwertyuiop".dup;
+    textBlob.reserve(200_000);
+    while (textBlob.length < 200_000)
+    {
+        const len = textBlob.length;
+        textBlob.length = len * 2;
+        textBlob[len..$] = textBlob[0..len];
+    }
+    size_t loadLongText(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    {
+        assert(segmentSize != 0);
+
+        if (loadedSize >= textBlob.length)
+            return 0;
+
+        const leftOver = textBlob.length - loadedSize;
+        if (segmentSize > leftOver)
+            segmentSize = cast(size_t)leftOver;
+
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
+
+        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
+        return segmentSize;
+    }
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
+
+    ubyte[] binaryBlob = "asdfghjkl;1234567890".dup.representation;
+    binaryBlob.reserve(300_000);
+    while (binaryBlob.length < 300_000)
+    {
+        const len = binaryBlob.length;
+        binaryBlob.length = len * 2;
+        binaryBlob[len..$] = binaryBlob[0..len];
+    }
+    size_t loadLongBinary(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    {
+        assert(segmentSize != 0);
+
+        if (loadedSize >= binaryBlob.length)
+            return 0;
+
+        const leftOver = binaryBlob.length - loadedSize;
+        if (segmentSize > leftOver)
+            segmentSize = cast(size_t)leftOver;
+
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
+
+        data = binaryBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
+        return segmentSize;
+    }
+
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto command = connection.createCommand();
+    scope (exit)
+       command.dispose();
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create table");
+
+    if (!connection.existTable("create_then_drop_blob"))
+    {
+        command.commandDDL = "CREATE TABLE create_then_drop_blob (txt LONGTEXT, bin LONGBLOB)";
+        command.executeNonQuery();
+    }
+    scope (exit)
+    {
+        if (connection.isActive)
+        {
+            command.commandDDL = "DROP TABLE create_then_drop_blob";
+            command.executeNonQuery();
+        }
+    }
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - insert blob");
+
+    command.commandText = "INSERT INTO create_then_drop_blob(txt, bin) VALUES(@txt, @bin)";
+    auto txt = command.parameters.add("txt", DbType.text);
+    txt.loadLongData = &loadLongText;
+    auto bin = command.parameters.add("bin", DbType.blob);
+    bin.loadLongData = &loadLongBinary;
+    const insertResult = command.executeNonQuery();
+    assert(insertResult == 1);
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
+    
+    command.commandText = "SELECT txt, bin FROM create_then_drop_blob LIMIT 1";
+    command.prepare();
+    auto reader = command.executeReader();
+    scope (exit)
+        reader.dispose();
+
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
+    
+    reader.read();
+    assert(reader.getValue("txt") == textBlob);
+    assert(reader.getValue("bin") == binaryBlob);
 }
 
 version(UnitTestPerfMYDatabase)

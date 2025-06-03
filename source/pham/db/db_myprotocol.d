@@ -64,6 +64,7 @@ public:
     this(MyConnection connection) nothrow pure
     {
         this._connection = connection;
+        this.maxSinglePackage = MyDefaultSize.packetReadBufferLength;
     }
 
     final MyOkResponse connectAuthenticationRead(ref MyConnectingStateInfo stateInfo)
@@ -734,6 +735,10 @@ public:
         return _protocolVersion;
     }
 
+public:
+    uint32 maxSinglePackage;
+    ubyte sequenceByte;
+
 protected:
     final void calculateConnectionFlags(ref MyConnectingStateInfo stateInfo)
     {
@@ -1338,10 +1343,6 @@ protected:
     {
         return (_connectionFlags & MyCapabilityFlags.queryAttributes) != 0;
     }
-
-public:
-    uint32 maxSinglePackage = (256 * 256 * 256) - 1;
-    ubyte sequenceByte;
 
 private:
     MyConnection _connection;

@@ -284,7 +284,7 @@ public:
             result = (*e).dbType;
             if (result == DbType.decimal || result == DbType.numeric)
                 result = decimalDbType(result, precision);
-            else if (result == DbType.binaryVary || typeId == MyTypeId.enum_ || typeId == MyTypeId.set)
+            else if (result == DbType.binaryVary || result == DbType.blob || typeId == MyTypeId.enum_ || typeId == MyTypeId.set)
             {
                 if (isText)
                     result = DbType.text;

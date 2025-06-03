@@ -192,9 +192,15 @@ package(pham.db):
 
             if (readBytes == 0 || totalBytes >= mustSatisfiedBytes)
                return false;
-
-            // Try for maximum 1 second
+            
             enum oneMillisecond = 1;
+
+            // Just delay a bit and let socket handle the wait
+            sleep(oneMillisecond);
+            return true;
+            
+            /*
+            // Try for maximum 1 second
             foreach (i; 0..1_000)
             {
                 sleep(oneMillisecond);
@@ -202,6 +208,7 @@ package(pham.db):
                     return true;
             }
             return false;
+            */
         }
 
         size_t result;

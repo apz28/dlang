@@ -134,7 +134,7 @@ void sleep(uint milliseconds) nothrow @trusted
     else version(Posix)
     {
         import core.stdc.errno : EINTR, errno;
-        import core.sys.posix.time : psxSleep = nanosleep, timespec;
+        import core.sys.posix.time : nanosleep, timespec;
         
         timespec tin;
         tin.tv_sec = milliseconds / 1_000;
@@ -143,7 +143,7 @@ void sleep(uint milliseconds) nothrow @trusted
         do
         {
             timespec tout;
-            if (!psxSleep(&tin, &tout))
+            if (!nanosleep(&tin, &tout))
                 return;
             tin = tout;
         }
