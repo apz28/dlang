@@ -59,7 +59,7 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(PgConnection connection, PgCommand command) nothrow pure @safe
+    this(PgConnection connection) nothrow pure @safe
     in
     {
         assert(connection !is null);
@@ -68,10 +68,9 @@ public:
     {
         this._length = -1;
         this._connection = connection;
-        this._command = command;
     }
 
-    this(PgConnection connection, PgCommand command, PgOId id) nothrow pure @safe
+    this(PgConnection connection, PgOId id) nothrow pure @safe
     in
     {
         assert(connection !is null);
@@ -80,7 +79,6 @@ public:
     {
         this._length = -1;
         this._connection = connection;
-        this._command = command;
         this._id = id;
     }
 
@@ -139,10 +137,7 @@ public:
 
         doClose(disposingReason);
         if (isDisposing(disposingReason))
-        {
-            _command = null;
             _connection = null;
-        }
     }
 
     string forLogInfo() nothrow @safe
@@ -183,7 +178,7 @@ public:
         this._descriptorId = pgConnection.blobManager.open(pgId, mode);
     }
 
-    int64 openRead(Object saveSender, SaveLongData saveLongData) @safe
+    int64 openRead(Object saveSender, SaveLongData saveLongData, size_t row) @safe
     in
     {
         assert(pgConnection !is null);
@@ -196,10 +191,10 @@ public:
         scope (exit)
             close();
 
-        return read(saveSender, saveLongData);
+        return read(saveSender, saveLongData, row);
     }
 
-    ubyte[] openRead() @safe
+    ubyte[] openRead(size_t row) @safe
     in
     {
         assert(pgConnection !is null);
@@ -209,14 +204,15 @@ public:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         Appender!(ubyte[]) result;
-        int saveLongData(Object, uint64, int64 blobSize, scope const(ubyte)[] data) nothrow @safe
+        int saveLongData(Object, int64, int64 blobLength, size_t, scope const(ubyte)[] data) nothrow @safe
         {
-            if (blobSize > 0 && result.length == 0)
-                result.reserve(cast(size_t)blobSize);
+            if (blobLength > 0 && result.length == 0)
+                result.reserve(cast(size_t)blobLength);
             result.put(data);
             return 0;
         }
-        openRead(null, &saveLongData);
+
+        openRead(null, &saveLongData, row);
         return result.data;
     }
 
@@ -247,9 +243,9 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        size_t loadLongData(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        size_t loadLongData(Object, int64 loadedLength, size_t, ref scope const(ubyte)[] data) nothrow @safe
         {
-            if (loadedSize == 0)
+            if (loadedLength == 0)
             {
                 data = value;
                 return value.length;
@@ -261,7 +257,7 @@ public:
         return openWrite(null, &loadLongData);
     }
 
-    int64 read(Object saveSender, SaveLongData saveLongData) @safe
+    int64 read(Object saveSender, SaveLongData saveLongData, const(size_t) row) @safe
     in
     {
         assert(saveLongData !is null);
@@ -272,7 +268,7 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        const result = pgConnection.blobManager.read(saveSender, saveLongData, maxSegmentLength, length(), pgDescriptorId);
+        const result = pgConnection.blobManager.read(saveSender, saveLongData, row, maxSegmentLength, length(), pgDescriptorId);
         _offset += result;
         return result;
     }
@@ -308,11 +304,6 @@ public:
         const result = pgConnection.blobManager.write(loadSender, loadLongData, maxSegmentLength, pgDescriptorId);
         _offset += result;
         return result;
-    }
-
-    @property PgCommand pgCommand() nothrow pure @safe
-    {
-        return _command;
     }
 
     @property PgConnection pgConnection() nothrow pure @safe
@@ -420,7 +411,6 @@ package(pham.db):
     }
 
 package(pham.db):
-    PgCommand _command;
     PgConnection _connection;
     DbHandle _descriptorId;
     DbId _id;
@@ -511,9 +501,9 @@ public:
         return _open.executeScalar().get!PgDescriptorId();
     }
 
-    int64 read(Object saveSender, SaveLongData saveLongData, const(uint) segmentSize, const(int64) blobLength, PgDescriptorId descriptorId) @safe
+    int64 read(Object saveSender, SaveLongData saveLongData, const(size_t) row, const(uint) segmentLength, const(int64) blobLength, PgDescriptorId descriptorId) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentSize=", segmentSize, ", blobLength=", blobLength, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentLength=", segmentLength, ", blobLength=", blobLength, ")");
 
         if (!_read)
             _read = createFunction("loread", [Argument("descriptorId", PgOIdType.int4), Argument("nBytes", PgOIdType.int4)]);
@@ -523,7 +513,7 @@ public:
         while (result < blobLength && keepGoing)
         {
             const leftLength = blobLength - result;
-            const readLength = leftLength > segmentSize ? segmentSize : cast(int32)leftLength;
+            const readLength = leftLength > segmentLength ? segmentLength : cast(int32)leftLength;
             _read.parameters.get("descriptorId").value = descriptorId;
             _read.parameters.get("nBytes").value = readLength;
             auto read = _read.executeScalar();
@@ -535,9 +525,9 @@ public:
             if (dataLength == 0)
                 break;
 
-            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "savedSize=", result, ", dataLength=", dataLength);
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "savedLength=", result, ", dataLength=", dataLength);
 
-            if (saveLongData(saveSender, result, blobLength, data) != 0)
+            if (saveLongData(saveSender, result, blobLength, row, data) != 0)
                 keepGoing = false;
             result += dataLength;
         }
@@ -557,16 +547,16 @@ public:
         return _seek.executeScalar().get!int64();
     }
 
-    int64 write(Object loadSender, LoadLongData loadLongData, const(uint) segmentSize, PgDescriptorId descriptorId) @safe
+    int64 write(Object loadSender, LoadLongData loadLongData, const(uint) segmentLength, PgDescriptorId descriptorId) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentSize=", segmentSize, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentLength=", segmentLength, ")");
 
         if (!_write)
             _write = createFunction("lowrite", [Argument("descriptorId", PgOIdType.int4), Argument("bytes", PgOIdType.bytea)]);
 
         const(ubyte)[] writeData;
         size_t writeLength;
-        size_t loadLongDataSegment(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        size_t loadLongDataSegment(Object, int64 loadedLength, size_t, ref scope const(ubyte)[] data) nothrow @safe
         {
             data = writeData[0..writeLength];
             return writeLength;
@@ -584,19 +574,19 @@ public:
         int64 result;
         while (true)
         {
-            const dataSize = loadLongData(loadSender, result, segmentSize, writeData);
-            if (dataSize == 0)
+            const dataLength = loadLongData(loadSender, result, segmentLength, writeData);
+            if (dataLength == 0)
                 break;
 
-            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "loadedSize=", result, ", dataSize=", dataSize);
+            debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "loadedSize=", result, ", dataLength=", dataLength);
 
             while (writeData.length != 0)
             {
-                writeLength = writeData.length > segmentSize ? segmentSize : writeData.length;
+                writeLength = writeData.length > segmentLength ? segmentLength : writeData.length;
                 writeLength = _write.executeScalar().get!int32();
                 writeData = writeData[writeLength..$];
             }
-            result += dataSize;
+            result += dataLength;
         }
         return result;
     }
@@ -832,27 +822,39 @@ public:
         throw new PgException(0, msg);
     }
 
-    final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
+    final override int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row) @safe
+    in
+    {
+        assert(blobColumn.saveLongData !is null);
+    }
+    do
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         if (blobValueId.isNull)
-            return null;
+            return 0;
 
-        auto blob = PgBlob(pgConnection, this, blobValueId.get!PgOId());
-        return blob.openRead();
+        auto blob = PgBlob(pgConnection, blobValueId.get!PgOId());
+        return blob.openRead(blobColumn, blobColumn.saveLongData, row);
     }
 
-    final override DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
+    alias readBlob = SkCommand.readBlob;
+
+    final override DbValue writeBlob(DbParameter parameter,
         DbValue optionalBlobValueId = DbValue.init) @safe
+    in
+    {
+        assert(parameter.loadLongData !is null);
+    }
+    do
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         auto blob = optionalBlobValueId.isNull
-                    ? PgBlob(pgConnection, this)
-                    : PgBlob(pgConnection, this, optionalBlobValueId.get!PgOId());
-        blob.openWrite(blobColumn, loadLongData);
-        return DbValue(blob.pgId, blobColumn.type);
+                    ? PgBlob(pgConnection)
+                    : PgBlob(pgConnection, optionalBlobValueId.get!PgOId());
+        blob.openWrite(parameter, parameter.loadLongData);
+        return DbValue(blob.pgId, parameter.type);
     }
 
     alias writeBlob = SkCommand.writeBlob;
@@ -936,8 +938,6 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
-        prepareExecuting(type);
-
         auto protocol = pgConnection.protocol;
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
@@ -969,8 +969,9 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommandFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
+        const fetchRecordCount = type == DbCommandExecuteType.scalar ? 1 : fetchRecordCount;
         auto protocol = pgConnection.protocol;
-        protocol.executeCommandWrite(this, type);
+        protocol.executeCommandWrite(this, type, fetchRecordCount);
         PgReader reader;  // Since it is package message, need reader to continue reading row values
         auto executeResponse = protocol.executeCommandRead(this, type, reader);
         if (!fetchAgain)
@@ -1006,7 +1007,7 @@ protected:
         auto fetchResponse = protocol.fetchCommandRead(this, isSuspended, reader);
         doFetching(isScalar, isSuspended, fetchResponse, reader);
     }
-    
+
     final void doFetching(const(bool) isScalar, ref bool isSuspended, ref PgOIdFetchResult response, ref PgReader reader) @safe
     in
     {
@@ -1015,25 +1016,24 @@ protected:
     do
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", fetchRecordCount=", fetchRecordCount, ")");
-        
+
         auto protocol = pgConnection.protocol;
-        uint continueFetchingCount = fetchRecordCount;
-        bool continueFetching = true;
-        while (continueFetching && continueFetchingCount)
+        auto continueFetchingCount = true; // Need to read all fetch packages
+        while (continueFetchingCount)
         {
             final switch (response.fetchStatus())
             {
                 case DbFetchResultStatus.hasData:
-                    auto row = readRow(reader, isScalar);
+                    auto row = readRow(reader);
                     _fetchedRows.enqueue(row);
-                    continueFetchingCount--;
+                    _fetchedRowCount++;
                     response = protocol.fetchCommandRead(this, isSuspended, reader);
                     break;
 
                 case DbFetchResultStatus.completed:
                     debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
                     allRowsFetched = true;
-                    continueFetching = false;
+                    continueFetchingCount = false;
 
                     version(none) // Only valid if there is portal name
                     if (!isScalar && response.needFetchAgain(isSuspended))
@@ -1042,15 +1042,16 @@ protected:
                         {
                             case DbFetchResultStatus.hasData:
                                 allRowsFetched = false;
-                                continueFetching = true;
-                                continueFetchingCount--;
+                                continueFetchingCount = true;
                                 break;
 
                             case DbFetchResultStatus.completed:
+                                allRowsFetched = true;
+                                continueFetchingCount = false;
                                 break;
 
                             case DbFetchResultStatus.ready:
-                                allRowsFetched = false;
+                                continueFetchingCount = false;
                                 break;
                         }
                     }
@@ -1060,33 +1061,12 @@ protected:
 
                 // Wait for next fetch call
                 case DbFetchResultStatus.ready:
-                    continueFetching = false;
+                    continueFetchingCount = false;
                     break;
             }
         }
-        
-        /*
-        final switch (result)
-        {
-            // Defer subsequence row for fetch call
-            case DbFetchResultStatus.hasData:
-                auto row = readRow(reader, type == DbCommandExecuteType.scalar);
-                _fetchedRows.enqueue(row);
-                break;
-
-            case DbFetchResultStatus.completed:
-                debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
-                allRowsFetched = true;
-                break;
-
-            // Next for fetch call
-            case DbFetchResultStatus.ready:
-                break;
-        }
-
-            */
     }
-    
+
     final override void doPrepare() @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
@@ -1173,13 +1153,13 @@ protected:
         }
     }
 
-    final DbRowValue readRow(ref PgReader reader, const(bool) isScalar) @safe
+    final DbRowValue readRow(ref PgReader reader) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(reader, this, cast(PgColumnList)columns);
+        return protocol.readValues(reader, this, cast(PgColumnList)columns, _fetchedRowCount);
     }
 }
 
@@ -2367,21 +2347,19 @@ unittest // PgBlob
         testData.length = len * 2;
         testData[len..$] = testData[0..len];
     }
-    size_t loadTestData(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadTestData(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ")");
-    
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= testData.length)
+        if (loadedLength >= testData.length)
             return 0;
 
-        const leftOver = testData.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = testData.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        data = testData[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = testData[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     auto connection = createUnitTestConnection();
@@ -2401,7 +2379,7 @@ unittest // PgBlob
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - CREATE blob");
 
-    auto blob = PgBlob(connection, null);
+    auto blob = PgBlob(connection);
     scope (exit)
         blob.dispose();
     blob.create();
@@ -2421,17 +2399,15 @@ unittest // PgBlob
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - READ blob");
 
     Appender!(ubyte[]) readData;
-    int saveLongData(Object, uint64, int64 blobSize, scope const(ubyte)[] data) nothrow @safe
+    int saveLongData(Object, int64, int64 blobLength, size_t, scope const(ubyte)[] data) nothrow @safe
     {
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(blobSize=", blobSize, ")");
-        
-        if (blobSize > 0 && readData.length == 0)
-            readData.reserve(cast(size_t)blobSize);
+        if (blobLength > 0 && readData.length == 0)
+            readData.reserve(cast(size_t)blobLength);
         readData.put(data);
         return 0;
     }
     blob.offset = 0;
-    const readLenght = blob.read(null, &saveLongData);
+    const readLenght = blob.read(null, &saveLongData, 0);
     assert(readLenght == testData.length);
     assert(readData[] == testData);
 
@@ -2813,7 +2789,7 @@ unittest // blob
     import std.string : representation;
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
-    
+
     char[] textBlob = "1234567890qwertyuiop".dup;
     textBlob.reserve(200_000);
     while (textBlob.length < 200_000)
@@ -2822,21 +2798,19 @@ unittest // blob
         textBlob.length = len * 2;
         textBlob[len..$] = textBlob[0..len];
     }
-    size_t loadLongText(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadLongText(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= textBlob.length)
+        if (loadedLength >= textBlob.length)
             return 0;
 
-        const leftOver = textBlob.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = textBlob.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
-
-        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
@@ -2849,21 +2823,19 @@ unittest // blob
         binaryBlob.length = len * 2;
         binaryBlob[len..$] = binaryBlob[0..len];
     }
-    size_t loadLongBinary(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadLongBinary(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= binaryBlob.length)
+        if (loadedLength >= binaryBlob.length)
             return 0;
 
-        const leftOver = binaryBlob.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = binaryBlob.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
-
-        data = binaryBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = binaryBlob[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     auto connection = createUnitTestConnection();
@@ -2902,7 +2874,7 @@ unittest // blob
     assert(insertResult == 1);
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
-    
+
     command.commandText = "SELECT txt, bin FROM create_then_drop_blob LIMIT 1";
     command.prepare();
     auto reader = command.executeReader();
@@ -2910,7 +2882,7 @@ unittest // blob
         reader.dispose();
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
-    
+
     reader.read();
     assert(reader.getValue("txt") == textBlob);
     assert(reader.getValue("bin") == binaryBlob);

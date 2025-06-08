@@ -44,28 +44,28 @@ public import pham.db.db_value;
  * A delegate to load blob/clob data to send to database server
  * Params:
  *  sender = an object that the delegate calling from (DbParameter...)
- *  loadedSize = an accumulated size in bytes that loaded so far
- *  segmentSize = an adviced size in bytes that sending to database server at once
+ *  loadedLength = an accumulated length in bytes that loaded so far
+ *  segmentLength = an adviced length in bytes that sending to database server at once
  *  data = set to ubyte array that contains the data to be sent
  * Returns:
- *  a size in bytes that data held or 0 if no data to be sent
+ *  a length in bytes that data held or 0 if no data to be sent
  */
-alias LoadLongData = size_t delegate(Object sender, uint64 loadedSize, size_t segmentSize,
+alias LoadLongData = size_t delegate(Object sender, int64 loadedLength, size_t segmentLength,
     ref scope const(ubyte)[] data) @safe;
-    
+
 /**
  * A delegate to save blob/clob data to receive from database server
  * Params:
  *  sender = an object that the delegate calling from (DbParameter...)
- *  savedSize = an accumulated size in bytes that saved so far
- *  blobSize = total size of blob if known, -1 otherwise
+ *  savedLength = an accumulated length in bytes that saved so far
+ *  blobLength = total length of blob if known, -1 otherwise
  *  data = set to ubyte array that contains the data to be received
  * Returns:
  *  0=continue saving, none zero=stop saving
  */
-alias SaveLongData = int delegate(Object sender, uint64 savedSize, int64 blobSize,
+alias SaveLongData = int delegate(Object sender, int64 savedLength, int64 blobLength, size_t row,
     scope const(ubyte)[] data) @safe;
-    
+
 abstract class DbCancelCommandData
 {}
 
@@ -274,11 +274,11 @@ protected:
             _command = null;
     }
 
-    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
+    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
 
-        if (kind < ResetStatementKind.executing)
+        if (kind == ResetStatementKind.unprepared || kind == ResetStatementKind.preparing)
             clear();
     }
 
@@ -298,8 +298,9 @@ package(pham.db) enum BuildCommandTextState : ubyte
 
 package(pham.db) enum ResetStatementKind : ubyte
 {
-    unpreparing,
+    unprepared,
     preparing,
+    prepared,
     executing,
     fetching,
     fetched,
@@ -400,7 +401,7 @@ public:
             log.infof("%s.command.executeNonQuery()%s%s", forLogInfo(), newline, commandText);
 
         checkCommand(-1);
-        resetNewStatement(ResetStatementKind.executing);
+        resetStatement(ResetStatementKind.executing);
 
         auto executePrep = ExecutePrep(this, DbCommandExecuteType.nonQuery);
         executePrep.resetTransaction = setImplicitTransactionIf(DbCommandExecuteType.nonQuery);
@@ -430,7 +431,7 @@ public:
             log.infof("%s.command.executeScalar()%s%s", forLogInfo(), newline, commandText);
 
         checkCommand(DbCommandType.ddl);
-        resetNewStatement(ResetStatementKind.executing);
+        resetStatement(ResetStatementKind.executing);
 
         auto executePrep = ExecutePrep(this, DbCommandExecuteType.scalar);
         executePrep.resetTransaction = setImplicitTransactionIf(DbCommandExecuteType.scalar);
@@ -456,10 +457,10 @@ public:
      *  A row being requested. Incase of no result left to be returned,
      *  a DbRowValue with zero column-length being returned.
      */
-    final DbRowValue fetch(const(bool) isScalar) @safe
+    final DbRowValue fetch(bool isScalar) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", columnCount=", columnCount,
-            ", isStoredProcedure=", isStoredProcedure, ", isSelectCommandType=", isSelectCommandType(), ")");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", lastFetchingRow=", lastFetchingRow,
+            ", columnCount=", columnCount, ", isStoredProcedure=", isStoredProcedure, ", isSelectCommandType=", isSelectCommandType(), ")");
         version(profile) debug auto p = PerfFunction.create();
 
         if (auto log = canTraceLog())
@@ -468,21 +469,18 @@ public:
         checkActive();
 
 		if (hasStoredProcedureFetched())
-            return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0);
+            return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0, 0);
 
         if (_fetchedRows.empty && !allRowsFetched && isSelectCommandType())
         {
-            resetNewStatement(ResetStatementKind.fetching);
+            resetStatement(ResetStatementKind.fetching);
             scope (exit)
-            {
-                _fetchedCount++;
-                resetNewStatement(ResetStatementKind.fetched);
-            }
+                resetStatement(ResetStatementKind.fetched);
 
             doFetch(isScalar);
         }
 
-        return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0);
+        return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0, 0);
     }
 
     final string forErrorInfo() const nothrow @safe
@@ -523,7 +521,7 @@ public:
             return this;
 
         checkCommand(-1);
-        resetNewStatement(ResetStatementKind.preparing);
+        resetStatement(ResetStatementKind.preparing);
 
         auto executePrep = ExecutePrep(this, DbCommandExecuteType.prepare);
         executePrep.resetTransaction = setImplicitTransactionIf(DbCommandExecuteType.prepare);
@@ -538,8 +536,7 @@ public:
         try
         {
             doPrepare();
-            _commandState = DbCommandState.prepared;
-            _flags.prepared = true;
+            resetStatement(ResetStatementKind.prepared);
         }
         catch (Exception e)
         {
@@ -553,12 +550,36 @@ public:
     }
 
     abstract Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe;
-    abstract ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe;
 
-    final string readClob(DbNameColumn clobColumn, DbValue clobValueId) @trusted //@trusted=cast(string)
+    abstract int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row) @safe;
+
+    final int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row, out ubyte[] blob) @safe
     {
-        auto blob = readBlob(clobColumn, clobValueId);
-        return blob.length != 0 ? cast(string)blob : null;
+        auto saveLongDataOrg = blobColumn.saveLongData;
+        scope (exit)
+            blobColumn.saveLongData = saveLongDataOrg;
+
+        Appender!(ubyte[]) buffer;
+        int saveLongData(Object, int64, int64 blobLength, size_t, scope const(ubyte)[] data) nothrow @safe
+        {
+            if (blobLength > 0 && buffer.length == 0)
+                buffer.reserve(cast(size_t)blobLength);
+            buffer.put(data);
+            return 0;
+        }
+
+        blobColumn.saveLongData = &saveLongData;
+        const result = readBlob(blobColumn, blobValueId, row);
+        blob = buffer.data;
+        return result;
+    }
+
+    final int64 readClob(DbNameColumn clobColumn, DbValue clobValueId, size_t row, out string clob) @trusted //@trusted=cast(string)
+    {
+        ubyte[] blob;
+        const result = readBlob(clobColumn, clobValueId, row, blob);
+        clob = cast(string)blob;
+        return result;
     }
 
     final typeof(this) unprepare() @safe
@@ -570,16 +591,7 @@ public:
 
         void unprepareExit() @safe
         {
-            resetNewStatement(ResetStatementKind.unpreparing);
-
-            _executeCommandText = null;
-            //_lastInsertedId.reset(); // The value is needed to return to caller, so do not reset here
-            //_recordsAffected.reset(); // The value is needed to return to caller, so do not reset here
-            _handle.reset();
-            _baseCommandType = 0;
-            _flags.activeReader = false;
-            _flags.prepared = false;
-            _commandState = DbCommandState.unprepared;
+            resetStatement(ResetStatementKind.unprepared);            
         }
 
         if (_connection !is null && _connection.isFatalError)
@@ -598,15 +610,19 @@ public:
         return this;
     }
 
-    abstract DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
+    abstract DbValue writeBlob(DbParameter parameter,
         DbValue optionalBlobValueId = DbValue.init) @safe;
 
-    final DbValue writeBlob(DbNameColumn blobColumn, scope const(ubyte)[] blobValue,
+    final DbValue writeBlob(DbParameter parameter, scope const(ubyte)[] blobValue,
         DbValue optionalBlobValueId = DbValue.init) @safe
     {
-        size_t loadLongData(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        auto loadLongDataOrg = parameter.loadLongData;
+        scope (exit)
+            parameter.loadLongData = loadLongDataOrg;
+
+        size_t loadLongData(Object, int64 loadedLength, size_t, ref scope const(ubyte)[] data) nothrow @safe
         {
-            if (loadedSize == 0)
+            if (loadedLength == 0)
             {
                 data = blobValue;
                 return blobValue.length;
@@ -614,15 +630,17 @@ public:
             else
                 return 0;
         }
-        return writeBlob(blobColumn, &loadLongData, optionalBlobValueId);
+
+        parameter.loadLongData = &loadLongData;
+        return writeBlob(parameter, optionalBlobValueId);
     }
 
-    final DbValue writeClob(DbNameColumn clobColumn, scope const(char)[] clobValue,
+    final DbValue writeClob(DbParameter parameter, scope const(char)[] clobValue,
         DbValue optionalClobValueId = DbValue.init) @safe
     {
         import std.string : representation;
 
-        return writeBlob(clobColumn, clobValue.representation, optionalClobValueId);
+        return writeBlob(parameter, clobValue.representation, optionalClobValueId);
     }
 
     @property final bool activeReader() const nothrow @safe
@@ -732,7 +750,11 @@ public:
         return _executedCount;
     }
 
-    @property final uint fetchRecordCount() const nothrow @safe
+    /**
+     * Returns number of records being fetched at once.
+     * Default value is set by connection instance
+     */
+    @property final int32 fetchRecordCount() const nothrow @safe
     {
         return _fetchRecordCount;
     }
@@ -965,7 +987,7 @@ package(pham.db):
             log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
 
         checkCommand(DbCommandType.ddl);
-        resetNewStatement(ResetStatementKind.executing);
+        resetStatement(ResetStatementKind.executing);
 
         auto executePrep = ExecutePrep(this, DbCommandExecuteType.reader);
         executePrep.resetTransaction = setImplicitTransactionIf(DbCommandExecuteType.reader);
@@ -1184,8 +1206,7 @@ protected:
         }
 
         _commandState = DbCommandState.closed;
-        _commandText = null;
-        _executeCommandText = null;
+        _commandText = _executeCommandText = null;
         _baseCommandType = 0;
         _handle.reset();
     }
@@ -1198,7 +1219,7 @@ protected:
     final void doNotifyMessage() nothrow @trusted
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
-        
+
         if (notificationMessages.length == 0)
             return;
         scope (exit)
@@ -1251,19 +1272,6 @@ protected:
             if (i >= params.length)
                 break;
         }
-    }
-
-    void prepareExecuting(const(DbCommandExecuteType) type) @safe
-    {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(type=", type, ")");
-
-        _fetchedCount = 0;
-        _lastInsertedId.reset();
-        _recordsAffected.reset();
-        _fetchedRows.clear();
-        allRowsFetched(false);
-
-        executeCommandText(BuildCommandTextState.execute); // Make sure _executeCommandText is initialized
     }
 
     final void removeReader(ref DbReader value) nothrow @safe
@@ -1387,20 +1395,62 @@ protected:
         }
     }
 
-    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
+    void resetStatement(const(ResetStatementKind) kind) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
+        
+        final switch (kind)
+        {
+            case ResetStatementKind.unprepared:
+                notificationMessages.length = 0;
+                _fetchedRows.clear();
+                _executedCount = _fetchedCount = _fetchedRowCount = 0;
+                //_lastInsertedId.reset(); // The value is needed to return to caller, so do not reset here
+                //_recordsAffected.reset(); // The value is needed to return to caller, so do not reset here
+                _handle.reset();
+                _executeCommandText = null;
+                _baseCommandType = 0;
+                _flags.activeReader = false;
+                _flags.cancelled = false;
+                _flags.prepared = false;
+                _commandState = DbCommandState.unprepared;
+                break;
+                
+            case ResetStatementKind.preparing:
+                notificationMessages.length = 0;
+                //_executedCount = 0;
+                _fetchedCount = _fetchedRowCount = 0;
+                _lastInsertedId.reset();
+                _recordsAffected.reset();
+                _flags.cancelled = false;
+                break;
+                
+            case ResetStatementKind.prepared:
+                _flags.prepared = true;
+                _commandState = DbCommandState.prepared;
+                break;
 
-        notificationMessages.length = 0;
-        _flags.cancelled = false;
-        if (kind < ResetStatementKind.executing)
-            _executedCount = 0;
-        else
-            _executedCount++;
+            case ResetStatementKind.executing:
+                allRowsFetched(false);
+                _fetchedRows.clear();
+                _lastInsertedId.reset();
+                _recordsAffected.reset();
+                _executedCount++;
+                break;
+                
+            case ResetStatementKind.fetched:
+                _fetchedCount++;
+                break;
+                
+            case ResetStatementKind.fetching:
+                break;
+        }
+            
         if (_columns !is null)
-            _columns.resetNewStatement(kind);
+            _columns.resetStatement(kind);
+            
         if (_parameters !is null)
-            _parameters.resetNewStatement(kind);
+            _parameters.resetStatement(kind);
     }
 
     typeof(this) setCommandText(string commandText, DbCommandType type) @safe
@@ -1486,7 +1536,8 @@ protected:
     Duration _commandTimeout;
     size_t _executedCount; // Number of execute calls after prepare
     size_t _fetchedCount; // Number of fetch calls
-    uint _fetchRecordCount;
+    size_t _fetchedRowCount; // Number of reocrds being fetched so far
+    int32 _fetchRecordCount;
     int _baseCommandType;
     EnumSet!DbCommandFlag _flags;
     DbCommandState _commandState;
@@ -1941,7 +1992,12 @@ public:
 
     final string serverVersion() @safe
     {
-        return serverInfo.require(DbServerIdentifier.dbVersion, getServerVersionImpl());
+        string result;
+        if (serverInfo.containKey(DbServerIdentifier.dbVersion, result))
+            return result;
+
+        result = getServerVersionImpl();
+        return serverInfo.require(DbServerIdentifier.dbVersion, result);
     }
 
     final override size_t toHash() nothrow @safe
@@ -2055,7 +2111,7 @@ package(pham.db):
 
         if (!isActive)
         {
-            auto msg = isFatalError 
+            auto msg = isFatalError
                 ? DbMessage.eInvalidConnectionFatal.fmtMessage(funcName, _connectionStringBuilder.forErrorInfo())
                 : DbMessage.eInvalidConnectionInactive.fmtMessage(funcName, _connectionStringBuilder.forErrorInfo());
             throw new DbException(DbErrorCode.connect, msg, null, funcName, file, line);
@@ -4444,22 +4500,22 @@ public:
         return this;
     }
 
+public:
+    SaveLongData saveLongData;
+
 protected:
     void assignTo(DbNameColumn dest) nothrow @safe
     {
-        version(none)
-        foreach (m; __traits(allMembers, DbNamedColumn))
-        {
-            static if (is(typeof(__traits(getMember, ret, m) = __traits(getMember, this, m).dup)))
-                __traits(getMember, ret, m) = __traits(getMember, this, m).dup;
-            else static if (is(typeof(__traits(getMember, ret, m) = __traits(getMember, this, m))))
-                __traits(getMember, ret, m) = __traits(getMember, this, m);
-        }
+        debug(debug_pham_db_db_database) string memberNames;
 
         foreach (m; FieldNameTuple!DbNameColumn)
         {
+            debug(debug_pham_db_db_database) { if (memberNames.length == 0) memberNames = m; else memberNames ~= m; }
+
             __traits(getMember, dest, m) = __traits(getMember, this, m);
         }
+
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(memberNames=", memberNames, ")");
     }
 
     void reevaluateBaseType() nothrow @safe
@@ -4654,11 +4710,11 @@ protected:
     {
         super.assignTo(dest);
 
-        auto destP = cast(DbParameter)dest;
-        if (destP)
+        if (auto destP = cast(DbParameter)dest)
         {
             destP._direction = this._direction;
             destP._dbValue = this._dbValue;
+            destP.loadLongData = this.loadLongData;
         }
     }
 
@@ -4681,7 +4737,7 @@ protected:
         else if (type != DbType.unknown)
             _dbValue.type = type;
     }
-    
+
 protected:
     DbValue _dbValue;
     DbParameterDirection _direction;
@@ -4998,7 +5054,7 @@ protected:
             _database = null;
     }
 
-    void resetNewStatement(const(ResetStatementKind) kind) nothrow @safe
+    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
 
@@ -5107,8 +5163,8 @@ public:
         this._command = command;
         this._columns = command.columns;
         this._flags.checkRows = true;
-        this._flags.set(Flag.implicitTransaction, implicitTransaction);
-        this._flags.set(Flag.ownCommand, ownCommand);
+        this._flags.implicitTransaction = implicitTransaction;
+        this._flags.ownCommand = ownCommand;
     }
 
     ~this() @safe
@@ -5154,7 +5210,7 @@ public:
             doDetach(disposingReason);
 
         _columns = null;
-        _fetchedCount = 0;
+        _fetchedRowCount = 0;
         _flags.allRowsFetched = true;
         _flags.checkRows = false;
         _currentRow.dispose(disposingReason);
@@ -5359,6 +5415,14 @@ public:
     alias fields = columns;
 
     /**
+     * Returns number of rows had been read/fetched so far
+     */
+    @property size_t fetchedRowCount() const nothrow @safe
+    {
+        return _fetchedRowCount;
+    }
+
+    /**
      * Gets a value that indicates whether this DbReader contains one or more rows
      */
     @property bool hasRows() @safe
@@ -5366,7 +5430,7 @@ public:
         if (_flags.checkRows)
             fetchFirst(true);
 
-        return _fetchedCount != 0;
+        return _fetchedRowCount != 0;
     }
 
     @property bool implicitTransaction() const nothrow @safe
@@ -5419,7 +5483,7 @@ private:
         const hasRow = _currentRow.length != 0;
         if (hasRow)
         {
-            _fetchedCount++;
+            _fetchedRowCount++;
             if (checking)
                 _flags.skipFetchNext = true;
         }
@@ -5429,7 +5493,7 @@ private:
         }
         _flags.checkRows = false;
 
-        debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
+        debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedRowCount=", _fetchedRowCount, ", hasRow=", hasRow);
 
         return hasRow;
     }
@@ -5446,11 +5510,11 @@ private:
         _currentRow = command.fetch(false);
         const hasRow = _currentRow.length != 0;
         if (hasRow)
-            _fetchedCount++;
+            _fetchedRowCount++;
         else
             _flags.allRowsFetched = true;
 
-        debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedCount=", _fetchedCount, ", hasRow=", hasRow);
+        debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedRowCount=", _fetchedRowCount, ", hasRow=", hasRow);
     }
 
     Variant getVariant(const(size_t) colIndex) @safe
@@ -5466,9 +5530,23 @@ private:
             case DbColumnIdType.array:
                 return command.readArray(column, _currentRow[colIndex]);
             case DbColumnIdType.blob:
-                return Variant(command.readBlob(column, _currentRow[colIndex]));
+                if (column.saveLongData is null)
+                {
+                    ubyte[] blob;
+                    command.readBlob(column, _currentRow[colIndex], _currentRow.row, blob);
+                    return Variant(blob);
+                }
+                else
+                    return Variant(command.readBlob(column, _currentRow[colIndex], _currentRow.row));
             case DbColumnIdType.clob:
-                return Variant(command.readClob(column, _currentRow[colIndex]));
+                if (column.saveLongData is null)
+                {
+                    string clob;
+                    command.readClob(column, _currentRow[colIndex], _currentRow.row, clob);
+                    return Variant(clob);
+                }
+                else
+                    return Variant(command.readBlob(column, _currentRow[colIndex], _currentRow.row));
         }
     }
 
@@ -5476,7 +5554,7 @@ private:
     DbCommand _command;
     DbColumnList _columns;
     DbRowValue _currentRow;
-    size_t _fetchedCount;
+    size_t _fetchedRowCount;
     EnumSet!Flag _flags;
 }
 
@@ -5925,7 +6003,7 @@ package(pham.db):
         }
         catch (Exception e)
         {
-            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);            
+            debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
                 log.errorf("%s.transaction.rollbackError(isolationLevel=%s) - %s", forLogInfo(), toName!DbIsolationLevel(isolationLevel), e.msg, e);
 

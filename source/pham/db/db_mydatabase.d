@@ -156,20 +156,19 @@ public:
         return result.data;
     }
 
-    final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
+    final override Variant readArray(DbNameColumn, DbValue) @safe
     {
         auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
         throw new MyException(0, msg);
     }
 
-    final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
+    final override int64 readBlob(DbNameColumn, DbValue, size_t) @safe
     {
         auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
         throw new MyException(0, msg);
     }
 
-    final override DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
-        DbValue optionalBlobValueId = DbValue.init) @safe
+    final override DbValue writeBlob(DbParameter, DbValue) @safe
     {
         auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
         throw new MyException(0, msg);
@@ -303,7 +302,6 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
-        prepareExecuting(type);
         const lPrepared = prepared;
 
         auto protocol = myConnection.protocol;
@@ -363,10 +361,7 @@ protected:
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
-        const fetchRecordCountTemp = fetchRecordCount;
-        uint continueFetchingCount = fetchRecordCountTemp >= 0 && fetchRecordCountTemp < 2
-            ? 2
-            : fetchRecordCountTemp;  // 2=record+eof package
+        auto continueFetchingCount = true;
         while (continueFetchingCount)
         {
             MyReader rowPackage;
@@ -374,12 +369,13 @@ protected:
             {
                 debug(debug_pham_db_db_mydatabase) debug writeln("\t", "allRowsFetched=true");
                 allRowsFetched = true;
+                continueFetchingCount = false;
                 break;
             }
 
-            auto row = readRow(rowPackage, isScalar);
+            auto row = readRow(rowPackage);
             _fetchedRows.enqueue(row);
-            continueFetchingCount--;
+            _fetchedRowCount++;
         }
     }
 
@@ -558,13 +554,13 @@ protected:
         }
     }
 
-    final DbRowValue readRow(ref MyReader rowPackage, const(bool) isScalar) @safe
+    final DbRowValue readRow(ref MyReader rowPackage) @safe
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = myConnection.protocol;
-        return protocol.readValues(rowPackage, this, cast(MyColumnList)columns);
+        return protocol.readValues(rowPackage, this, cast(MyColumnList)columns, _fetchedRowCount);
     }
 
     override void removeReaderCompleted(const(bool) implicitTransaction) nothrow @safe
@@ -2202,21 +2198,19 @@ unittest // blob
         textBlob.length = len * 2;
         textBlob[len..$] = textBlob[0..len];
     }
-    size_t loadLongText(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadLongText(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= textBlob.length)
+        if (loadedLength >= textBlob.length)
             return 0;
 
-        const leftOver = textBlob.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = textBlob.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
-
-        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
@@ -2229,21 +2223,19 @@ unittest // blob
         binaryBlob.length = len * 2;
         binaryBlob[len..$] = binaryBlob[0..len];
     }
-    size_t loadLongBinary(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadLongBinary(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= binaryBlob.length)
+        if (loadedLength >= binaryBlob.length)
             return 0;
 
-        const leftOver = binaryBlob.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = binaryBlob.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(loadedSize=", loadedSize, ", segmentSize=", segmentSize, ", leftOver=", leftOver, ")");
-
-        data = binaryBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = binaryBlob[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     auto connection = createUnitTestConnection();

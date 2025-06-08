@@ -693,7 +693,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyColumnList columns)
+    final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyColumnList columns, size_t row)
     {
         debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(columnCount=", columns.length, ")");
         version(profile) debug auto p = PerfFunction.create();
@@ -703,7 +703,7 @@ public:
 
         const nullBitmap = hasNullBitmapBytes ? readNullBitmaps(reader, columns.length) : BitArrayImpl!ubyte(0);
 
-        auto result = DbRowValue(columns.length);
+        auto result = DbRowValue(columns.length, row);
 
         const readColumnLength = !hasNullBitmapBytes;
         foreach (i; 0..columns.length)

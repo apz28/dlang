@@ -459,12 +459,12 @@ public:
         return result;
     }
 
-    final void executeCommandWrite(PgCommand command, const(DbCommandExecuteType) type)
+    final void executeCommandWrite(PgCommand command, const(DbCommandExecuteType) type, int32 fetchRecordCount)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(type=", type, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ")");
 
         auto writer = PgWriter(connection);
-        writeExecuteMessage(writer, command, type);
+        writeExecuteMessage(writer, command, fetchRecordCount > 0 ? fetchRecordCount : int32.max);
         writeSignal(writer, PgOIdDescribeType.sync);
         writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
@@ -759,7 +759,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgColumnList columns)
+    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgColumnList columns, size_t row)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
@@ -770,7 +770,7 @@ public:
 
         debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "columnCount=", columnCount, ", columns.length=", columns.length);
 
-        auto result = DbRowValue(resultColumnCount);
+        auto result = DbRowValue(resultColumnCount, row);
 
         if (readColumnCount < resultColumnCount)
         {
@@ -1386,16 +1386,13 @@ protected:
         writer.endMessage();
     }
 
-    final void writeExecuteMessage(ref PgWriter writer, PgCommand command, const(DbCommandExecuteType) type)
+    final void writeExecuteMessage(ref PgWriter writer, PgCommand command, int32 fetchRecordCount)
 	{
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ")");
 
-        const fetchRecordCount = type == DbCommandExecuteType.reader
-            ? 0
-            : (type == DbCommandExecuteType.scalar ? 1 : command.fetchRecordCount);
 		writer.beginMessage(PgOIdDescribeType.executeStatement);
         writer.writeCChars(command.name);
-        writer.writeInt32(fetchRecordCount);
+        writer.writeInt32(fetchRecordCount > 0 ? fetchRecordCount : int32.max);
         writer.endMessage();
     }
 

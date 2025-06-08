@@ -564,7 +564,7 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(FbConnection connection, FbCommand command) nothrow pure
+    this(FbConnection connection, FbTransaction transaction) nothrow pure
     in
     {
         assert(connection !is null);
@@ -572,10 +572,10 @@ public:
     do
     {
         this._connection = connection;
-        this._command = command;
+        this._transaction = transaction;
     }
 
-    this(FbConnection connection, FbCommand command, FbId id) nothrow
+    this(FbConnection connection, FbTransaction transaction, FbId id) nothrow
     in
     {
         assert(connection !is null);
@@ -583,7 +583,7 @@ public:
     do
     {
         this._connection = connection;
-        this._command = command;
+        this._transaction = transaction;
         this._info.id = id;
     }
 
@@ -684,7 +684,7 @@ public:
         doClose(disposingReason);
         if (isDisposing(disposingReason))
         {
-            _command = null;
+            _transaction = null;
             _connection = null;
         }
     }
@@ -726,7 +726,7 @@ public:
         _sizes.reset();
     }
 
-    int64 openRead(Object saveSender, SaveLongData saveLongData)
+    int64 openRead(Object saveSender, SaveLongData saveLongData, size_t row)
     in
     {
         assert(fbConnection !is null);
@@ -739,10 +739,10 @@ public:
         scope (exit)
             close();
 
-        return read(saveSender, saveLongData);
+        return read(saveSender, saveLongData, row);
     }
 
-    ubyte[] openRead()
+    ubyte[] openRead(size_t row)
     in
     {
         assert(fbConnection !is null);
@@ -752,14 +752,15 @@ public:
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         Appender!(ubyte[]) result;
-        int saveLongData(Object, uint64, int64 blobSize, scope const(ubyte)[] data) nothrow @safe
+        int saveLongData(Object, int64, int64 blobLength, size_t, scope const(ubyte)[] data) nothrow @safe
         {
-            if (blobSize > 0 && result.length == 0)
-                result.reserve(cast(size_t)blobSize);
+            if (blobLength > 0 && result.length == 0)
+                result.reserve(cast(size_t)blobLength);
             result.put(data);
             return 0;
         }
-        openRead(null, &saveLongData);
+        
+        openRead(null, &saveLongData, row);
         return result.data;
     }
 
@@ -788,9 +789,9 @@ public:
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
-        size_t loadLongData(Object, uint64 loadedSize, size_t, ref scope const(ubyte)[] data) nothrow @safe
+        size_t loadLongData(Object, int64 loadedLength, size_t, ref scope const(ubyte)[] data) nothrow @safe
         {
-            if (loadedSize == 0)
+            if (loadedLength == 0)
             {
                 data = value;
                 return value.length;
@@ -802,7 +803,7 @@ public:
         return openWrite(null, &loadLongData);
     }
 
-    int64 read(Object saveSender, SaveLongData saveLongData)
+    int64 read(Object saveSender, SaveLongData saveLongData, const(size_t) row)
     in
     {
         assert(saveLongData !is null);
@@ -837,7 +838,7 @@ public:
 
             debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "savedSize=", result, ", dataLength=", dataLength);
 
-            if (saveLongData(saveSender, result, blobLength, segmentData[0..dataLength]) != 0)
+            if (saveLongData(saveSender, result, blobLength, row, segmentData[0..dataLength]) != 0)
                 keepGoing = false;
             result += dataLength;
 
@@ -879,35 +880,30 @@ public:
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(maxSegmentLength=", maxSegmentLength, ")");
 
         auto protocol = fbConnection.protocol;
-        const segmentSize = maxSegmentLength;
+        const segmentLength = maxSegmentLength;
         int64 result;
         while (true)
         {
             const(ubyte)[] data;
-            const dataSize = loadLongData(loadSender, result, segmentSize, data);
-            if (dataSize == 0)
+            const dataLength = loadLongData(loadSender, result, segmentLength, data);
+            if (dataLength == 0)
                 break;
 
-            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "loadedSize=", result, ", dataSize=", dataSize);
+            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "loadedLength=", result, ", dataLength=", dataLength);
 
             while (data.length != 0)
             {
-                const writeLength = data.length > segmentSize ? segmentSize : data.length;
+                const writeLength = data.length > segmentLength ? segmentLength : data.length;
                 protocol.blobPutSegmentsWrite(this, data[0..writeLength]);
                 protocol.blobPutSegmentsRead();
                 data = data[writeLength..$];
             }
-            result += dataSize;
+            result += dataLength;
         }
         return result;
     }
 
     /* Properties */
-
-    @property FbCommand fbCommand() nothrow pure
-    {
-        return _command;
-    }
 
     @property final FbConnection fbConnection() nothrow pure
     {
@@ -916,7 +912,7 @@ public:
 
     @property FbTransaction fbTransaction() nothrow pure
     {
-        return _command.fbTransaction;
+        return _transaction;
     }
 
     @property FbHandle fbHandle() const nothrow
@@ -1014,8 +1010,8 @@ package(pham.db):
     }
 
 package(pham.db):
-    FbCommand _command;
     FbConnection _connection;
+    FbTransaction _transaction;
     FbIscObject _info;
     FbIscBlobSize _sizes;
 }
@@ -1159,17 +1155,24 @@ public:
         return array.readArray(arrayColumn);
     }
 
-    final override ubyte[] readBlob(DbNameColumn blobColumn, DbValue blobValueId) @safe
+    final override int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row) @safe
+    in
+    {
+        assert(blobColumn.saveLongData !is null);
+    }
+    do
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         if (blobValueId.isNull)
-            return null;
+            return 0;
 
-        auto blob = FbBlob(fbConnection, this, blobValueId.get!FbId());
-        return blob.openRead();
+        auto blob = FbBlob(fbConnection, fbTransaction, blobValueId.get!FbId());
+        return blob.openRead(blobColumn, blobColumn.saveLongData, row);
     }
 
+    alias readBlob = SkCommand.readBlob;
+    
     final DbValue writeArray(DbNameColumn arrayColumn, ref DbValue arrayValue) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
@@ -1179,15 +1182,20 @@ public:
         return DbValue(array.fbId, arrayValue.type);
     }
 
-    final override DbValue writeBlob(DbNameColumn blobColumn, LoadLongData loadLongData,
+    final override DbValue writeBlob(DbParameter parameter,
         DbValue optionalBlobValueId = DbValue.init) @safe
+    in
+    {
+        assert(parameter.loadLongData !is null);
+    }
+    do
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         // Firebird always create new id
-        auto blob = FbBlob(fbConnection, this);
-        blob.openWrite(blobColumn, loadLongData);
-        return DbValue(blob.fbId, blobColumn.type);
+        auto blob = FbBlob(fbConnection, fbTransaction);
+        blob.openWrite(parameter, parameter.loadLongData);
+        return DbValue(blob.fbId, parameter.type);
     }
 
     alias writeBlob = SkCommand.writeBlob;
@@ -1335,11 +1343,9 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
-        prepareExecuting(type);
-
         auto protocol = fbConnection.protocol;
 
-        if (executedCount > 1 && type != DbCommandExecuteType.nonQuery)
+        if (_executedCount > 1 && type != DbCommandExecuteType.nonQuery)
         {
             protocol.closeCursorCommandWrite(this);
             static if (fbDeferredProtocol)
@@ -1367,8 +1373,9 @@ protected:
             auto response = protocol.readSqlResponse();
             if (response.count > 0)
             {
-                auto row = readRow(true);
+                auto row = readRow();
                 _fetchedRows.enqueue(row);
+                _fetchedRowCount++;
                 if (hasParameters)
                     mergeOutputParams(row);
             }
@@ -1404,28 +1411,28 @@ protected:
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
-        protocol.fetchCommandWrite(this, isScalar);
-
-        bool continueFetching = true;
-        while (continueFetching)
+        protocol.fetchCommandWrite(this, isScalar ? 1 : fetchRecordCount);
+        auto continueFetchingCount = true; // Need to read all fetch packages
+        while (continueFetchingCount)
         {
             auto response = protocol.fetchCommandRead(this);
             final switch (response.fetchStatus())
             {
                 case DbFetchResultStatus.hasData:
-                    auto row = readRow(isScalar);
+                    auto row = readRow();
                     _fetchedRows.enqueue(row);
+                    _fetchedRowCount++;
                     break;
 
                 case DbFetchResultStatus.completed:
                     debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "allRowsFetched=true");
                     allRowsFetched = true;
-                    continueFetching = false;
+                    continueFetchingCount = false;
                     break;
 
                 // Wait for next fetch call
                 case DbFetchResultStatus.ready:
-                    continueFetching = false;
+                    continueFetchingCount = false;
                     break;
             }
         }
@@ -1439,11 +1446,25 @@ protected:
                     break;
 
                 case DbColumnIdType.blob:
-                    _fetchedRows.front[0].value = Variant(readBlob(column, _fetchedRows.front[0]));
+                    if (column.saveLongData is null)
+                    {
+                        ubyte[] blob;
+                        readBlob(column, _fetchedRows.front[0], _fetchedRows.front.row, blob);
+                        _fetchedRows.front[0].value = Variant(blob);
+                    }
+                    else
+                        readBlob(column, _fetchedRows.front[0], _fetchedRows.front.row);
                     break;
 
                 case DbColumnIdType.clob:
-                    _fetchedRows.front[0].value = Variant(readClob(column, _fetchedRows.front[0]));
+                    if (column.saveLongData is null)
+                    {
+                        string clob;
+                        readClob(column, _fetchedRows.front[0], _fetchedRows.front.row, clob);
+                        _fetchedRows.front[0].value = Variant(clob);
+                    }
+                    else
+                        readBlob(column, _fetchedRows.front[0], _fetchedRows.front.row);
                     break;
 
                 case DbColumnIdType.array:
@@ -1716,13 +1737,13 @@ protected:
         }
     }
 
-    final DbRowValue readRow(const(bool) isScalar) @safe
+    final DbRowValue readRow() @safe
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
-        return protocol.readValues(this, cast(FbColumnList)columns);
+        return protocol.readValues(this, cast(FbColumnList)columns, _fetchedRowCount);
     }
 
     final void removeBatch(ref FbCommandBatch commandBatch) @safe
@@ -2613,7 +2634,7 @@ package(pham.db):
             case DbColumnIdType.blob:
                 DbValue blobId;
                 if (loadLongData !is null)
-                    blobId = command.writeBlob(this, loadLongData);
+                    blobId = command.writeBlob(this);
                 else
                 {
                     auto blob = value.get!(const(ubyte)[])();
@@ -2625,7 +2646,7 @@ package(pham.db):
             case DbColumnIdType.clob:
                 DbValue clobId;
                 if (loadLongData !is null)
-                    clobId = command.writeBlob(this, loadLongData);
+                    clobId = command.writeBlob(this);
                 else
                 {
                     auto clob = value.get!(const(char)[])();
@@ -4397,19 +4418,19 @@ unittest // blob
         textBlob.length = len * 2;
         textBlob[len..$] = textBlob[0..len];
     }
-    size_t loadLongText(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadLongText(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= textBlob.length)
+        if (loadedLength >= textBlob.length)
             return 0;
 
-        const leftOver = textBlob.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = textBlob.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = cast(const(ubyte)[])textBlob[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     ubyte[] binaryBlob = "asdfghjkl;1234567890".dup.representation;
@@ -4420,19 +4441,19 @@ unittest // blob
         binaryBlob.length = len * 2;
         binaryBlob[len..$] = binaryBlob[0..len];
     }
-    size_t loadLongBinary(Object, uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) nothrow @safe
+    size_t loadLongBinary(Object, int64 loadedLength, size_t segmentLength, ref scope const(ubyte)[] data) nothrow @safe
     {
-        assert(segmentSize != 0);
+        assert(segmentLength != 0);
 
-        if (loadedSize >= binaryBlob.length)
+        if (loadedLength >= binaryBlob.length)
             return 0;
 
-        const leftOver = binaryBlob.length - loadedSize;
-        if (segmentSize > leftOver)
-            segmentSize = cast(size_t)leftOver;
+        const leftOverLength = binaryBlob.length - loadedLength;
+        if (segmentLength > leftOverLength)
+            segmentLength = cast(size_t)leftOverLength;
 
-        data = binaryBlob[cast(size_t)loadedSize..cast(size_t)(loadedSize+segmentSize)];
-        return segmentSize;
+        data = binaryBlob[cast(size_t)loadedLength..cast(size_t)(loadedLength+segmentLength)];
+        return segmentLength;
     }
 
     auto connection = createUnitTestConnection();

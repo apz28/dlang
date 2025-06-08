@@ -510,14 +510,14 @@ public:
         }
 
         FbXdrReader reader;
-        FbOperation op = readOperation(reader, 0);
+        FbOperation op = readOperation(reader, ignoreCheckingResponseOp);
 
         int limitCounter = 100; // Avoid malicious response
         while (op == FbIsc.op_crypt_key_callback && limitCounter--)
         {
             auto rCryptKeyCallback = readCryptKeyCallbackResponseImpl(reader, FbIsc.protocol_version15);
             writeCryptKeyCallbackResponse(stateInfo, rCryptKeyCallback, FbIsc.protocol_version15);
-            op = readOperation(reader, 0);
+            op = readOperation(reader, ignoreCheckingResponseOp);
         }
 
         switch (op)
@@ -765,7 +765,7 @@ public:
 
     final void executeCommandWrite(FbCommand command, DbCommandExecuteType type)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(type=", type, ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(type=", type, ", handle=", command.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(command.hasStoredProcedureFetched() ? FbIsc.op_execute2 : FbIsc.op_execute);
@@ -867,7 +867,7 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
-        const op = readOperation(reader, 0);
+        const op = readOperation(reader, ignoreCheckingResponseOp);
         if (op == FbIsc.op_response)
         {
             auto deferredInfo = FbDeferredInfo(false);
@@ -884,14 +884,14 @@ public:
         }
     }
 
-    final void fetchCommandWrite(FbCommand command, const(bool) isScalar)
+    final void fetchCommandWrite(FbCommand command, int32 fetchRecordCount)
     in
     {
         assert(command.columnCount != 0);
     }
     do
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", command.fetchRecordCount, ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ")");
 
         auto writerBlr = FbBlrWriter(connection);
         auto pFldBlr = describeBlrColumns(writerBlr, cast(FbColumnList)command.columns);
@@ -901,7 +901,7 @@ public:
 		writer.writeHandle(command.fbHandle);
 		writer.writeBytes(pFldBlr.data);
 		writer.writeInt32(0); // p_sqldata_message_number
-		writer.writeInt32(isScalar ? 1 : command.fetchRecordCount); // p_sqldata_messages
+		writer.writeInt32(fetchRecordCount > 0 ? fetchRecordCount : int32.max); // p_sqldata_messages
 		writer.flush();
     }
 
@@ -1220,7 +1220,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(FbCommand command, FbColumnList columns)
+    final DbRowValue readValues(FbCommand command, FbColumnList columns, size_t row)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
@@ -1230,7 +1230,7 @@ public:
         const nullBitmapBytes = bitLengthToElement!ubyte(columns.length);
 		const nullBitmap = BitArrayImpl!ubyte(reader.readOpaqueBytes(nullBitmapBytes));
 
-        auto result = DbRowValue(columns.length);
+        auto result = DbRowValue(columns.length, row);
         foreach (i, column; columns)
         {
             if (nullBitmap[i])
@@ -1280,6 +1280,8 @@ public:
     FbDeferredResponse[] deferredResponses;
 
 protected:
+    enum ignoreCheckingResponseOp = 0;
+    
     final void cancelRequestWrite(FbHandle handle, int32 cancelKind)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(cancelKind=", cancelKind, ")");
@@ -1354,7 +1356,7 @@ protected:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
-        const op = readOperation(reader, 0);
+        const op = readOperation(reader, ignoreCheckingResponseOp);
         switch (op)
         {
             case FbIsc.op_response:
@@ -1432,7 +1434,7 @@ protected:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         FbXdrReader reader;
-        const op = readOperation(reader, 0);
+        const op = readOperation(reader, ignoreCheckingResponseOp);
         switch (op)
         {
             case FbIsc.op_crypt_key_callback:
@@ -2224,7 +2226,7 @@ protected:
 
     final FbOperation readOperation(out FbXdrReader reader, const(FbOperation) expectedOperation) @trusted
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(deferredResponses.length=", deferredResponses.length, ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(expectedOperation=", expectedOperation, ", deferredResponses.length=", deferredResponses.length, ")");
 
         if (deferredResponses.length != 0)
         {
@@ -2244,7 +2246,8 @@ protected:
 
         reader = FbXdrReader(connection);
         auto result = reader.readOperation();
-        if (expectedOperation != 0 && expectedOperation != result)
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "result=", result);
+        if (expectedOperation != ignoreCheckingResponseOp && expectedOperation != result)
         {
             auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(result, expectedOperation);
             throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);

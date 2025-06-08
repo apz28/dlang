@@ -380,11 +380,12 @@ private:
 struct DbRowValue
 {
 public:
-    this(size_t columnLength) nothrow @safe
+    this(size_t columnLength, size_t row) nothrow @safe
     {
         // Allow empty row
         if (columnLength)
-            this.columns.length = columnLength;
+            this._columnValues.length = columnLength;
+        this._row = row;
     }
 
     bool opCast(C: bool)() const nothrow @safe
@@ -406,7 +407,7 @@ public:
 
     DbValue[] opIndex() nothrow return @safe
     {
-        return columns;
+        return _columnValues;
     }
 
     ref DbValue opIndex(size_t index) nothrow return @safe
@@ -416,7 +417,7 @@ public:
     }
     do
     {
-        return columns[index];
+        return _columnValues[index];
     }
 
     ref typeof(this) opIndexAssign(DbValue value, size_t index) return @safe
@@ -426,39 +427,46 @@ public:
     }
     do
     {
-        columns[index] = value;
+        _columnValues[index] = value;
         return this;
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        if (columns)
+        if (_columnValues)
         {
-            foreach (ref c; columns)
+            foreach (ref c; _columnValues)
                 c.nullify();
+                
             if (isDisposing(disposingReason))
-                columns = null;
+                _columnValues = null;
         }
     }
 
     void nullify() nothrow @safe
     {
-        foreach (ref c; columns)
+        foreach (ref c; _columnValues)
             c.nullify();
     }
 
     @property bool empty() const nothrow @safe
     {
-        return columns.length == 0;
+        return _columnValues.length == 0;
     }
 
     @property size_t length() const nothrow @safe
     {
-        return columns.length;
+        return _columnValues.length;
+    }
+
+    @property size_t row() const nothrow @safe
+    {
+        return _row;
     }
 
 private:
-    DbValue[] columns;
+    DbValue[] _columnValues;
+    size_t _row;
 }
 
 struct DbRowValueQueue
