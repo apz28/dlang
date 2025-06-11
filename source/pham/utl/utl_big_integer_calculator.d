@@ -1618,7 +1618,7 @@ nothrow @safe:
 
         while (power != 0)
         {
-            // todo overflow checked resultLength & valueLength
+            // TODO overflow checked resultLength & valueLength
 
             if ((power & 1) == 1)
                 resultLength += valueLength;

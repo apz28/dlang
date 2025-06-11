@@ -180,9 +180,6 @@ if (isScalarType!T && !isFloatingPoint!T)
     }
 }
 
-// This function is called by the compiler when dealing with array
-// comparisons in the semantic analysis phase of CmpExp. The ordering
-// comparison is lowered to a call to this template.
 float cmp(T1, T2)(T1[] lhs, T2[] rhs)
 if (!isScalarType!T1 && !isScalarType!T2)
 {
@@ -232,6 +229,7 @@ if (!isScalarType!T1 && !isScalarType!T2)
             // https://issues.dlang.org/show_bug.cgi?id=17244
             static assert(is(U1 == U2));
             import core.stdc.string : memcmp;
+            
             const c = (() @trusted => memcmp(&at(lhs, i), &at(rhs, i), U1.sizeof))();
             if (c != 0)
                 return c;

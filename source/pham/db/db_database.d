@@ -195,6 +195,10 @@ public:
     }
 
 protected:
+    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
+    {}
+
+protected:
     DbCommand _command;
 }
 
@@ -274,12 +278,17 @@ protected:
             _command = null;
     }
 
-    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
+    final void resetStatement(const(ResetStatementKind) kind) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
 
         if (kind == ResetStatementKind.unprepared || kind == ResetStatementKind.preparing)
             clear();
+        else
+        {
+            foreach (column; this)
+                column.resetStatement(kind);
+        }
     }
 
 protected:
@@ -302,6 +311,7 @@ package(pham.db) enum ResetStatementKind : ubyte
     preparing,
     prepared,
     executing,
+    executed,
     fetching,
     fetched,
 }
@@ -323,6 +333,7 @@ public:
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
         this._flags.parametersCheck = true;
         this._flags.returnRecordsAffected = true;
+        this.logTimmingWarningDur = dur!"seconds"(60);
         this.notifyMessage.opAssign(connection.notifyMessage);
     }
 
@@ -499,14 +510,14 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        return hasParameters ? parameters.inputs!T(inputOnly) : null;
+        return parameterCount ? parameters.inputs!T(inputOnly) : null;
     }
 
     final T[] outParameters(T : DbParameter)(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        return hasParameters ? parameters.outputs!T(outputOnly) : null;
+        return parameterCount ? parameters.outputs!T(outputOnly) : null;
     }
 
     final typeof(this) prepare() @safe
@@ -545,6 +556,9 @@ public:
                 log.errorf("%s.command.prepare() - %s%s%s", forLogInfo(), e.msg, newline, _executeCommandText, e);
             throw e;
         }
+
+        if (stateChange)
+            stateChange(this, commandState);
 
         return this;
     }
@@ -591,7 +605,7 @@ public:
 
         void unprepareExit() @safe
         {
-            resetStatement(ResetStatementKind.unprepared);            
+            resetStatement(ResetStatementKind.unprepared);
         }
 
         if (_connection !is null && _connection.isFatalError)
@@ -607,6 +621,10 @@ public:
         scope (exit)
             unprepareExit();
         doUnprepare(false);
+
+        if (stateChange)
+            stateChange(this, commandState);
+
         return this;
     }
 
@@ -805,14 +823,6 @@ public:
         return _parameters !is null ? _parameters.hasOutput(outputOnly) : false;
     }
 
-    /**
-     * Returns count of parameters
-     */
-    @property final size_t hasParameters() const nothrow @safe
-    {
-        return _parameters !is null ? _parameters.length : 0;
-    }
-
     @property final bool hasParameters(scope const(EnumSet!DbParameterDirection) directions) const nothrow @safe
     {
         return _parameters !is null ? _parameters.parameterHasOfs(directions) : false;
@@ -843,6 +853,14 @@ public:
     @property final string name() const nothrow @safe
     {
         return _name;
+    }
+    
+    /**
+     * Returns number of defining parameters of this DbCommand
+     */
+    @property final size_t parameterCount() const nothrow @safe
+    {
+        return _parameters !is null ? _parameters.length : 0;
     }
 
     /**
@@ -927,10 +945,25 @@ public:
     }
 
 public:
+    /**
+     * Delegate to get notify when a state change
+     * Params:
+     *  command = this command instance
+     *  newState = new state value
+     */
+    DelegateList!(DbCommand, DbCommandState) stateChange;
+
+    /**
+     * Delegate to get notify when there are notification messages from server
+     * Params:
+     *  sender = this command instance
+     *  messages = array of DbNotificationMessages
+     */
     nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
-    DbCustomAttributeList customAttributes;
     DbNotificationMessage[] notificationMessages;
-    Duration logTimmingWarningDur = dur!"seconds"(60);
+
+    DbCustomAttributeList customAttributes;
+    Duration logTimmingWarningDur;
 
 package(pham.db):
     void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
@@ -1181,6 +1214,11 @@ protected:
                 log.errorf("%s.command.doDispose() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
         }
 
+        if (_transaction !is null)
+        {
+            _transaction = null;
+        }
+
         if (_columns !is null)
         {
             version(none) _columns.dispose(disposingReason);
@@ -1191,11 +1229,6 @@ protected:
         {
             version(none) _parameters.dispose(disposingReason);
             _parameters = null;
-        }
-
-        if (_transaction !is null)
-        {
-            _transaction = null;
         }
 
         if (_connection !is null)
@@ -1209,11 +1242,18 @@ protected:
         _commandText = _executeCommandText = null;
         _baseCommandType = 0;
         _handle.reset();
+        _flags.activeReader = false;
+        _flags.prepared = false;
+        _lastInsertedId.reset();
+        _recordsAffected.reset();
+        _fetchedRows.clear();
+        _executedCount = _fetchedCount = _fetchedRowCount = 0;
+        notificationMessages = null;
     }
 
     bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
     {
-        return parametersCheck && hasParameters;
+        return parametersCheck && parameterCount;
     }
 
     final void doNotifyMessage() nothrow @trusted
@@ -1395,10 +1435,10 @@ protected:
         }
     }
 
-    void resetStatement(const(ResetStatementKind) kind) @safe
+    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
-        
+
         final switch (kind)
         {
             case ResetStatementKind.unprepared:
@@ -1415,16 +1455,17 @@ protected:
                 _flags.prepared = false;
                 _commandState = DbCommandState.unprepared;
                 break;
-                
+
             case ResetStatementKind.preparing:
                 notificationMessages.length = 0;
+                _fetchedRows.clear();
                 //_executedCount = 0;
                 _fetchedCount = _fetchedRowCount = 0;
                 _lastInsertedId.reset();
                 _recordsAffected.reset();
                 _flags.cancelled = false;
                 break;
-                
+
             case ResetStatementKind.prepared:
                 _flags.prepared = true;
                 _commandState = DbCommandState.prepared;
@@ -1437,19 +1478,23 @@ protected:
                 _recordsAffected.reset();
                 _executedCount++;
                 break;
-                
+
+            case ResetStatementKind.executed:
+                _commandState = DbCommandState.executed;
+                break;
+
             case ResetStatementKind.fetched:
                 _fetchedCount++;
                 break;
-                
+
             case ResetStatementKind.fetching:
                 break;
         }
-            
-        if (_columns !is null)
+
+        if (_columns !is null && _columns.length)
             _columns.resetStatement(kind);
-            
-        if (_parameters !is null)
+
+        if (_parameters !is null && _parameters.length)
             _parameters.resetStatement(kind);
     }
 
@@ -1506,7 +1551,7 @@ protected:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        if (values && hasParameters)
+        if (values && parameterCount)
         {
             size_t i;
             foreach (parameter; parameters)
@@ -2214,6 +2259,7 @@ public:
      * Delegate to get notify when a state change
      * Occurs when the before state of the event changes
      * Params:
+     *  connectin = this connection instance
      *  newState = new state value
      */
     DelegateList!(DbConnection, DbConnectionState) beginStateChange;
@@ -2222,12 +2268,18 @@ public:
      * Delegate to get notify when a state change
      * Occurs when the after state of the event changes
      * Params:
+     *  connectin = this connection instance
      *  oldState = old state value
      */
     DelegateList!(DbConnection, DbConnectionState) endStateChange;
 
-    DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
-
+    /**
+     * Delegate to get notify when there are notification messages from server
+     * Params:
+     *  sender = this connection instance
+     *  messages = array of DbNotificationMessages
+     */
+    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
     DbNotificationMessage[] notificationMessages;
 
     /**
@@ -4725,6 +4777,12 @@ protected:
             _dbValue.type = type;
     }
 
+    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
+    {
+        if (kind == ResetStatementKind.executing && isOutput(OutputDirectionOnly.yes))
+            nullifyValue();
+    }
+
     final void valueAssigned() nothrow @safe
     {
         if (type == DbType.unknown && _dbValue.type != DbType.unknown)
@@ -4923,15 +4981,6 @@ public:
         return parameterOfs!T(inputDirections(inputOnly));
     }
 
-    final void nullifyOutputs() nothrow @safe
-    {
-        foreach (parameter; this)
-        {
-            if (parameter.isOutput(OutputDirectionOnly.yes))
-                parameter.nullifyValue();
-        }
-    }
-
     final size_t outputCount(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) const nothrow @safe
     {
         return parameterCountOfs(outputDirections(outputOnly));
@@ -5054,12 +5103,26 @@ protected:
             _database = null;
     }
 
-    void resetStatement(const(ResetStatementKind) kind) nothrow @safe
+    final void resetStatement(const(ResetStatementKind) kind) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(kind=", kind, ")");
 
-        if (kind == ResetStatementKind.executing)
-            nullifyOutputs();
+        foreach (parameter; this)
+            parameter.resetStatement(kind);
+
+        //if (kind == ResetStatementKind.executing)
+        //    nullifyOutputs();
+        /*
+            final void nullifyOutputs() nothrow @safe
+    {
+        foreach (parameter; this)
+        {
+            if (parameter.isOutput(OutputDirectionOnly.yes))
+                parameter.nullifyValue();
+        }
+    }
+
+*/
     }
 
 protected:

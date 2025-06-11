@@ -467,7 +467,7 @@ public:
     }
 
     /// ditto
-    @property JSONValue[] array(return scope JSONValue[] v) nothrow scope @safe// TODO make @safe
+    @property JSONValue[] array(return scope JSONValue[] v) nothrow scope @safe
     {
         assign!true(v);
         return v;
@@ -574,7 +574,7 @@ public:
     }
 
     /// ditto
-    @property string str(return scope string v) nothrow return @safe // TODO make @safe
+    @property string str(return scope string v) nothrow return @safe
     {
         assign!true(v);
         return v;

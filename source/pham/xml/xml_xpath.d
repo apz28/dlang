@@ -1633,7 +1633,7 @@ public:
 
         throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "evaluate()");
 
-        //todo
+        // TODO Implementation
     }
 
     final override XmlWriter!S write(XmlWriter!S writer)

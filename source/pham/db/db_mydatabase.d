@@ -192,7 +192,7 @@ protected:
         if (storedProcedureName.length == 0)
             return null;
 
-        if (!hasParameters && parametersCheck)
+        if (!parameterCount && parametersCheck)
         {
             auto info = myConnection.getStoredProcedureInfo(storedProcedureName);
             if (info !is null)
@@ -244,7 +244,7 @@ protected:
 
         if (state == BuildCommandTextState.prepare)
         {
-            if (hasParameters)
+            if (parameterCount)
             {
                 foreach (param; parameters)
                     addPlaceHolder();
@@ -253,7 +253,7 @@ protected:
         }
         else
         {
-            if (hasParameters)
+            if (parameterCount)
             {
                 foreach (param; parameters)
                 {
@@ -325,6 +325,8 @@ protected:
         if (!_handle && (isSelectCommandType || lhasOutputParameters))
             _handle.setDummy();
 
+        resetStatement(ResetStatementKind.executed);
+
         if (lhasOutputParameters && type != DbCommandExecuteType.reader)
         {
             doFetch(true);
@@ -336,6 +338,9 @@ protected:
             if (lPrepared)
                 protocol.readOkResponse();
         }
+        
+        if (stateChange)
+            stateChange(this, commandState);
     }
 
     final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
@@ -343,7 +348,7 @@ protected:
         static immutable inOutFlags = EnumSet!DbParameterDirection([DbParameterDirection.inputOutput]);
 
         // Need prepare for storedProcedure with inputOutput parameter(s)
-        return super.doExecuteCommandNeedPrepare(type) || hasParameters(inOutFlags) || (!hasParameters && isStoredProcedure);
+        return super.doExecuteCommandNeedPrepare(type) || (!parameterCount && isStoredProcedure) || hasParameters(inOutFlags);
     }
 
     final override void doFetch(const(bool) isScalar) @safe
@@ -869,7 +874,7 @@ ORDER BY ORDINAL_POSITION
                 foreach (column; reader.columns)
                     debug writeln("\t", column.traceString());
             }
-            
+
             auto result = new MyStoredProcedureInfo(cast(MyDatabase)database, storedProcedureName);
             while (reader.read())
             {
@@ -2189,7 +2194,7 @@ unittest // blob
     import std.string : representation;
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
-    
+
     char[] textBlob = "1234567890qwertyuiop".dup;
     textBlob.reserve(200_000);
     while (textBlob.length < 200_000)
@@ -2274,7 +2279,7 @@ unittest // blob
     assert(insertResult == 1);
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
-    
+
     command.commandText = "SELECT txt, bin FROM create_then_drop_blob LIMIT 1";
     command.prepare();
     auto reader = command.executeReader();
@@ -2282,7 +2287,7 @@ unittest // blob
         reader.dispose();
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
-    
+
     reader.read();
     assert(reader.getValue("txt") == textBlob);
     assert(reader.getValue("bin") == binaryBlob);

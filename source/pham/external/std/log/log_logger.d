@@ -3196,7 +3196,7 @@ public:
                             break;
                         case OutputPatternName.stacktrace:
                             /// The stack trace of the logging event The stack trace level specifier may be enclosed between braces
-                            //TODO
+                            // TODO - output stack
                             break;
                         case OutputPatternName.timestamp:
                             timestamp(sink, element, payload.header.timestamp);

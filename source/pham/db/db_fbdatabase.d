@@ -759,7 +759,7 @@ public:
             result.put(data);
             return 0;
         }
-        
+
         openRead(null, &saveLongData, row);
         return result.data;
     }
@@ -1172,7 +1172,7 @@ public:
     }
 
     alias readBlob = SkCommand.readBlob;
-    
+
     final DbValue writeArray(DbNameColumn arrayColumn, ref DbValue arrayValue) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
@@ -1376,7 +1376,7 @@ protected:
                 auto row = readRow();
                 _fetchedRows.enqueue(row);
                 _fetchedRowCount++;
-                if (hasParameters)
+                if (parameterCount)
                     mergeOutputParams(row);
             }
         }
@@ -1389,6 +1389,10 @@ protected:
 
             debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "_recordsAffected=", _recordsAffected);
         }
+
+        resetStatement(ResetStatementKind.executed);
+        if (stateChange)
+            stateChange(this, commandState);
     }
 
     final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe

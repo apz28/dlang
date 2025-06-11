@@ -272,7 +272,7 @@ public:
 
         const lisQueryAttributes = isQueryAttributes;
         const hasCustomAttributes = lisQueryAttributes && command !is null ? command.customAttributes.length : 0;
-        const hasParameters = command !is null ? command.hasParameters : 0;
+        const parameterCount = command !is null ? command.parameterCount : 0;
 
         auto writer = MyXdrWriter(connection, maxSinglePackage);
         writer.beginPackage(0);
@@ -280,7 +280,7 @@ public:
 
         if (isQueryAttributes)
         {
-            writer.writeLength(hasParameters + hasCustomAttributes);
+            writer.writeLength(parameterCount + hasCustomAttributes);
             writer.writeUInt8(1);
         }
 
@@ -294,11 +294,11 @@ public:
                 connection.releaseParameterWriteBuffer(types);
             }
 
-            auto nullBitmap = BitArrayImpl!ubyte(hasParameters);
+            auto nullBitmap = BitArrayImpl!ubyte(parameterCount);
             auto typeWriter = MyXdrWriter(null, maxSinglePackage, types);
             auto valueWriter = MyXdrWriter(null, maxSinglePackage, values);
 
-            if (hasParameters)
+            if (parameterCount)
                 describeParameters(typeWriter, valueWriter, nullBitmap, cast(MyParameterList)command.parameters, lisQueryAttributes);
 
             if (hasCustomAttributes)
@@ -326,7 +326,7 @@ public:
                 if (isParameterToken)
                 {
                      // TODO search by name for DbTokenKind.parameterNamed?
-                    if (parameterIndex < hasParameters)
+                    if (parameterIndex < parameterCount)
                     {
                         auto parameter = command.parameters[parameterIndex];
                         if (parameter.isInput())
@@ -349,7 +349,7 @@ public:
             }
         }
 
-        if (hasParameters || hasCustomAttributes)
+        if (parameterCount || hasCustomAttributes)
         {
             writeParameters1();
             writeParameters2();
@@ -391,9 +391,9 @@ public:
         writer.writeInt32(1); // iteration count
 
         if (lisQueryAttributes)
-            writer.writeLength(command.hasParameters + hasCustomAttributes);
+            writer.writeLength(command.parameterCount + hasCustomAttributes);
 
-		if (command.hasParameters || hasCustomAttributes)
+		if (command.parameterCount || hasCustomAttributes)
 		{
             DbWriteBuffer types = connection.acquireParameterWriteBuffer();
             DbWriteBuffer values = connection.acquireParameterWriteBuffer();
@@ -403,11 +403,11 @@ public:
                 connection.releaseParameterWriteBuffer(types);
             }
 
-            auto nullBitmap = BitArrayImpl!ubyte(command.hasParameters);
+            auto nullBitmap = BitArrayImpl!ubyte(command.parameterCount);
             auto typeWriter = MyXdrWriter(null, maxSinglePackage, types);
             auto valueWriter = MyXdrWriter(null, maxSinglePackage, values);
 
-            if (command.hasParameters)
+            if (command.parameterCount)
                 describeParameters(typeWriter, valueWriter, nullBitmap, cast(MyParameterList)command.parameters, lisQueryAttributes);
 
             if (hasCustomAttributes)

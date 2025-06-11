@@ -251,12 +251,6 @@ public:
 
 				case InflateManagerMode.BAD:
 					return _codec.setError(ZipResult.Z_ERRNO, "Bad state.\n" ~ _codec.errorMessage);
-
-                version(none) // todo remove
-                {
-                default:
-					return _codec.setError(ZipResult.Z_STREAM_ERROR, "Stream error.");
-                }
 			}
 		}
 	}

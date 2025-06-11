@@ -701,7 +701,7 @@ public:
     {
         static if (is(CallBack : int delegate(T)))
         {
-            foreach (e; items)
+            foreach (ref e; items)
             {
                 if (const r = callBack(e))
                     return r;
@@ -710,7 +710,7 @@ public:
         else
         {
             size_t i;
-            foreach (e; items)
+            foreach (ref e; items)
             {
                 if (const r = callBack(i, e))
                     return r;

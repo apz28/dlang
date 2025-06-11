@@ -872,7 +872,7 @@ protected:
         if (storedProcedureName.length == 0)
             return null;
 
-        if (!hasParameters && parametersCheck)
+        if (!parameterCount && parametersCheck)
         {
             auto info = pgConnection.getStoredProcedureInfo(storedProcedureName);
             if (info !is null)
@@ -888,7 +888,7 @@ protected:
         result.put("CALL ");
         result.put(storedProcedureName);
         result.put('(');
-        if (hasParameters)
+        if (parameterCount)
         {
             auto params = parameters();
             foreach (i; 0..params.length)
@@ -941,6 +941,8 @@ protected:
         auto protocol = pgConnection.protocol;
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
+        resetStatement(ResetStatementKind.executed);
+        
         const fcs = doExecuteCommandFetch(type, false);
 
         if (isStoredProcedure)
@@ -948,12 +950,15 @@ protected:
             if (fcs == DbFetchResultStatus.ready && _fetchedRows.empty)
                 doFetch(true);
 
-            if (_fetchedRows && hasParameters)
+            if (_fetchedRows && parameterCount)
             {
                 auto row = _fetchedRows.front;
                 mergeOutputParams(row);
             }
         }
+        
+        if (stateChange)
+            stateChange(this, commandState);
     }
 
     final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
