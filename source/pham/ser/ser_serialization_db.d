@@ -147,7 +147,7 @@ public:
     {
         commandText.clear();
         commandText.capacity = 500;
-        commandParameters = connection.database.createParameterList(null);
+        commandParameters = connection.database.createParameterList();
         if (onConstructSQL !is null)
             return onConstructSQL(this, columns, conditions, commandText, commandParameters, attribute);
 
@@ -674,7 +674,7 @@ public:
         subSerializer = null;
         commandTextSize = attribute.dbName.length + 10; // update dbName...(field, field) values(:field, :field);
         if (commandParameters is null)
-            commandParameters = connection.database.createParameterList(null);
+            commandParameters = connection.database.createParameterList();
         else
             commandParameters.clear();
         return cast(DbSerializer)super.begin(attribute);

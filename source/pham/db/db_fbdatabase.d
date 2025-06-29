@@ -2086,7 +2086,7 @@ FROM RDB$PROCEDURES
 WHERE RDB$PROCEDURE_NAME = UPPER(@routineName)
 }";
 
-        auto parameters = database.createParameterList(null);
+        auto parameters = database.createParameterList();
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
 
         auto r = executeScalar(SQL, parameters);
@@ -2102,7 +2102,7 @@ FROM RDB$RELATIONS
 WHERE RDB$RELATION_NAME = UPPER(@tableName) and RDB$RELATION_TYPE = 0
 }";
 
-        auto parameters = database.createParameterList(null);
+        auto parameters = database.createParameterList();
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
 
         auto r = executeScalar(SQL, parameters);
@@ -2118,7 +2118,7 @@ FROM RDB$RELATIONS
 WHERE RDB$RELATION_NAME = UPPER(@viewName) and RDB$RELATION_TYPE = 1
 }";
 
-        auto parameters = database.createParameterList(null);
+        auto parameters = database.createParameterList();
         parameters.add("viewName", DbType.stringVary, Variant(viewName));
 
         auto r = executeScalar(SQL, parameters);
@@ -2615,7 +2615,7 @@ public:
         return new FbParameter(this, cast(FbCommand)command, name);
     }
 
-    override DbParameterList createParameterList(DbCommand command) nothrow
+    override DbParameterList createParameterList(DbCommand command = null) nothrow
     {
         return new FbParameterList(this, cast(FbCommand)command);
     }
@@ -2756,7 +2756,7 @@ package(pham.db):
 class FbParameterList : DbParameterList
 {
 public:
-    this(FbDatabase database, FbCommand command) nothrow @safe
+    this(FbDatabase database, FbCommand command = null) nothrow @safe
     {
         super(database !is null ? database : fbDB, command);
     }

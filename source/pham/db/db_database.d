@@ -1912,7 +1912,7 @@ public:
         if (routineName.length == 0)
             return false;
 
-        auto parameters = database.createParameterList(null);
+        auto parameters = database.createParameterList();
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
         parameters.add("type", DbType.stringVary, Variant(type));
         if (schema.length)
@@ -1943,7 +1943,7 @@ public:
         if (tableName.length == 0)
             return false;
 
-        auto parameters = database.createParameterList(null);
+        auto parameters = database.createParameterList();
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
         if (schema.length)
             parameters.add("schema", DbType.stringVary, Variant(schema));
@@ -1964,7 +1964,7 @@ public:
 
         checkActive();
 
-        auto parameters = database.createParameterList(null);
+        auto parameters = database.createParameterList();
         parameters.add("viewName", DbType.stringVary, Variant(viewName));
         if (schema.length)
             parameters.add("schema", DbType.stringVary, Variant(schema));
@@ -3823,7 +3823,7 @@ public:
     abstract DbConnectionStringBuilder createConnectionStringBuilder() nothrow;
     abstract DbConnectionStringBuilder createConnectionStringBuilder(string connectionString);
     abstract DbParameter createParameter(DbCommand command, DbIdentitier name) nothrow;
-    abstract DbParameterList createParameterList(DbCommand command) nothrow;
+    abstract DbParameterList createParameterList(DbCommand command = null) nothrow;
     abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
         bool defaultTransaction = false) nothrow;
 
@@ -4887,7 +4887,7 @@ protected:
 class DbParameterList : DbNamedObjectList!DbParameter, IDisposable
 {
 public:
-    this(DbDatabase database, DbCommand command) nothrow @safe
+    this(DbDatabase database, DbCommand command = null) nothrow @safe
     {
         this._database = database;
         this._command = command;
@@ -5760,7 +5760,7 @@ public:
         this._database = database;
         this._name = name;
         this._type = type;
-        this._argumentTypes = database.createParameterList(null);
+        this._argumentTypes = database.createParameterList();
         this._returnType = database.createParameter(null, DbIdentitier(returnParameterName));
         this._returnType.direction = DbParameterDirection.returnValue;
     }

@@ -1180,7 +1180,7 @@ public:
         return new MyParameter(this, cast(MyCommand)command, name);
     }
 
-    override DbParameterList createParameterList(DbCommand command) nothrow
+    override DbParameterList createParameterList(DbCommand command = null) nothrow
     {
         return new MyParameterList(this, cast(MyCommand)command);
     }
@@ -1273,7 +1273,7 @@ protected:
 class MyParameterList : DbParameterList
 {
 public:
-    this(MyDatabase database, MyCommand command) nothrow @safe
+    this(MyDatabase database, MyCommand command = null) nothrow @safe
     {
         super(database !is null ? database : myDB, command);
     }

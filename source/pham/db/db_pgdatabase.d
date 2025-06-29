@@ -1617,7 +1617,7 @@ public:
         return new PgParameter(this, cast(PgCommand)command, name);
     }
 
-    override DbParameterList createParameterList(DbCommand command) nothrow
+    override DbParameterList createParameterList(DbCommand command = null) nothrow
     {
         return new PgParameterList(this, cast(PgCommand)command);
     }
@@ -1719,7 +1719,7 @@ protected:
 class PgParameterList : DbParameterList
 {
 public:
-    this(PgDatabase database, PgCommand command) nothrow @safe
+    this(PgDatabase database, PgCommand command = null) nothrow @safe
     {
         super(database !is null ? database : pgDB, command);
     }
