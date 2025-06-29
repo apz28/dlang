@@ -39,14 +39,6 @@ import pham.db.db_parser;
 import pham.db.db_type;
 import pham.db.db_util;
 
-DbIdentitier[] toIdentifiers(const string[] strings) nothrow
-{
-    auto result = new DbIdentitier[](strings.length);
-    foreach (i, s; strings)
-        result[i] = DbIdentitier(s);
-    return result;
-}
-
 /**
  * Determine which based time to be used for checking to remove
  * a object from cache
@@ -113,8 +105,8 @@ public:
     @property Duration maxAge() const pure
     {
         return _maxAge;
-    }    
-    
+    }
+
 private:
     DateTime _created;
     DateTime _lastTouched;
@@ -615,9 +607,12 @@ private:
     LastDisposingReason _lastDisposingReason;
 }
 
-class DbNameObject : DbObject
+class DbNamedObject : DbObject
 {
 nothrow @safe:
+
+public:
+    alias List = DbNamedObjectList!DbNamedObject;
 
 public:
     final int opCmp(scope const(DbIdentitier) rhsName) const @nogc pure
@@ -638,9 +633,10 @@ public:
     /**
      * The list which this object belong to if applicable
      */
-    alias List = DbNameObjectList!DbNameObject;
     @property final List list() pure @trusted
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(cast(List)_list=", cast(List)_list !is null, ")");
+        
         return cast(List)_list;
     }
 
@@ -663,13 +659,13 @@ public:
         updateNameImpl(DbIdentitier(newName));
         return this;
     }
-    
-public:    
+
+public:
     /**
      * Additional integer value for the convenience of developers
      */
     size_t tag;
-    
+
 protected:
     //pragma(inline, true)
     final void updateNameImpl(DbIdentitier newName)
@@ -689,14 +685,14 @@ protected:
     DbIdentitier _name;
 }
 
-class DbNameObjectList(T) : DbObject
-if(is(T : DbNameObject))
+class DbNamedObjectList(T) : DbObject
+if(is(T : DbNamedObject))
 {
 public:
     alias opApply = opApplyImpl!(int delegate(T));
     alias opApply = opApplyImpl!(int delegate(size_t, T));
 
-    int opApplyImpl(CallBack)(scope CallBack callBack)
+    final int opApplyImpl(CallBack)(scope CallBack callBack)
     if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(size_t, T)))
     {
         static if (is(CallBack : int delegate(T)))
@@ -749,6 +745,7 @@ public:
     typeof(this) clear() nothrow @safe
     {
         items.clear();
+        notify(null, NotificationKind.cleared);
         return this;
     }
 
@@ -854,7 +851,7 @@ public:
         return this;
     }
 
-    T remove(size_t index) nothrow @safe
+    final T remove(size_t index) nothrow @safe
     in
     {
         assert(index < items.length);
@@ -865,7 +862,10 @@ public:
 
         T result;
         if (items.removeAt(index, result))
+        {
             result._list = null;
+            notify(result, NotificationKind.removed);
+        }
         return result;
     }
 
@@ -884,7 +884,10 @@ public:
     {
         T result;
         if (items.remove(name, result))
+        {            
             result._list = null;
+            notify(result, NotificationKind.removed);
+        }
         return result;
     }
 
@@ -900,43 +903,62 @@ public:
     }
 
 protected:
-    void add(T item) nothrow @safe
+    enum NotificationKind : ubyte
+    {
+        added,
+        propertyChanged,
+        replaced,
+        removed,
+        cleared,
+    }
+    
+    final void add(T item) nothrow @safe
     {
         item._list = this;
         items[item.name] = item;
+        notify(item, NotificationKind.added);
     }
 
-    void addOrSet(T item) nothrow @safe
+    final void addOrSet(T item) nothrow @safe
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", items.indexOf(item.name), ", length=", length, ")");
+
         const i = items.indexOf(item.name);
-
-        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ")");
-
         if (i >= 0)
         {
             item._list = this;
             const r = items.replaceAt(i, item.name, item);
             assert(r, "replaceAt failed");
+            notify(item, NotificationKind.replaced);
         }
         else
             add(item);
     }
 
-    void nameChanged(T item, scope const(DbIdentitier) oldName) nothrow @safe
+    final void nameChanged(T item, scope const(DbIdentitier) oldName) nothrow @safe
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", items.indexOf(oldName), ", length=", length, ", oldName=", oldName, ")");
+        assert(item.list is this);
+
         const i = items.indexOf(oldName);
-
-        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ", oldName=", oldName, ")");
         assert(i >= 0);
-
-        item._list = this;
         const r = items.replaceAt(i, item.name, item);
         assert(r, "replaceAt failed");
+        notify(item, NotificationKind.propertyChanged);
     }
 
+    void notify(T item, const(NotificationKind) kind) nothrow @safe
+    {}
+    
 protected:
     Dictionary!(DbIdentitier, T) items;
 }
+
+deprecated("please use DbNamedObject")
+alias DbNameObject = DbNamedObject;
+
+deprecated("please use DbNamedObjectList")
+alias DbNameObjectList = DbNamedObjectList;
 
 struct DbIdentitierValue(T)
 {
@@ -987,9 +1009,9 @@ public:
     /**
      * The list which this struct belong to if applicable
      */
-    @property List list()
+    @property List list() @trusted
     {
-        return _list;
+        return cast(List)_list;
     }
 
     /**
@@ -1004,7 +1026,7 @@ public:
     T value;
 
 private:
-    List _list;
+    Object _list;
     DbIdentitier _name;
 }
 
@@ -1019,7 +1041,7 @@ public:
     alias opApply = opApplyImpl!(int delegate(ref DbIdentitierValuePair));
     alias opApply = opApplyImpl!(int delegate(size_t, ref DbIdentitierValuePair));
 
-    int opApplyImpl(CallBack)(scope CallBack callBack)
+    final int opApplyImpl(CallBack)(scope CallBack callBack)
     if (is(CallBack : int delegate(ref DbIdentitierValuePair))
         || is(CallBack : int delegate(size_t, ref DbIdentitierValuePair)))
     {
@@ -1062,9 +1084,11 @@ public:
     /**
      * Removes all the elements from the array
      */
-    typeof(this) clear() nothrow
+    final typeof(this) clear() nothrow
     {
         items.clear();
+        DbIdentitierValuePair dummy;
+        notify(dummy, NotificationKind.cleared);
         return this;
     }
 
@@ -1244,7 +1268,7 @@ public:
         return result;
     }
 
-    DbIdentitierValuePair remove(size_t index) nothrow
+    final DbIdentitierValuePair remove(size_t index) nothrow
     in
     {
         assert(index < items.length);
@@ -1255,7 +1279,10 @@ public:
 
         DbIdentitierValuePair result;
         if (items.removeAt(index, result))
+        {
             result._list = null;
+            notify(result, NotificationKind.removed);
+        }
         return result;
     }
 
@@ -1281,7 +1308,10 @@ public:
 
         DbIdentitierValuePair result;
         if (items.remove(name, result))
+        {
             result._list = null;
+            notify(result, NotificationKind.removed);
+        }
         return result;
     }
 
@@ -1323,42 +1353,159 @@ public:
     }
 
 protected:
-    void add(ref DbIdentitierValuePair item) nothrow
+    enum NotificationKind : ubyte
+    {
+        added,
+        propertyChanged,
+        replaced,
+        removed,
+        cleared,
+    }
+    
+    final void add(ref DbIdentitierValuePair item) nothrow @safe
     {
         item._list = this;
         items[item.name] = item;
+        notify(item, NotificationKind.added);
     }
 
-    void addOrSet(ref DbIdentitierValuePair item) nothrow
+    final void addOrSet(ref DbIdentitierValuePair item) nothrow @safe
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", indexOf(item.name), ", length=", length, ")");
+
         const i = indexOf(item.name);
         if (i >= 0)
         {
-            debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ")");
-
             item._list = this;
             const r = items.replaceAt(i, item.name, item);
             assert(r, "replaceAt failed");
+            notify(item, NotificationKind.replaced);
         }
         else
             add(item);
     }
 
     version(none)
-    void nameChanged(ref DbIdentitierValuePair item, scope const(DbIdentitier) oldName) nothrow
+    final void nameChanged(ref DbIdentitierValuePair item, scope const(DbIdentitier) oldName) nothrow
     {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", items.indexOf(oldName), ", length=", length, ", oldName=", oldName, ")");
+        assert(item._list is this);
+
         const i = items.indexOf(oldName);
-
-        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(item._name=", item._name, ", index=", i, ", length=", length, ", oldName=", oldName, ")");
         assert(i >= 0);
-
-        item._list = this;
         const r = items.replaceAt(i, item.name, item);
         assert(r, "replaceAt failed");
+        notify(item, NotificationKind.propertyChanged);
     }
+
+    void notify(ref DbIdentitierValuePair item, const(NotificationKind) kind) nothrow @safe
+    {}
 
 protected:
     Dictionary!(DbIdentitier, DbIdentitierValuePair) items;
+}
+
+struct DbLocalReferenceList(T)
+if(is(T : Object))
+{
+@safe:
+
+public:
+    alias opApply = opApplyImpl!(int delegate(T));
+    alias opApply = opApplyImpl!(int delegate(size_t, T));
+
+    int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(T))
+        || is(CallBack : int delegate(size_t, T)))
+    {
+        debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "()");
+
+        static if (is(CallBack : int delegate(T)))
+        {
+            foreach (item; items)
+            {
+                if (const r = callBack(item))
+                    return r;
+            }
+        }
+		else
+        {
+            size_t i;
+            foreach (item; items)
+            {
+                if (const r = callBack(i, item))
+                    return r;
+                i++;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Returns item at index
+     */
+    inout(T) opIndex(size_t index) inout nothrow
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        assert(length <= items.length);
+        
+        return items[index];
+    }
+
+    /**
+     * Returns array of items
+     */
+    inout(T)[] opSlice() inout nothrow
+    {
+        assert(length <= items.length);
+        
+        return items[0..length];
+    }
+
+    inout(T)[] opSlice(size_t begin, size_t end) inout nothrow
+    in
+    {
+        assert(begin <= end);
+        assert(begin <= length);
+        assert(end <= length);
+    }
+    do
+    {
+        assert(length <= items.length);
+        
+        return items[begin..end];
+    }
+    
+    ref typeof(this) clear() nothrow return
+    {
+        if (length)
+        {
+            items[0..length] = null;
+            length = 0;
+        }
+        return this;
+    }
+
+    ref typeof(this) put(T item) nothrow return
+    {
+        if (items.length > length)
+            items[length++] = item;
+        else
+        {
+            items ~= item;
+            length++;
+        }
+        return this;
+    }
+    
+public:
+    size_t tag;
+    size_t length;
+    T[] items;
 }
 
 /**
@@ -1525,6 +1672,14 @@ do
         : ResultIf!(DbIdentitierValueList!T).error(list, DbErrorCode.parse, errorMessage);
 }
 
+DbIdentitier[] toIdentifiers(const string[] strings) nothrow
+{
+    auto result = new DbIdentitier[](strings.length);
+    foreach (i, s; strings)
+        result[i] = DbIdentitier(s);
+    return result;
+}
+
 
 // Any below codes are private
 private:
@@ -1591,13 +1746,13 @@ unittest // DbIdentitierValueList
     assert(!list.exist("a"));
 }
 
-unittest // DbNameObjectList
+unittest // DbNamedObjectList
 {
     import std.string : indexOf;
 
-    debug(debug_pham_db_db_object) debug writeln("unittest.DbNameObjectList");
+    debug(debug_pham_db_db_object) debug writeln("unittest.DbNamedObjectList");
 
-    static class DbNameObjectTest : DbNameObject
+    static class DbNamedObjectTest : DbNamedObject
     {
     public:
         int value;
@@ -1608,11 +1763,11 @@ unittest // DbNameObjectList
         }
     }
 
-    auto list = new DbNameObjectList!DbNameObjectTest();
+    auto list = new DbNamedObjectList!DbNamedObjectTest();
 
-    list.put(new DbNameObjectTest("a", 1));
-    list.put(new DbNameObjectTest("bcd", 2));
-    list.put(new DbNameObjectTest("x", 3));
+    list.put(new DbNamedObjectTest("a", 1));
+    list.put(new DbNamedObjectTest("bcd", 2));
+    list.put(new DbNamedObjectTest("x", 3));
 
     assert(list.length == 3);
     assert(list.exist("a") && list.exist("A"));
@@ -1627,7 +1782,7 @@ unittest // DbNameObjectList
     assert(list.get("bcd").value == 2 && list.get("BCD").value == 2);
     assert(list.get("x").value == 3 && list.get("X").value == 3);
 
-    list.put(new DbNameObjectTest("x", -1));
+    list.put(new DbNamedObjectTest("x", -1));
     assert(list.length == 3);
     assert(list.exist("x"));
     assert(list.get("x").value == -1);

@@ -29,9 +29,9 @@ import pham.db.db_buffer_filter;
 import pham.db.db_buffer_filter_cipher;
 import pham.db.db_buffer_filter_compressor;
 import pham.db.db_convert;
-import pham.db.db_database : DbNameColumn;
+import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
-import pham.db.db_object : DbDisposableObject;
+import pham.db.db_object : DbDisposableObject, DbLocalReferenceList;
 import pham.db.db_type;
 import pham.db.db_util;
 import pham.db.db_value;
@@ -67,7 +67,7 @@ if (isOutputRange!(W, ubyte))
 DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 {
     debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
-    
+
     DbRecordsAffectedAggregate result;
 
     if (data.length <= 2)
@@ -163,7 +163,7 @@ nothrow @safe:
         this.isDeferred = isDeferred;
         this.errorStatues = null;
     }
-    
+
     FbException toException()
     in
     {
@@ -171,8 +171,8 @@ nothrow @safe:
     }
     do
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(errorStatues.length=", errorStatues.length, ")"); 
-        
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(errorStatues.length=", errorStatues.length, ")");
+
         FbException result;
         auto i = errorStatues.length;
         while (i)
@@ -182,17 +182,23 @@ nothrow @safe:
         }
         return result;
     }
-    
+
 	@property bool hasError() const
 	{
         return errorStatues.length != 0;
 	}
-    
+
     FbIscStatues[] errorStatues;
     bool isDeferred;
 }
 
-alias FbDeferredResponse = void delegate(ref FbDeferredInfo deferredInfo) @safe;
+struct FbDeferredResponse
+{
+    alias DeferredDelegate = void delegate(ref FbDeferredInfo deferredInfo) @safe;
+    
+    string name;
+    DeferredDelegate caller;
+}
 
 class FbProtocol : DbDisposableObject
 {
@@ -201,6 +207,8 @@ class FbProtocol : DbDisposableObject
 public:
     this(FbConnection connection) nothrow pure
     {
+        debug(debug_pham_db_db_fbprotocol) debug writeln("**********");
+
         this._connection = connection;
     }
 
@@ -215,7 +223,7 @@ public:
 
     final void allocateCommandWrite()
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(connection.handle=", connection.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         allocateCommandWrite(writer);
@@ -224,7 +232,7 @@ public:
 
     final void allocateCommandWrite(ref FbXdrWriter writer) nothrow
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(connection.handle=", connection.fbHandle, ")");
 
 		writer.writeOperation(FbIsc.op_allocate_statement);
 		writer.writeHandle(connection.fbHandle);
@@ -241,7 +249,7 @@ public:
 
     final void arrayGetWrite(ref FbArray array)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", array.fbTransaction.fbHandle, ", array.fbId=", array.fbId, ")");
 
         auto writerASdl = FbArrayWriter(connection);
 
@@ -268,7 +276,7 @@ public:
 
     final void arrayPutWrite(ref FbArray array, uint32 elements, scope const(ubyte)[] encodedArrayValue)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", array.fbTransaction.fbHandle, ", array.fbId=", array.fbId, ")");
 
         auto writerASdl = FbArrayWriter(connection);
 
@@ -295,7 +303,7 @@ public:
 
     final void blobBeginWrite(ref FbBlob blob, FbOperation createOrOpen)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", blob.fbTransaction.fbHandle, ", blob.fbId=", blob.fbId, ")");
 
         auto writer = FbXdrWriter(connection);
 	    writer.writeOperation(createOrOpen);
@@ -407,7 +415,7 @@ public:
     final void closeCursorCommandRead(ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
-    
+
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
@@ -425,7 +433,7 @@ public:
 
     final void commitRetainingTransactionWrite(FbTransaction transaction)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", transaction.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_commit_retaining);
@@ -444,7 +452,7 @@ public:
 
     final void commitTransactionWrite(FbTransaction transaction)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", transaction.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_commit);
@@ -459,7 +467,9 @@ public:
         auto deferredInfo = FbDeferredInfo(false);
         auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(connection.notificationMessages);
-        return r.getIscObject();
+        auto result = r.getIscObject();
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "connection.handle=", result.handle);
+        return result;
     }
 
     final void connectAttachmentWrite(ref FbConnectingStateInfo stateInfo, FbCreateDatabaseInfo createDatabaseInfo)
@@ -640,7 +650,7 @@ public:
 
     final void createCommandBatchWrite(ref FbXdrWriter writer, ref FbCommandBatch commandBatch)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(command.handle=", commandBatch.fbCommand.fbHandle, ")");
 
         auto inputParameters = commandBatch.fbCommand.fbInputParameters();
         auto pWriterBlr = FbBlrWriter(connection);
@@ -703,7 +713,7 @@ public:
 
     final void deallocateCommandWrite(ref FbXdrWriter writer, FbCommand command) nothrow
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(command.fbHandle=", command.fbHandle, ")");
 
 		writer.writeOperation(FbIsc.op_free_statement);
 		writer.writeHandle(command.fbHandle);
@@ -746,7 +756,7 @@ public:
 
     final void executeCommandBatchWrite(ref FbXdrWriter writer, ref FbCommandBatch commandBatch)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", commandBatch.fbCommand.fbTransaction.fbHandle, ", command.handle=", commandBatch.fbCommand.fbHandle, ")");
 
 		writer.writeOperation(FbIsc.op_batch_exec);
 		writer.writeHandle(commandBatch.fbCommand.fbHandle);
@@ -765,7 +775,7 @@ public:
 
     final void executeCommandWrite(FbCommand command, DbCommandExecuteType type)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(type=", type, ", handle=", command.fbHandle, ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(type=", type, ", transaction.handle=", command.fbTransaction.fbHandle, ", command.handle=", command.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(command.hasStoredProcedureFetched() ? FbIsc.op_execute2 : FbIsc.op_execute);
@@ -891,7 +901,7 @@ public:
     }
     do
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ", command.handle=", command.fbHandle, ")");
 
         auto writerBlr = FbBlrWriter(connection);
         auto pFldBlr = describeBlrColumns(writerBlr, cast(FbColumnList)command.columns);
@@ -926,7 +936,7 @@ public:
 
     final void messageCommandBatchWrite(ref FbXdrWriter writer, ref FbCommandBatch commandBatch)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(command.handle=", commandBatch.fbCommand, ")");
 
         auto inputParameters = commandBatch.fbCommand.fbInputParameters();
 
@@ -1003,7 +1013,11 @@ public:
 
     final prepareCommandWrite(ref FbXdrWriter writer, FbCommand command, scope const(char)[] sql) nothrow
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        string sqlLog() nothrow @safe
+        {
+            return sql.length > 50 ? sql[0..50].idup : sql.idup;
+        }
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", command.fbTransaction.fbHandle, ", command.handle=", command.fbHandle, ", sql=", sqlLog, ")");
 
         auto bindItems = describeStatementInfoAndBindInfoItems;
 
@@ -1040,7 +1054,7 @@ public:
 
     final void rollbackRetainingTransactionWrite(FbTransaction transaction)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", transaction.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_rollback_retaining);
@@ -1059,7 +1073,7 @@ public:
 
     final void rollbackTransactionWrite(FbTransaction transaction)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", transaction.fbHandle, ")");
 
         auto writer = FbXdrWriter(connection);
         writer.writeOperation(FbIsc.op_rollback);
@@ -1079,7 +1093,7 @@ public:
 
     final void startTransactionWrite(FbTransaction transaction)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(connection.handle=", connection.fbHandle, ")");
 
         auto paramWriter = FbTransactionWriter(connection);
         auto paramBytes = describeTransaction(paramWriter, transaction);
@@ -1135,7 +1149,7 @@ public:
         return readSqlResponseImpl(reader);
     }
 
-    final DbValue readValue(ref FbXdrReader reader, FbCommand command, DbNameColumn column)
+    final DbValue readValue(ref FbXdrReader reader, DbNamedColumn column)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ")");
         version(profile) debug auto p = PerfFunction.create();
@@ -1186,16 +1200,21 @@ public:
             case DbType.uuid:
                 return DbValue(reader.readUUID(), dbType);
             case DbType.stringFixed:
-                return DbValue(reader.readFixedString(column.baseType), dbType);
+                return DbValue(reader.readFixedString(column.baseType));
             case DbType.stringVary:
                 return DbValue(reader.readString(), dbType);
+            case DbType.binaryFixed:
+                return DbValue(reader.readFixedBytes(column.baseType));
+            case DbType.binaryVary:
+                return DbValue(reader.readBytes());
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-            case DbType.binaryFixed:
-            case DbType.binaryVary:
+                auto textId = reader.readId();
+                return DbValue.entity(textId, dbType);
             case DbType.blob:
-                return DbValue.entity(reader.readId(), dbType);
+                auto blobId = reader.readId();
+                return DbValue.entity(blobId, dbType);
 
             case DbType.record:
             case DbType.array:
@@ -1220,7 +1239,7 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(FbCommand command, FbColumnList columns, size_t row)
+    final DbRowValue readValues(FbColumnList columns, size_t row)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
@@ -1236,7 +1255,7 @@ public:
             if (nullBitmap[i])
                 result[i].nullify();
             else
-                result[i] = readValue(reader, command, column);
+                result[i] = readValue(reader, column);
         }
         return result;
     }
@@ -1266,6 +1285,25 @@ public:
 		writer.writeHandle(command.fbHandle);
     }
 
+    final void callDeferredResponses() @safe
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(deferredResponses.length=", deferredResponses.length, ")");
+        
+        // Must use temp to avoid recursive entry - stack overflow
+        auto deferredResponses2 = this.deferredResponses;
+        this.deferredResponses = null;
+
+        auto deferredInfo = FbDeferredInfo(true);
+        foreach (deferredResponse; deferredResponses2)
+        {
+            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "deferred=", deferredResponse.name);
+            
+            deferredResponse.caller(deferredInfo);
+        }
+        if (deferredInfo.hasError)
+            throw deferredInfo.toException();
+    }
+    
     @property final FbConnection connection() nothrow pure
     {
         return _connection;
@@ -1281,7 +1319,7 @@ public:
 
 protected:
     enum ignoreCheckingResponseOp = 0;
-    
+
     final void cancelRequestWrite(FbHandle handle, int32 cancelKind)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(cancelKind=", cancelKind, ")");
@@ -1333,7 +1371,7 @@ protected:
     final void commandInfoWrite(ref FbXdrWriter writer, FbCommand command, scope const(ubyte)[] items,
         uint32 resultBufferLength) nothrow
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(command.fbHandle=", command.fbHandle, ")");
 
 		writer.writeOperation(FbIsc.op_info_sql);
         writer.writeHandle(command.fbHandle);
@@ -1597,7 +1635,7 @@ protected:
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
 		writer.writeChars(FbIsc.isc_dpb_host_name, currentComputerName());
 		writer.writeChars(FbIsc.isc_dpb_os_user, currentUserName());
-        
+
 		if (stateInfo.authData.length)
 		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
 		if (useCSB.cachePages)
@@ -1606,7 +1644,7 @@ protected:
 		    writer.writeInt32(FbIsc.isc_dpb_no_db_triggers, 1);
 		if (!useCSB.garbageCollect)
 		    writer.writeInt32(FbIsc.isc_dpb_no_garbage_collect, 1);
-            
+
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
@@ -1636,11 +1674,11 @@ protected:
 	    writer.writeCharsIf(FbIsc.isc_dpb_sql_role_name, useRoleName);
 		writer.writeInt32(FbIsc.isc_dpb_connect_timeout, useCSB.connectionTimeout.limitRangeTimeoutAsSecond());
 		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
-		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());        
+		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
 		writer.writeChars(FbIsc.isc_dpb_host_name, currentComputerName());
 		writer.writeChars(FbIsc.isc_dpb_os_user, currentUserName());
-        
+
 		if (stateInfo.authData.length)
 		    writer.writeBytes(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
         writer.writeCharsIf(FbIsc.isc_dpb_set_db_charset, createDatabaseInfo.defaultCharacterSet);
@@ -1648,7 +1686,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
 		if (createDatabaseInfo.pageSize > 0)
 			writer.writeInt32(FbIsc.isc_dpb_page_size, createDatabaseInfo.toKnownPageSize(createDatabaseInfo.pageSize));
-            
+
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
@@ -1670,7 +1708,7 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
 		if (createDatabaseInfo.pageSize > 0)
 			writer.writeInt32(FbIsc.isc_dpb_page_size, createDatabaseInfo.pageSize);
-            
+
 		writer.writeInt32(FbIsc.isc_dpb_utf8_filename, 1); // This is weirdess - must be last or fail to authenticate
 
         auto result = writer.peekBytes();
@@ -1929,7 +1967,7 @@ protected:
         return result;
     }
 
-    final void describeValue(ref FbXdrWriter writer, DbNameColumn column, ref DbValue value)
+    final void describeValue(ref FbXdrWriter writer, DbNamedColumn column, ref DbValue value)
     in
     {
         assert(!value.isNull);
@@ -2004,11 +2042,11 @@ protected:
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
-
         _serverVersion = 0;
         if (isDisposing(disposingReason))
             _connection = null;
+
+        debug(debug_pham_db_db_fbprotocol) debug writeln("**********");
     }
 
     final int32 getCryptedConnectionCode() nothrow
@@ -2229,17 +2267,7 @@ protected:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(expectedOperation=", expectedOperation, ", deferredResponses.length=", deferredResponses.length, ")");
 
         if (deferredResponses.length != 0)
-        {
-            // Must use temp to avoid stack overflow
-            auto deferreds = deferredResponses;
-            deferredResponses = null;
-            
-            auto deferredInfo = FbDeferredInfo(true);
-            foreach (deferred; deferreds)
-                deferred(deferredInfo);
-            if (deferredInfo.hasError)
-                throw deferredInfo.toException();
-        }
+            callDeferredResponses();
 
         scope (failure)
             connection.fatalError(DbFatalErrorReason.readData, connection.state);

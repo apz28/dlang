@@ -24,7 +24,7 @@ import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_object : shortClassName;
 import pham.db.db_buffer;
-import pham.db.db_database : DbNameColumn;
+import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
 import pham.db.db_object;
 import pham.db.db_type;
@@ -58,9 +58,11 @@ class PgProtocol : DbDisposableObject
 public:
     this(PgConnection connection) nothrow pure
     {
+        debug(debug_pham_db_db_pgprotocol) debug writeln("**********");
+
         this._connection = connection;
     }
-    
+
     final PgOIdRowDescription bindCommandParameterRead(PgCommand command)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
@@ -386,9 +388,9 @@ public:
 	receiveAgain:
         reader = PgReader(connection);
         result.messageType = reader.messageType;
-            
+
         debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "reader.messageType=", reader.messageType, ", result.messageType=", result.messageType);
-        
+
 		switch (reader.messageType)
         {
             case 'C': // CommandComplete
@@ -570,7 +572,7 @@ public:
         PgOIdRowDescription result;
         if (count == 0)
             return result;
-            
+
         result.columns = new PgOIdColumnInfo[](count);
         foreach (i; 0..count)
         {
@@ -585,7 +587,7 @@ public:
         return result;
     }
 
-    final DbValue readValue(ref PgReader reader, PgCommand command, DbNameColumn column, const(int32) valueLength)
+    final DbValue readValue(ref PgReader reader, PgCommand command, DbNamedColumn column, const(int32) valueLength)
     in
     {
         assert(valueLength != pgNullValueLength);
@@ -1225,9 +1227,11 @@ protected:
     {
         if (isDisposing(disposingReason))
             _connection = null;
+
+        debug(debug_pham_db_db_pgprotocol) debug writeln("**********");
     }
 
-    final T[] readValueArray(T)(ref PgReader reader, PgCommand command, DbNameColumn column, const(int32) valueLength)
+    final T[] readValueArray(T)(ref PgReader reader, PgCommand command, DbNamedColumn column, const(int32) valueLength)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(column.name=", column.name, ", valueLength=", valueLength, ")");
 
@@ -1337,7 +1341,7 @@ protected:
         return result;
     }
 
-    final DbValue readValueError(DbNameColumn column, const(int32) valueLength, const(int32) expectedLength)
+    final DbValue readValueError(DbNamedColumn column, const(int32) valueLength, const(int32) expectedLength)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 

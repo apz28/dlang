@@ -114,11 +114,12 @@ private:
     bool _caseSensitive;
 }
 
-class DbColumn : DbNameColumn
+class DbColumn : DbNamedColumn
 {
 public:
-    this(DbCommand command, DbIdentitier name) nothrow pure @safe
+    this(DbDatabase database, DbCommand command, DbIdentitier name) nothrow @safe
     {
+        this._database = database;
         this._command = command;
         this._name = name;
         this._flags.allowNull = true;
@@ -141,16 +142,6 @@ public:
         return buffer.put(anonymousColumnNamePrefix)
             .nToString(ordinal)
             .data;
-    }
-
-    @property final DbCommand command() nothrow pure @safe
-    {
-        return _command;
-    }
-
-    @property final DbDatabase database() nothrow pure @safe
-    {
-        return _command !is null ? _command.database : null;
     }
 
     /** Gets or sets whether this column is aliased
@@ -197,16 +188,14 @@ public:
 protected:
     void resetStatement(const(ResetStatementKind) kind) nothrow @safe
     {}
-
-protected:
-    DbCommand _command;
 }
 
-class DbColumnList : DbNameObjectList!DbColumn, IDisposable
+class DbColumnList : DbNamedObjectList!DbColumn, IDisposable
 {
 public:
-    this(DbCommand command) nothrow pure @safe
+    this(DbDatabase database, DbCommand command) nothrow @safe
     {
+        this._database = database;
         this._command = command;
     }
 
@@ -218,12 +207,25 @@ public:
         return result;
     }
 
-    abstract DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe;
+    final DbColumn create(DbIdentitier name) nothrow @safe
+    in
+    {
+        assert(database !is null);
+    }
+    do
+    {
+        return database.createColumn(command, name);
+    }
 
-    final DbColumn create(DbCommand command, string name) nothrow @safe
+    final DbColumn create(string name) nothrow @safe
+    in
+    {
+        assert(database !is null);
+    }
+    do
     {
         DbIdentitier id = DbIdentitier(name);
-        return create(command, id);
+        return database.createColumn(command, id);
     }
 
     /**
@@ -253,7 +255,7 @@ public:
 
     @property final DbDatabase database() nothrow pure @safe
     {
-        return _command !is null ? _command.database : null;
+        return _database;
     }
 
     pragma(inline, true)
@@ -262,20 +264,22 @@ public:
         return _lastDisposingReason.value;
     }
 
-protected:
-    override void add(DbColumn item) nothrow @safe
+    @property final uint16 saveLongDataCount() const @nogc nothrow @safe
     {
-        super.add(item);
-        item._ordinal = cast(uint32)length;
+        return _saveLongDataCount;
     }
 
+protected:
     abstract DbColumnList createSelf(DbCommand command) nothrow @safe;
 
     void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         clear();
         if (isDisposing(disposingReason))
+        {
             _command = null;
+            _database = null;
+        }
     }
 
     final void resetStatement(const(ResetStatementKind) kind) nothrow @safe
@@ -291,8 +295,19 @@ protected:
         }
     }
 
+    override void notify(DbColumn item, const(NotificationKind) kind) nothrow @safe
+    {
+        //super.notify(item, kind);
+        if (kind == NotificationKind.added)
+            item._ordinal = cast(uint32)length;
+        else if (kind == NotificationKind.cleared)
+            _saveLongDataCount = 0;
+    }
+
 protected:
     DbCommand _command;
+    DbDatabase _database;
+    uint16 _saveLongDataCount;
 
 private:
     LastDisposingReason _lastDisposingReason;
@@ -319,7 +334,7 @@ package(pham.db) enum ResetStatementKind : ubyte
 abstract class DbCommand : DbDisposableObject
 {
 public:
-    this(DbConnection connection,
+    this(DbDatabase database, DbConnection connection,
         string name = null) nothrow @safe
     in
     {
@@ -327,6 +342,7 @@ public:
     }
     do
     {
+        this._database = database;
         this._connection = connection;
         this._name = name;
         this._commandTimeout = connection.connectionStringBuilder.commandTimeout;
@@ -337,7 +353,7 @@ public:
         this.notifyMessage.opAssign(connection.notifyMessage);
     }
 
-    this(DbConnection connection, DbTransaction transaction,
+    this(DbDatabase database, DbConnection connection, DbTransaction transaction,
         string name = null) nothrow @safe
     in
     {
@@ -345,7 +361,7 @@ public:
     }
     do
     {
-        this(connection, name);
+        this(database, connection, name);
         this._transaction = transaction;
         this._flags.set(DbCommandFlag.implicitTransaction, transaction is null);
     }
@@ -470,7 +486,7 @@ public:
      */
     final DbRowValue fetch(bool isScalar) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", lastFetchingRow=", lastFetchingRow,
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", _fetchedRowCount=", _fetchedRowCount,
             ", columnCount=", columnCount, ", isStoredProcedure=", isStoredProcedure, ", isSelectCommandType=", isSelectCommandType(), ")");
         version(profile) debug auto p = PerfFunction.create();
 
@@ -563,11 +579,11 @@ public:
         return this;
     }
 
-    abstract Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe;
+    abstract Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe;
 
-    abstract int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row) @safe;
+    abstract int64 readBlob(DbNamedColumn blobColumn, DbValue blobValueId, size_t row) @safe;
 
-    final int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row, out ubyte[] blob) @safe
+    final int64 readBlob(DbNamedColumn blobColumn, DbValue blobValueId, size_t row, out ubyte[] blob) @safe
     {
         auto saveLongDataOrg = blobColumn.saveLongData;
         scope (exit)
@@ -588,7 +604,7 @@ public:
         return result;
     }
 
-    final int64 readClob(DbNameColumn clobColumn, DbValue clobValueId, size_t row, out string clob) @trusted //@trusted=cast(string)
+    final int64 readClob(DbNamedColumn clobColumn, DbValue clobValueId, size_t row, out string clob) @trusted //@trusted=cast(string)
     {
         ubyte[] blob;
         const result = readBlob(clobColumn, clobValueId, row, blob);
@@ -603,14 +619,9 @@ public:
         if (auto log = canTraceLog())
             log.infof("%s.command.unprepare()%s%s", forLogInfo(), newline, commandText);
 
-        void unprepareExit() @safe
-        {
-            resetStatement(ResetStatementKind.unprepared);
-        }
-
         if (_connection !is null && _connection.isFatalError)
         {
-            unprepareExit();
+            resetStatement(ResetStatementKind.unprepared);
             return this;
         }
 
@@ -619,7 +630,7 @@ public:
         // Must reset regardless if error taken place
         // to avoid double errors when connection is shutting down
         scope (exit)
-            unprepareExit();
+            resetStatement(ResetStatementKind.unprepared);
         doUnprepare(false);
 
         if (stateChange)
@@ -760,7 +771,7 @@ public:
 
     @property final DbDatabase database() nothrow pure @safe
     {
-        return _connection !is null ? _connection.database : null;
+        return _database;
     }
 
     @property final size_t executedCount() const nothrow @safe
@@ -854,7 +865,7 @@ public:
     {
         return _name;
     }
-    
+
     /**
      * Returns number of defining parameters of this DbCommand
      */
@@ -869,7 +880,7 @@ public:
     @property final DbParameterList parameters() nothrow @safe
     {
         if (_parameters is null)
-            _parameters = database.createParameterList();
+            _parameters = database.createParameterList(this);
 
         return _parameters;
     }
@@ -966,6 +977,13 @@ public:
     Duration logTimmingWarningDur;
 
 package(pham.db):
+    enum LoadRowValueFor : ubyte
+    {
+        parameter,
+        scalar,
+        row,
+    }
+
     void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
@@ -1068,6 +1086,66 @@ package(pham.db):
     }
 
 protected:
+    enum ResetImplicitTransactiontFlag : ubyte
+    {
+        none = 0, // Must be bit flag for set
+        error = 1,
+        nonQuery = 2,
+    }
+
+    static struct ExecutePrep
+    {
+    public:
+        @disable this();
+        @disable this(this);
+        @disable void opAssign(typeof(this));
+
+        this(DbCommand command, DbCommandExecuteType executeType) nothrow @safe
+        {
+            this.executeType = executeType;
+            this.command = command;
+            this.wasPrepared = command.prepared;
+        }
+
+        void reset(const(bool) isError) @safe
+        {
+            scope (exit)
+            {
+                command = null;
+                resetPrepare = resetTransaction = false;
+            }
+
+            if (resetTransaction)
+            {
+                auto flags = isError ? ResetImplicitTransactiontFlag.error : ResetImplicitTransactiontFlag.none;
+                if (executeType == DbCommandExecuteType.nonQuery)
+                    flags |= ResetImplicitTransactiontFlag.nonQuery;
+                if (isError || executeType != DbCommandExecuteType.reader)
+                    command.resetImplicitTransactionIf(flags);
+            }
+
+            const isPreparedError = isError && executeType == DbCommandExecuteType.prepare;
+            if (resetPrepare || isPreparedError)
+            {
+                if (wasPrepared)
+                    command.unprepare();
+                else
+                {
+                    scope (exit)
+                        command.resetStatement(ResetStatementKind.unprepared);
+                    command.doUnprepare(isPreparedError);
+                }
+            }
+        }
+
+    public:
+        DbCommand command;
+        const DbCommandExecuteType executeType;
+        bool resetPrepare;
+        bool resetTransaction;
+        const bool wasPrepared;
+    }
+
     final string buildExecuteCommandText(const(BuildCommandTextState) state) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
@@ -1287,6 +1365,24 @@ protected:
         return _executeCommandText;
     }
 
+    final DbParameter getOutputParam(const(size_t) forOrdinal) nothrow @safe
+    {
+        assert(parameters.length);
+
+        size_t parOrdinal;
+        auto params = parameters; // Use local var to avoid function call
+        foreach (param; params)
+        {
+            if (param.isOutput(OutputDirectionOnly.no))
+            {
+                parOrdinal++;
+                if (parOrdinal == forOrdinal)
+                    return param;
+            }
+        }
+        return null;
+    }
+
     bool isSelectCommandType() const nothrow @safe
     {
         return columnCount != 0 && !isStoredProcedure;
@@ -1294,23 +1390,20 @@ protected:
 
     final void mergeOutputParams(ref DbRowValue values) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(values.length=", values.length, ", parameters.length=", parameters.length, ")");
+        assert(values.length);
+        assert(parameters.length);
 
+        size_t valIndex;
         auto params = parameters; // Use local var to avoid function call
-        size_t i;
-        foreach (ref value; values[])
+        foreach (param; params)
         {
-            while (i < params.length)
+            if (param.isOutput(OutputDirectionOnly.no))
             {
-                auto param = params[i++];
-                if (param.isOutput(OutputDirectionOnly.no))
-                {
-                    param.value = value;
+                param.value = values[valIndex++];
+                if (valIndex >= values.length)
                     break;
-                }
             }
-            if (i >= params.length)
-                break;
         }
     }
 
@@ -1343,60 +1436,6 @@ protected:
                     log.errorf("%s.command.removeReaderCompleted() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
             }
         }
-    }
-
-    enum ResetImplicitTransactiontFlag : ubyte
-    {
-        none = 0, // Must be bit flag for set
-        error = 1,
-        nonQuery = 2,
-    }
-
-    static struct ExecutePrep
-    {
-    public:
-        @disable this();
-        @disable this(this);
-        @disable void opAssign(typeof(this));
-
-        this(DbCommand command, DbCommandExecuteType type) nothrow @safe
-        {
-            this.command = command;
-            this.type = type;
-            this.wasPrepared = command.prepared;
-        }
-
-        void reset(const(bool) isError) @safe
-        {
-            if (resetTransaction)
-            {
-                resetTransaction = false;
-                auto flags = isError ? ResetImplicitTransactiontFlag.error : ResetImplicitTransactiontFlag.none;
-                if (type == DbCommandExecuteType.nonQuery)
-                    flags |= ResetImplicitTransactiontFlag.nonQuery;
-                if (isError || type != DbCommandExecuteType.reader)
-                    command.resetImplicitTransactionIf(flags);
-            }
-
-            const isPreparedError = isError && type == DbCommandExecuteType.prepare;
-            if (resetPrepare || isPreparedError)
-            {
-                resetPrepare = false;
-                if (wasPrepared)
-                    command.unprepare();
-                else
-                    command.doUnprepare(isPreparedError);
-            }
-
-            command = null;
-        }
-
-    public:
-        DbCommand command;
-        const DbCommandExecuteType type;
-        bool resetPrepare;
-        bool resetTransaction;
-        const bool wasPrepared;
     }
 
     final void resetImplicitTransactionIf(const(ResetImplicitTransactiontFlag) flags)  @safe
@@ -1451,6 +1490,7 @@ protected:
                 _executeCommandText = null;
                 _baseCommandType = 0;
                 _flags.activeReader = false;
+                _flags.batched = false;
                 _flags.cancelled = false;
                 _flags.prepared = false;
                 _commandState = DbCommandState.unprepared;
@@ -1476,10 +1516,10 @@ protected:
                 _fetchedRows.clear();
                 _lastInsertedId.reset();
                 _recordsAffected.reset();
-                _executedCount++;
                 break;
 
             case ResetStatementKind.executed:
+                _executedCount++;
                 _commandState = DbCommandState.executed;
                 break;
 
@@ -1570,6 +1610,7 @@ protected:
 protected:
     DbColumnList _columns;
     DbConnection _connection;
+    DbDatabase _database;
     DbParameterList _parameters;
     DbTransaction _transaction;
     string _commandText, _executeCommandText;
@@ -1583,7 +1624,7 @@ protected:
     size_t _fetchedCount; // Number of fetch calls
     size_t _fetchedRowCount; // Number of reocrds being fetched so far
     int32 _fetchRecordCount;
-    int _baseCommandType;
+    int32 _baseCommandType;
     EnumSet!DbCommandFlag _flags;
     DbCommandState _commandState;
     DbCommandType _commandType;
@@ -1871,7 +1912,7 @@ public:
         if (routineName.length == 0)
             return false;
 
-        auto parameters = database.createParameterList();
+        auto parameters = database.createParameterList(null);
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
         parameters.add("type", DbType.stringVary, Variant(type));
         if (schema.length)
@@ -1902,7 +1943,7 @@ public:
         if (tableName.length == 0)
             return false;
 
-        auto parameters = database.createParameterList();
+        auto parameters = database.createParameterList(null);
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
         if (schema.length)
             parameters.add("schema", DbType.stringVary, Variant(schema));
@@ -1923,7 +1964,7 @@ public:
 
         checkActive();
 
-        auto parameters = database.createParameterList();
+        auto parameters = database.createParameterList(null);
         parameters.add("viewName", DbType.stringVary, Variant(viewName));
         if (schema.length)
             parameters.add("schema", DbType.stringVary, Variant(schema));
@@ -2915,14 +2956,6 @@ public:
         return this;
     }
 
-    override typeof(this) clear() nothrow @trusted
-    {
-        super.clear();
-        this.forErrorInfoCustom = null;
-        this.forLogInfoCustom = null;
-        return this;
-    }
-
     final string forCacheKey() const nothrow
     {
         return databaseName ~ "." ~ serverName;
@@ -2969,7 +3002,7 @@ public:
      */
     abstract const(string[]) parameterNames() const nothrow;
 
-    typeof(this) parseConnectionString(string connectionString)
+    final typeof(this) parseConnectionString(string connectionString)
     {
         assert(elementSeparators.length != 0);
 
@@ -2998,7 +3031,7 @@ public:
         return this;
     }
 
-    typeof(this) setConnectionString(DbURL!string connectionString)
+    final typeof(this) setConnectionString(DbURL!string connectionString)
     in
     {
         assert(connectionString.scheme == scheme);
@@ -3669,6 +3702,16 @@ protected:
         return DbNameValueValidated.ok;
     }
 
+    override void notify(ref DbIdentitierValuePair item, const(NotificationKind) kind) nothrow @safe
+    {
+        //super.notify(, kind);
+        if (kind == NotificationKind.cleared)
+        {
+            this.forErrorInfoCustom = null;
+            this.forLogInfoCustom = null;
+        }
+    }
+
     final void setDefaultCustomAttributes() nothrow
     {
         customAttributes.put(DbConnectionCustomIdentifier.currentComputerName, currentComputerName());
@@ -3705,7 +3748,7 @@ protected:
     char _valueSeparator = '=';
 }
 
-abstract class DbDatabase : DbNameObject
+abstract class DbDatabase : DbNamedObject
 {
 @safe:
 
@@ -3779,8 +3822,8 @@ public:
     abstract DbConnection createConnection(DbURL!string connectionString);
     abstract DbConnectionStringBuilder createConnectionStringBuilder() nothrow;
     abstract DbConnectionStringBuilder createConnectionStringBuilder(string connectionString);
-    abstract DbParameter createParameter(DbIdentitier name) nothrow;
-    abstract DbParameterList createParameterList() nothrow;
+    abstract DbParameter createParameter(DbCommand command, DbIdentitier name) nothrow;
+    abstract DbParameterList createParameterList(DbCommand command) nothrow;
     abstract DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
         bool defaultTransaction = false) nothrow;
 
@@ -3796,10 +3839,10 @@ public:
         return createColumn(command, id);
     }
 
-    final DbParameter createParameter(string name) nothrow
+    final DbParameter createParameter(DbCommand command, string name) nothrow
     {
         DbIdentitier id = DbIdentitier(name);
-        return createParameter(id);
+        return createParameter(command, id);
     }
 
     final CharClass charClass(const(dchar) c) const @nogc nothrow pure
@@ -4120,7 +4163,7 @@ private:
 }
 
 // This instance is initialize at startup hence no need Mutex to have thread-guard
-class DbDatabaseList : DbNameObjectList!DbDatabase
+class DbDatabaseList : DbNamedObjectList!DbDatabase
 {
 public:
     /**
@@ -4271,7 +4314,7 @@ private:
     __gshared static DbDatabaseList _instance;
 }
 
-class DbNameColumn : DbNameObject
+class DbNamedColumn : DbNamedObject
 {
 public:
     /*
@@ -4469,6 +4512,16 @@ public:
         return this;
     }
 
+    @property final DbCommand command() nothrow pure @safe
+    {
+        return _command;
+    }
+
+    @property final DbDatabase database() nothrow pure @safe
+    {
+        return _database;
+    }
+
     @property bool isArray() const nothrow @safe
     {
         return (_type & DbType.array) != 0;
@@ -4515,6 +4568,34 @@ public:
         return this;
     }
 
+    @property final SaveLongData saveLongData() nothrow pure @safe
+    {
+        return _saveLongData;
+    }
+
+    @property final typeof(this) saveLongData(SaveLongData value) nothrow @trusted
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(value?=", value !is null, ", _list?=", _list !is null, ", columns?=", cast(DbColumnList)_list !is null, ", params?=", cast(DbParameterList)_list !is null, ")");
+        
+        if (auto cl = cast(DbColumnList)_list)
+        {
+            if (_saveLongData !is null)
+                cl._saveLongDataCount--;
+            if (value !is null)
+                cl._saveLongDataCount++;
+        }
+        else if (auto pl = cast(DbParameterList)_list)
+        {
+            if (_saveLongData !is null)
+                pl._saveLongDataCount--;
+            if (value !is null)
+                pl._saveLongDataCount++;
+        }
+
+        _saveLongData = value;
+        return this;
+    }
+
     /**
      * Gets or sets maximum size, in bytes of the parameter
      * used for array, binary, binaryFixed, utf8String, fixedUtf8String
@@ -4552,15 +4633,12 @@ public:
         return this;
     }
 
-public:
-    SaveLongData saveLongData;
-
 protected:
-    void assignTo(DbNameColumn dest) nothrow @safe
+    void assignTo(DbNamedColumn dest) nothrow @safe
     {
         debug(debug_pham_db_db_database) string memberNames;
 
-        foreach (m; FieldNameTuple!DbNameColumn)
+        foreach (m; FieldNameTuple!DbNamedColumn)
         {
             debug(debug_pham_db_db_database) { if (memberNames.length == 0) memberNames = m; else memberNames ~= m; }
 
@@ -4574,6 +4652,8 @@ protected:
     {}
 
 protected:
+    DbCommand _command;
+    DbDatabase _database;
     string _baseName;
     string _baseOwner;
     string _baseSchemaName;
@@ -4587,6 +4667,7 @@ protected:
     EnumSet!DbSchemaColumnFlag _flags;
     //int32 _basePrecision;
     //DbCharset _charset;
+    SaveLongData _saveLongData;
 }
 
 deprecated("please use DbColumn")
@@ -4595,11 +4676,13 @@ alias DbField = DbColumn;
 deprecated("please use DbColumnList")
 alias DbFieldList = DbColumnList;
 
-class DbParameter : DbNameColumn
+class DbParameter : DbNamedColumn
 {
 public:
-    this(DbDatabase database, DbIdentitier name) nothrow @safe
+    this(DbDatabase database, DbCommand command, DbIdentitier name) nothrow @safe
     {
+        this._database = database;
+        this._command = command;
         this._name = name;
         this._flags.allowNull = true;
     }
@@ -4758,7 +4841,7 @@ public:
     LoadLongData loadLongData;
 
 protected:
-    override void assignTo(DbNameColumn dest) nothrow @safe
+    override void assignTo(DbNamedColumn dest) nothrow @safe
     {
         super.assignTo(dest);
 
@@ -4801,12 +4884,13 @@ protected:
     DbParameterDirection _direction;
 }
 
-class DbParameterList : DbNameObjectList!DbParameter, IDisposable
+class DbParameterList : DbNamedObjectList!DbParameter, IDisposable
 {
 public:
-    this(DbDatabase database) nothrow @safe
+    this(DbDatabase database, DbCommand command) nothrow @safe
     {
         this._database = database;
+        this._command = command;
     }
 
     DbParameter add(DbIdentitier name, DbType type, DbParameterDirection direction, int32 size) nothrow @safe
@@ -4902,16 +4986,16 @@ public:
     final DbParameter create(DbIdentitier name) nothrow @safe
     {
         return database !is null
-            ? database.createParameter(name)
-            : new DbParameter(null, name);
+            ? database.createParameter(command, name)
+            : new DbParameter(null, command, name);
     }
 
     final DbParameter create(string name) nothrow @safe
     {
         auto id = DbIdentitier(name);
         return database !is null
-            ? database.createParameter(id)
-            : new DbParameter(null, id);
+            ? database.createParameter(command, id)
+            : new DbParameter(null, command, id);
     }
 
     /**
@@ -5076,6 +5160,11 @@ public:
         return touch(id, type, direction, size);
     }
 
+    @property final DbCommand command() nothrow pure @safe
+    {
+        return _command;
+    }
+
     @property final DbDatabase database() nothrow pure @safe
     {
         return _database;
@@ -5087,20 +5176,31 @@ public:
         return _lastDisposingReason.value;
     }
 
-protected:
-    override void add(DbParameter item) nothrow @safe
+    @property final uint16 saveLongDataCount() const @nogc nothrow @safe
     {
-        super.add(item);
-        item._ordinal = cast(uint32)length;
+        return _saveLongDataCount;
     }
 
+protected:
     void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         clear();
         if (isDisposing(disposingReason))
+        {
+            _command = null;
             _database = null;
+        }
+    }
+
+    override void notify(DbParameter item, const(NotificationKind) kind) nothrow @safe
+    {
+        //super.notify(item, kind);
+        if (kind == NotificationKind.added)
+            item._ordinal = cast(uint32)length;
+        else if (kind == NotificationKind.cleared)
+            _saveLongDataCount = 0;
     }
 
     final void resetStatement(const(ResetStatementKind) kind) nothrow @safe
@@ -5109,24 +5209,12 @@ protected:
 
         foreach (parameter; this)
             parameter.resetStatement(kind);
-
-        //if (kind == ResetStatementKind.executing)
-        //    nullifyOutputs();
-        /*
-            final void nullifyOutputs() nothrow @safe
-    {
-        foreach (parameter; this)
-        {
-            if (parameter.isOutput(OutputDirectionOnly.yes))
-                parameter.nullifyValue();
-        }
-    }
-
-*/
     }
 
 protected:
+    DbCommand _command;
     DbDatabase _database;
+    uint16 _saveLongDataCount;
 
 private:
     LastDisposingReason _lastDisposingReason;
@@ -5415,7 +5503,7 @@ public:
      */
     bool read() @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_fetchedCount=", _fetchedCount, ")");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_fetchedRowCount=", _fetchedRowCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         if (_flags.checkRows)
@@ -5542,19 +5630,20 @@ private:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(checking=", checking, ")");
 
-        _currentRow = command.fetch(false);
+        _currentRow = _command.fetch(false);
+        _flags.checkRows = false;
         const hasRow = _currentRow.length != 0;
         if (hasRow)
         {
             _fetchedRowCount++;
             if (checking)
                 _flags.skipFetchNext = true;
+            readRowBlob(_currentRow);
         }
         else
         {
             _flags.allRowsFetched = true;
         }
-        _flags.checkRows = false;
 
         debug(debug_pham_db_db_database) debug writeln("\t", "_fetchedRowCount=", _fetchedRowCount, ", hasRow=", hasRow);
 
@@ -5570,10 +5659,13 @@ private:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        _currentRow = command.fetch(false);
+        _currentRow = _command.fetch(false);
         const hasRow = _currentRow.length != 0;
         if (hasRow)
+        {
             _fetchedRowCount++;
+            readRowBlob(_currentRow);
+        }
         else
             _flags.allRowsFetched = true;
 
@@ -5585,31 +5677,56 @@ private:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(colIndex=", colIndex, ")");
         version(profile) debug auto p = PerfFunction.create();
 
-        auto column = columns[colIndex];
+        auto column = _columns[colIndex];
         final switch (column.isValueIdType())
         {
             case DbColumnIdType.no:
                 return _currentRow[colIndex].value;
             case DbColumnIdType.array:
-                return command.readArray(column, _currentRow[colIndex]);
+                return _command.readArray(column, _currentRow[colIndex]);
             case DbColumnIdType.blob:
                 if (column.saveLongData is null)
                 {
                     ubyte[] blob;
-                    command.readBlob(column, _currentRow[colIndex], _currentRow.row, blob);
+                    _command.readBlob(column, _currentRow[colIndex], _currentRow.row, blob);
                     return Variant(blob);
                 }
                 else
-                    return Variant(command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+                    return Variant.varNull; // Variant(_command.readBlob(column, _currentRow[colIndex], _currentRow.row));
             case DbColumnIdType.clob:
                 if (column.saveLongData is null)
                 {
                     string clob;
-                    command.readClob(column, _currentRow[colIndex], _currentRow.row, clob);
+                    _command.readClob(column, _currentRow[colIndex], _currentRow.row, clob);
                     return Variant(clob);
                 }
                 else
-                    return Variant(command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+                    return Variant.varNull; // Variant(_command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+        }
+    }
+
+    void readRowBlob(ref DbRowValue rowValue) @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_columns.saveLongDataCount=", _columns.saveLongDataCount, ")");
+        
+        if (_columns.saveLongDataCount == 0)
+            return;
+
+        foreach (i, column; _columns)
+        {
+            if (column.saveLongData is null)
+                continue;
+
+            final switch (column.isValueIdType())
+            {
+                case DbColumnIdType.no:
+                case DbColumnIdType.array:
+                    break;
+
+                case DbColumnIdType.blob:
+                case DbColumnIdType.clob:
+                    _command.readBlob(column, rowValue[i], rowValue.row);
+            }
         }
     }
 
@@ -5643,8 +5760,8 @@ public:
         this._database = database;
         this._name = name;
         this._type = type;
-        this._argumentTypes = database.createParameterList();
-        this._returnType = database.createParameter(DbIdentitier(returnParameterName));
+        this._argumentTypes = database.createParameterList(null);
+        this._returnType = database.createParameter(null, DbIdentitier(returnParameterName));
         this._returnType.direction = DbParameterDirection.returnValue;
     }
 
@@ -5840,7 +5957,7 @@ public:
     }
     do
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.transaction.rollback(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
@@ -5882,7 +5999,7 @@ public:
      */
     final typeof(this) start(string savePointName) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ")");
 
         if (auto log = canTraceLog())
             log.infof("%s.transaction.start(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
@@ -6146,7 +6263,7 @@ protected:
         _connection.checkActive(funcName, file, line);
     }
 
-    string createSavePointStatement(const(DbSavePoint) mode, string savePointName) const @safe nothrow
+    string createSavePointStatement(const(DbSavePoint) mode, string savePointName) const nothrow @safe
     in
     {
         assert(savePointName.length > 0);

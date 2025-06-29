@@ -23,7 +23,7 @@ import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_object : shortClassName, VersionString;
 import pham.db.db_buffer;
-import pham.db.db_database : DbNameColumn;
+import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
 import pham.db.db_object;
 import pham.db.db_parser;
@@ -63,6 +63,8 @@ class MyProtocol : DbDisposableObject
 public:
     this(MyConnection connection) nothrow pure
     {
+        debug(debug_pham_db_db_myprotocol) debug writeln("**********");
+
         this._connection = connection;
         this.maxSinglePackage = MyDefaultSize.packetReadBufferLength;
     }
@@ -617,7 +619,7 @@ public:
         return !rowPackage.isEOF();
     }
 
-    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNameColumn column, const(bool) readColumnLength)
+    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNamedColumn column, const(bool) readColumnLength)
     {
         debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", readColumnLength=", readColumnLength, ")");
         version(profile) debug auto p = PerfFunction.create();
@@ -1137,6 +1139,8 @@ protected:
     {
         if (isDisposing(disposingReason))
             _connection = null;
+
+        debug(debug_pham_db_db_myprotocol) debug writeln("**********");
     }
 
     final MyOkResponse handleAuthenticationChallenge(ref MyConnectingStateInfo stateInfo, bool authMethodChanged)

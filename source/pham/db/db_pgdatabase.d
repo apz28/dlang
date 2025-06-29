@@ -717,16 +717,16 @@ public:
 class PgColumn : DbColumn
 {
 public:
-    this(PgCommand command, DbIdentitier name) nothrow pure @safe
+    this(PgDatabase database, PgCommand command, DbIdentitier name) nothrow @safe
     {
-        super(command, name);
+        super(database !is null ? database : pgDB, command, name);
     }
 
     final override DbColumn createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createColumn(cast(PgCommand)command, name)
-            : new PgColumn(cast(PgCommand)command, name);
+            : new PgColumn(pgDB, cast(PgCommand)command, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -743,16 +743,9 @@ public:
 class PgColumnList: DbColumnList
 {
 public:
-    this(PgCommand command) nothrow pure @safe
+    this(PgDatabase database, PgCommand command) nothrow @safe
     {
-        super(command);
-    }
-
-    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(PgCommand)command, name)
-            : new PgColumn(cast(PgCommand)command, name);
+        super(database !is null ? database : pgDB, command);
     }
 
     @property final PgCommand pgCommand() nothrow pure @safe
@@ -765,21 +758,21 @@ protected:
     {
         return database !is null
             ? database.createColumnList(cast(PgCommand)command)
-            : new PgColumnList(cast(PgCommand)command);
+            : new PgColumnList(pgDB, cast(PgCommand)command);
     }
 }
 
 class PgCommand : SkCommand
 {
 public:
-    this(PgConnection connection, string name = null) nothrow @safe
+    this(PgDatabase database, PgConnection connection, string name = null) nothrow @safe
     {
-        super(connection, name);
+        super(database, connection, name);
     }
 
-    this(PgConnection connection, PgTransaction transaction, string name = null) nothrow @safe
+    this(PgDatabase database, PgConnection connection, PgTransaction transaction, string name = null) nothrow @safe
     {
-        super(connection, transaction, name);
+        super(database, connection, transaction, name);
     }
 
 	final override string getExecutionPlan(uint vendorMode = 0) @safe
@@ -816,13 +809,13 @@ public:
         return inputParameters!PgParameter(inputOnly);
     }
 
-    final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
+    final override Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe
     {
         auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
         throw new PgException(0, msg);
     }
 
-    final override int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row) @safe
+    final override int64 readBlob(DbNamedColumn blobColumn, DbValue blobValueId, size_t row) @safe
     in
     {
         assert(blobColumn.saveLongData !is null);
@@ -1093,16 +1086,11 @@ protected:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
 
-        // Must reset regardless if error taken place
-        // to avoid double errors when connection is shutting down
-        scope (exit)
-            _handle.reset();
-
         if (_handle && !connection.isFatalError)
             deallocateHandle();
     }
 
-    static void fillNamedColumn(DbNameColumn column, const ref PgOIdColumnInfo oidColumn, const(bool) isNew) nothrow @safe
+    static void fillNamedColumn(DbNamedColumn column, const ref PgOIdColumnInfo oidColumn, const(bool) isNew) nothrow @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(oidColumn=", oidColumn.traceString(), ")");
 
@@ -1134,7 +1122,7 @@ protected:
         localColumns.reserve(oidRowDescription.columns.length);
         foreach (i, ref oidColumn; oidRowDescription.columns)
         {
-            auto newColumn = localColumns.create(this, oidColumn.name);
+            auto newColumn = localColumns.create(oidColumn.name);
             fillNamedColumn(newColumn, oidColumn, true);
             localColumns.put(newColumn);
 
@@ -1544,7 +1532,7 @@ public:
     }
     do
     {
-        return new PgColumn(cast(PgCommand)command, name);
+        return new PgColumn(this, cast(PgCommand)command, name);
     }
 
     override DbColumnList createColumnList(DbCommand command) nothrow
@@ -1554,7 +1542,7 @@ public:
     }
     do
     {
-        return new PgColumnList(cast(PgCommand)command);
+        return new PgColumnList(this, cast(PgCommand)command);
     }
 
     override DbCommand createCommand(DbConnection connection,
@@ -1565,7 +1553,7 @@ public:
     }
     do
     {
-        return new PgCommand(cast(PgConnection)connection, name);
+        return new PgCommand(this, cast(PgConnection)connection, name);
     }
 
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
@@ -1577,7 +1565,7 @@ public:
     }
     do
     {
-        return new PgCommand(cast(PgConnection)connection, cast(PgTransaction)transaction, name);
+        return new PgCommand(this, cast(PgConnection)connection, cast(PgTransaction)transaction, name);
     }
 
     override DbConnection createConnection(string connectionString)
@@ -1624,14 +1612,14 @@ public:
         return new PgConnectionStringBuilder(this, connectionString);
     }
 
-    override DbParameter createParameter(DbIdentitier name) nothrow
+    override DbParameter createParameter(DbCommand command, DbIdentitier name) nothrow
     {
-        return new PgParameter(this, name);
+        return new PgParameter(this, cast(PgCommand)command, name);
     }
 
-    override DbParameterList createParameterList() nothrow
+    override DbParameterList createParameterList(DbCommand command) nothrow
     {
-        return new PgParameterList(this);
+        return new PgParameterList(this, cast(PgCommand)command);
     }
 
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
@@ -1703,9 +1691,9 @@ public:
 class PgParameter : DbParameter
 {
 public:
-    this(PgDatabase database, DbIdentitier name) nothrow @safe
+    this(PgDatabase database, PgCommand command, DbIdentitier name) nothrow @safe
     {
-        super(database !is null ? database : pgDB, name);
+        super(database !is null ? database : pgDB, command, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -1731,9 +1719,9 @@ protected:
 class PgParameterList : DbParameterList
 {
 public:
-    this(PgDatabase database) nothrow @safe
+    this(PgDatabase database, PgCommand command) nothrow @safe
     {
-        super(database !is null ? database : pgDB);
+        super(database !is null ? database : pgDB, command);
     }
 }
 

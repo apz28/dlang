@@ -51,14 +51,14 @@ static immutable DbDefaultConnectionParameterValues skDefaultConnectionParameter
 class SkCommand : DbCommand
 {
 public:
-    this(SkConnection connection, string name = null) nothrow @safe
+    this(DbDatabase database, SkConnection connection, string name = null) nothrow @safe
     {
-        super(connection, name);
+        super(database, connection, name);
     }
 
-    this(SkConnection connection, DbTransaction transaction, string name = null) nothrow @safe
+    this(DbDatabase database, SkConnection connection, DbTransaction transaction, string name = null) nothrow @safe
     {
-        super(connection, transaction, name);
+        super(database, connection, transaction, name);
     }
 }
 

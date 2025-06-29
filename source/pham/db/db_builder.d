@@ -1285,7 +1285,7 @@ unittest // columnNameString
 {
     import pham.utl.utl_array_append : Appender;
 
-    auto parameters = new DbParameterList(null);
+    auto parameters = new DbParameterList(null, null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
 
@@ -1298,7 +1298,7 @@ unittest // parameterNameString
 {
     import pham.utl.utl_array_append : Appender;
 
-    auto parameters = new DbParameterList(null);
+    auto parameters = new DbParameterList(null, null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
 
@@ -1311,7 +1311,7 @@ unittest // parameterConditionString
 {
     import pham.utl.utl_array_append : Appender;
 
-    auto parameters = new DbParameterList(null);
+    auto parameters = new DbParameterList(null, null);
     parameters.add("colum1", DbType.int32).isKey = true;
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
@@ -1325,7 +1325,7 @@ unittest // parameterUpdateColumn
 {
     import pham.utl.utl_array_append : Appender;
 
-    auto parameters = new DbParameterList(null);
+    auto parameters = new DbParameterList(null, null);
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
@@ -1342,7 +1342,7 @@ unittest // SqlBuilder
     auto db = new FbDatabase();
 
     { // Condition
-        auto params = new DbParameterList(db);
+        auto params = new DbParameterList(db, null);
         auto sql = Appender!string(200);
         SqlBuilder builder;
         builder.putColumn("F1")
@@ -1413,7 +1413,7 @@ unittest // SqlBuilder
     }
 
     { // Select
-        auto params = new DbParameterList(db);
+        auto params = new DbParameterList(db, null);
         auto sql = Appender!string(200);
         SqlBuilder builder;
         builder.putStatementOp(StatementOp.select)
@@ -1476,7 +1476,7 @@ unittest // SqlBuilder
     }
 
     { // Insert
-        auto params = new DbParameterList(db);
+        auto params = new DbParameterList(db, null);
         auto sql = Appender!string(200);
         SqlBuilder builder;
         builder.putStatementOp(StatementOp.insert)
@@ -1491,7 +1491,7 @@ unittest // SqlBuilder
     }
 
     { // Update
-        auto params = new DbParameterList(db);
+        auto params = new DbParameterList(db, null);
         auto sql = Appender!string(200);
         SqlBuilder builder;
         builder.putStatementOp(StatementOp.update)
@@ -1518,7 +1518,7 @@ unittest // SqlBuilder
     }
 
     { // Delete
-        auto params = new DbParameterList(db);
+        auto params = new DbParameterList(db, null);
         auto sql = Appender!string(200);
         SqlBuilder builder;
         builder.putStatementOp(StatementOp.delete_)
@@ -1539,7 +1539,7 @@ unittest // SqlBuilder
     }
 
     { // Delete+putValueLiteral
-        auto params = new DbParameterList(db);
+        auto params = new DbParameterList(db, null);
         auto sql = Appender!string(200);
         SqlBuilder builder;
         builder.putStatementOp(StatementOp.delete_)

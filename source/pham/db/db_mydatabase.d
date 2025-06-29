@@ -53,16 +53,16 @@ public:
 class MyColumn : DbColumn
 {
 public:
-    this(MyCommand command, DbIdentitier name) nothrow pure @safe
+    this(MyDatabase database, MyCommand command, DbIdentitier name) nothrow @safe
     {
-        super(command, name);
+        super(database !is null ? database : myDB, command, name);
     }
 
     final override DbColumn createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createColumn(cast(MyCommand)command, name)
-            : new MyColumn(cast(MyCommand)command, name);
+            : new MyColumn(myDB, cast(MyCommand)command, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -79,16 +79,9 @@ public:
 class MyColumnList: DbColumnList
 {
 public:
-    this(MyCommand command) nothrow pure @safe
+    this(MyDatabase database, MyCommand command) nothrow @safe
     {
-        super(command);
-    }
-
-    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(MyCommand)command, name)
-            : new MyColumn(cast(MyCommand)command, name);
+        super(database !is null ? database : myDB, command);
     }
 
     @property final MyCommand myCommand() nothrow pure @safe
@@ -101,21 +94,21 @@ protected:
     {
         return database !is null
             ? database.createColumnList(cast(MyCommand)command)
-            : new MyColumnList(cast(MyCommand)command);
+            : new MyColumnList(myDB, cast(MyCommand)command);
     }
 }
 
 class MyCommand : SkCommand
 {
 public:
-    this(MyConnection connection, string name = null) nothrow @safe
+    this(MyDatabase database, MyConnection connection, string name = null) nothrow @safe
     {
-        super(connection, name);
+        super(database, connection, name);
     }
 
-    this(MyConnection connection, MyTransaction transaction, string name = null) nothrow @safe
+    this(MyDatabase database, MyConnection connection, MyTransaction transaction, string name = null) nothrow @safe
     {
-        super(connection, transaction, name);
+        super(database, connection, transaction, name);
     }
 
     final override string getExecutionPlan(uint vendorMode = 0) @safe
@@ -156,13 +149,13 @@ public:
         return result.data;
     }
 
-    final override Variant readArray(DbNameColumn, DbValue) @safe
+    final override Variant readArray(DbNamedColumn, DbValue) @safe
     {
         auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
         throw new MyException(0, msg);
     }
 
-    final override int64 readBlob(DbNameColumn, DbValue, size_t) @safe
+    final override int64 readBlob(DbNamedColumn, DbValue, size_t) @safe
     {
         auto msg = DbMessage.eUnsupportFunction.fmtMessage(__FUNCTION__);
         throw new MyException(0, msg);
@@ -406,9 +399,6 @@ protected:
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
 
-        scope (exit)
-            _handle.reset();
-
         if (!isPreparedError && !connection.isFatalError)
             purgePendingRows();
 
@@ -416,7 +406,7 @@ protected:
             deallocateHandle();
     }
 
-    static void fillNamedColumn(DbNameColumn column, const ref MyColumnInfo myColumn, const(bool) isNew) nothrow @safe
+    static void fillNamedColumn(DbNamedColumn column, const ref MyColumnInfo myColumn, const(bool) isNew) nothrow @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(myColumn=", myColumn.traceString(), ")");
 
@@ -470,7 +460,7 @@ protected:
                 foreach (ref myColumn; response.columns)
                 {
                     auto newName = myColumn.useName;
-                    auto newColumn = localColumns.create(this, newName);
+                    auto newColumn = localColumns.create(newName);
                     fillNamedColumn(newColumn, myColumn, true);
                     localColumns.put(newColumn);
                 }
@@ -512,7 +502,7 @@ protected:
             localColumns.reserve(response.columns.length);
             foreach (i, ref myColumn; response.columns)
             {
-                auto newColumn = localColumns.create(this, myColumn.useName);
+                auto newColumn = localColumns.create(myColumn.useName);
                 newColumn.isAlias = myColumn.isAlias;
                 fillNamedColumn(newColumn, myColumn, true);
                 localColumns.put(newColumn);
@@ -1105,7 +1095,7 @@ public:
     }
     do
     {
-        return new MyColumn(cast(MyCommand)command, name);
+        return new MyColumn(this, cast(MyCommand)command, name);
     }
 
     override DbColumnList createColumnList(DbCommand command) nothrow
@@ -1115,7 +1105,7 @@ public:
     }
     do
     {
-        return new MyColumnList(cast(MyCommand)command);
+        return new MyColumnList(this, cast(MyCommand)command);
     }
 
     override DbCommand createCommand(DbConnection connection,
@@ -1126,7 +1116,7 @@ public:
     }
     do
     {
-        return new MyCommand(cast(MyConnection)connection, name);
+        return new MyCommand(this, cast(MyConnection)connection, name);
     }
 
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
@@ -1138,7 +1128,7 @@ public:
     }
     do
     {
-        return new MyCommand(cast(MyConnection)connection, cast(MyTransaction)transaction, name);
+        return new MyCommand(this, cast(MyConnection)connection, cast(MyTransaction)transaction, name);
     }
 
     override DbConnection createConnection(string connectionString)
@@ -1185,14 +1175,14 @@ public:
         return new MyConnectionStringBuilder(this, connectionString);
     }
 
-    override DbParameter createParameter(DbIdentitier name) nothrow
+    override DbParameter createParameter(DbCommand command, DbIdentitier name) nothrow
     {
-        return new MyParameter(this, name);
+        return new MyParameter(this, cast(MyCommand)command, name);
     }
 
-    override DbParameterList createParameterList() nothrow
+    override DbParameterList createParameterList(DbCommand command) nothrow
     {
-        return new MyParameterList(this);
+        return new MyParameterList(this, cast(MyCommand)command);
     }
 
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
@@ -1255,9 +1245,9 @@ public:
 class MyParameter : DbParameter
 {
 public:
-    this(MyDatabase database, DbIdentitier name) nothrow @safe
+    this(MyDatabase database, MyCommand command, DbIdentitier name) nothrow @safe
     {
-        super(database !is null ? database : myDB, name);
+        super(database !is null ? database : myDB, command, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -1283,9 +1273,9 @@ protected:
 class MyParameterList : DbParameterList
 {
 public:
-    this(MyDatabase database) nothrow @safe
+    this(MyDatabase database, MyCommand command) nothrow @safe
     {
-        super(database !is null ? database : myDB);
+        super(database !is null ? database : myDB, command);
     }
 }
 

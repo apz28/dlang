@@ -949,6 +949,11 @@ public:
 		}
     }
 
+    ubyte[] readFixedBytes(scope const(DbBaseTypeInfo) baseType)
+    {
+        return readOpaqueBytes(baseType.size);
+    }
+
     char[] readFixedChars(scope const(DbBaseTypeInfo) baseType) @trusted // @trusted=cast()
     {
         const charsCount = baseType.size / 4; // UTF8 to char

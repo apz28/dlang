@@ -478,7 +478,7 @@ enum DbTransactionState : ubyte
  * $(DbType.stringVary) A variable-length of utf8 characters
  * $(DbType.json) A parsed representation of an JSON document
  * $(DbType.xml) A parsed representation of an XML document or fragment
- * $(DbType.binaryVary) A variable-length stream of binary data
+ * $(DbType.binaryVary) A variable-length of binary data
  * $(DbType.text) A variable-length stream of text data
  * $(DbType.struct_) A type representing a struct/record
  * $(DbType.array) A type representing an array of value

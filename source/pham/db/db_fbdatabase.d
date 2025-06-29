@@ -94,7 +94,7 @@ public:
             _command = null;
     }
 
-    Variant readArray(DbNameColumn arrayColumn) @safe
+    Variant readArray(DbNamedColumn arrayColumn) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -158,7 +158,7 @@ public:
         assert(0);
     }
 
-    T[] readArrayImpl(T)(DbNameColumn arrayColumn) @safe
+    T[] readArrayImpl(T)(DbNamedColumn arrayColumn) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -228,7 +228,7 @@ public:
         return result;
     }
 
-    FbIscArrayGetResponse readArrayRaw(DbNameColumn arrayColumn) @safe
+    FbIscArrayGetResponse readArrayRaw(DbNamedColumn arrayColumn) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -237,7 +237,7 @@ public:
         return protocol.arrayGetRead(this);
     }
 
-    void writeArray(DbNameColumn arrayColumn, ref DbValue arrayValue) @safe
+    void writeArray(DbNamedColumn arrayColumn, ref DbValue arrayValue) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -324,7 +324,7 @@ public:
         _id = protocol.arrayPutRead().id;
     }
 
-    DbWriteBuffer writeArrayImpl(T)(DbWriteBuffer writerBuffer, DbNameColumn arrayColumn, ref DbValue arrayValue,
+    DbWriteBuffer writeArrayImpl(T)(DbWriteBuffer writerBuffer, DbNamedColumn arrayColumn, ref DbValue arrayValue,
         out uint elements) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
@@ -621,7 +621,7 @@ public:
 
         auto protocol = fbConnection.protocol;
         protocol.blobEndWrite(writer, this, FbIsc.op_cancel_blob);
-        return &protocol.blobEndRead;
+        return FbDeferredResponse("blobEndRead", &protocol.blobEndRead);
     }
 
     pragma(inline, true)
@@ -659,7 +659,7 @@ public:
 
         auto protocol = fbConnection.protocol;
         protocol.blobEndWrite(writer, this, FbIsc.op_close_blob);
-        return &protocol.blobEndRead;
+        return FbDeferredResponse("blobEndRead", &protocol.blobEndRead);
     }
 
     void create()
@@ -953,7 +953,7 @@ package(pham.db):
         auto protocol = fbConnection.protocol;
         protocol.blobEndWrite(this, FbIsc.op_cancel_blob);
         static if (fbDeferredProtocol)
-            protocol.deferredResponses ~= &protocol.blobEndRead;
+            protocol.deferredResponses ~= FbDeferredResponse("blobEndRead", &protocol.blobEndRead);
         else
         {
             auto deferredInfo = FbDeferredInfo(false);
@@ -985,7 +985,7 @@ package(pham.db):
             auto protocol = fbConnection.protocol;
             protocol.blobEndWrite(this, FbIsc.op_close_blob);
             static if (fbDeferredProtocol)
-                protocol.deferredResponses ~= &protocol.blobEndRead;
+                protocol.deferredResponses ~= FbDeferredResponse("blobEndRead", &protocol.blobEndRead);
             else
             {
                 auto deferredInfo = FbDeferredInfo(false);
@@ -1033,16 +1033,16 @@ public:
 class FbColumn : DbColumn
 {
 public:
-    this(FbCommand command, DbIdentitier name) nothrow pure @safe
+    this(FbDatabase database, FbCommand command, DbIdentitier name) nothrow @safe
     {
-        super(command, name);
+        super(database !is null ? database : fbDB, command, name);
     }
 
     final override DbColumn createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
             ? database.createColumn(cast(FbCommand)command, name)
-            : new FbColumn(cast(FbCommand)command, name);
+            : new FbColumn(fbDB, cast(FbCommand)command, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -1059,16 +1059,9 @@ public:
 class FbColumnList: DbColumnList
 {
 public:
-    this(FbCommand command) nothrow pure @safe
+    this(FbDatabase database, FbCommand command) nothrow @safe
     {
-        super(command);
-    }
-
-    final override DbColumn create(DbCommand command, DbIdentitier name) nothrow @safe
-    {
-        return database !is null
-            ? database.createColumn(cast(FbCommand)command, name)
-            : new FbColumn(cast(FbCommand)command, name);
+        super(database !is null ? database : fbDB, command);
     }
 
     @property final FbCommand fbCommand() nothrow pure @safe
@@ -1081,22 +1074,23 @@ protected:
     {
         return database !is null
             ? database.createColumnList(cast(FbCommand)command)
-            : new FbColumnList(cast(FbCommand)command);
+            : new FbColumnList(fbDB, cast(FbCommand)command);
     }
 }
 
 class FbCommand : SkCommand
 {
 public:
-    this(FbConnection connection, string name = null) nothrow @safe
+    this(FbDatabase database, FbConnection connection, string name = null) nothrow @safe
     {
-        super(connection, name);
+        super(database, connection, name);
         this._flags.include(DbCommandFlag.transactionRequired);
     }
 
-    this(FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
+    this(FbDatabase database, FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
     {
-        super(connection, transaction, name);
+        super(database, connection, transaction, name);
+        this._flags.include(DbCommandFlag.transactionRequired);
     }
 
     // Firebird >= v4.0
@@ -1144,7 +1138,7 @@ public:
         return info.plan.idup;
 	}
 
-    final override Variant readArray(DbNameColumn arrayColumn, DbValue arrayValueId) @safe
+    final override Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -1155,7 +1149,7 @@ public:
         return array.readArray(arrayColumn);
     }
 
-    final override int64 readBlob(DbNameColumn blobColumn, DbValue blobValueId, size_t row) @safe
+    final override int64 readBlob(DbNamedColumn blobColumn, DbValue blobValueId, size_t row) @safe
     in
     {
         assert(blobColumn.saveLongData !is null);
@@ -1173,7 +1167,7 @@ public:
 
     alias readBlob = SkCommand.readBlob;
 
-    final DbValue writeArray(DbNameColumn arrayColumn, ref DbValue arrayValue) @safe
+    final DbValue writeArray(DbNamedColumn arrayColumn, ref DbValue arrayValue) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
@@ -1279,7 +1273,7 @@ protected:
 
         auto protocol = fbConnection.protocol;
         protocol.allocateCommandWrite(writer);
-        return &allocateHandleRead;
+        return FbDeferredResponse("allocateHandleRead", &allocateHandleRead);
     }
 
     final bool canBundleOperations() nothrow @safe
@@ -1304,13 +1298,13 @@ protected:
                 if (batched)
                 {
                     protocol.releaseCommandBatchWrite(writer, this);
-                    protocol.deferredResponses ~= &protocol.releaseCommandBatchRead;
+                    protocol.deferredResponses ~= FbDeferredResponse("releaseCommandBatchRead", &protocol.releaseCommandBatchRead);
                 }
 
                 protocol.deallocateCommandWrite(writer, this);
                 writer.flush();
 
-                protocol.deferredResponses ~= &protocol.deallocateCommandRead;
+                protocol.deferredResponses ~= FbDeferredResponse("deallocateCommandRead", &protocol.deallocateCommandRead);
             }
             else
             {
@@ -1345,11 +1339,11 @@ protected:
 
         auto protocol = fbConnection.protocol;
 
-        if (_executedCount > 1 && type != DbCommandExecuteType.nonQuery)
+        if (_executedCount != 0 && type != DbCommandExecuteType.nonQuery)
         {
             protocol.closeCursorCommandWrite(this);
             static if (fbDeferredProtocol)
-                protocol.deferredResponses ~= &protocol.closeCursorCommandRead;
+                protocol.deferredResponses ~= FbDeferredResponse("closeCursorCommandRead", &protocol.closeCursorCommandRead);
             else
                 protocol.closeCursorCommandRead();
         }
@@ -1368,6 +1362,7 @@ protected:
             }
         }
 
+        bool readRowBlobStoredProcedure;
         if (hasStoredProcedureFetched())
         {
             auto response = protocol.readSqlResponse();
@@ -1376,8 +1371,7 @@ protected:
                 auto row = readRow();
                 _fetchedRows.enqueue(row);
                 _fetchedRowCount++;
-                if (parameterCount)
-                    mergeOutputParams(row);
+                readRowBlobStoredProcedure = true;
             }
         }
 
@@ -1391,6 +1385,18 @@ protected:
         }
 
         resetStatement(ResetStatementKind.executed);
+
+        if (readRowBlobStoredProcedure)
+        {
+            const hasParams = hasOutputParameters();
+            if (hasParams)
+            {
+                readRowBlob(_fetchedRows.front, LoadRowValueFor.parameter);
+                readRowArray(_fetchedRows.front, LoadRowValueFor.parameter);
+                mergeOutputParams(_fetchedRows.front);
+            }
+        }
+
         if (stateChange)
             stateChange(this, commandState);
     }
@@ -1443,38 +1449,8 @@ protected:
 
         if (isScalar && _fetchedRows.length)
         {
-            auto column = columns[0];
-            final switch (column.isValueIdType())
-            {
-                case DbColumnIdType.no:
-                    break;
-
-                case DbColumnIdType.blob:
-                    if (column.saveLongData is null)
-                    {
-                        ubyte[] blob;
-                        readBlob(column, _fetchedRows.front[0], _fetchedRows.front.row, blob);
-                        _fetchedRows.front[0].value = Variant(blob);
-                    }
-                    else
-                        readBlob(column, _fetchedRows.front[0], _fetchedRows.front.row);
-                    break;
-
-                case DbColumnIdType.clob:
-                    if (column.saveLongData is null)
-                    {
-                        string clob;
-                        readClob(column, _fetchedRows.front[0], _fetchedRows.front.row, clob);
-                        _fetchedRows.front[0].value = Variant(clob);
-                    }
-                    else
-                        readBlob(column, _fetchedRows.front[0], _fetchedRows.front.row);
-                    break;
-
-                case DbColumnIdType.array:
-                    _fetchedRows.front[0].value = readArray(column, _fetchedRows.front[0]);
-                    break;
-            }
+            readRowBlob(_fetchedRows.front, LoadRowValueFor.scalar);
+            readRowArray(_fetchedRows.front, LoadRowValueFor.scalar);
         }
     }
 
@@ -1491,27 +1467,23 @@ protected:
 
         static if (fbDeferredProtocol)
         {
-            FbDeferredResponse[] deferredResponses;
+            auto protocol = fbConnection.protocol;
 
-            { // Scope
+            { // Scope for writer
                 auto writer = FbXdrWriter(fbConnection);
 
                 if (!isFbHandle)
-                    deferredResponses ~= allocateHandleWrite(writer);
+                    protocol.deferredResponses ~= allocateHandleWrite(writer);
 
-                deferredResponses ~= doPrepareWrite(writer, sql);
+                protocol.deferredResponses ~= doPrepareWrite(writer, sql);
 
                 if (commandType != DbCommandType.ddl)
-                    deferredResponses ~= getStatementTypeWrite(writer);
+                    protocol.deferredResponses ~= getStatementTypeWrite(writer);
 
                 writer.flush();
             }
 
-            auto deferredInfo = FbDeferredInfo(true);
-            foreach (deferredResponse; deferredResponses)
-                deferredResponse(deferredInfo);
-            if (deferredInfo.hasError)
-                throw deferredInfo.toException();
+            protocol.callDeferredResponses();
         }
         else
         {
@@ -1560,20 +1532,12 @@ protected:
 
         auto protocol = fbConnection.protocol;
         protocol.prepareCommandWrite(writer, this, sql);
-        return &doPrepareRead;
+        return FbDeferredResponse("doPrepareRead", &doPrepareRead);
     }
 
     final override void doUnprepare(const(bool) isPreparedError) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
-
-        // Must reset regardless if error taken place
-        // to avoid double errors when connection is shutting down
-        scope (exit)
-        {
-            batched = false;
-            _handle.reset();
-        }
 
         if (isFbHandle && !connection.isFatalError)
             deallocateHandle();
@@ -1612,7 +1576,7 @@ protected:
         return response.toCommandBatchResult();
     }
 
-    static void fillNamedColumn(DbNameColumn column, const ref FbIscColumnInfo iscColumn, const(bool) isNew) nothrow @safe
+    static void fillNamedColumn(DbNamedColumn column, const ref FbIscColumnInfo iscColumn, const(bool) isNew) nothrow @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(iscColumn=", iscColumn.traceString(), ")");
 
@@ -1662,7 +1626,7 @@ protected:
 
         auto protocol = fbConnection.protocol;
         protocol.typeCommandWrite(writer, this);
-        return &getStatementTypeRead;
+        return FbDeferredResponse("getStatementTypeRead", &getStatementTypeRead);
 	}
 
     final override bool isSelectCommandType() const nothrow @safe
@@ -1689,7 +1653,7 @@ protected:
                 localColumns.reserve(iscBindInfo.columns.length);
                 foreach (i, ref iscColumn; iscBindInfo.columns)
                 {
-                    auto newColumn = localColumns.create(this, iscColumn.useName.idup);
+                    auto newColumn = localColumns.create(iscColumn.useName.idup);
                     newColumn.isAlias = iscColumn.aliasName.length != 0;
                     fillNamedColumn(newColumn, iscColumn, true);
                     localColumns.put(newColumn);
@@ -1747,20 +1711,142 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = fbConnection.protocol;
-        return protocol.readValues(this, cast(FbColumnList)columns, _fetchedRowCount);
+        return protocol.readValues(cast(FbColumnList)columns, _fetchedRowCount);
+    }
+
+    final void readRowArray(ref DbRowValue rowValue, const(LoadRowValueFor) valueFor) @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(valueFor=", valueFor, ")");
+
+        final switch (valueFor)
+        {
+            case LoadRowValueFor.parameter:
+                size_t valIndex;
+                auto params = parameters; // Use local var to avoid function call
+                foreach (param; params)
+                {
+                    if (!param.isOutput(OutputDirectionOnly.no))
+                        continue;
+
+                    readRowArray(rowValue, valueFor, param, valIndex);
+                    if (++valIndex >= rowValue.length)
+                        return;
+                }            
+                return;
+                
+            case LoadRowValueFor.scalar:
+                readRowArray(rowValue, valueFor, columns[0], 0);
+                return;
+                
+            case LoadRowValueFor.row:
+                assert(0, "Must not call");
+        }
+    }
+
+    final void readRowArray(ref DbRowValue rowValue, const(LoadRowValueFor) valueFor, DbNamedColumn column, const(size_t) colIndex) @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(valueFor=", valueFor, ", colIndex=", colIndex, ")");
+
+        auto colValue = rowValue[colIndex];
+        if (colValue.isNull)
+            return;
+
+        final switch (column.isValueIdType())
+        {
+            case DbColumnIdType.no:
+            case DbColumnIdType.blob:
+            case DbColumnIdType.clob:
+                return;
+
+            case DbColumnIdType.array:
+                rowValue[colIndex].value = readArray(column, colValue);
+                return;
+        }
+    }
+    
+    final void readRowBlob(ref DbRowValue rowValue, const(LoadRowValueFor) valueFor) @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(valueFor=", valueFor, ")");
+
+        final switch (valueFor)
+        {
+            case LoadRowValueFor.parameter:
+                size_t valIndex;
+                auto params = parameters; // Use local var to avoid function call
+                foreach (param; params)
+                {
+                    if (!param.isOutput(OutputDirectionOnly.no))
+                        continue;
+
+                    readRowBlob(rowValue, valueFor, param, valIndex);
+                    if (++valIndex >= rowValue.length)
+                        return;
+                }
+                return;
+                
+            case LoadRowValueFor.scalar:
+                readRowBlob(rowValue, valueFor, columns[0], 0);
+                return;
+                
+            case LoadRowValueFor.row:
+        }
+    }
+    
+    final void readRowBlob(ref DbRowValue rowValue, const(LoadRowValueFor) valueFor, DbNamedColumn column, const(size_t) colIndex) @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(valueFor=", valueFor, ", colIndex=", colIndex, ")");
+        
+        auto colValue = rowValue[colIndex];
+        if (colValue.isNull)
+            return;
+
+        final switch (column.isValueIdType())
+        {
+            case DbColumnIdType.no:
+            case DbColumnIdType.array:
+                return;
+
+            case DbColumnIdType.blob:
+                if (column.saveLongData !is null)
+                {
+                    readBlob(column, colValue, rowValue.row);
+                    rowValue[colIndex].nullify();
+                }
+                else if (valueFor != LoadRowValueFor.row)
+                {
+                    ubyte[] blob;
+                    readBlob(column, colValue, rowValue.row, blob);
+                    rowValue[colIndex].value = Variant(blob);
+                }
+                return;
+
+            case DbColumnIdType.clob:
+                if (column.saveLongData !is null)
+                {
+                    readBlob(column, colValue, rowValue.row);
+                    rowValue[colIndex].nullify();
+                }
+                else if (valueFor != LoadRowValueFor.row)
+                {
+                    string clob;
+                    readClob(column, colValue, rowValue.row, clob);
+                    rowValue[colIndex].value = Variant(clob);
+                }
+                return;
+        }
     }
 
     final void removeBatch(ref FbCommandBatch commandBatch) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
-
         assert(commandBatch.fbCommand is this);
 
         scope (exit)
             batched = false;
+
         auto protocol = fbConnection.protocol;
         protocol.releaseCommandBatchWrite(this);
-        protocol.deferredResponses ~= &protocol.releaseCommandBatchRead;
+        protocol.deferredResponses ~= FbDeferredResponse("releaseCommandBatchRead", &protocol.releaseCommandBatchRead);
     }
 }
 
@@ -1780,7 +1866,7 @@ public:
 
     FbParameterList addParameters() nothrow
     {
-        auto result = cast(FbParameterList)_command.database.createParameterList();
+        auto result = cast(FbParameterList)_command.database.createParameterList(fbCommand);
         _parameters ~= result;
         return result;
     }
@@ -2000,7 +2086,7 @@ FROM RDB$PROCEDURES
 WHERE RDB$PROCEDURE_NAME = UPPER(@routineName)
 }";
 
-        auto parameters = database.createParameterList();
+        auto parameters = database.createParameterList(null);
         parameters.add("routineName", DbType.stringVary, Variant(routineName));
 
         auto r = executeScalar(SQL, parameters);
@@ -2016,7 +2102,7 @@ FROM RDB$RELATIONS
 WHERE RDB$RELATION_NAME = UPPER(@tableName) and RDB$RELATION_TYPE = 0
 }";
 
-        auto parameters = database.createParameterList();
+        auto parameters = database.createParameterList(null);
         parameters.add("tableName", DbType.stringVary, Variant(tableName));
 
         auto r = executeScalar(SQL, parameters);
@@ -2032,7 +2118,7 @@ FROM RDB$RELATIONS
 WHERE RDB$RELATION_NAME = UPPER(@viewName) and RDB$RELATION_TYPE = 1
 }";
 
-        auto parameters = database.createParameterList();
+        auto parameters = database.createParameterList(null);
         parameters.add("viewName", DbType.stringVary, Variant(viewName));
 
         auto r = executeScalar(SQL, parameters);
@@ -2444,7 +2530,7 @@ public:
     }
     do
     {
-        return new FbColumn(cast(FbCommand)command, name);
+        return new FbColumn(this, cast(FbCommand)command, name);
     }
 
     override DbColumnList createColumnList(DbCommand command) nothrow
@@ -2454,7 +2540,7 @@ public:
     }
     do
     {
-        return new FbColumnList(cast(FbCommand)command);
+        return new FbColumnList(this, cast(FbCommand)command);
     }
 
     override DbCommand createCommand(DbConnection connection,
@@ -2465,7 +2551,7 @@ public:
     }
     do
     {
-        return new FbCommand(cast(FbConnection)connection, name);
+        return new FbCommand(this, cast(FbConnection)connection, name);
     }
 
     override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
@@ -2477,7 +2563,7 @@ public:
     }
     do
     {
-        return new FbCommand(cast(FbConnection)connection, cast(FbTransaction)transaction, name);
+        return new FbCommand(this, cast(FbConnection)connection, cast(FbTransaction)transaction, name);
     }
 
     override DbConnection createConnection(string connectionString)
@@ -2524,14 +2610,14 @@ public:
         return new FbConnectionStringBuilder(this, connectionString);
     }
 
-    override DbParameter createParameter(DbIdentitier name) nothrow
+    override DbParameter createParameter(DbCommand command, DbIdentitier name) nothrow
     {
-        return new FbParameter(this, name);
+        return new FbParameter(this, cast(FbCommand)command, name);
     }
 
-    override DbParameterList createParameterList() nothrow
+    override DbParameterList createParameterList(DbCommand command) nothrow
     {
-        return new FbParameterList(this);
+        return new FbParameterList(this, cast(FbCommand)command);
     }
 
     override DbTransaction createTransaction(DbConnection connection, DbIsolationLevel isolationLevel,
@@ -2612,9 +2698,9 @@ public:
 class FbParameter : DbParameter
 {
 public:
-    this(FbDatabase database, DbIdentitier name) nothrow @safe
+    this(FbDatabase database, FbCommand command, DbIdentitier name) nothrow @safe
     {
-        super(database !is null ? database : fbDB, name);
+        super(database !is null ? database : fbDB, command, name);
     }
 
     final override DbColumnIdType isValueIdType() const nothrow @safe
@@ -2670,9 +2756,9 @@ package(pham.db):
 class FbParameterList : DbParameterList
 {
 public:
-    this(FbDatabase database) nothrow @safe
+    this(FbDatabase database, FbCommand command) nothrow @safe
     {
-        super(database !is null ? database : fbDB);
+        super(database !is null ? database : fbDB, command);
     }
 }
 
@@ -4412,7 +4498,9 @@ unittest // FbDatabase.currentTimeStamp...
 version(UnitTestFBDatabase)
 unittest // blob
 {
+    import std.conv : text;
     import std.string : representation;
+    import pham.utl.utl_array_append : Appender;
 
     char[] textBlob = "1234567890qwertyuiop".dup;
     textBlob.reserve(200_000);
@@ -4460,6 +4548,15 @@ unittest // blob
         return segmentLength;
     }
 
+    Appender!(ubyte[]) binaryBlob2;
+    int saveLongBinary(Object sender, int64 savedLength, int64 blobLength, size_t row, scope const(ubyte)[] data)
+    {
+        if (blobLength > 0 && binaryBlob2.length == 0)
+            binaryBlob2.reserve(cast(size_t)blobLength);
+        binaryBlob2.put(data);
+        return 0;
+    }
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
@@ -4500,9 +4597,15 @@ unittest // blob
     scope (exit)
         reader.dispose();
 
-    reader.read();
-    assert(reader.getValue("txt") == textBlob);
-    assert(reader.getValue("bin") == binaryBlob);
+    auto binColumn = command.columns.get("bin");
+    binColumn.saveLongData = &saveLongBinary;
+    const rs = reader.read();
+    assert(rs);
+    const txtVal = reader.getValue("txt").get!string;
+    assert(txtVal == textBlob, text("length: ", txtVal.length, " vs ", textBlob.length, " - txtVal.ptr=", cast(void*)txtVal.ptr));
+    const binVal = reader.getValue("bin");
+    assert(binVal.isNull);
+    assert(binaryBlob2.data == binaryBlob, text("length: ", binaryBlob2.length, " vs ", binaryBlob.length));
 }
 
 version(UnitTestPerfFBDatabase)
