@@ -178,7 +178,7 @@ public:
         this._descriptorId = pgConnection.blobManager.open(pgId, mode);
     }
 
-    int64 openRead(Object saveSender, SaveLongData saveLongData, size_t row) @safe
+    int64 openRead(Object saveSender, DbSaveLongData saveLongData, size_t row) @safe
     in
     {
         assert(pgConnection !is null);
@@ -216,7 +216,7 @@ public:
         return result.data;
     }
 
-    int64 openWrite(Object loadSender, LoadLongData loadLongData) @safe
+    int64 openWrite(Object loadSender, DbLoadLongData loadLongData) @safe
     in
     {
         assert(pgConnection !is null);
@@ -257,7 +257,7 @@ public:
         return openWrite(null, &loadLongData);
     }
 
-    int64 read(Object saveSender, SaveLongData saveLongData, const(size_t) row) @safe
+    int64 read(Object saveSender, DbSaveLongData saveLongData, const(size_t) row) @safe
     in
     {
         assert(saveLongData !is null);
@@ -290,7 +290,7 @@ public:
         pgConnection.blobManager.unlink(pgId);
     }
 
-    int64 write(Object loadSender, LoadLongData loadLongData) @safe
+    int64 write(Object loadSender, DbLoadLongData loadLongData) @safe
     in
     {
         assert(pgConnection !is null);
@@ -501,7 +501,7 @@ public:
         return _open.executeScalar().get!PgDescriptorId();
     }
 
-    int64 read(Object saveSender, SaveLongData saveLongData, const(size_t) row, const(uint) segmentLength, const(int64) blobLength, PgDescriptorId descriptorId) @safe
+    int64 read(Object saveSender, DbSaveLongData saveLongData, const(size_t) row, const(uint) segmentLength, const(int64) blobLength, PgDescriptorId descriptorId) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentLength=", segmentLength, ", blobLength=", blobLength, ")");
 
@@ -547,7 +547,7 @@ public:
         return _seek.executeScalar().get!int64();
     }
 
-    int64 write(Object loadSender, LoadLongData loadLongData, const(uint) segmentLength, PgDescriptorId descriptorId) @safe
+    int64 write(Object loadSender, DbLoadLongData loadLongData, const(uint) segmentLength, PgDescriptorId descriptorId) @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(descriptorId=", descriptorId, ", segmentLength=", segmentLength, ")");
 
@@ -754,6 +754,11 @@ public:
     }
 
 protected:
+    final override DbColumn createColumn(DbIdentitier name) nothrow @safe
+    {
+        return new PgColumn(database !is null ? cast(PgDatabase)database : pgDB, pgCommand, name);
+    }
+
     final override DbColumnList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
@@ -935,7 +940,7 @@ protected:
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
         resetStatement(ResetStatementKind.executed);
-        
+
         const fcs = doExecuteCommandFetch(type, false);
 
         if (isStoredProcedure)
@@ -949,7 +954,7 @@ protected:
                 mergeOutputParams(row);
             }
         }
-        
+
         if (stateChange)
             stateChange(this, commandState);
     }
@@ -1722,6 +1727,17 @@ public:
     this(PgDatabase database, PgCommand command = null) nothrow @safe
     {
         super(database !is null ? database : pgDB, command);
+    }
+
+    @property final PgCommand pgCommand() nothrow pure @safe
+    {
+        return cast(PgCommand)_command;
+    }
+
+protected:
+    final override DbParameter createParameter(DbIdentitier name) nothrow @safe
+    {
+        return new PgParameter(database !is null ? cast(PgDatabase)database : pgDB, pgCommand, name);
     }
 }
 

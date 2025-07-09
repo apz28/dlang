@@ -41,7 +41,7 @@ import pham.db.db_util;
 public import pham.db.db_value;
 
 /**
- * A delegate to load blob/clob data to send to database server
+ * A delegate to load blob/clob data and send to database server
  * Params:
  *  sender = an object that the delegate calling from (DbParameter...)
  *  loadedLength = an accumulated length in bytes that loaded so far
@@ -50,20 +50,21 @@ public import pham.db.db_value;
  * Returns:
  *  a length in bytes that data held or 0 if no data to be sent
  */
-alias LoadLongData = size_t delegate(Object sender, int64 loadedLength, size_t segmentLength,
+alias DbLoadLongData = size_t delegate(Object sender, int64 loadedLength, size_t segmentLength,
     ref scope const(ubyte)[] data) @safe;
 
 /**
- * A delegate to save blob/clob data to receive from database server
+ * A delegate to save blob/clob data from database server
  * Params:
- *  sender = an object that the delegate calling from (DbParameter...)
+ *  sender = an object that the delegate calling from (DbColumn, DbParameter...)
  *  savedLength = an accumulated length in bytes that saved so far
  *  blobLength = total length of blob if known, -1 otherwise
+ *  row = row number
  *  data = set to ubyte array that contains the data to be received
  * Returns:
- *  0=continue saving, none zero=stop saving
+ *  0=continue saving, non-zero=stop saving
  */
-alias SaveLongData = int delegate(Object sender, int64 savedLength, int64 blobLength, size_t row,
+alias DbSaveLongData = int delegate(Object sender, int64 savedLength, int64 blobLength, size_t row,
     scope const(ubyte)[] data) @safe;
 
 abstract class DbCancelCommandData
@@ -208,24 +209,18 @@ public:
     }
 
     final DbColumn create(DbIdentitier name) nothrow @safe
-    in
     {
-        assert(database !is null);
-    }
-    do
-    {
-        return database.createColumn(command, name);
+        return database !is null
+            ? database.createColumn(command, name)
+            : createColumn(name);
     }
 
     final DbColumn create(string name) nothrow @safe
-    in
-    {
-        assert(database !is null);
-    }
-    do
     {
         DbIdentitier id = DbIdentitier(name);
-        return database.createColumn(command, id);
+        return database !is null
+            ? database.createColumn(command, id)
+            : createColumn(id);
     }
 
     /**
@@ -270,6 +265,7 @@ public:
     }
 
 protected:
+    abstract DbColumn createColumn(DbIdentitier name) nothrow @safe;
     abstract DbColumnList createSelf(DbCommand command) nothrow @safe;
 
     void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -299,7 +295,7 @@ protected:
     {
         //super.notify(item, kind);
         if (kind == NotificationKind.added)
-            item._ordinal = cast(uint32)length;
+            item._ordinal = cast(uint16)length;
         else if (kind == NotificationKind.cleared)
             _saveLongDataCount = 0;
     }
@@ -1176,7 +1172,7 @@ protected:
         return result;
     }
 
-    final void buildParameterNameCallback(ref Appender!string result, string parameterName, uint32 ordinal) nothrow @safe
+    final void buildParameterNameCallback(ref Appender!string result, string parameterName, uint16 ordinal) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(parameterName=", parameterName, ", ordinal=", ordinal, ")");
 
@@ -4557,26 +4553,26 @@ public:
     /**
      * Gets or sets the ordinal of the column, based 1 value
      */
-    @property final uint32 ordinal() const nothrow @safe
+    @property final uint16 ordinal() const nothrow @safe
     {
         return _ordinal;
     }
 
-    @property final typeof(this) ordinal(uint32 value) nothrow @safe
+    @property final typeof(this) ordinal(uint16 value) nothrow @safe
     {
         _ordinal = value;
         return this;
     }
 
-    @property final SaveLongData saveLongData() nothrow pure @safe
+    @property final DbSaveLongData saveLongData() nothrow pure @safe
     {
         return _saveLongData;
     }
 
-    @property final typeof(this) saveLongData(SaveLongData value) nothrow @trusted
+    @property final typeof(this) saveLongData(DbSaveLongData value) nothrow @trusted
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(value?=", value !is null, ", _list?=", _list !is null, ", columns?=", cast(DbColumnList)_list !is null, ", params?=", cast(DbParameterList)_list !is null, ")");
-        
+
         if (auto cl = cast(DbColumnList)_list)
         {
             if (_saveLongData !is null)
@@ -4661,13 +4657,13 @@ protected:
     int32 _baseId;
     int32 _baseTableId;
     DbBaseTypeInfo _baseType;
-    uint32 _ordinal; // 0=Unknown position
     int32 _size;
+    uint16 _ordinal; // 0=Unknown position
     DbType _type;
     EnumSet!DbSchemaColumnFlag _flags;
     //int32 _basePrecision;
     //DbCharset _charset;
-    SaveLongData _saveLongData;
+    DbSaveLongData _saveLongData;
 }
 
 deprecated("please use DbColumn")
@@ -4838,7 +4834,7 @@ public:
     }
 
 public:
-    LoadLongData loadLongData;
+    DbLoadLongData loadLongData;
 
 protected:
     override void assignTo(DbNamedColumn dest) nothrow @safe
@@ -4987,7 +4983,7 @@ public:
     {
         return database !is null
             ? database.createParameter(command, name)
-            : new DbParameter(null, command, name);
+            : createParameter(name);
     }
 
     final DbParameter create(string name) nothrow @safe
@@ -4995,7 +4991,7 @@ public:
         auto id = DbIdentitier(name);
         return database !is null
             ? database.createParameter(command, id)
-            : new DbParameter(null, command, id);
+            : createParameter(id);
     }
 
     /**
@@ -5182,6 +5178,11 @@ public:
     }
 
 protected:
+    DbParameter createParameter(DbIdentitier name) nothrow @safe
+    {
+        return new DbParameter(null, command, name);
+    }
+
     void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
@@ -5198,7 +5199,7 @@ protected:
     {
         //super.notify(item, kind);
         if (kind == NotificationKind.added)
-            item._ordinal = cast(uint32)length;
+            item._ordinal = cast(uint16)length;
         else if (kind == NotificationKind.cleared)
             _saveLongDataCount = 0;
     }
@@ -5708,7 +5709,7 @@ private:
     void readRowBlob(ref DbRowValue rowValue) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_columns.saveLongDataCount=", _columns.saveLongDataCount, ")");
-        
+
         if (_columns.saveLongDataCount == 0)
             return;
 

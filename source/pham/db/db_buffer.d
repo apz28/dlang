@@ -77,6 +77,8 @@ private:
 
 mixin DLinkTypes!(DbBuffer) DLinkDbBufferTypes;
 
+alias DbSaveBufferData = int delegate(int64 savedLength, scope const(ubyte)[] data) @safe;
+
 class DbReadBuffer : DbBuffer
 {
 @safe:
@@ -298,6 +300,7 @@ struct DbValueReader(Endian EndianKind)
 
 public:
     @disable this(this);
+    //@disable void opAssign(typeof(this));
 
     this(DbReadBuffer buffer) nothrow pure
     {

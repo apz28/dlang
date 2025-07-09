@@ -22,7 +22,7 @@ public import pham.utl.utl_result : ResultIf;
 import pham.utl.utl_text : NamedValue;
 import pham.db.db_message;
 public import pham.db.db_message : DbErrorCode;
-import pham.db.db_type : DbHost, DbScheme, DbURL, isDbScheme, uint32;
+import pham.db.db_type : DbHost, DbScheme, DbURL, isDbScheme, uint16;
 
 nothrow @safe:
 
@@ -561,7 +561,7 @@ nothrow @safe:
     }
 }
 
-S parseParameter(S)(S sql, void delegate(ref Appender!S result, S parameterName, uint32 parameterNumber) nothrow @safe parameterCallBack)
+S parseParameter(S)(S sql, void delegate(ref Appender!S result, S parameterName, uint16 parameterNumber) nothrow @safe parameterCallBack)
 in
 {
     assert(parameterCallBack !is null);
@@ -575,7 +575,7 @@ do
 
     Appender!S result;
     size_t prevP, beginP;
-    uint32 parameterNumber; // Based 1 value
+    uint16 parameterNumber; // Based 1 value
     auto tokenizer = DbTokenizer!S(sql);
     while (!tokenizer.empty)
     {
@@ -1249,7 +1249,7 @@ unittest // parseParameter
             return this;
         }
 
-        void saveParameter(ref Appender!string result, string prmName, uint32 prmNo)
+        void saveParameter(ref Appender!string result, string prmName, uint16 prmNo)
         {
             result.put('?');
             if (prmName.length)

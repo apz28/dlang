@@ -90,6 +90,11 @@ public:
     }
 
 protected:
+    final override DbColumn createColumn(DbIdentitier name) nothrow @safe
+    {
+        return new MyColumn(database !is null ? cast(MyDatabase)database : myDB, myCommand, name);
+    }
+
     final override DbColumnList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
@@ -331,7 +336,7 @@ protected:
             if (lPrepared)
                 protocol.readOkResponse();
         }
-        
+
         if (stateChange)
             stateChange(this, commandState);
     }
@@ -1276,6 +1281,17 @@ public:
     this(MyDatabase database, MyCommand command = null) nothrow @safe
     {
         super(database !is null ? database : myDB, command);
+    }
+
+    @property final MyCommand myCommand() nothrow pure @safe
+    {
+        return cast(MyCommand)_command;
+    }
+
+protected:
+    final override DbParameter createParameter(DbIdentitier name) nothrow @safe
+    {
+        return new MyParameter(database !is null ? cast(MyDatabase)database : myDB, myCommand, name);
     }
 }
 

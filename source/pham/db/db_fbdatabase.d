@@ -726,7 +726,7 @@ public:
         _sizes.reset();
     }
 
-    int64 openRead(Object saveSender, SaveLongData saveLongData, size_t row)
+    int64 openRead(Object saveSender, DbSaveLongData saveLongData, size_t row)
     in
     {
         assert(fbConnection !is null);
@@ -764,7 +764,7 @@ public:
         return result.data;
     }
 
-    int64 openWrite(Object loadSender, LoadLongData loadLongData)
+    int64 openWrite(Object loadSender, DbLoadLongData loadLongData)
     in
     {
         assert(fbConnection !is null);
@@ -803,7 +803,7 @@ public:
         return openWrite(null, &loadLongData);
     }
 
-    int64 read(Object saveSender, SaveLongData saveLongData, const(size_t) row)
+    int64 read(Object saveSender, DbSaveLongData saveLongData, const(size_t) row)
     in
     {
         assert(saveLongData !is null);
@@ -868,7 +868,7 @@ public:
         return _sizes;
     }
 
-    int64 write(Object loadSender, LoadLongData loadLongData)
+    int64 write(Object loadSender, DbLoadLongData loadLongData)
     in
     {
         assert(loadLongData !is null);
@@ -1070,6 +1070,11 @@ public:
     }
 
 protected:
+    final override DbColumn createColumn(DbIdentitier name) nothrow @safe
+    {
+        return new FbColumn(database !is null ? cast(FbDatabase)database : fbDB, fbCommand, name);
+    }
+
     final override DbColumnList createSelf(DbCommand command) nothrow @safe
     {
         return database !is null
@@ -1731,13 +1736,13 @@ protected:
                     readRowArray(rowValue, valueFor, param, valIndex);
                     if (++valIndex >= rowValue.length)
                         return;
-                }            
+                }
                 return;
-                
+
             case LoadRowValueFor.scalar:
                 readRowArray(rowValue, valueFor, columns[0], 0);
                 return;
-                
+
             case LoadRowValueFor.row:
                 assert(0, "Must not call");
         }
@@ -1763,7 +1768,7 @@ protected:
                 return;
         }
     }
-    
+
     final void readRowBlob(ref DbRowValue rowValue, const(LoadRowValueFor) valueFor) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(valueFor=", valueFor, ")");
@@ -1783,19 +1788,19 @@ protected:
                         return;
                 }
                 return;
-                
+
             case LoadRowValueFor.scalar:
                 readRowBlob(rowValue, valueFor, columns[0], 0);
                 return;
-                
+
             case LoadRowValueFor.row:
         }
     }
-    
+
     final void readRowBlob(ref DbRowValue rowValue, const(LoadRowValueFor) valueFor, DbNamedColumn column, const(size_t) colIndex) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(valueFor=", valueFor, ", colIndex=", colIndex, ")");
-        
+
         auto colValue = rowValue[colIndex];
         if (colValue.isNull)
             return;
@@ -2759,6 +2764,17 @@ public:
     this(FbDatabase database, FbCommand command = null) nothrow @safe
     {
         super(database !is null ? database : fbDB, command);
+    }
+
+    @property final FbCommand fbCommand() nothrow pure @safe
+    {
+        return cast(FbCommand)_command;
+    }
+
+protected:
+    final override DbParameter createParameter(DbIdentitier name) nothrow @safe
+    {
+        return new FbParameter(database !is null ? cast(FbDatabase)database : fbDB, fbCommand, name);
     }
 }
 
