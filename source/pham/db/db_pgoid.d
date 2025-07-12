@@ -16,6 +16,7 @@ enum PgDefaultSize
     /**
      * Sizes in bytes
      */
+    maxSegmentLength = 1_024 * 16,
 	messageReadBufferLength = 1_024 * 64,
     socketReadBufferLength = messageReadBufferLength + (1_024 * 2),
     socketWriteBufferLength = messageReadBufferLength + 1_024,    

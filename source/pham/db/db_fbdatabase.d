@@ -1402,8 +1402,7 @@ protected:
             }
         }
 
-        if (stateChange)
-            stateChange(this, commandState);
+        doStateChange(commandState);
     }
 
     final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
@@ -1708,6 +1707,9 @@ protected:
                 assert(false, "Unknown binding type: " ~ iscBindInfo.selectOrBind.to!string());
             }
         }
+        
+        if (columnCount)
+            doColumnCreated();
     }
 
     final DbRowValue readRow() @safe
@@ -4518,6 +4520,7 @@ unittest // blob
     import std.string : representation;
     import pham.utl.utl_array_append : Appender;
 
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
     char[] textBlob = "1234567890qwertyuiop".dup;
     textBlob.reserve(200_000);
     while (textBlob.length < 200_000)
@@ -4541,6 +4544,7 @@ unittest // blob
         return segmentLength;
     }
 
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
     ubyte[] binaryBlob = "asdfghjkl;1234567890".dup.representation;
     binaryBlob.reserve(300_000);
     while (binaryBlob.length < 300_000)
@@ -4582,6 +4586,7 @@ unittest // blob
     scope (exit)
        command.dispose();
 
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create table");
     if (!connection.existTable("create_then_drop_blob"))
     {
         command.commandDDL = "CREATE TABLE create_then_drop_blob (txt BLOB SUB_TYPE TEXT, bin BLOB SUB_TYPE BINARY)";
@@ -4596,6 +4601,7 @@ unittest // blob
         }
     }
 
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - insert blob");
     command.commandText = "INSERT INTO create_then_drop_blob(txt, bin) VALUES(@txt, @bin)";
     command.prepare();
     auto txt = command.parameters["txt"];
@@ -4607,14 +4613,19 @@ unittest // blob
     const insertResult = command.executeNonQuery();
     assert(insertResult == 1);
 
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
+    void setSaveLongData(DbCommand command) @safe
+    {
+        auto binColumn = command.columns.get("bin");
+        binColumn.saveLongData = &saveLongBinary;
+    }
     command.commandText = "SELECT FIRST(1) txt, bin FROM create_then_drop_blob";
-    command.prepare();
+    command.columnCreatedEvents ~= &setSaveLongData;
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
 
-    auto binColumn = command.columns.get("bin");
-    binColumn.saveLongData = &saveLongBinary;
+    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
     const rs = reader.read();
     assert(rs);
     const txtVal = reader.getValue("txt").get!string;

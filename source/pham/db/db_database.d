@@ -346,7 +346,7 @@ public:
         this._flags.parametersCheck = true;
         this._flags.returnRecordsAffected = true;
         this.logTimmingWarningDur = dur!"seconds"(60);
-        this.notifyMessage.opAssign(connection.notifyMessage);
+        this.notifyMessageEvents.opAssign(connection.notifyMessageEvents);
     }
 
     this(DbDatabase database, DbConnection connection, DbTransaction transaction,
@@ -569,8 +569,7 @@ public:
             throw e;
         }
 
-        if (stateChange)
-            stateChange(this, commandState);
+        doStateChange(commandState);
 
         return this;
     }
@@ -629,8 +628,7 @@ public:
             resetStatement(ResetStatementKind.unprepared);
         doUnprepare(false);
 
-        if (stateChange)
-            stateChange(this, commandState);
+        doStateChange(commandState);
 
         return this;
     }
@@ -953,21 +951,28 @@ public:
 
 public:
     /**
-     * Delegate to get notify when a state change
+     * Delegate to notify when columns created
      * Params:
      *  command = this command instance
-     *  newState = new state value
      */
-    DelegateList!(DbCommand, DbCommandState) stateChange;
+    DelegateList!(DbCommand) columnCreatedEvents;
 
     /**
-     * Delegate to get notify when there are notification messages from server
+     * Delegate to notify when there are notification messages from server
      * Params:
      *  sender = this command instance
      *  messages = array of DbNotificationMessages
      */
-    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
+    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessageEvents;
     DbNotificationMessage[] notificationMessages;
+
+    /**
+     * Delegate to notify when a state change
+     * Params:
+     *  command = this command instance
+     *  state = new command state value
+     */
+    DelegateList!(DbCommand, DbCommandState) stateChangeEvents;
 
     DbCustomAttributeList customAttributes;
     Duration logTimmingWarningDur;
@@ -1272,6 +1277,12 @@ protected:
             throw new DbException(0, DbMessage.eInvalidCommandConnectionDif, null, funcName, file, line);
     }
 
+    final void doColumnCreated() @safe
+    {
+        if (columnCreatedEvents)
+            columnCreatedEvents(this);
+    }
+
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
@@ -1322,12 +1333,20 @@ protected:
         _recordsAffected.reset();
         _fetchedRows.clear();
         _executedCount = _fetchedCount = _fetchedRowCount = 0;
+        stateChangeEvents.clear();
+        notifyMessageEvents.clear();
         notificationMessages = null;
     }
 
     bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
     {
         return parametersCheck && parameterCount;
+    }
+
+    final void doStateChange(DbCommandState state) @safe
+    {
+        if (stateChangeEvents)
+            stateChangeEvents(this, state);
     }
 
     final void doNotifyMessage() nothrow @trusted
@@ -1339,11 +1358,11 @@ protected:
         scope (exit)
             notificationMessages.length = 0;
 
-        if (notifyMessage)
+        if (notifyMessageEvents)
         {
             try
             {
-                notifyMessage(this, notificationMessages);
+                notifyMessageEvents(this, notificationMessages);
             }
             catch (Exception e)
             {
@@ -2186,6 +2205,44 @@ public:
 
     @property abstract bool supportMultiReaders() const nothrow @safe;
 
+public:
+    /**
+     * Delegate to get notify when a state change
+     * Occurs when the before state of the event changes
+     * Params:
+     *  connectin = this connection instance
+     *  newState = new state value
+     */
+    DelegateList!(DbConnection, DbConnectionState) beginStateChangeEvents;
+
+    /**
+     * Delegate to get notify when a state change
+     * Occurs when the after state of the event changes
+     * Params:
+     *  connectin = this connection instance
+     *  oldState = old state value
+     */
+    DelegateList!(DbConnection, DbConnectionState) endStateChangeEvents;
+
+    /**
+     * Delegate to get notify when there are notification messages from server
+     * Params:
+     *  sender = this connection instance
+     *  messages = array of DbNotificationMessages
+     */
+    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessageEvents;
+    DbNotificationMessage[] notificationMessages;
+
+    /**
+     * Populate when connection is established
+     */
+    DbCustomAttributeList serverInfo;
+
+    /**
+     * For logging various operation or error message
+     */
+    Logger logger;
+
 package(pham.db):
     final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
     {
@@ -2291,44 +2348,6 @@ package(pham.db):
         return _readerCounter;
     }
 
-public:
-    /**
-     * Delegate to get notify when a state change
-     * Occurs when the before state of the event changes
-     * Params:
-     *  connectin = this connection instance
-     *  newState = new state value
-     */
-    DelegateList!(DbConnection, DbConnectionState) beginStateChange;
-
-    /**
-     * Delegate to get notify when a state change
-     * Occurs when the after state of the event changes
-     * Params:
-     *  connectin = this connection instance
-     *  oldState = old state value
-     */
-    DelegateList!(DbConnection, DbConnectionState) endStateChange;
-
-    /**
-     * Delegate to get notify when there are notification messages from server
-     * Params:
-     *  sender = this connection instance
-     *  messages = array of DbNotificationMessages
-     */
-    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessage;
-    DbNotificationMessage[] notificationMessages;
-
-    /**
-     * Populate when connection is established
-     */
-    DbCustomAttributeList serverInfo;
-
-    /**
-     * For logging various operation or error message
-     */
-    Logger logger;
-
 protected:
     final DbTransaction createTransactionImpl(DbIsolationLevel isolationLevel, bool defaultTransaction) @safe
     {
@@ -2356,16 +2375,16 @@ protected:
             _transactions.remove(_transactions.last).dispose(disposingReason);
     }
 
-    final void doBeginStateChange(DbConnectionState newState) @safe
+    final void doBeginStateChange(DbConnectionState state) @safe
     {
-        if (beginStateChange)
-            beginStateChange(this, newState);
+        if (beginStateChangeEvents)
+            beginStateChangeEvents(this, state);
     }
 
-    final void doEndStateChange(DbConnectionState oldState) @safe
+    final void doEndStateChange(DbConnectionState state) @safe
     {
-        if (endStateChange)
-            endStateChange(this, oldState);
+        if (endStateChangeEvents)
+            endStateChangeEvents(this, state);
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -2375,8 +2394,9 @@ protected:
         if (_state != DbConnectionState.closed && _state != DbConnectionState.failed)
             doClose(DbConnectionState.closing);
 
-        beginStateChange.clear();
-        endStateChange.clear();
+        beginStateChangeEvents.clear();
+        endStateChangeEvents.clear();
+        notifyMessageEvents.clear();
         disposeTransactions(disposingReason);
         disposeCommands(disposingReason);
         serverInfo.clear();
@@ -2405,11 +2425,11 @@ protected:
         scope (exit)
             notificationMessages.length = 0;
 
-        if (notifyMessage)
+        if (notifyMessageEvents)
         {
             try
             {
-                notifyMessage(this, notificationMessages);
+                notifyMessageEvents(this, notificationMessages);
             }
             catch (Exception e)
             {

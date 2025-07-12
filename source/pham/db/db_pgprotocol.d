@@ -587,7 +587,7 @@ public:
         return result;
     }
 
-    final DbValue readValue(ref PgReader reader, PgCommand command, DbNamedColumn column, const(int32) valueLength)
+    final DbValue readValue(ref PgReader reader, PgCommand command, DbNamedColumn column, size_t row, const(int32) valueLength)
     in
     {
         assert(valueLength != pgNullValueLength);
@@ -597,14 +597,51 @@ public:
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(", column.traceString(), ", valueLength=", valueLength, ")");
         version(profile) debug auto p = PerfFunction.create();
 
+        const dbType = column.type;
+
         PgXdrReader checkValueLength(const(int32) expectedLength) @safe
         {
+            debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(expectedLength=", expectedLength, ")");
+            
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
             return PgXdrReader(connection, reader.buffer);
         }
 
-        const dbType = column.type;
+        DbValue readBytesDelegate() @safe
+        {
+            debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+            
+            auto columnDelegate = column.saveLongData;
+
+            int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
+            {
+                return columnDelegate(column, savedLength, requestedLength, row, data);
+            }
+
+            auto reader = checkValueLength(0);
+            reader.readBytes(valueLength, &readerDelegate, PgDefaultSize.maxSegmentLength);
+
+            return DbValue.dbNull(dbType);
+        }
+
+        DbValue readTextDelegate() @safe
+        {
+            debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+            
+            auto columnDelegate = column.saveLongData;
+
+            int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
+            {
+                return columnDelegate(column, savedLength, requestedLength, row, data);
+            }
+
+            auto reader = checkValueLength(0);
+            reader.readString(valueLength, &readerDelegate, PgDefaultSize.maxSegmentLength);
+
+            return DbValue.dbNull(dbType);
+        }
+
         if (column.isArray)
         {
             final switch (dbType)
@@ -723,16 +760,23 @@ public:
                 return DbValue(checkValueLength(12).readTimeTZ(), dbType);
             case DbType.uuid:
                 return DbValue(checkValueLength(16).readUUID(), dbType);
+
             case DbType.stringFixed:
             case DbType.stringVary:
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-                return DbValue(checkValueLength(0).readString(valueLength), dbType);
+                return column.saveLongData is null
+                    ? DbValue(checkValueLength(0).readString(valueLength), dbType)
+                    : readTextDelegate();
+
             case DbType.binaryFixed:
             case DbType.binaryVary:
             case DbType.blob:
-                return DbValue(checkValueLength(0).readBytes(valueLength), dbType);
+                return column.saveLongData is null
+                    ? DbValue(checkValueLength(0).readBytes(valueLength), dbType)
+                    : readBytesDelegate();
+
             case DbType.record:
             case DbType.unknown:
                 switch (column.baseTypeId)
@@ -789,7 +833,7 @@ public:
                 continue;
             }
 
-            result[i] = readValue(reader, command, columns[i], valueLength);
+            result[i] = readValue(reader, command, columns[i], row, valueLength);
         }
 
         return result;

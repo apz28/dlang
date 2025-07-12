@@ -39,8 +39,6 @@ import pham.db.db_pgtype;
 struct PgBlob
 {
 public:
-    enum maxSegmentLength = 1_024 * 8;
-
     enum OpenMode : int32
     {
         write = 0x0002_0000,
@@ -268,7 +266,7 @@ public:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        const result = pgConnection.blobManager.read(saveSender, saveLongData, row, maxSegmentLength, length(), pgDescriptorId);
+        const result = pgConnection.blobManager.read(saveSender, saveLongData, row, PgDefaultSize.maxSegmentLength, length(), pgDescriptorId);
         _offset += result;
         return result;
     }
@@ -301,7 +299,7 @@ public:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
         _length = -1; // Need to reset the length to not initialized
-        const result = pgConnection.blobManager.write(loadSender, loadLongData, maxSegmentLength, pgDescriptorId);
+        const result = pgConnection.blobManager.write(loadSender, loadLongData, PgDefaultSize.maxSegmentLength, pgDescriptorId);
         _offset += result;
         return result;
     }
@@ -955,8 +953,7 @@ protected:
             }
         }
 
-        if (stateChange)
-            stateChange(this, commandState);
+        doStateChange(commandState);
     }
 
     final override bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
@@ -1149,6 +1146,8 @@ protected:
                 }
             }
         }
+        
+        doColumnCreated();
     }
 
     final DbRowValue readRow(ref PgReader reader) @safe
@@ -2795,10 +2794,11 @@ unittest // PgDatabase.currentTimeStamp...
 version(UnitTestPGDatabase)
 unittest // blob
 {
+    import std.conv : text;
     import std.string : representation;
+    import pham.utl.utl_array_append : Appender;
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
-
     char[] textBlob = "1234567890qwertyuiop".dup;
     textBlob.reserve(200_000);
     while (textBlob.length < 200_000)
@@ -2823,7 +2823,6 @@ unittest // blob
     }
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
-
     ubyte[] binaryBlob = "asdfghjkl;1234567890".dup.representation;
     binaryBlob.reserve(300_000);
     while (binaryBlob.length < 300_000)
@@ -2847,6 +2846,15 @@ unittest // blob
         return segmentLength;
     }
 
+    Appender!(ubyte[]) binaryBlob2;
+    int saveLongBinary(Object sender, int64 savedLength, int64 blobLength, size_t row, scope const(ubyte)[] data)
+    {
+        if (blobLength > 0 && binaryBlob2.length == 0)
+            binaryBlob2.reserve(cast(size_t)blobLength);
+        binaryBlob2.put(data);
+        return 0;
+    }
+
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
@@ -2857,7 +2865,6 @@ unittest // blob
        command.dispose();
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create table");
-
     if (!connection.existTable("create_then_drop_blob"))
     {
         command.commandDDL = "CREATE TABLE create_then_drop_blob (txt text, bin bytea)";
@@ -2873,7 +2880,6 @@ unittest // blob
     }
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - insert blob");
-
     command.commandText = "INSERT INTO create_then_drop_blob(txt, bin) VALUES(@txt, @bin)";
     auto txt = command.parameters.add("txt", DbType.text);
     txt.loadLongData = &loadLongText;
@@ -2883,18 +2889,25 @@ unittest // blob
     assert(insertResult == 1);
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
-
+    void setSaveLongData(DbCommand command) @safe
+    {
+        auto binColumn = command.columns.get("bin");
+        binColumn.saveLongData = &saveLongBinary;
+    }
     command.commandText = "SELECT txt, bin FROM create_then_drop_blob LIMIT 1";
-    command.prepare();
+    command.columnCreatedEvents ~= &setSaveLongData;
     auto reader = command.executeReader();
     scope (exit)
         reader.dispose();
 
     //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
-
-    reader.read();
-    assert(reader.getValue("txt") == textBlob);
-    assert(reader.getValue("bin") == binaryBlob);
+    const rs = reader.read();
+    assert(rs);
+    const txtVal = reader.getValue("txt").get!string;
+    assert(txtVal == textBlob, text("length: ", txtVal.length, " vs ", textBlob.length, " - txtVal.ptr=", cast(void*)txtVal.ptr));
+    const binVal = reader.getValue("bin");
+    assert(binVal.isNull);
+    assert(binaryBlob2.data == binaryBlob, text("length: ", binaryBlob2.length, " vs ", binaryBlob.length));
 }
 
 version(UnitTestPerfPGDatabase)

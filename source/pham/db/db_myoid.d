@@ -99,6 +99,7 @@ enum MyDefaultSize
     /**
      * Sizes in bytes
      */
+    maxSegmentLength = 1_024 * 8,
 	packetReadBufferLength = 1_024 * 128,
     parameterBufferLength = 1_024 * 96,
     socketReadBufferLength = packetReadBufferLength + (1_024 * 2),

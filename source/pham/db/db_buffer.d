@@ -15,8 +15,8 @@ import std.bitmanip : swapEndian;
 import std.string : representation;
 import std.system : Endian;
 
-debug(debug_pham_db_db_buffer) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
+debug(debug_pham_db_db_buffer) import pham.db.db_debug;
 import pham.utl.utl_array : inplaceMoveToLeft;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_dlink_list;
@@ -77,7 +77,16 @@ private:
 
 mixin DLinkTypes!(DbBuffer) DLinkDbBufferTypes;
 
-alias DbSaveBufferData = int delegate(int64 savedLength, scope const(ubyte)[] data) @safe;
+/**
+ * A delegate to save blob/clob data from database server
+ * Params:
+ *  savedLength = an accumulated length in bytes that saved so far
+ *  requestedLength = the length that caller asked for
+ *  data = set to ubyte array that contains the data to be received
+ * Returns:
+ *  0=continue saving, non-zero=stop saving
+ */
+alias DbSaveBufferData = int delegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe;
 
 class DbReadBuffer : DbBuffer
 {
@@ -103,15 +112,26 @@ public:
     {
         if (length < nBytes)
             ensureAvailable(nBytes);
+
         _offset += nBytes;
+    }
+
+    final ubyte consume()
+    {
+        if (length == 0)
+            ensureAvailable(1);
+
+        return _data[_offset++];
     }
 
     final ubyte[] consume(const(size_t) nBytes)
     {
         if (length < nBytes)
             ensureAvailable(nBytes);
-        auto result = _data[_offset.._offset + nBytes];
-        _offset += nBytes;
+
+        const endOffset = _offset + nBytes;
+        auto result = _data[_offset..endOffset];
+        _offset = endOffset;
         return result;
     }
 
@@ -120,7 +140,7 @@ public:
         return consume(length);
     }
 
-    final void ensureAvailable(const(size_t) nBytes) @trusted
+    final size_t ensureAvailable(const(size_t) nBytes) @trusted
     {
         version(profile) debug auto p = PerfFunction.create();
 
@@ -131,13 +151,17 @@ public:
             if ((_offset + nBytes) > _maxLength)
                 noReadingDataRemainingError(nBytes, length);
         }
+        return length;
     }
 
     pragma(inline, true)
-    final void ensureAvailableIf(const(size_t) nBytes)
+    final size_t ensureAvailableIf(const(size_t) nBytes)
     {
-        if (length < nBytes)
-            ensureAvailable(nBytes);
+        version(profile) debug auto p = PerfFunction.create();
+
+        if ((_offset + nBytes) > _maxLength)
+            fill(nBytes, 0);
+        return length;
     }
 
     final ubyte[] expand(const(size_t) nBytes) nothrow
@@ -164,9 +188,67 @@ public:
     final ubyte[] peekBytes(size_t forLength = size_t.max) nothrow pure
     {
         const bLength = this.length;
-        if (forLength > bLength)
-            forLength = bLength;
-        return _data[_offset.._offset + forLength];
+        return forLength > bLength
+            ? _data[_offset.._offset + bLength]
+            : _data[_offset.._offset + forLength];
+    }
+
+    final ubyte[] readBytes(const(size_t) nBytes)
+    {
+        auto result = new ubyte[](nBytes);
+        return readBytes(result);
+    }
+
+    final ubyte[] readBytes(return ubyte[] value)
+    {
+        const nBytes = value.length;
+        ensureAvailable(nBytes);
+
+        value[0..nBytes] = _data[_offset.._offset + nBytes];
+        _offset += nBytes;
+        return value;
+    }
+
+    final int64 readBytes(const(int64) nBytes, DbSaveBufferData saveBufferData, const(size_t) segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        int64 result;
+        if (nBytes > 0)
+        {
+            while (result < nBytes)
+            {
+                const leftLength = nBytes - result;
+
+                const dataLength = ensureAvailable(leftLength >= segmentLength ? segmentLength : cast(size_t)leftLength);
+                if (dataLength == 0)
+                    return result;
+
+                if (saveBufferData(result, nBytes, consume(dataLength)))
+                    return result + dataLength;
+
+                result += dataLength;
+            }
+        }
+        else
+        {
+            while (true)
+            {
+                const dataLength = ensureAvailableIf(segmentLength);
+                if (dataLength == 0)
+                    return result;
+
+                if (saveBufferData(result, nBytes, consume(dataLength)))
+                    return result + dataLength;
+
+                result += dataLength;
+            }
+        }
+        return result;
     }
 
     final DbReadBuffer reset() nothrow pure
@@ -211,7 +293,7 @@ public:
     pragma(inline, true)
     @property final size_t length() const nothrow pure
     {
-        return _offset >= _maxLength ? 0 : _maxLength - _offset;
+        return _offset < _maxLength ? (_maxLength - _offset) : 0;
     }
 
     pragma(inline, true)
@@ -247,25 +329,9 @@ protected:
     {
         assert(requiredBytes > availableBytes);
         //assert(connection.availableBytes() <= 0);
-        
+
         auto msg = DbMessage.eNoReadingDataRemaining.fmtMessage(requiredBytes, availableBytes);
         throw new DbException(DbErrorCode.read, msg);
-    }
-    
-    final ubyte[] readBytesImpl(const(size_t) nBytes)
-    {
-        ubyte[] result = new ubyte[](nBytes);
-        return readBytesImpl(result);
-    }
-
-    final ubyte[] readBytesImpl(return ubyte[] value)
-    {
-        const nBytes = value.length;
-        ensureAvailableIf(nBytes);
-
-        value[0..nBytes] = _data[_offset.._offset + nBytes];
-        _offset += nBytes;
-        return value;
     }
 
     final void reserve(const(size_t) additionalBytes) nothrow @trusted
@@ -300,7 +366,7 @@ struct DbValueReader(Endian EndianKind)
 
 public:
     @disable this(this);
-    //@disable void opAssign(typeof(this));
+    //@disable void opAssign(typeof(this)); // To allow construct and set to an "out" var
 
     this(DbReadBuffer buffer) nothrow pure
     {
@@ -345,7 +411,7 @@ public:
     {
         debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(nBytes=", nBytes, ", total=", totalReadOf(nBytes), ")");
 
-        return _buffer.readBytesImpl(nBytes);
+        return _buffer.readBytes(nBytes);
     }
 
     pragma(inline, true)
@@ -358,7 +424,19 @@ public:
     {
         debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(value.length=", value.length, ", total=", totalReadOf(value.length), ")");
 
-        return _buffer.readBytesImpl(value);
+        return _buffer.readBytes(value);
+    }
+
+    pragma(inline, true)
+    int64 readBytes(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return _buffer.readBytes(nBytes, saveBufferData, segmentLength);
     }
 
     pragma(inline, true)
@@ -372,7 +450,19 @@ public:
     {
         debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(nBytes=", nBytes, ", total=", totalReadOf(nBytes), ")");
 
-        return cast(char[])_buffer.readBytesImpl(nBytes);
+        return cast(char[])_buffer.readBytes(nBytes);
+    }
+
+    pragma(inline, true)
+    int64 readChars(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return _buffer.readBytes(nBytes, saveBufferData, segmentLength);
     }
 
     pragma(inline, true)
@@ -424,8 +514,7 @@ public:
     {
         //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint8.sizeof, ", total=", totalReadOf(uint8.sizeof), ")");
 
-        _buffer.ensureAvailableIf(uint8.sizeof);
-        return _buffer._data[_buffer._offset++];
+        return _buffer.consume();
     }
 
     uint16 readUInt16()

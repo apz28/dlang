@@ -29,8 +29,8 @@ else
     import pham.utl.utl_text : simpleIndexOf;
 }
 
-debug(debug_pham_db_db_skdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
+debug(debug_pham_db_db_skdatabase) import pham.db.db_debug;
 import pham.cp.cp_openssl;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;

@@ -1296,7 +1296,7 @@ public:
         auto deferredInfo = FbDeferredInfo(true);
         foreach (deferredResponse; deferredResponses2)
         {
-            debug(debug_pham_db_db_fbdatabase) debug writeln("\t", "deferred=", deferredResponse.name);
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deferred=", deferredResponse.name);
             
             deferredResponse.caller(deferredInfo);
         }

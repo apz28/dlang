@@ -11,7 +11,7 @@
 
 module pham.utl.utl_delegate_list;
 
-import pham.utl.utl_array : StaticArray;
+import pham.utl.utl_array_static : StaticArray;
 
 struct DelegateList(Args...)
 {
@@ -20,16 +20,19 @@ public:
 
 public:
     @disable this(this);
-    
+
     ref typeof(this) opAssign(ref typeof(this) rhs) nothrow return @safe
     {
         items.opAssign(rhs.items);
         return this;
     }
-    
+
     void opOpAssign(string op)(DelegateHandler handler) nothrow pure @safe
     if (op == "~" || op == "+" || op == "-")
     {
+        if (handler is null)
+            return;
+
         static if (op == "~" || op == "+")
             items.put(handler);
         else static if (op == "-")
@@ -40,20 +43,56 @@ public:
 
     void opCall(Args args) @safe
     {
-        if (items.length != 0)
+        switch (items.length)
         {
-            // Always make a copy to avoid skip/misbehavior if handler removes
-            // any from the list that means the lifetime of the caller instance
-            // must be out lived while notifying
-            auto foreachItems = items[].dup;
-            foreach (i; foreachItems)
-                i(args);
+            // Special call to avoid duplicate delegate array (@NoGC)
+            case 1:
+                items[0](args);
+                return;
+
+            case 0:
+                return;
+
+            // Special call to avoid duplicate delegate array (@NoGC)
+            case 2:
+                DelegateHandler[2] h2 = items[0..2];
+                h2[0](args);
+                h2[1](args);
+                return;
+
+            // Special call to avoid duplicate delegate array (@NoGC)
+            case 3:
+                DelegateHandler[3] h3 = items[0..3];
+                h3[0](args);
+                h3[1](args);
+                h3[2](args);
+                return;
+
+            // Special call to avoid duplicate delegate array (@NoGC)
+            case 4:
+                DelegateHandler[4] h4 = items[0..4];
+                h4[0](args);
+                h4[1](args);
+                h4[2](args);
+                h4[3](args);
+                return;
+
+            default:
+                // Always make a copy to avoid skip/misbehavior if handler removes
+                // any from the list that means the lifetime of the caller instance
+                // must be out lived while notifying
+                auto hn = items[].dup;
+                foreach (item; hn)
+                {
+                    item(args);
+                }
+                return;
         }
     }
 
     bool opCast(C: bool)() const @nogc nothrow pure @safe
     {
-        return length != 0;
+        return items.length != 0;
     }
 
     /**
@@ -89,6 +128,7 @@ public:
         return this;
     }
 
+    pragma(inline, true)
     @property size_t length() const @nogc nothrow pure @safe
     {
         return items.length;

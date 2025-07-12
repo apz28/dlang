@@ -619,10 +619,12 @@ public:
         return !rowPackage.isEOF();
     }
 
-    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNamedColumn column, const(bool) readColumnLength)
+    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNamedColumn column, size_t row, const(bool) readColumnLength)
     {
         debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", readColumnLength=", readColumnLength, ")");
         version(profile) debug auto p = PerfFunction.create();
+
+        const dbType = column.type;
 
         DbValue unsupportDataError()
         {
@@ -630,7 +632,54 @@ public:
             throw new MyException(DbErrorCode.read, msg);
         }
 
-        const dbType = column.type;
+        DbValue readBytes() @safe
+        {
+            debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
+
+            auto binaryValue = reader.readBytesValue(readColumnLength);
+            return binaryValue.length != 0 ? DbValue(binaryValue, dbType) : DbValue.dbNull(dbType);
+        }
+
+        DbValue readBytesDelegate() @safe
+        {
+            debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
+
+            auto columnDelegate = column.saveLongData;
+
+            int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
+            {
+                return columnDelegate(column, savedLength, requestedLength, row, data);
+            }
+
+            reader.readBytesValue(readColumnLength, &readerDelegate, MyDefaultSize.maxSegmentLength);
+
+            return DbValue.dbNull(dbType);
+        }
+
+        DbValue readText() @safe
+        {
+            debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
+
+            auto textValue = reader.readStringValue(readColumnLength);
+            return textValue.length != 0 ? DbValue(textValue, dbType) : DbValue.dbNull(dbType);
+        }
+
+        DbValue readTextDelegate() @safe
+        {
+            debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "()");
+
+            auto columnDelegate = column.saveLongData;
+
+            int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
+            {
+                return columnDelegate(column, savedLength, requestedLength, row, data);
+            }
+
+            reader.readStringValue(readColumnLength, &readerDelegate, MyDefaultSize.maxSegmentLength);
+
+            return DbValue.dbNull(dbType);
+        }
+
         final switch (dbType)
         {
             case DbType.boolean:
@@ -669,19 +718,23 @@ public:
                 return DbValue(reader.readTimeValue(readColumnLength), dbType);
             case DbType.uuid:
                 return DbValue(reader.readUUIDValue(readColumnLength), dbType);
+
             case DbType.stringFixed:
             case DbType.stringVary:
-                return DbValue(reader.readStringValue(readColumnLength), dbType);
             case DbType.json:
             case DbType.xml:
             case DbType.text:
-                auto textValue = reader.readStringValue(readColumnLength);
-                return textValue.length != 0 ? DbValue(textValue, dbType) : DbValue.dbNull(dbType);
+                return column.saveLongData is null
+                    ? readText()
+                    : readTextDelegate();
+
             case DbType.binaryFixed:
             case DbType.binaryVary:
             case DbType.blob:
-                auto binaryValue = reader.readBytesValue(readColumnLength);
-                return binaryValue.length != 0 ? DbValue(binaryValue, dbType) : DbValue.dbNull(dbType);
+                return column.saveLongData is null
+                    ? readBytes()
+                    : readBytesDelegate();
+
             case DbType.record:
             case DbType.unknown:
                 if (column.baseTypeId == MyTypeId.geometry)
@@ -716,7 +769,7 @@ public:
                 continue;
             }
 
-            result[i] = readValue(reader, command, columns[i], readColumnLength);
+            result[i] = readValue(reader, command, columns[i], row, readColumnLength);
         }
 
         return result;

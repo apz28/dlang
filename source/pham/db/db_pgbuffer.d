@@ -15,8 +15,7 @@ module pham.db.db_pgbuffer;
 import std.string : representation;
 import std.system : Endian;
 
-debug(debug_pham_db_db_pgbuffer) import std.stdio : writeln;
-
+debug(debug_pham_db_db_pgbuffer) import pham.db.db_debug;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.db.db_buffer;
@@ -35,6 +34,7 @@ struct PgReader
 
 public:
     @disable this(this);
+    //@disable void opAssign(typeof(this)); // To allow construct and set to an "out" var
 
     this(PgConnection connection)
     {
@@ -97,16 +97,21 @@ public:
     }
 
     pragma(inline, true)
+    int64 readBytes(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return _reader.readBytes(nBytes, saveBufferData, segmentLength);
+    }
+
+    pragma(inline, true)
     char readChar()
     {
         return _reader.readChar();
-    }
-
-    version(none)
-    pragma(inline, true)
-    char[] readChars(size_t nBytes)
-    {
-        return _reader.readChars(nBytes);
     }
 
     pragma(inline, true)
@@ -152,6 +157,18 @@ public:
     string readString(size_t nBytes) @trusted // @trusted=cast()
     {
         return cast(string)_reader.readChars(nBytes);
+    }
+
+    pragma(inline, true)
+    int64 readString(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return _reader.readChars(nBytes, saveBufferData, segmentLength);
     }
 
     pragma(inline, true)
@@ -205,7 +222,7 @@ private:
     {
         scope (failure)
             connection.fatalError(DbFatalErrorReason.readData, connection.state);
-    
+
         auto socketBuffer = connection.getSocketReadBuffer();
         auto socketReader = DbValueReader!(Endian.bigEndian)(socketBuffer);
         _messageType = socketReader.readChar();
@@ -220,16 +237,16 @@ private:
         {
             _bufferOwner = DbBufferOwner.acquired;
             _buffer = connection.acquireMessageReadBuffer().reset();
-        
+
             auto bufferData = _buffer.expand(_messageLength);
-            
+
             debug(debug_pham_db_db_pgbuffer) debug writeln("\t", "_buffer.offset=", _buffer.offset, ", _buffer.length=", _buffer.length, ", bufferData.length=", bufferData.length);
-            
+
             socketReader.readBytes(bufferData);
-        
+
             _reader = DbValueReader!(Endian.bigEndian)(_buffer);
         }
-        
+
         if (_messageType == '\0')
         {
             auto msg = DbMessage.eUnexpectOperation.fmtMessage(cast(ubyte)_messageType);
@@ -494,6 +511,18 @@ public:
         return _reader.readBytes(nBytes);
     }
 
+    pragma(inline, true)
+    int64 readBytes(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return _reader.readBytes(nBytes, saveBufferData, segmentLength);
+    }
+
     version(none)
     char[] readChars() @trusted // @trusted=cast()
     {
@@ -505,6 +534,18 @@ public:
     char[] readChars(size_t nBytes) @trusted // @trusted=cast()
     {
         return cast(char[])readBytes(nBytes);
+    }
+
+    pragma(inline, true)
+    int64 readChars(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return _reader.readChars(nBytes, saveBufferData, segmentLength);
     }
 
     DbDate readDate()
@@ -661,6 +702,18 @@ public:
     string readString(size_t nBytes) @trusted // @trusted=cast()
     {
         return cast(string)readChars(nBytes);
+    }
+
+    pragma(inline, true)
+    int64 readString(int64 nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return readChars(nBytes, saveBufferData, segmentLength);
     }
 
     DbTime readTime()

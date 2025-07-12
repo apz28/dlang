@@ -69,7 +69,9 @@ public:
 
     static DbValue dbNull(DbType dbType = DbType.unknown) nothrow @safe
     {
-        return DbValue(dbType);
+        auto result = DbValue(dbType);
+        result.nullify();
+        return result;
     }
 
     void dispose(bool disposing = true) nothrow @safe
@@ -437,7 +439,7 @@ public:
         {
             foreach (ref c; _columnValues)
                 c.nullify();
-                
+
             if (isDisposing(disposingReason))
                 _columnValues = null;
         }
@@ -626,6 +628,10 @@ unittest // DbValue
         int x;
         float y;
     }
+
+    auto dbNull = DbValue.dbNull();
+    assert(dbNull.type == DbType.unknown);
+    assert(dbNull.isNull);
 
     DbValue vn = DbValue(null, DbType.unknown);
     assert(vn.type == DbType.unknown);

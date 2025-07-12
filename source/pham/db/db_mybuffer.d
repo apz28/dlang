@@ -227,20 +227,45 @@ public:
     ubyte[] readBytes()
     {
         const len = readLength();
-        return readBytes(cast(int32)len);
+        return readBytes(len);
     }
 
     pragma(inline, true)
-    ubyte[] readBytes(const(int32) nBytes)
+    ubyte[] readBytes(const(int64) nBytes)
     {
         return nBytes > 0 ? _reader.readBytes(cast(size_t)nBytes) : null;
     }
 
     pragma(inline, true)
-    ubyte[] readBytesValue(const(bool) readColumnLength)
+    int64 readBytes(const(int64) nBytes, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return nBytes > 0 ? _reader.readBytes(nBytes, saveBufferData, segmentLength) : 0;
+    }
+
+    pragma(inline, true)
+    ubyte[] readBytesValue(const(bool))
     {
         const len = readLength();
-        return readBytes(cast(int32)len);
+        return readBytes(len);
+    }
+
+    pragma(inline, true)
+    int64 readBytesValue(const(bool) /*readColumnLength*/, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        const len = readLength();
+        return readBytes(len, saveBufferData, segmentLength);
     }
 
     pragma(inline, true)
@@ -508,6 +533,18 @@ public:
     string readStringValue(const(bool) readColumnLength) @trusted
     {
         return cast(string)readBytesValue(readColumnLength);
+    }
+
+    pragma(inline, true)
+    int64 readStringValue(const(bool) readColumnLength, DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return readBytesValue(readColumnLength, saveBufferData, segmentLength);
     }
 
     DbTime readTimeValue(const(bool) readColumnLength)
