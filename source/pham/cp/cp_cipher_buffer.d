@@ -12,8 +12,8 @@
 module pham.cp.cp_cipher_buffer;
 
 import pham.utl.utl_array : StaticStringBuffer;
+import pham.utl.utl_convert : bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason;
-import pham.utl.utl_object : bytesToHexs;
 
 nothrow @safe:
 
@@ -25,7 +25,7 @@ if (is(T == ubyte) || is(T == byte) || is(T == char))
 
 public:
     @disable this(this);
-    
+
     this(scope const(T)[] values) nothrow pure
     {
         this.data.opAssign(values);

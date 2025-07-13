@@ -350,7 +350,7 @@ private:
 nothrow @safe unittest // digestOf
 {
     import std.string : representation;
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
     CipherRawKey!ubyte hash;
 
@@ -373,7 +373,7 @@ nothrow @safe unittest // digestOf
 nothrow @safe unittest // digestOf - for Firebird database engine
 {
     import std.string : representation;
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
 
     CipherRawKey!ubyte hash;
 
@@ -387,7 +387,7 @@ nothrow @safe unittest // digestOf - for Firebird database engine
 nothrow @safe unittest // HMACS
 {
     import std.string : representation;
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
 
     DigestResult rBuffer = void;
     ubyte[] r;

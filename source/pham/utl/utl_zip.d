@@ -648,7 +648,7 @@ private:
 
 unittest // Inflate
 {
-	import pham.utl.utl_object : bytesFromHexs;
+	import pham.utl.utl_convert : bytesFromHexs;
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");
@@ -675,7 +675,7 @@ unittest // Inflate
 
 unittest // Deflate
 {
-	import pham.utl.utl_object : bytesFromHexs;
+	import pham.utl.utl_convert : bytesFromHexs;
 
 	auto zipData1 = bytesFromHexs("789C626060E0644005820C9CC195B9B9A9254599C98C2C8E45C926107146980200000000FFFF");
 	auto expectUnzipData1 = bytesFromHexs("0000000900000000000000000000000000000011000953796D6D6574726963010441726334000000000000010000000000000000");

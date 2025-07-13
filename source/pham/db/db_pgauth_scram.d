@@ -22,7 +22,7 @@ import pham.cp.cp_cipher_digest : DigestId, DigestResult, HMACS, digestOf;
 import pham.cp.cp_random : CipherRandomGenerator;
 import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason;
-import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;

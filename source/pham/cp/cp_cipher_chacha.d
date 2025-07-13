@@ -345,7 +345,7 @@ private:
 unittest // CipherChaCha20
 {
 	import std.conv : to;
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
 
 	static struct TestCase
     {

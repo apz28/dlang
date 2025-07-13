@@ -17,6 +17,15 @@ import std.traits : isFloatingPoint, isIntegral, isScalarType;
 
 @safe:
 
+/**
+ * Appending a 'line' to 'lines',
+ * using std.ascii.newline as separator if lines is not empty
+ * Params:
+ *  lines = destination string
+ *  line = source string
+ * Returns:
+ *  a string, 'lines'
+ */
 string addLine(ref string lines, string line) nothrow pure
 {
     import std.ascii : newline;
@@ -28,15 +37,21 @@ string addLine(ref string lines, string line) nothrow pure
     return lines;
 }
 
-bool addLineIf(ref string lines, string line) nothrow pure
+/**
+ * Appending a 'line' to 'lines' only if 'line' is not empty,
+ * using std.ascii.newline as separator if lines is not empty
+ * Params:
+ *  lines = destination string
+ *  line = source string
+ * Returns:
+ *  a string, 'lines'
+ */
+string addLineIf(ref string lines, string line) nothrow pure
 {
     if (line.length)
-    {
-        addLine(lines, line);
-        return true;
-    }
+        return addLine(lines, line);
     else
-        return false;
+        return lines;
 }
 
 /**
@@ -583,9 +598,10 @@ public:
         return isOK;
     }
 
-    bool addMessageIf(string errorLine) nothrow pure
+    ref typeof(this) addMessageIf(string errorLine) nothrow pure return
     {
-        return addLineIf(this.errorMessage, errorLine);
+        addLineIf(this.errorMessage, errorLine);
+        return this;
     }
 
     int clone(ResultStatus source, const(int) result) @nogc nothrow pure
@@ -696,7 +712,7 @@ public:
             throwIt!E();
     }
 
-    void throwIt(E : Exception = Exception)(Throwable next = null)
+    noreturn throwIt(E : Exception = Exception)(Throwable next = null)
     {
         static if (__traits(compiles, new E(errorCode, errorMessage, next, funcName, file, line)))
             throw new E(errorCode, errorMessage, next, funcName, file, line);

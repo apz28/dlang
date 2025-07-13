@@ -12,7 +12,6 @@
 module pham.external.dec.dec_codec;
 
 debug(debug_pham_external_dec_dec_codec) import std.stdio : writeln;
-
 import pham.external.dec.dec_decimal: Decimal32, Decimal64, Decimal128, decimalSubClass, fabs;
 import pham.external.dec.dec_integral : divrem;
 import pham.external.dec.dec_type;
@@ -162,7 +161,7 @@ private:
 	do
 	{
         debug(debug_pham_external_dec_dec_codec) debug writeln(__FUNCTION__, "()");
-        
+
 		char[coefficientDigits + 1] digitChars = '0';
 
 		foreach (digitGroup; 0..digitGroups)
@@ -652,7 +651,7 @@ static immutable int[] bin2DPD = [
 
 unittest // DecimalCodec64
 {
-	import pham.utl.utl_object : bytesFromHexs;
+	import pham.utl.utl_convert : bytesFromHexs;
 
 	DecimalCodec64 codec;
 	auto n = Decimal64.buildin("0");
@@ -715,7 +714,7 @@ unittest // DecimalCodec64
 
 unittest // DecimalCodec128
 {
-	import pham.utl.utl_object : bytesFromHexs;
+	import pham.utl.utl_convert : bytesFromHexs;
 
 	// Decode
 	DecimalCodec128 codec;

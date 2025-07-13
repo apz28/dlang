@@ -1509,6 +1509,8 @@ protected:
 
 class PgDatabase : DbDatabase
 {
+    import pham.utl.utl_convert : nToString = toString;
+
 @safe:
 
 public:
@@ -1641,8 +1643,6 @@ public:
     // LIMIT { count | ALL } OFFSET start
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
-
         // No restriction
         if (rows < 0)
             return null;
@@ -1661,8 +1661,6 @@ public:
 
     final override string parameterPlaceholder(string parameterName, uint32 ordinal) const nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
-
         auto buffer = Appender!string(1 + 10);
         return buffer.put('$')
             .nToString(ordinal)

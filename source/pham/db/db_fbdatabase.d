@@ -22,9 +22,10 @@ debug(debug_pham_db_db_fbdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_convert : bytesFromBase64s, bytesToBase64s;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
-import pham.utl.utl_object : bytesFromBase64s, bytesToBase64s, functionName, VersionString;
+import pham.utl.utl_object : VersionString;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -150,7 +151,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.columnInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(__FUNCTION__, toName!DbType(descriptor.columnInfo.dbType));
                 throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
@@ -315,7 +316,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(descriptor.columnInfo.dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(__FUNCTION__, toName!DbType(descriptor.columnInfo.dbType));
                 throw new FbException(DbErrorCode.write, msg, null, 0, FbIscResultCode.isc_net_write_err);
         }
 
@@ -2511,6 +2512,8 @@ protected:
 
 class FbDatabase : DbDatabase
 {
+    import pham.utl.utl_convert : nToString = toString;
+
 @safe:
 
 public:
@@ -2652,8 +2655,6 @@ public:
     // Row numbers are 1-based
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
-
         // No restriction
         if (rows < 0)
             return null;
@@ -2670,12 +2671,9 @@ public:
             .data;
     }
 
-
     // select FIRST(?) ... from ...
     final override string topClause(int rows) const nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
-
         if (rows < 0)
             return null;
 

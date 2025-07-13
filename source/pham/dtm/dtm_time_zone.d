@@ -1397,7 +1397,7 @@ nothrow @safe:
 
     ref Writer toString(Writer)(return ref Writer sink) const scope
     {
-        import pham.utl.utl_object : nToString = toString;
+        import pham.utl.utl_convert : nToString = toString;
 
         sink.put(hour < 0 || minute < 0 ? '-' : '+');
         sink.nToString(abs(hour), 2);

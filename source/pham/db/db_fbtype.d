@@ -2253,7 +2253,7 @@ enum countOfFbIscType = EnumMembers!FbIscType.length;
 
 unittest // FbIscBlobSize
 {
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
     auto parsedSize = FbIscBlobSize(info);
@@ -2264,7 +2264,7 @@ unittest // FbIscBlobSize
 
 unittest // FbIscBindInfo
 {
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
 
     FbIscBindInfo[] bindResults;
     ptrdiff_t previousBindIndex = -1;

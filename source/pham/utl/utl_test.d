@@ -390,7 +390,7 @@ debug
 
     void dgWriteln(const(char)[] prefix, scope const(ubyte)[] bytes) nothrow
     {
-        import pham.utl.utl_object : bytesToHexs;
+        import pham.utl.utl_convert : bytesToHexs;
 
         try {
             debug dgWriteln(prefix, bytesToHexs(bytes));

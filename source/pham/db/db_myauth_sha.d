@@ -264,7 +264,7 @@ DbAuth createAuthSha2Caching()
 
 unittest // myauth_sha.MyAuthSha2Caching
 {
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
     
     CipherBuffer!ubyte obfuscated;
     MyAuthSha.xorNonce(obfuscated, "masterkey".representation(), bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E40"));

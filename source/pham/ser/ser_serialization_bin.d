@@ -183,7 +183,7 @@ public:
     {
         return cast(BinaryDeserializer)super.end(attribute);
     }
-    
+
     final override ptrdiff_t aggregateBegin(string typeName, scope ref Serializable attribute)
     {
         checkDataType(BinaryDataType.aggregateBegin, 2);
@@ -277,7 +277,7 @@ public:
     if (isIntegral!V)
     {
         static assert(V.sizeof <= long.sizeof);
-        
+
         static if (V.sizeof == long.sizeof)
             static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int8, BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else static if (V.sizeof == int.sizeof)
@@ -294,7 +294,7 @@ public:
     if (isIntegral!V)
     {
         static assert(V.sizeof <= long.sizeof);
-        
+
         static if (V.sizeof >= long.sizeof)
         if (t == BinaryDataType.int8)
             return BinaryIntCoder.decodeInt!long(data, offset);
@@ -727,7 +727,7 @@ unittest // BinaryIntCoder.encodeFloat & decodeFloat
 
 unittest // BinarySerializer.UnitTestC2
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestC2 =
         "5048414D000116401203496E74081E120C7075626C6963537472756374164012097075626C6963496E740814120C7075626C69634765745365740801171206476574536574080112097075626C696353747211104332207075626C696320737472696E6717";
@@ -750,7 +750,7 @@ unittest // BinarySerializer.UnitTestC2
 
 unittest // BinarySerializer.UnitTestAllTypes
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestAllTypes =
         "5048414D000116401205656E756D31110574686972641205626F6F6C31020112056279746531066512067562797465310600120673686F72743107EA0F12077573686F72743107873E1204696E743108FCDA2E120575696E7431089987E30312056C6F6E673109CBC9A5F8021206756C6F6E6731098AB9BC8F021206666C6F6174310C979C99AC091208666C6F61744E614E0C808080FC0F1207646F75626C65310D9FB8EFF2B790DB8485031209646F75626C65496E660D80808080808080F0FF011207737472696E6731110E7465737420737472696E67206F661209636861724172726179110F77696C6C207468697320776F726B3F120762696E6172793115052518CC652B1208696E744172726179180608870208A90E088D3A08BC2F0881D90408BC0519120C696E7441727261794E756C6C1800191206696E74496E74160212013208A0EE021202313108B0EC0D17120A696E74496E744E756C6C1600171208656E756D456E756D16021205666F727468110573697874681205746869726411067365636F6E64171206737472537472160312046B657931110A6B6579312076616C756512046B657932110A6B6579322076616C756512046B657933110017120773747275637431164012097075626C6963496E740814120C7075626C69634765745365740801171206636C6173733116401203496E74081E120C7075626C6963537472756374164012097075626C6963496E740814120C7075626C69634765745365740801171206476574536574080117120A636C617373314E756C6C16001717";
@@ -773,7 +773,7 @@ unittest // BinarySerializer.UnitTestAllTypes
 
 unittest // BinarySerializer.UnitTestStdBigInt
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_bigint;
 
     static immutable string binUnitTestStdBigInt =
@@ -796,7 +796,7 @@ unittest // BinarySerializer.UnitTestStdBigInt
 
 unittest // BinarySerializer.UnitTestStdDateTime
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_date_time;
 
     static immutable string binUnitTestStdDateTime =
@@ -819,7 +819,7 @@ unittest // BinarySerializer.UnitTestStdDateTime
 
 unittest // BinarySerializer.UnitTestStdUuid
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_std_uuid;
 
     static immutable string binUnitTestStdUuid =
@@ -842,7 +842,7 @@ unittest // BinarySerializer.UnitTestStdUuid
 
 unittest // BinarySerializer.UnitTestPhamBigInteger
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_pham_big_integer;
 
     static immutable string binUnitTestPhamBigInteger =
@@ -865,7 +865,7 @@ unittest // BinarySerializer.UnitTestPhamBigInteger
 
 unittest // BinarySerializer.UnitTestPhamDateTime
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
     static immutable string binUnitTestPhamDateTime =
         "5048414D0001164012056461746531039A8A5912096461746554696D65310480EAAB9BCFF0CAC09101120574696D65310580EA939C9B9A8080800117";
@@ -887,7 +887,7 @@ unittest // BinarySerializer.UnitTestPhamDateTime
 
 unittest // BinarySerializer.UnitTestDecDecimal
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
     import pham.ser.ser_dec_decimal;
 
     static immutable string binUnitTestDecDecimal =
@@ -910,7 +910,7 @@ unittest // BinarySerializer.UnitTestDecDecimal
 
 unittest // BinarySerializer.UnitTestCustomS1
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
     const(ubyte)[] binCustom;
 

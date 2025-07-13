@@ -137,7 +137,7 @@ public:
 
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
+        import pham.utl.utl_convert : nToString = toString;
 
         auto buffer = Appender!string(anonymousColumnNamePrefix.length + 10);
         return buffer.put(anonymousColumnNamePrefix)
@@ -2900,7 +2900,7 @@ protected:
 
     final string timerName() nothrow pure @trusted
     {
-        import pham.utl.utl_object : toString;
+        import pham.utl.utl_convert : toString;
 
         static immutable string prefix = "DbConnectionPool_";
         auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
@@ -4728,7 +4728,7 @@ public:
 
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
+        import pham.utl.utl_convert : nToString = toString;
 
         auto buffer = Appender!string(anonymousParameterNamePrefix.length + 10);
         return buffer.put(anonymousParameterNamePrefix)

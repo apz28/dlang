@@ -325,7 +325,7 @@ unittest // timeDecode & timeEncode
 
 unittest // int128Decode & int128Encode
 {
-	import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+	import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
 	static BigInteger safeBigInteger(string value) nothrow pure @safe
     {

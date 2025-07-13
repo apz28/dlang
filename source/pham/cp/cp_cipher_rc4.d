@@ -137,7 +137,7 @@ private:
 
 unittest // CipherRC4
 {
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
     
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];

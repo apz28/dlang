@@ -17,7 +17,7 @@ import std.system : Endian;
 import pham.utl.utl_bit : fromBytes, Map32Bit, nativeToBytes, toBytes;
 import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
-import pham.utl.utl_object : toString;
+import pham.utl.utl_convert : toString;
 import pham.utl.utl_result;
 import pham.utl.utl_text : simpleIndexOf;
 

@@ -1049,7 +1049,7 @@ unittest // canSendParameter
 
 unittest // PgOIdScramSHA256FirstMessage
 {
-    import pham.utl.utl_object : bytesFromHexs, bytesToHexs;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 
     auto r = PgOIdScramSHA256FirstMessage(bytesFromHexs("723D307131356635454831642F682F313258634E4F485A2B3731524F4149563643492F322B35786344516B56534E317A6E6C2C733D456E5261337A47685830462F464A62616279685655513D3D2C693D34303936"));
     assert(r.iteration == 4096);

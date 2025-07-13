@@ -1042,6 +1042,8 @@ protected:
 
 class MyDatabase : DbDatabase
 {
+    import pham.utl.utl_convert : nToString = toString;
+
 @safe:
 
 public:
@@ -1209,8 +1211,6 @@ public:
     // The offset of the initial row is 0 (not 1)
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
-        import pham.utl.utl_object : nToString = toString;
-
         // No restriction
         if (rows < 0)
             return null;

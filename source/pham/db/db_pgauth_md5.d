@@ -93,7 +93,7 @@ DbAuth createAuthMD5()
 unittest // PgAuthMD5
 {
     import std.string : representation;
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
 
     auto salt = bytesFromHexs("9F170CAC");
     auto auth = new PgAuthMD5();

@@ -657,7 +657,7 @@ public:
     final void writeImpl(V)(V v)
     if (isIntegral!V)
     {
-        import pham.utl.utl_object : toString;
+        import pham.utl.utl_convert : toString;
 
         toString(buffer, v);
     }

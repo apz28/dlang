@@ -1529,7 +1529,7 @@ nothrow @safe unittest // BitArray.toString(sink)
 
 nothrow @safe unittest // BitArray.get
 {
-    import pham.utl.utl_object : bytesToHexs;
+    import pham.utl.utl_convert : bytesToHexs;
 
 	auto b = BitArray(5, true);
     auto bytes = b.get!ubyte();

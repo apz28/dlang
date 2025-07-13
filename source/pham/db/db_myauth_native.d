@@ -116,7 +116,7 @@ DbAuth createAuthNative()
 
 unittest // MyAuthNative.getPassword
 {
-    import pham.utl.utl_object : bytesFromHexs;
+    import pham.utl.utl_convert : bytesFromHexs;
     
     auto auth = new MyAuthNative();
     auth.setServerSalt(bytesFromHexs("625A1C30712F1F333E6A732543335E6A5C252613"));

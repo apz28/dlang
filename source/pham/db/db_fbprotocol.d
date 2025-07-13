@@ -21,9 +21,10 @@ version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_bit : bitLengthToElement, hostToNetworkOrder;
 import pham.utl.utl_bit_array : BitArrayImpl;
+import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_object : InitializedValue, bytesFromHexs, bytesToHexs, functionName;
+import pham.utl.utl_object : InitializedValue;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.db.db_buffer_filter;
 import pham.db.db_buffer_filter_cipher;
@@ -195,7 +196,7 @@ nothrow @safe:
 struct FbDeferredResponse
 {
     alias DeferredDelegate = void delegate(ref FbDeferredInfo deferredInfo) @safe;
-    
+
     string name;
     DeferredDelegate caller;
 }
@@ -1219,7 +1220,7 @@ public:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(dbType));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(__FUNCTION__, toName!DbType(dbType));
                 throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
@@ -1288,7 +1289,7 @@ public:
     final void callDeferredResponses() @safe
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(deferredResponses.length=", deferredResponses.length, ")");
-        
+
         // Must use temp to avoid recursive entry - stack overflow
         auto deferredResponses2 = this.deferredResponses;
         this.deferredResponses = null;
@@ -1297,13 +1298,13 @@ public:
         foreach (deferredResponse; deferredResponses2)
         {
             debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deferred=", deferredResponse.name);
-            
+
             deferredResponse.caller(deferredInfo);
         }
         if (deferredInfo.hasError)
             throw deferredInfo.toException();
     }
-    
+
     @property final FbConnection connection() nothrow pure
     {
         return _connection;
@@ -2035,7 +2036,7 @@ protected:
             case DbType.record:
             case DbType.array:
             case DbType.unknown:
-                auto msg = DbMessage.eUnsupportDataType.fmtMessage(functionName(), toName!DbType(column.type));
+                auto msg = DbMessage.eUnsupportDataType.fmtMessage(__FUNCTION__, toName!DbType(column.type));
                 throw new FbException(DbErrorCode.write, msg, null, 0, FbIscResultCode.isc_net_write_err);
         }
     }

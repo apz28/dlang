@@ -403,7 +403,7 @@ protected:
 
     final string timerName() nothrow pure @trusted
     {
-        import pham.utl.utl_object : toString;
+        import pham.utl.utl_convert : toString;
 
         static immutable string prefix = "DbCache_";
         auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);

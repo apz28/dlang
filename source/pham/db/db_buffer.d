@@ -124,7 +124,7 @@ public:
         return _data[_offset++];
     }
 
-    final ubyte[] consume(const(size_t) nBytes)
+    final ubyte[] consume(const(size_t) nBytes) scope
     {
         if (length < nBytes)
             ensureAvailable(nBytes);
@@ -135,7 +135,7 @@ public:
         return result;
     }
 
-    final ubyte[] consumeAll()
+    final ubyte[] consumeAll() scope
     {
         return consume(length);
     }
@@ -185,7 +185,7 @@ public:
         _data[endOffset..endOffset + nBytes] = additionalBytes[0..$];
     }
 
-    final ubyte[] peekBytes(size_t forLength = size_t.max) nothrow pure
+    final ubyte[] peekBytes(size_t forLength = size_t.max) nothrow pure scope
     {
         const bLength = this.length;
         return forLength > bLength
@@ -334,7 +334,7 @@ protected:
         throw new DbException(DbErrorCode.read, msg);
     }
 
-    final void reserve(const(size_t) additionalBytes) nothrow @trusted
+    final void reserve(const(size_t) additionalBytes) nothrow @trusted // @trusted for assumeSafeAppend
     {
         debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(offset=", _offset, ", length=", length, ", additionalBytes=", additionalBytes, ", _data.length=", _data.length, ")");
 
@@ -587,7 +587,7 @@ public:
     final string traceString() const nothrow @trusted
     {
         import std.conv : to;
-        import pham.utl.utl_object : bytesToHexs;
+        import pham.utl.utl_convert : bytesToHexs;
 
         const bytes = _data[0..length];
         return "length=" ~ bytes.length.to!string()
