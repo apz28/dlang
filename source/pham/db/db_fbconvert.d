@@ -20,7 +20,7 @@ version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 import pham.external.dec.dec_codec : DecimalCodec32, DecimalCodec64, DecimalCodec128;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_big_integer : toBigEndianFlag, UByteTempArray;
 import pham.db.db_type;
 import pham.db.db_fbisc;

@@ -16,7 +16,7 @@ debug(debug_pham_db_db_fbauth) import std.stdio : writeln;
 import pham.cp.cp_cipher : CipherHelper;
 public import pham.cp.cp_cipher : CipherBuffer, CipherChaChaKey, CipherKey, CipherSimpleKey;
 public import pham.cp.cp_cipher_buffer : CipherRawKey;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_utf8 : UTF8CharRange;
 import pham.db.db_auth;
 import pham.db.db_message;

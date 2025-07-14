@@ -16,7 +16,7 @@ import std.meta : allSatisfy;
 import std.range.primitives : put;
 import std.traits : EnumMembers, isIntegral, Unqual;
 
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 
 nothrow @safe:
 

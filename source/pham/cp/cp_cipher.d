@@ -16,7 +16,7 @@ import std.traits : isUnsigned, Unqual;
 import std.typecons : No, Yes;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_big_integer : BigInteger, defaultParseBigIntegerOptions;
 import pham.utl.utl_disposable : DisposableObject, DisposingReason;
 import pham.utl.utl_numeric_parser : NumericLexerFlag, NumericLexerOptions;

@@ -18,7 +18,7 @@ debug(debug_pham_db_db_pgconvert) import std.stdio : writeln;
 
 import pham.dtm.dtm_tick : Tick;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
-import pham.utl.utl_array : ShortStringBuffer, StaticStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer, StaticStringBuffer;
 import pham.db.db_convert : toDecimalSafe;
 import pham.db.db_type;
 import pham.db.db_pgtype;

@@ -290,7 +290,7 @@ debug
 
     ubyte[] dgFromHex(scope const(char)[] hexs) nothrow pure @safe
     {
-        import pham.utl.utl_array : ShortStringBuffer;
+        import pham.utl.utl_array_static : ShortStringBuffer;
         import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16;
         import pham.utl.utl_utf8 : NoDecodeInputRange;
 

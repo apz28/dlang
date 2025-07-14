@@ -116,7 +116,8 @@ if (isOutputRange!(Writer, char))
     return sink;
 }
 
-size_t cvtBytesBase64Length(const(size_t) bytes, const(bool) lineBreak, const(uint) lineBreakLength,
+size_t cvtBytesBase64Length(const(size_t) bytes,
+    const(bool) lineBreak = false, const(uint) lineBreakLength = 80,
     const(char) padding = Base64MappingChar.padding) @nogc pure
 {
     const mod3 = bytes % 3;
@@ -183,7 +184,8 @@ if (isOutputRange!(Writer, char))
     return sink;
 }
 
-size_t cvtBytesBase16Length(const(size_t) bytes, const(bool) lineBreak, const(uint) lineBreakLength) @nogc pure
+size_t cvtBytesBase16Length(const(size_t) bytes,
+    const(bool) lineBreak = false, const(uint) lineBreakLength = 80) @nogc pure
 {
     const res = bytes * 2;
     return res + (lineBreak ? lineBreakCount(res, lineBreakLength) : 0);
@@ -1705,7 +1707,7 @@ nothrow @safe unittest // parseBase64
 {
     import std.conv : to;
     import std.string : representation;
-    import pham.utl.utl_array : ShortStringBuffer;
+    import pham.utl.utl_array_static : ShortStringBuffer;
 
     static test(string base64Text, NumericParsedKind expectedCondition, string expectedText,
         uint line = __LINE__)

@@ -13,7 +13,7 @@
 
 module pham.utl.utl_big_integer_calculator;
 
-import pham.utl.utl_array : StaticArray;
+import pham.utl.utl_array_static : StaticArray;
 
 nothrow @safe:
 

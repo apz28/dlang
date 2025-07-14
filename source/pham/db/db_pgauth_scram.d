@@ -20,7 +20,7 @@ debug(debug_pham_db_db_pgauth_scram) import std.stdio : writeln;
 import pham.cp.cp_cipher : CipherHelper;
 import pham.cp.cp_cipher_digest : DigestId, DigestResult, HMACS, digestOf;
 import pham.cp.cp_random : CipherRandomGenerator;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 import pham.db.db_auth;

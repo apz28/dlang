@@ -20,7 +20,7 @@ import std.typecons : Flag, No, Yes;
 debug(debug_pham_db_db_fbbuffer) import std.stdio : writeln;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.db.db_buffer;
 import pham.db.db_convert;

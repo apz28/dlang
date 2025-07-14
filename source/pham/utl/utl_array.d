@@ -15,7 +15,6 @@ import std.traits : hasElaborateDestructor, hasIndirections,
     isDynamicArray, isIntegral, isSomeChar, isStaticArray;
 
 debug(debug_pham_utl_utl_array) import std.stdio : writeln;
-public import pham.utl.utl_array_static;
 
 @safe:
 

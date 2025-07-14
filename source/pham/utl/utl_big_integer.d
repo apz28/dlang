@@ -23,7 +23,7 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : bitLength, trailingZeroBits;
 import pham.utl.utl_convert : bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason;

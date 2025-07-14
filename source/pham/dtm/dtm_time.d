@@ -17,7 +17,7 @@ import std.traits : isSomeChar;
 
 debug(debug_pham_dtm_dtm_time) import std.stdio : writeln;
 
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, JulianDate;
 import pham.dtm.dtm_date_time_format;
 import pham.dtm.dtm_tick;

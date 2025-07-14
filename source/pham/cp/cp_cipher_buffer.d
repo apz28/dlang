@@ -11,7 +11,7 @@
 
 module pham.cp.cp_cipher_buffer;
 
-import pham.utl.utl_array : StaticStringBuffer;
+import pham.utl.utl_array_static : StaticStringBuffer;
 import pham.utl.utl_convert : bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason;
 

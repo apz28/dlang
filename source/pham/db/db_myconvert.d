@@ -19,7 +19,7 @@ debug(debug_pham_db_db_myconvert) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date_time_parse;
 import pham.dtm.dtm_tick : Tick, TickPart;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_object : simpleIntegerFmt;
 import pham.db.db_type;

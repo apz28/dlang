@@ -72,7 +72,7 @@ T limitRangeValue(T)(T value, T min, T max) nothrow pure @safe
 }
 
 /**
- * Pads the left of string `value` with character `c` if `value.length` is shorter than `size`
+ * Pads the string `value` with character `c` if `value.length` is shorter than `size`
  * Params:
  *   value = the string value to be checked and padded
  *   size = max length to be checked against value.length
@@ -90,10 +90,18 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
     const n = abs(size);
     if (value.length >= n)
         return value;
-    else
-        return size > 0
-            ? (stringOfChar!C(n - value.length, c) ~ value)
-            : (value ~ stringOfChar!C(n - value.length, c));
+
+    return size > 0
+        ? (stringOfChar!C(n - value.length, c) ~ value)
+        : (value ~ stringOfChar!C(n - value.length, c));
+}
+
+ref Writer padRight(C, Writer)(return ref Writer sink, const(size_t) length, const(size_t) size, C c) nothrow pure @safe
+if (isSomeChar!C)
+{
+    return length >= size
+        ? sink
+        : stringOfChar!(C, Writer)(sink, size - length, c);
 }
 
 /**
@@ -198,6 +206,17 @@ if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
         return cast(dstring)result;
 }
 
+ref Writer stringOfChar(C = char, Writer)(return ref Writer sink, size_t count, C c) nothrow pure @safe
+if (isSomeChar!C)
+{
+    while (count)
+    {
+        sink.put(c);
+        count--;
+    }
+    return sink;
+}
+
 /**
  * Boxer type to have indicator that its' value has been set or not-set regardless of if the setting value
  * is a default one
@@ -205,7 +224,7 @@ if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
 struct InitializedValue(T)
 {
     import std.traits : isArray, isAssociativeArray, isPointer;
-    
+
 nothrow @safe:
 
 public:
@@ -282,7 +301,7 @@ struct RAIIMutex
 {
     import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad;
     import core.sync.mutex : Mutex;
-    
+
 @nogc nothrow @safe:
 
 public:
@@ -316,7 +335,13 @@ public:
      */
     void lock()
     {
-        if (atomicFetchAdd(_lockedCounter, 1) == 0 && _mutex !is null)
+        if (_mutex is null)
+        {
+            assert(_lockedCounter == 0);
+            return;
+        }
+
+        if (atomicFetchAdd(_lockedCounter, 1) == 0)
             _mutex.lock_nothrow();
     }
 
@@ -325,7 +350,13 @@ public:
      */
     void unlock()
     {
-        if (atomicFetchSub(_lockedCounter, 1) == 1 && _mutex !is null)
+        if (_mutex is null)
+        {
+            assert(_lockedCounter == 0);
+            return;
+        }
+
+        if (atomicFetchSub(_lockedCounter, 1) == 1)
             _mutex.unlock_nothrow();
     }
 
@@ -358,7 +389,7 @@ struct VersionString
     import std.algorithm.iteration : map;
     import std.conv : to;
     import std.string : strip;
-    import pham.utl.utl_array : ShortStringBuffer;
+    import pham.utl.utl_array_static : ShortStringBuffer;
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseIntegral;
     import pham.utl.utl_result : cmp;
 
@@ -462,7 +493,7 @@ public:
     static struct Parts
     {
         import pham.utl.utl_convert : intToString = toString;
-        
+
     nothrow @safe:
 
     public:
@@ -707,6 +738,22 @@ nothrow @safe unittest // pad
     assert(pad("12", -3, ' ') == "12 ");
 }
 
+nothrow @safe unittest // padRight
+{
+    import std.array : Appender;
+
+    Appender!(char[]) s;
+    assert(padRight(s, s.data.length, 2, ' ').data == "  ");
+
+    s.clear();
+    s.put("12");
+    assert(padRight(s, s.data.length, 2, ' ').data == "12");
+
+    s.clear();
+    s.put("12");
+    assert(padRight(s, s.data.length, 3, ' ').data == "12 ");
+}
+
 nothrow @safe unittest // shortClassName
 {
     auto c1 = new TestClassName();
@@ -737,10 +784,21 @@ unittest // singleton
     assert(singleton(a, &createA) !is null);
 }
 
-nothrow @safe unittest // stringOfChar
+nothrow @safe unittest // stringOfChar (string)
 {
     assert(stringOfChar(4, ' ') == "    ");
     assert(stringOfChar(0, ' ').length == 0);
+}
+
+nothrow @safe unittest // stringOfChar (Writer)
+{
+    import std.array : Appender;
+
+    Appender!(char[]) s;
+    assert(stringOfChar(s, 4, ' ').data == "    ");
+
+    s.clear();
+    assert(stringOfChar(s, 0, ' ').data.length == 0);
 }
 
 unittest // InitializedValue

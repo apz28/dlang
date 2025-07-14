@@ -66,7 +66,8 @@ import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_cp_cp_auth_rsp) import std.stdio : writeln;
 
-import pham.utl.utl_array : arrayOfChar, ShortStringBuffer;
+import pham.utl.utl_array : arrayOfChar;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_big_integer;
 import pham.utl.utl_disposable : DisposableObject, DisposingReason;
 import pham.utl.utl_numeric_parser : isHexDigit;

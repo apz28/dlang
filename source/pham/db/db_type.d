@@ -31,8 +31,8 @@ public import pham.dtm.dtm_time_zone : ZoneOffset;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal,
     Precision, RoundingMode;
-import pham.utl.utl_array : ShortStringBuffer;
 import pham.utl.utl_array_dictionary;
+import pham.utl.utl_array_static : ShortStringBuffer;
 public import pham.utl.utl_big_integer : BigInteger;
 import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_numeric_parser : ComputingSizeUnit, DurationUnit, NumericParsedKind,
@@ -2514,7 +2514,6 @@ DbNameValueValidated isConnectionParameterString(scope const(DbConnectionParamet
 
 DbNameValueValidated isConnectionParameterUBytes(scope const(DbConnectionParameterInfo) info, string v)
 {
-    import pham.utl.utl_array : ShortStringBuffer;
     import pham.utl.utl_utf8 : NoDecodeInputRange;
 
     if (v.length == 0)

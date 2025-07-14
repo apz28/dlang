@@ -15,7 +15,7 @@ import std.math.algebraic : abs;
 import std.range.primitives : isOutputRange;
 import std.traits : isSomeChar, Unqual;
 
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_result : cmp;
 import pham.dtm.dtm_date_time_format;
 import pham.dtm.dtm_tick;

@@ -19,7 +19,7 @@ import std.system : Endian;
 debug(debug_pham_db_db_mybuffer) import std.stdio : writeln;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
-import pham.utl.utl_array : ShortStringBuffer;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : simpleFloatFmt, simpleIntegerFmt;

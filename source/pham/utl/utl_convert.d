@@ -24,15 +24,19 @@ import std.traits : isIntegral;
  */
 ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
-    import pham.utl.utl_array : ShortStringBuffer;
+    import pham.utl.utl_array_append : Appender;
     import pham.utl.utl_numeric_parser : parseBase64, NumericParsedKind;
     import pham.utl.utl_utf8 : NoDecodeInputRange;
 
+    if (validBase64Text.length == 0)
+        return null;
+        
     NoDecodeInputRange!(validBase64Text, char) inputRange;
-    ShortStringBuffer!ubyte result;
+    Appender!(ubyte[]) result;
+    result.reserve((validBase64Text.length / 4) * 3);
     if (parseBase64(result, inputRange) != NumericParsedKind.ok)
         return null;
-    return result[].dup;
+    return result[];
 }
 
 /**
@@ -45,6 +49,9 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
 {
     import pham.utl.utl_numeric_parser : Base64MappingChar, cvtBytesBase64, NumericParsedKind;
+
+    if (bytes.length == 0)
+        return null;
 
     return cvtBytesBase64(bytes, Base64MappingChar.padding);
 }
@@ -59,15 +66,19 @@ char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
  */
 ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 {
-    import pham.utl.utl_array : ShortStringBuffer;
+    import pham.utl.utl_array_append : Appender;
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16;
     import pham.utl.utl_utf8 : NoDecodeInputRange;
 
+    if (validHexDigits.length == 0)
+        return null;
+
     NoDecodeInputRange!(validHexDigits, char) inputRange;
-    ShortStringBuffer!ubyte result;
+    Appender!(ubyte[]) result;
+    result.reserve(validHexDigits.length / 2);
     if (parseBase16(result, inputRange) != NumericParsedKind.ok)
         return null;
-    return result[].dup;
+    return result[];
 }
 
 /**
@@ -80,6 +91,9 @@ ubyte[] bytesFromHexs(scope const(char)[] validHexDigits) nothrow pure @safe
 char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
 {
     import pham.utl.utl_numeric_parser : cvtBytesBase16;
+
+    if (bytes.length == 0)
+        return null;
 
     return cvtBytesBase16(bytes, LetterCase.upper);
 }
