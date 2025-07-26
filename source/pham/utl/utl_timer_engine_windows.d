@@ -152,12 +152,11 @@ private:
         extern (Windows) static void timerRun(HWND, UINT, UINT_PTR ptr, DWORD) nothrow @trusted
         {
             debug(debug_pham_utl_utl_timer_engine_windows) debug writeln("TimerEngine.timerRun(begin)");
+            debug(debug_pham_utl_utl_timer_engine_windows) scope (exit) debug writeln("TimerEngine.timerRun(end)");
             assert(ptr != 0);
 
             auto engine = cast(TimerEngine*)ptr;
             engine.callback(engine.callbackData);
-
-            debug(debug_pham_utl_utl_timer_engine_windows) debug writeln("TimerEngine.timerRun(end)");
         }
     }
     else
@@ -168,12 +167,11 @@ private:
         extern (Windows) static void timerRun(PVOID lpParam, BOOLEAN) nothrow @trusted
         {
             debug(debug_pham_utl_utl_timer_engine_windows) debug writeln("TimerEngine.timerRun(begin)");
+            debug(debug_pham_utl_utl_timer_engine_windows) scope (exit) debug writeln("TimerEngine.timerRun(end)");
             assert(lpParam !is null);
 
             auto engine = cast(TimerEngine*)lpParam;
             engine.callback(engine.callbackData);
-
-            debug(debug_pham_utl_utl_timer_engine_windows) debug writeln("TimerEngine.timerRun(end)");
         }
     }
 }

@@ -14,7 +14,9 @@ nothrow:
 @system:
 
 version(ANSI)
-{}
+{
+    version = Ansicode;
+}
 else
 {
     version = Unicode;
@@ -29,7 +31,7 @@ public import core.sys.windows.security : SEC_E_OK, SEC_I_CONTINUE_NEEDED, SEC_I
 //import core.sys.windows.ntsecapi;
 //import core.sys.windows.subauth;
 
-pragma(lib, "Secur32.lib");
+pragma(lib, "Secur32");
 
 enum : ULONG
 {
@@ -113,9 +115,10 @@ enum : ULONG
     ISC_REQ_RESERVED1 = 0x00100000,
     ISC_REQ_FRAGMENT_TO_FIT = 0x00200000,
 
-    ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES
-        = ISC_REQ_CONFIDENTIALITY | ISC_REQ_REPLAY_DETECT
-        | ISC_REQ_SEQUENCE_DETECT | ISC_REQ_CONNECTION,
+    ISC_REQ_STANDARD_CONTEXT_ATTRIBUTES = ISC_REQ_CONFIDENTIALITY
+        | ISC_REQ_REPLAY_DETECT
+        | ISC_REQ_SEQUENCE_DETECT
+        | ISC_REQ_CONNECTION,
 }
 
 enum : ULONG

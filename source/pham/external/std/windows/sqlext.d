@@ -15,13 +15,15 @@
 
 module pham.external.std.windows.sqlext;
 
-version (Windows):
+version(Windows):
 extern (Windows):
 @nogc:
 nothrow:
 
-version (ANSI)
-{}
+version(ANSI)
+{
+    version = Ansicode;
+}
 else
 {
     version = Unicode;
@@ -31,7 +33,7 @@ import pham.external.std.windows.sql;
 import pham.external.std.windows.sqltypes;
 public import pham.external.std.windows.sqlucode;
 
-version (Unicode)
+version(Unicode)
 {
     enum SQL_SQLSTATE_SIZE = 10; /* size of SQLSTATE */
     enum SQL_SQLSTATE_SIZE_NULL = SQL_SQLSTATE_SIZE + 2; 
@@ -455,7 +457,7 @@ enum SQL_C_ULONG = SQL_C_LONG + SQL_UNSIGNED_OFFSET; /* UNSIGNED INTEGER*/
 enum SQL_C_USHORT = SQL_C_SHORT + SQL_UNSIGNED_OFFSET; /* UNSIGNED SMALLINT*/
 enum SQL_C_UTINYINT = SQL_TINYINT + SQL_UNSIGNED_OFFSET; /* UNSIGNED TINYINT*/
 
-version (Win64)
+version(Win64)
     enum SQL_C_BOOKMARK = SQL_C_UBIGINT; /* BOOKMARK        */
 else
     enum SQL_C_BOOKMARK = SQL_C_ULONG;   /* BOOKMARK        */

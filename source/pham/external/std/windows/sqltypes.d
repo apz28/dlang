@@ -15,13 +15,15 @@
 
 module pham.external.std.windows.sqltypes;
 
-version (Windows):
+version(Windows):
 extern (Windows):
 @nogc:
 nothrow:
 
-version (ANSI)
-{}
+version(ANSI)
+{
+    version = Ansicode;
+}
 else
 {
     version = Unicode;
@@ -55,7 +57,7 @@ alias SQLFLOAT = double;
 alias SQLINTEGER = int;
 alias SQLUINTEGER = uint;
 
-version (Win64)
+version(Win64)
 {
     alias SQLLEN = long;
     alias SQLULEN = ulong;
@@ -69,7 +71,7 @@ else
 }
 
 //For Backward compatibility
-version (Win32)
+version(Win32)
 {
     alias SQLROWCOUNT = SQLULEN;
     alias SQLROWSETSIZE = SQLULEN;
@@ -255,7 +257,7 @@ alias BOOKMARK = SQLULEN;
 
 alias SQLWCHAR = wchar;
 
-version (Unicode)
+version(Unicode)
     alias SQLTCHAR = SQLWCHAR;
 else
     alias SQLTCHAR = SQLCHAR;

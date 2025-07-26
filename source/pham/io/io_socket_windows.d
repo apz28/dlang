@@ -18,8 +18,8 @@ import core.sys.windows.windef : BOOL, HANDLE, DWORD, MAKEWORD;
 import core.sys.windows.winerror : ERROR_INVALID_HANDLE, WAIT_TIMEOUT;
 import core.sys.windows.winsock2;
 
-pragma(lib, "Iphlpapi.lib");
-pragma(lib, "Ws2_32.lib");
+pragma(lib, "Iphlpapi");
+pragma(lib, "Ws2_32");
 
 extern(Windows)
 {

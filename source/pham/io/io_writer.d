@@ -343,7 +343,7 @@ package(pham.io):
     pragma(inline, true)
     void writeBuffer(ubyte v)
     {
-        if (_stream.writeUByte(v) != 1)
+        if (_stream.write(v) != 1)
             _stream.lastError.throwIt!StreamWriteException();
     }
 

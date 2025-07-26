@@ -24,10 +24,10 @@ alias FileHandle = int;
 enum errorIOResult = -1;
 enum invalidFileHandle = -1;
 
-private enum limitEINTR = 5;
 pragma(inline, true)
 bool canRetry(int apiResult, ref int limit) @nogc nothrow
 {
+    enum limitEINTR = 5;
     return apiResult == errorIOResult && errno == EINTR && limit++ < limitEINTR;
 }
 

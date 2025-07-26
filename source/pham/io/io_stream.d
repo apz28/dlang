@@ -85,16 +85,6 @@ public:
     abstract int flush() nothrow;
 
     /**
-     * Read a ubyte from stream.
-     * Return -1 if failed
-     */
-    int readUByte() nothrow
-    {
-        ubyte[1] bytes;
-        return read(bytes[]) == 1 ? bytes[0] : -1;
-    }
-
-    /**
      * When overridden in a derived class, reads a sequence of bytes from the current stream and
      * advances the position within the stream by the number of bytes read.
      * If the read operation is successful, the position within the stream advances by
@@ -116,6 +106,15 @@ public:
             return r;
 
         return bytes.length == 0 ? 0L : readImpl(bytes);
+    }
+
+    int read(ref ubyte byte_) nothrow
+    {
+        ubyte[1] bytes;
+        const r = read(bytes[]);
+        if (r == 1)
+            byte_ = bytes[0];
+        return cast(int)r;
     }
 
     /**
@@ -173,7 +172,7 @@ public:
         return bytes.length == 0 ? 0L : writeImpl(bytes);
     }
 
-    int writeUByte(ubyte byte_) nothrow
+    int write(ubyte byte_) nothrow
     {
         ubyte[1] bytes = byte_;
         return cast(int)write(bytes);
@@ -301,23 +300,23 @@ protected:
         while (true)
         {
             const nr = readImpl(buffer[]);
-            if (nr <= 0)
-            {
-                if (nr < 0)
-                    return nr;
-                break;
-            }
+            if (nr == 0)
+                return result;
+            else if (nr < 0)
+                return nr;
 
             const nw = destination.writeImpl(buffer[0..cast(size_t)nr]);
-            if (nw <= 0)
+            if (nw == 0)
             {
-                if (nw < 0)
-                {
-                    lastError = destination.lastError;
-                    return nw;
-                }
-                break;
+                lastError = destination.lastError;
+                return result;
             }
+            else if (nw < 0)
+            {
+                lastError = destination.lastError;
+                return nw;
+            }
+
             result += nw;
         }
         return result;
@@ -402,10 +401,16 @@ public:
         return resultOK;
     }
 
+    alias read = Stream.read;
+    
     pragma(inline, true)
-    final override int readUByte() nothrow
+    final override int read(ref ubyte byte_) nothrow
     {
-        return _position >= _data.length ? -1 : _data[_position++];
+        if (_position >= _data.length)
+            return 0;
+
+        byte_ = _data[_position++];
+        return 1;
     }
 
     final override long setLength(long value) nothrow
@@ -425,8 +430,10 @@ public:
         return _data;
     }
 
+    alias write = Stream.write;
+    
     pragma(inline, true)
-    final override int writeUByte(ubyte byte_) nothrow
+    final override int write(ubyte byte_) nothrow
     {
         const newPos = this._position + 1;
         if (newPos > maxLength)
@@ -616,10 +623,16 @@ public:
         return this;
     }
 
+    alias read = Stream.read;
+    
     pragma(inline, true)
-    final override int readUByte() nothrow
+    final override int read(ref ubyte byte_) nothrow
     {
-        return _position >= _data.length ? -1 : _data[_position++];
+        if (_position >= _data.length)
+            return 0;
+
+        byte_ = _data[_position++];
+        return 1;
     }
 
     final override long setLength(long value) nothrow
@@ -889,7 +902,7 @@ public:
             this(fileName, parseResult.value);
         else
         {
-            super(invalidFileHandle, fileName, parseResult.value.mode);
+            this(invalidFileHandle, fileName, parseResult.value.mode);
             this.lastError.setError(0, "Failed open file-name: " ~ fileName ~ "\n" ~ parseResult.errorMessage);
         }
     }
@@ -897,7 +910,7 @@ public:
     this(string fileName, scope const(StreamOpenInfo) openInfo) nothrow
     {
         auto h = openFile(fileName, openInfo);
-        super(h, fileName, openInfo.mode);
+        this(h, fileName, openInfo.mode);
         if (h == invalidFileHandle)
             this.lastError.setSystemError(getIOAPIName("openFile"), lastSystemError(), " file-name: " ~ fileName);
     }

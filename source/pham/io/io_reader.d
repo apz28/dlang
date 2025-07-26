@@ -261,10 +261,10 @@ package(pham.io):
     pragma(inline, true)
     ubyte readBuffer()
     {
-        const r = _stream.readUByte();
-        if (r <= -1)
+        ubyte result = void;
+        if (_stream.read(result) != 1)
             _stream.lastError.throwIt!StreamReadException();
-        return cast(ubyte)r;
+        return result;
     }
 
     void readBuffer(scope void* buffer, size_t size) @trusted

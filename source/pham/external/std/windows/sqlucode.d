@@ -11,13 +11,15 @@
 
 module pham.external.std.windows.sqlucode;
 
-version (Windows):
+version(Windows):
 extern (Windows):
 @nogc:
 nothrow:
 
-version (ANSI)
-{}
+version(ANSI)
+{
+    version = Ansicode;
+}
 else
 {
     version = Unicode;
@@ -30,7 +32,7 @@ enum SQL_WVARCHAR = -9;
 enum SQL_WLONGVARCHAR = -10;
 alias SQL_C_WCHAR = SQL_WCHAR;
 
-version (Unicode)
+version(Unicode)
     alias SQL_C_TCHAR = SQL_C_WCHAR;
 else
     alias SQL_C_TCHAR = SQL_C_CHAR;
@@ -38,7 +40,7 @@ else
 enum SQL_SQLSTATE_SIZEW = 10; /* size of SQLSTATE for unicode */
 
 // UNICODE versions
-version (Win64)
+version(Win64)
     alias NumAttrPtr = SQLLEN*;
 else
     alias NumAttrPtr = SQLPOINTER;
@@ -684,7 +686,7 @@ SQLRETURN SQLDriversA (
 
 /* UNICODE */
 /* SQL_NOUNICODEMAP */
-version (Unicode)
+version(Unicode)
 {
     alias SQLColAttribute     = SQLColAttributeW;
     alias SQLColAttributes    = SQLColAttributesW;

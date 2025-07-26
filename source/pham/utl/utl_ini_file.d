@@ -14,8 +14,7 @@ module pham.utl.utl_ini_file;
 import std.file : exists;
 import std.format : format;
 import std.range.primitives : ElementType, isInputRange, isOutputRange;
-import std.stdio : File;
-import std.traits : hasUDA, isArray, isBasicType, isSomeString;
+import std.traits : fullyQualifiedName, hasUDA, isArray, isBasicType, isSomeString;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 import std.uni : sicmp;
@@ -118,10 +117,6 @@ public:
     {
     nothrow @safe:
 
-        Line name;
-        Value[] values;
-        Line[] comments;
-
         void clear()
         {
             values.length = 0;
@@ -131,10 +126,7 @@ public:
         Line getValue(scope Line name, Line defaultValue = null)
         {
             const i = indexOfName(name);
-            if (i >= 0)
-                return values[i].value;
-            else
-                return defaultValue;
+            return i >= 0 ? values[i].value : defaultValue;
         }
 
         ptrdiff_t indexOfName(scope Line name)
@@ -184,6 +176,10 @@ public:
 
             return true;
         }
+
+        Line name;
+        Value[] values;
+        Line[] comments;
     }
 
 public:
@@ -223,7 +219,7 @@ public:
 
     final void clear() nothrow @safe
     {
-        foundSection = FoundSection(null, -1);
+        foundSection = FoundSection.unknown();
         _loadedError = false;
         _sections.length = 0;
         _changed = true;
@@ -298,6 +294,8 @@ public:
 
     final void load(Flag!"throwIfError" throwIfError = No.throwIfError)()
     {
+        import std.stdio : File;
+
         auto inifile = File(inifileName, "r");
         auto inifileRange = inifile.byLine();
         load!throwIfError(inifileRange);
@@ -334,21 +332,26 @@ public:
                                 comments = null;
                             }
                             break;
+                            
                         case IniFileLineKind.comment:
                             comments ~= name;
                             break;
+                            
                         case IniFileLineKind.empty:
                             break;
+                            
                         case IniFileLineKind.invalidName:
                             _loadedError = true;
                             comments = null;
                             static if (throwIfError)
                                 throw new IniFileException(IniFileMessage.eInvalidKeyName);
                             break;
+                            
                         default:
                             assert(0);
                     }
                     break;
+
                 case IniFileLineKind.section:
                     if (section.name.length != 0)
                     {
@@ -360,11 +363,14 @@ public:
                     section.values = null;
                     section.comments = null;
                     break;
+
                 case IniFileLineKind.comment:
                     comments ~= name;
                     break;
+
                 case IniFileLineKind.empty:
                     break;
+
                 case IniFileLineKind.invalidSection:
                     _loadedError = true;
                     comments = null;
@@ -375,6 +381,7 @@ public:
                         throw new IniFileException(msg);
                     }
                     break;
+
                 default:
                     assert(0);
             }
@@ -393,7 +400,7 @@ public:
         if (si < 0)
             return false;
 
-        foundSection = FoundSection(null, -1);
+        foundSection = FoundSection.unknown();
         _sections.removeAt(si);
         _changed = true;
         return true;
@@ -417,6 +424,8 @@ public:
     */
     final void save()
     {
+        import std.stdio : File;
+
         auto inifile = File(inifileName, "w");
         auto inifileRange = inifile.lockingTextWriter();
         save(inifileRange);
@@ -441,8 +450,11 @@ public:
             }
         }
 
-        foreach (ref s; _sections)
+        foreach (i, ref s; _sections)
         {
+            if (i)
+                output.put(LN);
+                
             if (s.comments.length != 0)
                 saveComments(s.comments);
 
@@ -464,8 +476,6 @@ public:
                 }
                 output.put(LN);
             }
-
-            output.put(LN);
         }
 
         _changed = false;
@@ -797,11 +807,16 @@ private:
     {
     nothrow @safe:
 
+        static FoundSection unknown() pure
+        {
+            return FoundSection(null, -1);
+        }
+        
         Line name;
         ptrdiff_t index;
     }
 
-    FoundSection foundSection = FoundSection(null, -1);
+    FoundSection foundSection = FoundSection.unknown();
 
     const(char)[] _inifileName;
     Section[] _sections;
@@ -880,7 +895,7 @@ string saveMember(T)(T t)
     }
     else
     {
-        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
+        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ fullyQualifiedName!T);
     }
 }
 

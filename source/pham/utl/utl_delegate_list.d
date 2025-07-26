@@ -50,9 +50,6 @@ public:
                 items[0](args);
                 return;
 
-            case 0:
-                return;
-
             // Special call to avoid duplicate delegate array (@NoGC)
             case 2:
                 DelegateHandler[2] h2 = items[0..2];
@@ -86,6 +83,9 @@ public:
                 {
                     item(args);
                 }
+                return;
+
+            case 0:
                 return;
         }
     }
@@ -144,9 +144,6 @@ private:
 
 unittest // DelegateList
 {
-    string eName;
-    int eValue;
-
     static struct S1
     {
         int a;
@@ -165,6 +162,8 @@ unittest // DelegateList
     assert(list);
     assert(list.length == 1);
 
+    string eName;
+    int eValue;
     list += (string name, int value) { eName = name; eValue = value; };
     assert(list);
     assert(list.length == 2);

@@ -15,7 +15,7 @@
 
 module pham.external.std.windows.sql;
 
-version (Windows):
+version(Windows):
 extern (Windows):
 @nogc:
 nothrow:
@@ -541,7 +541,7 @@ SQLRETURN SQLCancelHandle (SQLSMALLINT HandleType, SQLHANDLE InputHandle);
 
 SQLRETURN SQLCloseCursor (SQLHSTMT StatementHandle);
 
-version (Win64)
+version(Win64)
     alias NumericAttributePtr = SQLLEN*;
 else
     alias NumericAttributePtr = SQLPOINTER;
