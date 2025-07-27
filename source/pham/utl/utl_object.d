@@ -286,7 +286,7 @@ public:
         return _value;
     }
 
-    alias value this;
+    alias this = value;
 
 private:
     T _value;

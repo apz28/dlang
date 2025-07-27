@@ -167,12 +167,12 @@ public:
         return _value;
     }
 
-    alias value this;
-
     @property void value(Variant value) nothrow @safe
     {
         doAssignVariant(value);
     }
+
+    alias this = value;
 
 package(pham.db):
     Variant _value;

@@ -68,7 +68,7 @@ public:
             return *e;
     }
 
-    alias items this;
+    alias this = items;
 }
 
 abstract class XmlObject(S)
@@ -88,7 +88,7 @@ public:
         this.line = line;
         this.column = column;
     }
-    
+
     bool isSpecified() const
     {
         return line != 0 || column != 0;
@@ -97,7 +97,7 @@ public:
     string lineMessage() const
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         return format(XmlMessage.atLineInfo, sourceLine, sourceColumn);
     }
 

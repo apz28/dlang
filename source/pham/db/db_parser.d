@@ -1258,7 +1258,7 @@ unittest // parseParameter
 
     public:
         string[] items;
-        alias items this;
+        alias this = items;
     }
 
     string s;

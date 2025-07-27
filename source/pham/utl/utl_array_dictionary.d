@@ -1924,7 +1924,7 @@ unittest // Dictionary testUpdate1()
     {
         int x;
         this(this) @system { *(cast(ubyte*)(null) + 100000) = 5; } // not @safe
-        alias x this;
+        alias this = x;
     }
 
     Dictionary!(int, BadValue) aa;
@@ -2293,7 +2293,7 @@ unittest // Dictionary issue18071()
             *cast(uint*)0xdeadbeef = 0xcafebabe;// unsafe
             return null;
         }
-        alias aa this;
+        alias this = aa;
     }
 
     Foo f;

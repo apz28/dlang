@@ -471,7 +471,7 @@ public:
     }
 
     Dictionary!(string, string) values;
-    alias values this;
+    alias this = values;
 }
 
 struct DbIdentitier
@@ -564,7 +564,7 @@ public:
         return _s;
     }
 
-    alias value this;
+    alias this = value;
 
 private:
     string _s;

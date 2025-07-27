@@ -530,7 +530,7 @@ nothrow pure @safe unittest // Appender
         int value;
 
         int fun() const { return 23; }
-        alias fun this;
+        alias this = fun;
     }
 
     Appender!(Struct[]) appender;
@@ -743,7 +743,7 @@ nothrow pure @safe unittest // Appender
     static struct N
     {
         int payload;
-        alias payload this;
+        alias this = payload;
     }
     w.put(N(1));
     w.put([N(2)]);
@@ -956,12 +956,12 @@ nothrow pure @safe unittest // Appender
     static struct D //dynamic
     {
         int[] i;
-        alias i this;
+        alias this = i;
     }
     static struct S //static
     {
         int[5] i;
-        alias i this;
+        alias this = i;
     }
     static assert(!is(Appender!(char[5])));
     static assert(!is(Appender!D));

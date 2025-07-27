@@ -37,7 +37,7 @@ void blockHeaderDecode(scope const(MyBlockHeader) blockHeader, out size_t blockS
 MyBlockHeader blockHeaderEncode(size_t blockSize, ubyte sequenceByte) @nogc nothrow pure
 in
 {
-    assert(blockSize <= 0x00FFFFFF);
+    assert(blockSize <= MyDefaultSize.maxPackageLength);
 }
 do
 {

@@ -401,7 +401,7 @@ public:
         return resultOK;
     }
 
-    alias read = Stream.read;
+    alias read = typeof(super).read;
     
     pragma(inline, true)
     final override int read(ref ubyte byte_) nothrow
@@ -430,7 +430,7 @@ public:
         return _data;
     }
 
-    alias write = Stream.write;
+    alias write = typeof(super).write;
     
     pragma(inline, true)
     final override int write(ubyte byte_) nothrow
@@ -623,7 +623,7 @@ public:
         return this;
     }
 
-    alias read = Stream.read;
+    alias read = typeof(super).read;
     
     pragma(inline, true)
     final override int read(ref ubyte byte_) nothrow

@@ -470,7 +470,7 @@ public:
         return _state;
     }
 
-    alias state this;
+    alias this = state;
 
 private:
     float _state = unknownResult;
@@ -569,7 +569,7 @@ public:
 
 public:
     T value;
-    alias value this;
+    alias this = value;
     ResultStatus status = ResultStatus(resultUninitialized, null, null, null, 0);
 }
 

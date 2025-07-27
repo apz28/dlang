@@ -759,35 +759,36 @@ public:
             ? FbIsc.isc_info_sql_get_plan
             : FbIsc.isc_info_sql_explain_plan;
 
-        auto deferredInfo = FbDeferredInfo.init;
+        auto deferredInfo = FbDeferredInfo(FbDeferredFlag.scopedData);
         auto r = readGenericResponse(deferredInfo);
-        r.statues.getWarn(command.notificationMessages);
 
-        FbCommandPlanInfo.Kind kind;
-        if (r.data.length == 0)
-            kind = FbCommandPlanInfo.Kind.noData;
-		else if (r.data[0] == FbIsc.isc_info_end)
-            kind = FbCommandPlanInfo.Kind.empty;
-        else if (r.data[0] == FbIsc.isc_info_truncated)
-            kind = FbCommandPlanInfo.Kind.truncated;
-        else
-            kind = FbCommandPlanInfo.Kind.ok;
+        const kind = r.data.length == 0
+            ? FbCommandPlanInfo.Kind.noData
+            : (r.data[0] == FbIsc.isc_info_end
+                ? FbCommandPlanInfo.Kind.empty
+                : (r.data[0] == FbIsc.isc_info_truncated
+                    ? FbCommandPlanInfo.Kind.truncated
+                    : FbCommandPlanInfo.Kind.ok));
 
         final switch (kind)
         {
             case FbCommandPlanInfo.Kind.noData:
                 info = FbCommandPlanInfo(kind, null);
-                return kind;
+                break;
             case FbCommandPlanInfo.Kind.empty:
                 info = FbCommandPlanInfo(kind, "");
-                return kind;
+                break;
             case FbCommandPlanInfo.Kind.truncated:
                 info = FbCommandPlanInfo(kind, null);
-                return kind;
+                break;
             case FbCommandPlanInfo.Kind.ok:
-                info = FbCommandPlanInfo(kind, r.data, describeMode);
-                return kind;
+                info = FbCommandPlanInfo(kind, FbCommandPlanInfo.parse(r.data, describeMode));
+                break;
         }
+        
+        r.statues.getWarn(command.notificationMessages);
+        
+        return kind;
     }
 
     final void executionPlanCommandInfoWrite(FbCommand command, uint mode, uint32 bufferLength)

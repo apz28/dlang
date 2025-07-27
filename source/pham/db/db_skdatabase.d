@@ -982,7 +982,7 @@ public:
         return _connection;
     }
 
-    alias buffer this;
+    alias this = buffer;
 
 private:
     DbWriteBuffer _buffer;

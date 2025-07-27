@@ -127,6 +127,118 @@ static immutable DbTypeInfo[] fbNativeTypes = [
 alias FbDbIdToDbTypeInfos = Dictionary!(int32, immutable(DbTypeInfo)*);
 static immutable FbDbIdToDbTypeInfos fbDbIdToDbTypeInfos;
 
+struct FbCommandBatchResult
+{
+@safe:
+
+public:
+    this(DbRecordsAffected recordsAffected, FbException exception, bool isError) nothrow pure
+    {
+        this.recordsAffected = recordsAffected;
+        this.exception = exception;
+        this.isError = isError;
+    }
+
+    bool opCast(C: bool)() const @nogc nothrow pure
+    {
+        return !isError;
+    }
+
+    /**
+     * Create FbCommandBatchResult as error
+     */
+    pragma(inline, true)
+    static typeof(this) error(DbRecordsAffected recordsAffected, FbException exception) nothrow pure
+    {
+        return typeof(this)(recordsAffected, exception, true);
+    }
+
+    /**
+     * Create FbCommandBatchResult without error
+     */
+    pragma(inline, true)
+    static typeof(this) ok(DbRecordsAffected recordsAffected) nothrow pure
+    {
+        return typeof(this)(recordsAffected, null, false);
+    }
+
+    pragma(inline, true)
+    @property isOK() const nothrow @nogc pure
+    {
+        return !isError;
+    }
+
+public:
+    DbRecordsAffected recordsAffected;
+    FbException exception;
+    bool isError;
+}
+
+struct FbCommandPlanInfo
+{
+@safe:
+
+public:
+    enum Kind : ubyte
+    {
+        noData,
+        empty,
+        truncated,
+        ok,
+    }
+
+public:
+    this(Kind kind, string plan) nothrow pure
+    {
+        this.kind = kind;
+        this.plan = plan;
+    }
+
+    static string parse(scope const(ubyte)[] data, FbIsc describeMode)
+    {
+        return parsePlan(data, describeMode);
+    }
+
+public:
+    string plan;
+    Kind kind;
+}
+
+struct FbCreateDatabaseInfo
+{
+@safe:
+
+public:
+    static immutable int[] knownPageSizes = [4_096, 8_192, 16_384, 32_768];
+    static int toKnownPageSize(const(int) pageSize) @nogc nothrow pure
+    {
+
+        // Current max if not provided
+        if (pageSize <= 0)
+            return knownPageSizes[$ - 1];
+
+        foreach (n; knownPageSizes)
+        {
+            if (pageSize <= n)
+                return n;
+        }
+
+        // Future value not known
+        return pageSize;
+    }
+
+public:
+    string fileName;
+    string defaultCharacterSet;
+    string defaultCollation;
+    string ownerName;
+    string ownerPassword;
+    string roleName;
+    int pageSize;
+    bool forcedWrite;
+    bool overwrite;
+}
+
 struct FbIscAcceptDataResponse
 {
 nothrow @safe:
@@ -508,206 +620,6 @@ public
     uint32 size;
 }
 
-struct FbIscCommandBatchStatus
-{
-nothrow @safe:
-
-public:
-    int32 recIndex;
-    FbIscStatues statues;
-}
-
-struct FbIscCommandBatchExecuteResponse
-{
-@safe:
-
-public:
-    FbCommandBatchResult[] toCommandBatchResult()
-    {
-        // Build hash-set for faster lookup
-        int32[int32] errorIndexes;
-        foreach (i, e; errorIndexesData)
-            errorIndexes[e] = cast(int32)i;
-
-        int32[int32] errorStatues;
-        foreach (i, ref FbIscCommandBatchStatus e; errorStatuesData)
-        {
-            errorStatues[e.recIndex] = cast(int32)i;
-        }
-
-        // Construct result
-        auto result =  new FbCommandBatchResult[](recCount);
-        foreach (i; 0..recCount)
-        {
-			auto recordsAffected = i < recordsAffectedData.length
-				? DbRecordsAffected(recordsAffectedData[i])
-				: DbRecordsAffected.init;
-
-            const ei = errorStatues.get(i, -1);
-			if (ei >= 0)
-			{
-				result[i] = FbCommandBatchResult.error(recordsAffected, new FbException(errorStatuesData[ei].statues));
-                continue;
-			}
-
-            if (errorIndexes.get(i, -1) >= 0)
-			{
-                result[i] = FbCommandBatchResult.error(recordsAffected, null);
-                continue;
-			}
-
-			result[i] = FbCommandBatchResult.ok(recordsAffected);
-        }
-
-        return result;
-    }
-
-public:
-    FbHandle statementHandle;
-    int32 recCount;
-    int32 recordsAffectedCount;
-    int32 errorStatuesCount;
-    int32 errorIndexesCount;
-    int32[] recordsAffectedData;
-    FbIscCommandBatchStatus[] errorStatuesData;
-    int32[] errorIndexesData;
-}
-
-alias FbIscCondAcceptResponse = FbIscAcceptDataResponse;
-
-struct FbIscCondAuthResponse
-{
-nothrow @safe:
-
-public:
-    this(const(ubyte)[] data, const(char)[] name, const(ubyte)[] list, const(ubyte)[] key) pure
-    {
-        this.data = data;
-        this.name = name;
-        this.list = list;
-        this.key = key;
-    }
-
-public:
-    const(ubyte)[] data;
-    const(ubyte)[] key;
-    const(ubyte)[] list;
-    const(char)[] name;
-}
-
-struct FbIscCryptKeyCallbackResponse
-{
-nothrow @safe:
-
-public:
-    this(const(ubyte)[] data, int32 size) pure
-    {
-        this.data = data;
-        this.size = size;
-    }
-
-public:
-    const(ubyte)[] data;
-    int32 size; // For >= FbIsc.protocol_version15
-}
-
-struct FbIscError
-{
-nothrow @safe:
-
-public:
-	this(int32 type, int32 intParam, int argNumber) pure
-	{
-		this._type = type;
-		this._intParam = intParam;
-        this._argNumber = argNumber;
-	}
-
-	this(int32 type, string strParam, int argNumber) pure
-	{
-		this._type = type;
-		this._strParam = strParam;
-        this._argNumber = argNumber;
-	}
-
-    final string str() const
-    {
-        switch (type)
-		{
-            case FbIsc.isc_arg_gds:
-                return FbMessages.get(_intParam);
-			case FbIsc.isc_arg_number:
-				return _intParam.to!string();
-			case FbIsc.isc_arg_string:
-			case FbIsc.isc_arg_cstring:
-			case FbIsc.isc_arg_interpreted:
-			case FbIsc.isc_arg_sql_state:
-				return _strParam;
-			default:
-				return null;
-        }
-    }
-
-    @property final int argNumber() const pure
-    {
-        return _argNumber;
-    }
-
-    @property final int32 code() const pure
-    {
-        return _intParam;
-    }
-
-    @property final int32 type() const pure
-    {
-        return _type;
-    }
-
-    @property final bool isArgument() const pure
-	{
-        return type == FbIsc.isc_arg_number
-            || type == FbIsc.isc_arg_string
-            || type == FbIsc.isc_arg_cstring;
-	}
-
-	@property final bool isWarning() const pure
-	{
-        return type == FbIsc.isc_arg_warning;
-	}
-
-private:
-    string _strParam;
-    int _argNumber;
-    int32 _intParam;
-    int32 _type;
-}
-
-struct FbIscFetchResponse
-{
-nothrow @safe:
-
-public:
-    this(int32 status, int32 count) pure
-    {
-        this.status = status;
-        this.count = count;
-    }
-
-    DbFetchResultStatus fetchStatus() const
-    {
-		if (status == 0 && count > 0)
-            return DbFetchResultStatus.hasData;
-        else if (status == 100)
-            return DbFetchResultStatus.completed;
-        else
-            return DbFetchResultStatus.ready;
-    }
-
-public:
-    int32 count;
-    int32 status;
-}
-
 struct FbIscColumnInfo
 {
 nothrow @safe:
@@ -1080,6 +992,206 @@ public:
     int32 subType;
     int32 type;
     int16 numericScale;
+}
+
+struct FbIscCommandBatchStatus
+{
+nothrow @safe:
+
+public:
+    int32 recIndex;
+    FbIscStatues statues;
+}
+
+struct FbIscCommandBatchExecuteResponse
+{
+@safe:
+
+public:
+    FbCommandBatchResult[] toCommandBatchResult()
+    {
+        // Build hash-set for faster lookup
+        int32[int32] errorIndexes;
+        foreach (i, e; errorIndexesData)
+            errorIndexes[e] = cast(int32)i;
+
+        int32[int32] errorStatues;
+        foreach (i, ref FbIscCommandBatchStatus e; errorStatuesData)
+        {
+            errorStatues[e.recIndex] = cast(int32)i;
+        }
+
+        // Construct result
+        auto result =  new FbCommandBatchResult[](recCount);
+        foreach (i; 0..recCount)
+        {
+			auto recordsAffected = i < recordsAffectedData.length
+				? DbRecordsAffected(recordsAffectedData[i])
+				: DbRecordsAffected.init;
+
+            const ei = errorStatues.get(i, -1);
+			if (ei >= 0)
+			{
+				result[i] = FbCommandBatchResult.error(recordsAffected, new FbException(errorStatuesData[ei].statues));
+                continue;
+			}
+
+            if (errorIndexes.get(i, -1) >= 0)
+			{
+                result[i] = FbCommandBatchResult.error(recordsAffected, null);
+                continue;
+			}
+
+			result[i] = FbCommandBatchResult.ok(recordsAffected);
+        }
+
+        return result;
+    }
+
+public:
+    FbHandle statementHandle;
+    int32 recCount;
+    int32 recordsAffectedCount;
+    int32 errorStatuesCount;
+    int32 errorIndexesCount;
+    int32[] recordsAffectedData;
+    FbIscCommandBatchStatus[] errorStatuesData;
+    int32[] errorIndexesData;
+}
+
+alias FbIscCondAcceptResponse = FbIscAcceptDataResponse;
+
+struct FbIscCondAuthResponse
+{
+nothrow @safe:
+
+public:
+    this(const(ubyte)[] data, const(char)[] name, const(ubyte)[] list, const(ubyte)[] key) pure
+    {
+        this.data = data;
+        this.name = name;
+        this.list = list;
+        this.key = key;
+    }
+
+public:
+    const(ubyte)[] data;
+    const(ubyte)[] key;
+    const(ubyte)[] list;
+    const(char)[] name;
+}
+
+struct FbIscCryptKeyCallbackResponse
+{
+nothrow @safe:
+
+public:
+    this(const(ubyte)[] data, int32 size) pure
+    {
+        this.data = data;
+        this.size = size;
+    }
+
+public:
+    const(ubyte)[] data;
+    int32 size; // For >= FbIsc.protocol_version15
+}
+
+struct FbIscError
+{
+nothrow @safe:
+
+public:
+	this(int32 type, int32 intParam, int argNumber) pure
+	{
+		this._type = type;
+		this._intParam = intParam;
+        this._argNumber = argNumber;
+	}
+
+	this(int32 type, string strParam, int argNumber) pure
+	{
+		this._type = type;
+		this._strParam = strParam;
+        this._argNumber = argNumber;
+	}
+
+    final string str() const
+    {
+        switch (type)
+		{
+            case FbIsc.isc_arg_gds:
+                return FbMessages.get(_intParam);
+			case FbIsc.isc_arg_number:
+				return _intParam.to!string();
+			case FbIsc.isc_arg_string:
+			case FbIsc.isc_arg_cstring:
+			case FbIsc.isc_arg_interpreted:
+			case FbIsc.isc_arg_sql_state:
+				return _strParam;
+			default:
+				return null;
+        }
+    }
+
+    @property final int argNumber() const pure
+    {
+        return _argNumber;
+    }
+
+    @property final int32 code() const pure
+    {
+        return _intParam;
+    }
+
+    @property final int32 type() const pure
+    {
+        return _type;
+    }
+
+    @property final bool isArgument() const pure
+	{
+        return type == FbIsc.isc_arg_number
+            || type == FbIsc.isc_arg_string
+            || type == FbIsc.isc_arg_cstring;
+	}
+
+	@property final bool isWarning() const pure
+	{
+        return type == FbIsc.isc_arg_warning;
+	}
+
+private:
+    string _strParam;
+    int _argNumber;
+    int32 _intParam;
+    int32 _type;
+}
+
+struct FbIscFetchResponse
+{
+nothrow @safe:
+
+public:
+    this(int32 status, int32 count) pure
+    {
+        this.status = status;
+        this.count = count;
+    }
+
+    DbFetchResultStatus fetchStatus() const
+    {
+		if (status == 0 && count > 0)
+            return DbFetchResultStatus.hasData;
+        else if (status == 100)
+            return DbFetchResultStatus.completed;
+        else
+            return DbFetchResultStatus.ready;
+    }
+
+public:
+    int32 count;
+    int32 status;
 }
 
 deprecated("please use FbIscColumnInfo")
@@ -1824,122 +1936,6 @@ public:
 
 }
 
-struct FbCommandPlanInfo
-{
-@safe:
-
-public:
-    enum Kind : ubyte
-    {
-        noData,
-        empty,
-        truncated,
-        ok,
-    }
-
-public:
-    this(Kind kind, const(char)[] plan) nothrow pure
-    {
-        this.kind = kind;
-        this.plan = plan;
-    }
-
-    this(Kind kind, const(ubyte)[] payload, FbIsc describeMode) pure
-    {
-        this.kind = kind;
-        const len = parseInt32!false(payload, 1, 2, describeMode);
-        this.plan = len > 0
-            ? parseString!false(payload, 3, len, describeMode)
-            : "";
-    }
-
-public:
-    const(char)[] plan;
-    Kind kind;
-}
-
-struct FbCommandBatchResult
-{
-@safe:
-
-public:
-    this(DbRecordsAffected recordsAffected, FbException exception, bool isError) nothrow pure
-    {
-        this.recordsAffected = recordsAffected;
-        this.exception = exception;
-        this.isError = isError;
-    }
-
-    bool opCast(C: bool)() const @nogc nothrow pure
-    {
-        return !isError;
-    }
-
-    /**
-     * Create FbCommandBatchResult as error
-     */
-    pragma(inline, true)
-    static typeof(this) error(DbRecordsAffected recordsAffected, FbException exception) nothrow pure
-    {
-        return typeof(this)(recordsAffected, exception, true);
-    }
-
-    /**
-     * Create FbCommandBatchResult without error
-     */
-    pragma(inline, true)
-    static typeof(this) ok(DbRecordsAffected recordsAffected) nothrow pure
-    {
-        return typeof(this)(recordsAffected, null, false);
-    }
-
-    pragma(inline, true)
-    @property isOK() const nothrow @nogc pure
-    {
-        return !isError;
-    }
-
-public:
-    DbRecordsAffected recordsAffected;
-    FbException exception;
-    bool isError;
-}
-
-struct FbCreateDatabaseInfo
-{
-@safe:
-
-public:
-    static immutable int[] knownPageSizes = [4_096, 8_192, 16_384, 32_768];
-    static int toKnownPageSize(const(int) pageSize) @nogc nothrow pure
-    {
-
-        // Current max if not provided
-        if (pageSize <= 0)
-            return knownPageSizes[$ - 1];
-
-        foreach (n; knownPageSizes)
-        {
-            if (pageSize <= n)
-                return n;
-        }
-
-        // Future value not known
-        return pageSize;
-    }
-
-public:
-    string fileName;
-    string defaultCharacterSet;
-    string defaultCollation;
-    string ownerName;
-    string ownerPassword;
-    string roleName;
-    int pageSize;
-    bool forcedWrite;
-    bool overwrite;
-}
-
 struct FbProtocolInfo
 {
 nothrow @safe:
@@ -1993,6 +1989,7 @@ public:
         this.sql = sql;
     }
 
+    pragma(inline, true)
     @property FbOperation operation() const
     {
         return _operation;
@@ -2002,10 +1999,10 @@ public:
     union
     {
         FbIscGenericResponse generic;
-        FbIscTrustedAuthenticationResponse trustedAuthentication;
         FbIscCryptKeyCallbackResponse cryptKeyCallback;
         FbIscFetchResponse fetch;
         FbIscSqlResponse sql;
+        FbIscTrustedAuthenticationResponse trustedAuthentication;
     }
 
 private:
@@ -2213,6 +2210,14 @@ private int64 parseInt64Impl(bool Advance)(scope const(ubyte)[] data, ref size_t
 	return result;
 }
 
+string parsePlan(scope const(ubyte)[] data, FbIsc describeMode) pure
+{
+    const len = parseInt32!false(data, 1, 2, describeMode);
+    return len > 0
+        ? parseString!false(data, 3, len, describeMode).idup
+        : null;
+}
+
 DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 {
     debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
@@ -2285,14 +2290,14 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 	return result;
 }
 
-const(char)[] parseString(bool Advance)(const(ubyte)[] data, size_t index, uint length, int type) pure
+const(char)[] parseString(bool Advance)(return const(ubyte)[] data, size_t index, uint length, int type) pure
 if (Advance == false)
 {
     parseCheckLength(data, index, length, type);
     return parseStringImpl(data, index, length);
 }
 
-const(char)[] parseString(bool Advance)(const(ubyte)[] data, ref size_t index, uint length, int type) pure
+const(char)[] parseString(bool Advance)(return const(ubyte)[] data, ref size_t index, uint length, int type) pure
 if (Advance == true)
 {
     parseCheckLength(data, index, length, type);
@@ -2300,7 +2305,7 @@ if (Advance == true)
 }
 
 pragma(inline, true)
-private const(char)[] parseStringImpl(const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+private const(char)[] parseStringImpl(return const(ubyte)[] data, ref size_t index, uint length) nothrow pure
 {
     if (length)
     {

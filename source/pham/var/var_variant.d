@@ -1203,7 +1203,7 @@ private:
 
 private:
     alias DefaultHandler = Handler!void*;
-    
+
     // Compute the largest practical storage size from MaxDataSize
     static struct SizeChecker
     {
@@ -3278,7 +3278,7 @@ nothrow @safe unittest // Variant.isNull & Variant.nullify
 nothrow @safe unittest // Variant.peek
 {
     //import std.conv : text;
-    
+
     static foreach (T; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
     {
         {
@@ -3315,7 +3315,7 @@ nothrow @safe unittest // Variant.peek
     static foreach (T; AliasSeq!(float, double, real))
     {
         //import std.stdio : writeln; debug writeln("T=", T.stringof);
-        
+
         {
             T v = T.sizeof;
             Variant vt = v;
@@ -5302,7 +5302,7 @@ nothrow @safe unittest // Algebraic
     static struct S
     {
         C a;
-        alias a this;
+        alias this = a;
     }
     S s = S(new C());
     auto v = Variant(s); // compile error
@@ -5684,8 +5684,8 @@ nothrow @safe unittest // Algebraic
     static struct S
     {
         int i;
-        alias i this;
         string s;
+        alias this = i;
     }
 
     S s = S(3, "Foo");
@@ -5698,7 +5698,7 @@ nothrow @safe unittest // Algebraic
     {
         int h;
         int[5] array;
-        alias h this;
+        alias this = h;
     }
 
     A a;
@@ -5765,7 +5765,7 @@ version(TODO) // TODO
     static struct Bar
     {
         int* ptr;
-        alias ptr this;
+        alias this = ptr;
     }
 
     static class Foo

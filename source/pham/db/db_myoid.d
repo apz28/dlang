@@ -100,6 +100,7 @@ enum MyDefaultSize
      * Sizes in bytes
      */
     oneK = 1_000,
+    maxPackageLength = 0x00FFFFFF,
     maxSegmentLength = oneK * 8,
 	packetReadBufferLength = oneK * 128,
     parameterBufferLength = oneK * 96,

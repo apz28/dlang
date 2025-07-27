@@ -834,7 +834,7 @@ public:
         return blob.openRead(blobColumn, blobColumn.saveLongData, row);
     }
 
-    alias readBlob = SkCommand.readBlob;
+    alias readBlob = typeof(super).readBlob;
 
     final override DbValue writeBlob(DbParameter parameter,
         DbValue optionalBlobValueId = DbValue.init) @safe
@@ -853,7 +853,7 @@ public:
         return DbValue(blob.pgId, parameter.type);
     }
 
-    alias writeBlob = SkCommand.writeBlob;
+    alias writeBlob = typeof(super).writeBlob;
 
     @property final PgConnection pgConnection() nothrow pure @safe
     {

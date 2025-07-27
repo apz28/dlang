@@ -1141,7 +1141,7 @@ public:
             else
                 break;
         }
-        return info.plan.idup;
+        return info.plan;
 	}
 
     final override Variant readArray(DbNamedColumn arrayColumn, DbValue arrayValueId) @safe
@@ -1171,7 +1171,7 @@ public:
         return blob.openRead(blobColumn, blobColumn.saveLongData, row);
     }
 
-    alias readBlob = SkCommand.readBlob;
+    alias readBlob = typeof(super).readBlob;
 
     final DbValue writeArray(DbNamedColumn arrayColumn, ref DbValue arrayValue) @safe
     {
@@ -1198,7 +1198,7 @@ public:
         return DbValue(blob.fbId, parameter.type);
     }
 
-    alias writeBlob = SkCommand.writeBlob;
+    alias writeBlob = typeof(super).writeBlob;
 
     @property final FbConnection fbConnection() nothrow pure @safe
     {

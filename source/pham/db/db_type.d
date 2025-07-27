@@ -813,7 +813,7 @@ public:
         return _zoneOffset;
     }
 
-    alias value this;
+    alias this = value;
 
 private:
     DateTime _value;
@@ -1561,7 +1561,7 @@ public:
         return value >= 0;
     }
 
-    alias value this;
+    alias this = value;
 
 public:
     int64 value = notSetValue;
@@ -1782,7 +1782,7 @@ public:
         return _zoneOffset;
     }
 
-    alias value this;
+    alias this = value;
 
 private:
     Time _value;
@@ -1899,7 +1899,7 @@ public:
         return DbTimeSpan(Duration.zero);
     }
 
-    alias value this;
+    alias this = value;
 
 private:
     Duration _value;

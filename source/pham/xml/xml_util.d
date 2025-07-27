@@ -211,7 +211,7 @@ struct FormatFloatSpec
     FormatGroupSpec fmtg;
     char decimalChar = '.';
 
-    alias fmtg this;
+    alias this = fmtg;
 }
 
 string formatFloat(N)(N n, in FormatFloatSpec spec = FormatFloatSpec.init)
@@ -239,7 +239,7 @@ struct FormatNumberSpec
     string fmt = "%d";
     FormatGroupSpec fmtg;
 
-    alias fmtg this;
+    alias this = fmtg;
 }
 
 string formatNumber(N)(N n, in FormatNumberSpec spec = FormatNumberSpec.init) pure

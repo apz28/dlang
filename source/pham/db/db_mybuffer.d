@@ -140,10 +140,6 @@ private:
         this._bufferOwner = DbBufferOwner.acquired;
         this._buffer = connection.acquirePackageReadBuffer();
 
-        auto blockBuffer = connection.acquirePackageReadBuffer();
-        scope (exit)
-            connection.releasePackageReadBuffer(blockBuffer);
-
         while (true)
         {
             MyBlockHeader blockHeader;
@@ -153,15 +149,17 @@ private:
 
             debug(debug_pham_db_db_mybuffer) debug writeln(__FUNCTION__, "(blockSize=", blockSize, ", sequenceByte=", sequenceByte, ", blockHeader=", blockHeader.a[].dgToHex(), ")");
 
-            if (blockSize)
+            enum maxBlockReadSize = MyDefaultSize.oneK * 64;
+            while (blockSize)
             {
-                auto bufferData = blockBuffer.reset().expand(blockSize);
-                auto readData = socketReader.readBytes(bufferData);
+                const blockReadSize = blockSize > maxBlockReadSize ? maxBlockReadSize : blockSize;
+                auto readData = socketReader.consume(blockReadSize);
                 this._buffer.fill(readData);
+                blockSize -= blockReadSize;
             }
 
-            // if this block was < maxBlockSize then it's last one in a multi-packet series
-            if (blockSize < maxBlockSize)
+            // if this block was < MyDefaultSize.maxPackageLength then it's last one in a multi-packet series
+            if (blockSize < MyDefaultSize.maxPackageLength)
                 break;
         }
         this._packetLength = cast(int32)this._buffer.length;
@@ -170,8 +168,6 @@ private:
     }
 
 public:
-    int32 maxBlockSize = int32.max / 2;
-    int32 maxPacketSize = int32.max;
     ubyte sequenceByte;
 
 private:

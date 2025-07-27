@@ -120,7 +120,7 @@ public:
 public:
     private enum overheadSize = StaticStringBuffer!(T, 1u).sizeof;
     StaticStringBuffer!(T, 1_024u - overheadSize) data;
-    alias data this;
+    alias this = data;
 }
 
 struct CipherRawKey(T)
@@ -268,7 +268,7 @@ public:
         return _data;
     }
 
-    alias value this;
+    alias this = value;
 
 package(pham.cp):
     pragma(inline, true)
