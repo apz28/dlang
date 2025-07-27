@@ -281,7 +281,7 @@ enum FbIsc
     isc_dpb_decfloat_round = 94,
     isc_dpb_decfloat_traps = 95,
     isc_dpb_parallel_workers = 100,
-    
+
 
 	// backup
 	isc_spb_bkp_file = 5,
@@ -567,17 +567,18 @@ enum FbIscSize
     /**
      * Sizes in bytes
      */
+    oneK = 1_000,
+    oneM = 1_000 * 1_000,
 	blobSizeInfoBufferLength = 100,
-    executePlanBufferLength = 32 * 1_000,
-    maxBatchBufferLength = 16 * 1_000 * 1_000, // max 256 * 1024 * 1024
+    executePlanBufferLength = oneK * 32,
+    maxBatchBufferLength = oneM * 16, // max 1024 * 1024 * 256
     maxCharsLength = 32_767, // char[]
-    //maxPackageLength = 32_767,
     maxVarCharsLength = maxCharsLength - 2, // varchar[] - '-2' for size place holder
-	parameterBufferLength = 16 * 1_000,
-	prepareInfoBufferLength = 32 * 1_000,
+	parameterBufferLength = oneK * 16,
+	prepareInfoBufferLength = oneK * 32,
 	rowsEffectedBufferLength = 100,
-    socketReadBufferLength = (1_024 * 64) + (1_024 * 2),
-    socketWriteBufferLength = (1_024 * 64) + 1_024,
+    socketReadBufferLength = (oneK * 64) + (oneK * 2),
+    socketWriteBufferLength = (oneK * 64) + oneK,
 	statementTypeBufferLength = 100,
 }
 
@@ -607,7 +608,7 @@ enum FbIscText
 	infoDbClassServerText = "SUPER SERVER",
 
 	filterCompressZipName = "zlib",
-    
+
     filterCryptChachaName = "ChaCha",
     filterCryptChacha64Name = "ChaCha64",
 	filterCryptArc4Name = "Arc4",

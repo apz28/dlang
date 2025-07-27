@@ -957,7 +957,7 @@ package(pham.db):
             protocol.deferredResponses ~= FbDeferredResponse("blobEndRead", &protocol.blobEndRead);
         else
         {
-            auto deferredInfo = FbDeferredInfo(false);
+            auto deferredInfo = FbDeferredInfo.init;
             protocol.blobEndRead(deferredInfo);
         }
     }
@@ -989,7 +989,7 @@ package(pham.db):
                 protocol.deferredResponses ~= FbDeferredResponse("blobEndRead", &protocol.blobEndRead);
             else
             {
-                auto deferredInfo = FbDeferredInfo(false);
+                auto deferredInfo = FbDeferredInfo.init;
                 protocol.blobEndRead(deferredInfo);
             }
         }
@@ -1314,7 +1314,7 @@ protected:
             }
             else
             {
-                auto deferredInfo = FbDeferredInfo(false);
+                auto deferredInfo = FbDeferredInfo.init;
 
                 if (batched)
                 {
@@ -1492,7 +1492,7 @@ protected:
         }
         else
         {
-            auto deferredInfo = FbDeferredInfo(false);
+            auto deferredInfo = FbDeferredInfo.init;
 
             if (!isFbHandle)
             {

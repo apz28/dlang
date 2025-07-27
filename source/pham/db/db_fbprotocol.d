@@ -13,7 +13,6 @@ module pham.db.db_fbprotocol;
 
 import std.algorithm.comparison : max, min;
 import std.conv : to;
-import std.range.primitives : isOutputRange, put;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_fbprotocol) import pham.db.db_debug;
@@ -23,7 +22,7 @@ import pham.utl.utl_bit : bitLengthToElement, hostToNetworkOrder;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
-import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_object : InitializedValue;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.db.db_buffer_filter;
@@ -43,100 +42,6 @@ import pham.db.db_fbexception;
 import pham.db.db_fbisc;
 import pham.db.db_fbtype;
 
-/**
-    Returns:
-        length of blob in bytes
- */
-size_t parseBlob(W)(scope ref W sink, scope const(ubyte)[] data) @safe
-if (isOutputRange!(W, ubyte))
-{
-    if (data.length <= 2)
-        return 0;
-
-    const endPos = data.length - 2; // -2 for item length
-    size_t result, pos;
-	while (pos < endPos)
-	{
-        const len = parseInt32!true(data, pos, 2, FbIscType.sql_blob);
-        put(sink, data[pos..pos + len]);
-        result += len;
-        pos += len;
-	}
-    return result;
-}
-
-DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
-{
-    debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
-
-    DbRecordsAffectedAggregate result;
-
-    if (data.length <= 2)
-        return result;
-
-    size_t pos = 0;
-    const endPos = data.length - 2;
-
-    void parseRecordValues()
-    {
-		while (pos < endPos)
-		{
-            const typ = data[pos++];
-            if (typ == FbIsc.isc_info_end)
-                break;
-
-			const len = parseInt32!true(data, pos, 2, typ);
-            const count = parseInt32!true(data, pos, len, typ);
-			switch (typ)
-			{
-				case FbIsc.isc_info_req_select_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "selectCount=", count);
-					result.selectCount += count;
-					break;
-
-				case FbIsc.isc_info_req_insert_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "insertCount=", count);
-					result.insertCount += count;
-					break;
-
-				case FbIsc.isc_info_req_update_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "updateCount=", count);
-					result.updateCount += count;
-					break;
-
-				case FbIsc.isc_info_req_delete_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deleteCount=", count);
-					result.deleteCount += count;
-					break;
-
-                default:
-                    pos += len;
-                    break;
-			}
-		}
-    }
-
-	while (pos < endPos)
-	{
-        const typ = data[pos++];
-        if (typ == FbIsc.isc_info_end)
-            break;
-
-		const len = parseInt32!true(data, pos, 2, typ);
-		if (typ == FbIsc.isc_info_sql_records)
-		{
-            if (pos < endPos)
-                parseRecordValues();
-            else
-                break;
-        }
-        else
-		    pos += len;
-	}
-
-	return result;
-}
-
 struct FbConnectingStateInfo
 {
 nothrow @safe:
@@ -155,14 +60,37 @@ nothrow @safe:
     DbConnectionType connectionType;
 }
 
+enum FbDeferredFlag : ubyte
+{
+    deferred,
+    scopedData,
+}
+
 struct FbDeferredInfo
 {
 nothrow @safe:
 
-    this(bool isDeferred)
+    this(EnumSet!FbDeferredFlag flags)
     {
-        this.isDeferred = isDeferred;
+        this.flags = flags;
         this.errorStatues = null;
+    }
+
+    this(Flags...)(scope Flags flags)
+    {
+        this(EnumSet!FbDeferredFlag(flags));
+    }
+
+    void restoreScopedData(bool scopedData)
+    {
+        flags.scopedData = scopedData;
+    }
+
+    bool setScopedData()
+    {
+        const result = flags.scopedData;
+        flags.scopedData = true;
+        return result;
     }
 
     FbException toException()
@@ -184,13 +112,14 @@ nothrow @safe:
         return result;
     }
 
-	@property bool hasError() const
+    pragma(inline, true)
+	@property bool hasError() const @nogc
 	{
         return errorStatues.length != 0;
 	}
 
     FbIscStatues[] errorStatues;
-    bool isDeferred;
+    EnumSet!FbDeferredFlag flags;
 }
 
 struct FbDeferredResponse
@@ -269,7 +198,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
         return r.getIscObject();
@@ -296,7 +225,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
         return r.getIscObject();
@@ -342,7 +271,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo(FbDeferredFlag.scopedData);
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
         return r;
@@ -366,7 +295,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(command.notificationMessages);
     }
@@ -386,13 +315,11 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo(FbDeferredFlag.scopedData);
         auto r = readGenericResponse(deferredInfo);
+        auto result = r.data.length ? FbIscBlobSize.parse(r.data) : FbIscBlobSize.init;
         //r.statues.getWarn(command.notificationMessages);
-		if (r.data.length)
-            return FbIscBlobSize(r.data);
-        else
-            return FbIscBlobSize.init;
+        return result;
     }
 
     final void blobSizeInfoWrite(ref FbBlob blob)
@@ -446,7 +373,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(connection.notificationMessages);
     }
@@ -465,7 +392,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(connection.notificationMessages);
         auto result = r.getIscObject();
@@ -589,7 +516,7 @@ public:
                 return;
 
             case FbIsc.op_response:
-                auto deferredInfo = FbDeferredInfo(false);
+                auto deferredInfo = FbDeferredInfo.init;
                 auto r = readGenericResponseImpl(reader, deferredInfo);
                 r.statues.getWarn(connection.notificationMessages);
                 goto default;
@@ -635,7 +562,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(commandBatch.fbCommand.notificationMessages);
     }
@@ -677,7 +604,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
     }
 
@@ -769,7 +696,7 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         // Nothing to process - just need acknowledge
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
     }
@@ -832,7 +759,7 @@ public:
             ? FbIsc.isc_info_sql_get_plan
             : FbIsc.isc_info_sql_explain_plan;
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(command.notificationMessages);
 
@@ -881,7 +808,7 @@ public:
         const op = readOperation(reader, ignoreCheckingResponseOp);
         if (op == FbIsc.op_response)
         {
-            auto deferredInfo = FbDeferredInfo(false);
+            auto deferredInfo = FbDeferredInfo.init;
             auto r = readGenericResponseImpl(reader, deferredInfo);
             r.statues.getWarn(command.notificationMessages);
             return FbIscFetchResponse(0, 0);
@@ -921,7 +848,7 @@ public:
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
         // Nothing to process - just need acknowledge
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         r.statues.getWarn(commandBatch.fbCommand.notificationMessages);
     }
@@ -1035,15 +962,11 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo(FbDeferredFlag.scopedData);
         auto r = readGenericResponse(deferredInfo);
+        auto counts = r.data.length ? parseRecordsAffected(r.data) : DbRecordsAffectedAggregate.init;
         //r.statues.getWarn(command.notificationMessages);
-		if (r.data.length)
-		{
-            const counts = parseRecordsAffected(r.data);
-            return counts.toCount(kind);
-        }
-        return DbRecordsAffected.init;
+        return counts.toCount(kind);
     }
 
     final void recordsAffectedCommandWrite(FbCommand command)
@@ -1067,7 +990,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(connection.notificationMessages);
     }
@@ -1086,7 +1009,7 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        auto deferredInfo = FbDeferredInfo(false);
+        auto deferredInfo = FbDeferredInfo.init;
         auto r = readGenericResponse(deferredInfo);
         //r.statues.getWarn(connection.notificationMessages);
         return r.getIscObject();
@@ -1106,16 +1029,18 @@ public:
         writer.flush();
     }
 
-    final int typeCommandRead(FbCommand command, ref FbDeferredInfo deferredInfo)
+    final FbIscCommandType typeCommandRead(FbCommand command, ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
+        const savedScopeDat = deferredInfo.setScopedData();
+        scope (exit)
+            deferredInfo.restoreScopedData(savedScopeDat);
         auto r = readGenericResponse(deferredInfo);
+        deferredInfo.restoreScopedData(savedScopeDat);
+        const result = r.data.length ? parseCommandType(r.data) : FbIscCommandType.none;
         r.statues.getWarn(command.notificationMessages);
-		if (r.data.length)
-            return parseCommandType(r.data);
-        else
-            return FbIscCommandType.none;
+        return result;
     }
 
     final void typeCommandWrite(FbCommand command)
@@ -1294,7 +1219,7 @@ public:
         auto deferredResponses2 = this.deferredResponses;
         this.deferredResponses = null;
 
-        auto deferredInfo = FbDeferredInfo(true);
+        auto deferredInfo = FbDeferredInfo(FbDeferredFlag.deferred);
         foreach (deferredResponse; deferredResponses2)
         {
             debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deferred=", deferredResponse.name);
@@ -1399,7 +1324,7 @@ protected:
         switch (op)
         {
             case FbIsc.op_response:
-                auto deferredInfo = FbDeferredInfo(false);
+                auto deferredInfo = FbDeferredInfo.init;
                 auto r = readGenericResponseImpl(reader, deferredInfo);
                 r.statues.getWarn(connection.notificationMessages);
                 stateInfo.serverAuthKey = r.data;
@@ -1482,7 +1407,7 @@ protected:
                 break;
 
             case FbIsc.op_response:
-                auto deferredInfo = FbDeferredInfo(false);
+                auto deferredInfo = FbDeferredInfo.init;
                 auto r = readGenericResponseImpl(reader, deferredInfo);
                 r.statues.getWarn(connection.notificationMessages);
                 break;
@@ -2246,7 +2171,7 @@ protected:
 
         auto rHandle = reader.readHandle();
         auto rId = reader.readId();
-        auto rData = reader.readBytes();
+        auto rData = deferredInfo.flags.scopedData ? reader.consumeBytes() : reader.readBytes();
         auto rStatues = reader.readStatuses();
 
         debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "rHandle=", rHandle, ", rId=", rId, ", rData=", rData.dgToString(),
@@ -2254,7 +2179,7 @@ protected:
 
         if (rStatues.isError)
         {
-            if (deferredInfo.isDeferred)
+            if (deferredInfo.flags.deferred)
                 deferredInfo.errorStatues ~= rStatues;
             else
                 throw new FbException(rStatues);

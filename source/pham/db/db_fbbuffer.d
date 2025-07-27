@@ -845,6 +845,14 @@ public:
         this._reader = DbValueReader!(Endian.bigEndian)(this._buffer);
     }
 
+    ubyte[] consumeBytes() return scope
+    {
+        const nBytes = _reader.readUInt32();
+        auto result = _reader.consume(nBytes);
+        readPad(nBytes);
+        return result;
+    }
+
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
         _reader.dispose(disposingReason);

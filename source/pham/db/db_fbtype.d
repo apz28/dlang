@@ -13,6 +13,7 @@ module pham.db.db_fbtype;
 
 import std.array : replace;
 import std.conv : to;
+import std.range.primitives : isOutputRange, put;
 import std.traits : EnumMembers, Unqual;
 
 debug(debug_pham_db_db_fbtype) import pham.db.db_debug;
@@ -99,7 +100,7 @@ static immutable DbTypeInfo[] fbNativeTypes = [
     {dbName:"BLOB SUB_TYPE 0", dbType:DbType.blob, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.blob, displaySize:DbTypeDisplaySize.blob},
     {dbName:"BLOB SUB_TYPE BINARY", dbType:DbType.blob, dbId:FbIscType.sql_blob, nativeName:"ubyte[]", nativeSize:DbTypeSize.blob, displaySize:DbTypeDisplaySize.blob},
     {dbName:"BLOB SUB_TYPE 1", dbType:DbType.text, dbId:FbIscType.sql_blob, nativeName:"char[]", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},
-    {dbName:"BLOB SUB_TYPE TEXT", dbType:DbType.text, dbId:FbIscType.sql_blob, nativeName:"char[]", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},    
+    {dbName:"BLOB SUB_TYPE TEXT", dbType:DbType.text, dbId:FbIscType.sql_blob, nativeName:"char[]", nativeSize:DbTypeSize.text, displaySize:DbTypeDisplaySize.text},
     {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:FbIscType.sql_boolean, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean}, // fb3
     {dbName:"CHAR(?)", dbType:DbType.stringFixed, dbId:FbIscType.sql_text, nativeName:"string", nativeSize:DbTypeSize.stringFixed, displaySize:DbTypeDisplaySize.stringFixed}, //char[]
     {dbName:"DATE", dbType:DbType.date, dbId:FbIscType.sql_date, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
@@ -467,45 +468,9 @@ public:
         this.type = type;
     }
 
-    this(scope const(ubyte)[] payload)
+    static typeof(this) parse(scope const(ubyte)[] data)
     {
-        if (payload.length <= 2)
-            return;
-
-        const endPos = payload.length - 2; // -2 for item length
-        size_t pos = 0;
-        while (pos < endPos)
-        {
-            const typ = payload[pos++];
-            if (typ == FbIsc.isc_info_end)
-                break;
-
-            const len = parseInt32!true(payload, pos, 2, typ);
-            switch (typ)
-            {
-                case FbIsc.isc_info_blob_max_segment:
-                    this.maxSegment = parseInt32!true(payload, pos, len, typ);
-                    break;
-
-                case FbIsc.isc_info_blob_num_segments:
-                    this.segmentCount = parseInt32!true(payload, pos, len, typ);
-                    break;
-
-                case FbIsc.isc_info_blob_total_length:
-                    this.length = parseInt32!true(payload, pos, len, typ);
-                    break;
-
-                case FbIsc.isc_info_blob_type:
-                    this.type = parseInt32!true(payload, pos, len, typ);
-                    break;
-
-                default:
-                    auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
-                    throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
-            }
-        }
-
-        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(maxSegment=", maxSegment, ", segmentCount=", segmentCount, ", length=", length, ", type=", type, ")");
+        return parseBlobSize(data);
     }
 
     ref typeof(this) reset() nothrow pure return
@@ -1138,6 +1103,7 @@ public:
         return FbIscObject(handle, id);
     }
 
+    pragma(inline, true)
     @property bool isError() const
     {
         return statues.isError;
@@ -2053,6 +2019,73 @@ DbParameterDirection fbParameterModeToDirection(const(int16) mode)
         : (mode == 1 ? DbParameterDirection.output : DbParameterDirection.inputOutput);
 }
 
+/**
+    Returns:
+        length of blob in bytes
+ */
+size_t parseBlob(W)(scope ref W sink, scope const(ubyte)[] data) @safe
+if (isOutputRange!(W, ubyte))
+{
+    if (data.length <= 2)
+        return 0;
+
+    const endPos = data.length - 2; // -2 for item length
+    size_t result, pos;
+	while (pos < endPos)
+	{
+        const len = parseInt32!true(data, pos, 2, FbIscType.sql_blob);
+        put(sink, data[pos..pos + len]);
+        result += len;
+        pos += len;
+	}
+    return result;
+}
+
+FbIscBlobSize parseBlobSize(scope const(ubyte)[] data)
+{
+    FbIscBlobSize result;
+
+    if (data.length <= 2)
+        return result;
+
+    const endPos = data.length - 2; // -2 for item length
+    size_t pos = 0;
+    while (pos < endPos)
+    {
+        const typ = data[pos++];
+        if (typ == FbIsc.isc_info_end)
+            break;
+
+        const len = parseInt32!true(data, pos, 2, typ);
+        switch (typ)
+        {
+            case FbIsc.isc_info_blob_max_segment:
+                result.maxSegment = parseInt32!true(data, pos, len, typ);
+                break;
+
+            case FbIsc.isc_info_blob_num_segments:
+                result.segmentCount = parseInt32!true(data, pos, len, typ);
+                break;
+
+            case FbIsc.isc_info_blob_total_length:
+                result.length = parseInt32!true(data, pos, len, typ);
+                break;
+
+            case FbIsc.isc_info_blob_type:
+                result.type = parseInt32!true(data, pos, len, typ);
+                break;
+
+            default:
+                auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+        }
+    }
+
+    debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(maxSegment=", result.maxSegment, ", segmentCount=", result.segmentCount, ", length=", result.length, ", type=", result.type, ")");
+
+    return result;
+}
+
 bool parseBool(bool Advance)(scope const(ubyte)[] data, size_t index, int type) pure
 if (Advance == false)
 {
@@ -2071,6 +2104,25 @@ pragma(inline, true)
 private bool parseBoolImpl(scope const(ubyte)[] data, ref size_t index) nothrow pure
 {
     return data[index++] == 1;
+}
+
+const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, uint length, int type) pure
+{
+    parseCheckLength(data, index, length, type);
+    return parseBytesImpl(data, index, length);
+}
+
+pragma(inline, true)
+private const(ubyte)[] parseBytesImpl(const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+{
+    if (length)
+    {
+        auto result = data[index..index + length];
+        index += length;
+        return result;
+    }
+    else
+        return null;
 }
 
 pragma(inline, true)
@@ -2104,25 +2156,6 @@ FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
 	}
 
 	return FbIscCommandType.none;
-}
-
-const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, uint length, int type) pure
-{
-    parseCheckLength(data, index, length, type);
-    return parseBytesImpl(data, index, length);
-}
-
-pragma(inline, true)
-private const(ubyte)[] parseBytesImpl(const(ubyte)[] data, ref size_t index, uint length) nothrow pure
-{
-    if (length)
-    {
-        auto result = data[index..index + length];
-        index += length;
-        return result;
-    }
-    else
-        return null;
 }
 
 int32 parseInt32(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
@@ -2177,6 +2210,78 @@ private int64 parseInt64Impl(bool Advance)(scope const(ubyte)[] data, ref size_t
 		result += cast(int64)data[index++] << shift;
 		shift += 8;
 	}
+	return result;
+}
+
+DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
+{
+    debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+    DbRecordsAffectedAggregate result;
+
+    if (data.length <= 2)
+        return result;
+
+    size_t pos = 0;
+    const endPos = data.length - 2;
+
+    void parseRecordValues()
+    {
+		while (pos < endPos)
+		{
+            const typ = data[pos++];
+            if (typ == FbIsc.isc_info_end)
+                break;
+
+			const len = parseInt32!true(data, pos, 2, typ);
+            const count = parseInt32!true(data, pos, len, typ);
+			switch (typ)
+			{
+				case FbIsc.isc_info_req_select_count:
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "selectCount=", count);
+					result.selectCount += count;
+					break;
+
+				case FbIsc.isc_info_req_insert_count:
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "insertCount=", count);
+					result.insertCount += count;
+					break;
+
+				case FbIsc.isc_info_req_update_count:
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "updateCount=", count);
+					result.updateCount += count;
+					break;
+
+				case FbIsc.isc_info_req_delete_count:
+                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deleteCount=", count);
+					result.deleteCount += count;
+					break;
+
+                default:
+                    pos += len;
+                    break;
+			}
+		}
+    }
+
+	while (pos < endPos)
+	{
+        const typ = data[pos++];
+        if (typ == FbIsc.isc_info_end)
+            break;
+
+		const len = parseInt32!true(data, pos, 2, typ);
+		if (typ == FbIsc.isc_info_sql_records)
+		{
+            if (pos < endPos)
+                parseRecordValues();
+            else
+                break;
+        }
+        else
+		    pos += len;
+	}
+
 	return result;
 }
 
@@ -2256,7 +2361,7 @@ unittest // FbIscBlobSize
     import pham.utl.utl_convert : bytesFromHexs;
 
     auto info = bytesFromHexs("05040004000000040400010000000604000400000001");
-    auto parsedSize = FbIscBlobSize(info);
+    auto parsedSize = FbIscBlobSize.parse(info);
     assert(parsedSize.maxSegment == 4);
     assert(parsedSize.segmentCount == 1);
     assert(parsedSize.length == 4);
