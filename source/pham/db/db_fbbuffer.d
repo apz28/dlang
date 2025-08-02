@@ -907,10 +907,12 @@ public:
         return result;
     }
 
-    pragma(inline, true)
-    char[] readChars() @trusted // @trusted=cast()
+    char[] readChars()
     {
-        return cast(char[])readBytes();
+        const nBytes = _reader.readUInt32();
+        auto result = _reader.readChars(nBytes);
+        readPad(nBytes);
+        return result;
     }
 
     int64 readChars(DbSaveBufferData saveBufferData, size_t segmentLength)
@@ -934,27 +936,27 @@ public:
 
     DbDateTime readDateTime()
     {
-        int32 d = void, t = void;
-        _reader.readTwoInt32(d, t);
+        const d = readInt32();
+        const t = readInt32();
         return dateTimeDecode(d, t);
     }
 
     DbDateTime readDateTimeTZ()
     {
         // Do not try to inline function calls, D does not honor correct sequence from left to right
-        auto d = readInt32();
-        auto t = readInt32();
-        auto zId = readUInt16();
+        const d = readInt32();
+        const t = readInt32();
+        const zId = readUInt16();
         return dateTimeDecodeTZ(d, t, zId, 0);
     }
 
     DbDateTime readDateTimeTZEx()
     {
         // Do not try to inline function calls, D does not honor correct sequence from left to right
-        auto d = readInt32();
-        auto t = readInt32();
-        auto zId = readUInt16();
-        auto zOffset = readInt16();
+        const d = readInt32();
+        const t = readInt32();
+        const zId = readUInt16();
+        const zOffset = readInt16();
         return dateTimeDecodeTZ(d, t, zId, zOffset);
     }
 
@@ -1165,17 +1167,17 @@ public:
     DbTime readTimeTZ()
     {
         // Do not try to inline function calls, D does not honor right sequence from left to right
-        auto t = readInt32();
-        auto zId = readUInt16();
+        const t = readInt32();
+        const zId = readUInt16();
         return timeDecodeTZ(t, zId, 0);
     }
 
     DbTime readTimeTZEx()
     {
         // Do not try to inline function calls, D does not honor right sequence from left to right
-        auto t = readInt32();
-        auto zId = readUInt16();
-        auto zOffset = readInt16();
+        const t = readInt32();
+        const zId = readUInt16();
+        const zOffset = readInt16();
         return timeDecodeTZ(t, zId, zOffset);
     }
 

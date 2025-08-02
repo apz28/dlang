@@ -495,15 +495,6 @@ public:
         return numericBitCast!int32(readUInt32());
     }
 
-    void readTwoInt32(out int32 i1, out int32 i2)
-    {
-        //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof * 2, ", total=", totalReadOf(uint32.sizeof * 2), ")");
-
-        const bytes = _buffer.consume(uint32.sizeof * 2);
-        i1 = cast(int32)uintDecode!(uint32, EndianKind)(bytes[0..uint32.sizeof]);
-        i2 = cast(int32)uintDecode!(uint32, EndianKind)(bytes[uint32.sizeof..$]);
-    }
-
     pragma(inline, true)
     int64 readInt64()
     {
