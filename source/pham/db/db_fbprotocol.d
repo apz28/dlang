@@ -281,13 +281,11 @@ public:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        const segmentLength = blob.maxSegmentLength;
-        const dataLength = 0;
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_get_segment);
 		writer.writeHandle(blob.fbHandle);
-        writer.writeInt32(segmentLength);
-        writer.writeInt32(dataLength);
+        writer.writeInt32(FbIscSize.maxBlobSegmentLength);
+        writer.writeInt32(0);
         writer.flush();
     }
 
@@ -785,9 +783,9 @@ public:
                 info = FbCommandPlanInfo(kind, FbCommandPlanInfo.parse(r.data, describeMode));
                 break;
         }
-        
+
         r.statues.getWarn(command.notificationMessages);
-        
+
         return kind;
     }
 
@@ -1076,15 +1074,47 @@ public:
         return readSqlResponseImpl(reader);
     }
 
-    final DbValue readValue(ref FbXdrReader reader, DbNamedColumn column)
+    final DbValue readValue(ref FbXdrReader reader, DbNamedColumn column, size_t row)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", row=", row, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         const dbType = column.type;
 
         if (column.isArray)
             return DbValue.entity(reader.readId(), dbType);
+
+        DbValue readBytesDelegate() @safe
+        {
+            debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+            auto columnDelegate = column.saveLongData;
+
+            int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
+            {
+                return columnDelegate(column, savedLength, requestedLength, row, data);
+            }
+
+            reader.readBytes(&readerDelegate, FbIscSize.maxBlobSegmentLength);
+
+            return DbValue.dbNull(dbType);
+        }
+
+        DbValue readStringDelegate() @safe
+        {
+            debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+            auto columnDelegate = column.saveLongData;
+
+            int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
+            {
+                return columnDelegate(column, savedLength, requestedLength, row, data);
+            }
+
+            reader.readString(&readerDelegate, FbIscSize.maxBlobSegmentLength);
+
+            return DbValue.dbNull(dbType);
+        }
 
         final switch (dbType)
         {
@@ -1129,11 +1159,15 @@ public:
             case DbType.stringFixed:
                 return DbValue(reader.readFixedString(column.baseType));
             case DbType.stringVary:
-                return DbValue(reader.readString(), dbType);
+                return column.saveLongData is null
+                    ? DbValue(reader.readString(), dbType)
+                    : readStringDelegate();
             case DbType.binaryFixed:
                 return DbValue(reader.readFixedBytes(column.baseType));
             case DbType.binaryVary:
-                return DbValue(reader.readBytes());
+                return column.saveLongData is null
+                    ? DbValue(reader.readBytes())
+                    : readBytesDelegate();
             case DbType.json:
             case DbType.xml:
             case DbType.text:
@@ -1168,7 +1202,7 @@ public:
 
     final DbRowValue readValues(FbColumnList columns, size_t row)
     {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(row=", row, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         auto reader = FbXdrReader(connection);
@@ -1182,7 +1216,7 @@ public:
             if (nullBitmap[i])
                 result[i].nullify();
             else
-                result[i] = readValue(reader, column);
+                result[i] = readValue(reader, column, row);
         }
         return result;
     }

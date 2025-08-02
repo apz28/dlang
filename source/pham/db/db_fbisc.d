@@ -571,7 +571,8 @@ enum FbIscSize
     oneM = 1_000 * 1_000,
 	blobSizeInfoBufferLength = 100,
     executePlanBufferLength = oneK * 32,
-    maxBatchBufferLength = oneM * 16, // max 1024 * 1024 * 256
+    maxBatchBufferLength = oneM * 16, // max 1024 * 1024 * 256    
+    maxBlobSegmentLength = (oneK * 8) - 2, // -2 for segment length indicator
     maxCharsLength = 32_767, // char[]
     maxVarCharsLength = maxCharsLength - 2, // varchar[] - '-2' for size place holder
 	parameterBufferLength = oneK * 16,

@@ -1146,7 +1146,7 @@ protected:
                 }
             }
         }
-        
+
         doColumnCreated();
     }
 
@@ -1156,7 +1156,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto protocol = pgConnection.protocol;
-        return protocol.readValues(reader, this, cast(PgColumnList)columns, _fetchedRowCount);
+        return protocol.readValues(reader, cast(PgColumnList)columns, _fetchedRowCount);
     }
 }
 

@@ -559,9 +559,6 @@ struct FbBlob
 @safe:
 
 public:
-    enum maxSegmentLength = (1_024 * 8) - 2; // -2 for segment length indicator
-
-public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
@@ -816,11 +813,11 @@ public:
         debug(debug_pham_db_db_fbdatabase)
         {
             const s = sizes();
-            debug writeln(__FUNCTION__, "(maxSegmentLength=", maxSegmentLength, ", sizes.length=", sizes.length,
+            debug writeln(__FUNCTION__, "(maxBlobSegmentLength=", FbIscSize.maxBlobSegmentLength, ", sizes.length=", sizes.length,
                 ", sizes.maxSegment=", sizes.maxSegment, ", sizes.segmentCount=", sizes.segmentCount, ")");
         }
 
-        auto segmentData = Appender!(ubyte[])(maxSegmentLength);
+        auto segmentData = Appender!(ubyte[])(FbIscSize.maxBlobSegmentLength);
         auto protocol = fbConnection.protocol;
         const blobLength = length();
         int64 result;
@@ -878,10 +875,10 @@ public:
     }
     do
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(maxSegmentLength=", maxSegmentLength, ")");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(maxBlobSegmentLength=", FbIscSize.maxBlobSegmentLength, ")");
 
         auto protocol = fbConnection.protocol;
-        const segmentLength = maxSegmentLength;
+        const segmentLength = FbIscSize.maxBlobSegmentLength;
         int64 result;
         while (true)
         {

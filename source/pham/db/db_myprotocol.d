@@ -619,9 +619,9 @@ public:
         return !rowPackage.isEOF();
     }
 
-    final DbValue readValue(ref MyXdrReader reader, MyCommand command, DbNamedColumn column, size_t row, const(bool) readColumnLength)
+    final DbValue readValue(ref MyXdrReader reader, DbNamedColumn column, size_t row, const(bool) readColumnLength)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", readColumnLength=", readColumnLength, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(column=", column.traceString(), ", row=", row, ", readColumnLength=", readColumnLength, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         const dbType = column.type;
@@ -718,8 +718,8 @@ public:
                 return DbValue(reader.readTimeValue(readColumnLength), dbType);
             case DbType.uuid:
                 return DbValue(reader.readUUIDValue(readColumnLength), dbType);
-
             case DbType.stringFixed:
+                return readText();
             case DbType.stringVary:
             case DbType.json:
             case DbType.xml:
@@ -727,8 +727,8 @@ public:
                 return column.saveLongData is null
                     ? readText()
                     : readTextDelegate();
-
             case DbType.binaryFixed:
+                return readBytes();
             case DbType.binaryVary:
             case DbType.blob:
                 return column.saveLongData is null
@@ -750,7 +750,7 @@ public:
 
     final DbRowValue readValues(ref MyReader rowPackage, MyCommand command, MyColumnList columns, size_t row)
     {
-        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(columnCount=", columns.length, ")");
+        debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(columnCount=", columns.length, ", row=", row, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         const hasNullBitmapBytes = command.prepared;
@@ -769,7 +769,7 @@ public:
                 continue;
             }
 
-            result[i] = readValue(reader, command, columns[i], row, readColumnLength);
+            result[i] = readValue(reader, columns[i], row, readColumnLength);
         }
 
         return result;

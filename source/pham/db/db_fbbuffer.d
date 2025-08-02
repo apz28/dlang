@@ -272,7 +272,7 @@ private:
     DbBufferOwner _bufferOwner;
 }
 
-enum FbBlrWriteType
+enum FbBlrWriteType : ubyte
 {
     base,
     null_,
@@ -893,10 +893,38 @@ public:
         return result;
     }
 
+    int64 readBytes(DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        const nBytes = _reader.readUInt32();
+        auto result = _reader.readBytes(nBytes, saveBufferData, segmentLength);
+        readPad(nBytes);
+        return result;
+    }
+
     pragma(inline, true)
     char[] readChars() @trusted // @trusted=cast()
     {
         return cast(char[])readBytes();
+    }
+
+    int64 readChars(DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        const nBytes = _reader.readUInt32();
+        auto result = _reader.readChars(nBytes, saveBufferData, segmentLength);
+        readPad(nBytes);
+        return result;
     }
 
     DbDate readDate()
@@ -1053,6 +1081,18 @@ public:
     string readString() @trusted // @trusted=cast()
     {
         return cast(string)readChars();
+    }
+
+    pragma(inline, true)
+    int64 readString(DbSaveBufferData saveBufferData, size_t segmentLength)
+    in
+    {
+        assert(saveBufferData !is null);
+        assert(segmentLength != 0);
+    }
+    do
+    {
+        return readChars(saveBufferData, segmentLength);
     }
 
     FbIscStatues readStatuses() @trusted

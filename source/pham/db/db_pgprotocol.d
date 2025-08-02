@@ -587,14 +587,14 @@ public:
         return result;
     }
 
-    final DbValue readValue(ref PgReader reader, PgCommand command, DbNamedColumn column, size_t row, const(int32) valueLength)
+    final DbValue readValue(ref PgReader reader, DbNamedColumn column, size_t row, const(int32) valueLength)
     in
     {
         assert(valueLength != pgNullValueLength);
     }
     do
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(", column.traceString(), ", valueLength=", valueLength, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(", column.traceString(), ", row=", row, ", valueLength=", valueLength, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         const dbType = column.type;
@@ -602,7 +602,7 @@ public:
         PgXdrReader checkValueLength(const(int32) expectedLength) @safe
         {
             debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(expectedLength=", expectedLength, ")");
-            
+
             if (expectedLength && expectedLength != valueLength)
                 readValueError(column, valueLength, expectedLength);
             return PgXdrReader(connection, reader.buffer);
@@ -611,7 +611,7 @@ public:
         DbValue readBytesDelegate() @safe
         {
             debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
-            
+
             auto columnDelegate = column.saveLongData;
 
             int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
@@ -628,7 +628,7 @@ public:
         DbValue readTextDelegate() @safe
         {
             debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
-            
+
             auto columnDelegate = column.saveLongData;
 
             int readerDelegate(int64 savedLength, int64 requestedLength, scope const(ubyte)[] data) @safe
@@ -647,68 +647,67 @@ public:
             final switch (dbType)
             {
                 case DbType.boolean:
-                    return DbValue(readValueArray!bool(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!bool(reader, column, valueLength), dbType);
                 case DbType.int8:
-                    return DbValue(readValueArray!int8(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!int8(reader, column, valueLength), dbType);
                 case DbType.int16:
-                    return DbValue(readValueArray!int16(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!int16(reader, column, valueLength), dbType);
                 case DbType.int32:
-                    return DbValue(readValueArray!int32(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!int32(reader, column, valueLength), dbType);
                 case DbType.int64:
-                    return DbValue(readValueArray!int64(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!int64(reader, column, valueLength), dbType);
                 case DbType.int128:
-                    return DbValue(readValueArray!int128(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!int128(reader, column, valueLength), dbType);
                 case DbType.decimal:
-                    return DbValue(readValueArray!Decimal(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!Decimal(reader, column, valueLength), dbType);
                 case DbType.decimal32:
-                    return DbValue(readValueArray!Decimal32(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!Decimal32(reader, column, valueLength), dbType);
                 case DbType.decimal64:
-                    return DbValue(readValueArray!Decimal64(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!Decimal64(reader, column, valueLength), dbType);
                 case DbType.decimal128:
-                    return DbValue(readValueArray!Decimal128(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!Decimal128(reader, column, valueLength), dbType);
                 case DbType.numeric:
-                    return DbValue(readValueArray!Numeric(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!Numeric(reader, column, valueLength), dbType);
                 case DbType.float32:
-                    return DbValue(readValueArray!float32(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!float32(reader, column, valueLength), dbType);
                 case DbType.float64:
-                    return DbValue(readValueArray!float64(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!float64(reader, column, valueLength), dbType);
                 case DbType.date:
-                    return DbValue(readValueArray!Date(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!Date(reader, column, valueLength), dbType);
                 case DbType.datetime:
                 case DbType.datetimeTZ:
-                    return DbValue(readValueArray!DbDateTime(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!DbDateTime(reader, column, valueLength), dbType);
                 case DbType.time:
                 case DbType.timeTZ:
-                    return DbValue(readValueArray!DbTime(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!DbTime(reader, column, valueLength), dbType);
                 case DbType.uuid:
-                    return DbValue(readValueArray!UUID(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!UUID(reader, column, valueLength), dbType);
                 case DbType.stringFixed:
                 case DbType.stringVary:
                 case DbType.json:
                 case DbType.xml:
                 case DbType.text:
-                    return DbValue(readValueArray!string(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!string(reader, column, valueLength), dbType);
                 case DbType.binaryFixed:
                 case DbType.binaryVary:
                 case DbType.blob:
-                    return DbValue(readValueArray!(ubyte[])(reader, command, column, valueLength), dbType);
+                    return DbValue(readValueArray!(ubyte[])(reader, column, valueLength), dbType);
                 case DbType.record:
                 case DbType.unknown:
                     switch (column.baseSubTypeId)
                     {
                         case PgOIdType.interval:
-                            return DbValue(readValueArray!PgOIdInterval(reader, command, column, valueLength), dbType);
+                            return DbValue(readValueArray!PgOIdInterval(reader, column, valueLength), dbType);
                         case PgOIdType.point:
-                            return DbValue(readValueArray!DbGeoPoint(reader, command, column, valueLength), dbType);
+                            return DbValue(readValueArray!DbGeoPoint(reader, column, valueLength), dbType);
                         case PgOIdType.path:
-                            return DbValue(readValueArray!DbGeoPath(reader, command, column, valueLength), dbType);
+                            return DbValue(readValueArray!DbGeoPath(reader, column, valueLength), dbType);
                         case PgOIdType.box:
-                            return DbValue(readValueArray!DbGeoBox(reader, command, column, valueLength), dbType);
+                            return DbValue(readValueArray!DbGeoBox(reader, column, valueLength), dbType);
                         case PgOIdType.polygon:
-                            return DbValue(readValueArray!DbGeoPolygon(reader, command, column, valueLength), dbType);
+                            return DbValue(readValueArray!DbGeoPolygon(reader, column, valueLength), dbType);
                         case PgOIdType.circle:
-                            return DbValue(readValueArray!DbGeoCircle(reader, command, column, valueLength), dbType);
-
+                            return DbValue(readValueArray!DbGeoCircle(reader, column, valueLength), dbType);
                         default:
                             return readValueError(column, valueLength, 0);
                     }
@@ -760,8 +759,8 @@ public:
                 return DbValue(checkValueLength(12).readTimeTZ(), dbType);
             case DbType.uuid:
                 return DbValue(checkValueLength(16).readUUID(), dbType);
-
             case DbType.stringFixed:
+                return DbValue(checkValueLength(0).readString(valueLength), dbType);
             case DbType.stringVary:
             case DbType.json:
             case DbType.xml:
@@ -769,14 +768,13 @@ public:
                 return column.saveLongData is null
                     ? DbValue(checkValueLength(0).readString(valueLength), dbType)
                     : readTextDelegate();
-
             case DbType.binaryFixed:
+                return DbValue(checkValueLength(0).readBytes(valueLength), dbType);
             case DbType.binaryVary:
             case DbType.blob:
                 return column.saveLongData is null
                     ? DbValue(checkValueLength(0).readBytes(valueLength), dbType)
                     : readBytesDelegate();
-
             case DbType.record:
             case DbType.unknown:
                 switch (column.baseTypeId)
@@ -793,7 +791,6 @@ public:
                         return DbValue(checkValueLength(0).readGeoPolygon(), dbType);
                     case PgOIdType.circle:
                         return DbValue(checkValueLength(8 * 3).readGeoCircle(), dbType);
-
                     default:
                         return readValueError(column, valueLength, 0);
                 }
@@ -805,9 +802,9 @@ public:
         assert(0, toName!DbType(dbType));
     }
 
-    final DbRowValue readValues(ref PgReader reader, PgCommand command, PgColumnList columns, size_t row)
+    final DbRowValue readValues(ref PgReader reader, PgColumnList columns, size_t row)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(row=", row, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         const columnCount = reader.readColumnCount();
@@ -833,7 +830,7 @@ public:
                 continue;
             }
 
-            result[i] = readValue(reader, command, columns[i], row, valueLength);
+            result[i] = readValue(reader, columns[i], row, valueLength);
         }
 
         return result;
@@ -1275,7 +1272,7 @@ protected:
         debug(debug_pham_db_db_pgprotocol) debug writeln("**********");
     }
 
-    final T[] readValueArray(T)(ref PgReader reader, PgCommand command, DbNamedColumn column, const(int32) valueLength)
+    final T[] readValueArray(T)(ref PgReader reader, DbNamedColumn column, const(int32) valueLength)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(column.name=", column.name, ", valueLength=", valueLength, ")");
 
