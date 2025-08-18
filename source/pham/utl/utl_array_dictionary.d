@@ -567,7 +567,7 @@ public:
      */
     @property auto byKey() inout @nogc nothrow pure @trusted
     {
-        return Range!(RangeKind.key)(cast(Impl*)aa, 0);
+        return Range!(RangeKind.key)(cast(Impl*)aa);
     }
 
     /**
@@ -575,7 +575,7 @@ public:
      */
     @property auto byKeyValue() inout @nogc nothrow pure @trusted
     {
-        return Range!(RangeKind.keyValue)(cast(Impl*)aa, 0);
+        return Range!(RangeKind.keyValue)(cast(Impl*)aa);
     }
 
     /**
@@ -583,7 +583,7 @@ public:
      */
     @property auto byValue() inout @nogc nothrow pure @trusted
     {
-        return Range!(RangeKind.value)(cast(Impl*)aa, 0);
+        return Range!(RangeKind.value)(cast(Impl*)aa);
     }
 
     /**
@@ -679,7 +679,6 @@ public:
     }
 
 private:
-    alias Bucket = ptrdiff_t;
     alias Index = ptrdiff_t;
 
     static struct Entry
@@ -821,7 +820,8 @@ private:
 
         inout(V)* find(ref const(K) key) inout return
         {
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
@@ -830,7 +830,8 @@ private:
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
         inout(V)* find(scope const(KE)[] key) inout return
         {
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
@@ -902,7 +903,8 @@ private:
 
         ptrdiff_t indexOf(ref const(K) key) const nothrow pure
         {
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             return findSlotLookup(calcHash(key), key, index, bucket, keyCollision) !is null
                 ? index
@@ -952,7 +954,8 @@ private:
 
         ref V put(ref K key, ref V value) return @trusted
         {
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             const hash = calcHash(key);
             auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
@@ -1015,7 +1018,8 @@ private:
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
 
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry !is null
@@ -1028,7 +1032,8 @@ private:
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
 
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry !is null
@@ -1117,7 +1122,8 @@ private:
 
             if (entry._key != key)
             {
-                Index indexDup, bucket;
+                Index indexDup;
+                Index bucket;
                 uint keyCollision;
                 const hash = calcHash(key);
                 // Duplicate?
@@ -1136,7 +1142,8 @@ private:
 
         ref V require(ref K key, lazy V createValue) return
         {
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             const hash = calcHash(key);
             auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
@@ -1177,7 +1184,7 @@ private:
             refill();
 
             // safe to free b/c impossible to reference
-            arrayFree!Bucket(oldBuckets);
+            arrayFree!Index(oldBuckets);
         }
 
         void shrink()
@@ -1201,7 +1208,8 @@ private:
 
         ref V update(C, U)(ref K key, scope C createValue, scope U updateValue) return
         {
-            Index index, bucket;
+            Index index;
+            Index bucket;
             uint keyCollision;
             const hash = calcHash(key);
             auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
@@ -1276,14 +1284,14 @@ private:
             return entries.length;
         }
 
-        Bucket[] buckets; // Based 1 index
+        Index[] buckets; // Based 1 index
         Entry[] entries;
         CustomHashOf customHashOf;
         uint collisionCount, maxCollision;
         DictionaryHashMix _hashMix;
     }
 
-    enum RangeKind
+    enum RangeKind : ubyte
     {
         key,
         value,
@@ -1292,10 +1300,11 @@ private:
 
     static struct Range(RangeKind kind)
     {
-        this(Impl* impl, size_t idx) @nogc nothrow pure @safe
+        this(Impl* impl) @nogc nothrow pure @safe
         {
-            this.impl = impl;
-            this.idx = idx;
+            this._impl = impl;
+            this._length = impl !is null ? impl.length : 0;
+            this._idx = 0;
         }
 
         void popFront() @nogc nothrow @safe
@@ -1305,7 +1314,8 @@ private:
         }
         do
         {
-            idx++;
+            _idx++;
+            _length--;
         }
 
         auto save() @nogc nothrow @safe
@@ -1316,7 +1326,7 @@ private:
         pragma(inline, true)
         @property bool empty() const @nogc nothrow @safe
         {
-            return impl is null || idx >= impl.entries.length;
+            return _length == 0;
         }
 
         static if (kind == RangeKind.key)
@@ -1325,7 +1335,7 @@ private:
             {
                 assert(!empty);
 
-                return impl.entries[idx]._key;
+                return _impl.entries[_idx]._key;
             }
         }
         else static if (kind == RangeKind.value)
@@ -1334,7 +1344,7 @@ private:
             {
                 assert(!empty);
 
-                return impl.entries[idx].value;
+                return _impl.entries[_idx].value;
             }
         }
         else static if (kind == RangeKind.keyValue)
@@ -1343,18 +1353,25 @@ private:
             {
                 assert(!empty);
 
-                return impl.entries[idx];
+                return _impl.entries[_idx];
             }
         }
         else
             static assert(0);
 
+        pragma(inline, true)
+        @property size_t length() const @nogc nothrow @safe
+        {
+            return _length;
+        }
+
     private:
-        Impl* impl;
-        size_t idx;
+        Impl* _impl;
+        size_t _idx;
+        size_t _length;
     }
 
-    static Bucket[] allocBuckets(const(size_t) dim) nothrow pure @trusted
+    static Index[] allocBuckets(const(size_t) dim) nothrow pure @trusted
     in
     {
         assert(isPrime(dim));
@@ -1364,12 +1381,12 @@ private:
         import core.memory : GC;
 
         if (__ctfe)
-            return new Bucket[](dim);
+            return new Index[](dim);
         else
         {
             enum attr = GC.BlkAttr.NO_INTERIOR;
-            const sz = dim * Bucket.sizeof;
-            return (cast(Bucket*)GC.calloc(sz, attr))[0..dim];
+            const sz = dim * Index.sizeof;
+            return (cast(Index*)GC.calloc(sz, attr))[0..dim];
         }
     }
 
