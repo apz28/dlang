@@ -388,8 +388,8 @@ private:
 
     static struct Data
     {
-        size_t length;
         UET[] values;
+        size_t length;
         bool tryExtendBlock;
 
         void clear() nothrow @trusted

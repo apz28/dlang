@@ -3137,7 +3137,7 @@ public:
 
     @property final string applicationName() const nothrow
     {
-        return customAttributes.get(DbConnectionCustomIdentifier.applicationName, null);
+        return customAttributes[DbConnectionCustomIdentifier.applicationName];
     }
 
     @property final typeof(this) applicationName(string value)
@@ -3153,7 +3153,7 @@ public:
 
     @property final string applicationVersion() const nothrow
     {
-        return customAttributes.get(DbConnectionCustomIdentifier.applicationVersion, null);
+        return customAttributes[DbConnectionCustomIdentifier.applicationVersion];
     }
 
     @property final typeof(this) applicationVersion(string value)

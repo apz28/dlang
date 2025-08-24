@@ -34,8 +34,9 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
 }
 
 /**
- * Calculates an efficient growth scheme based on the old capacity
- * of data, and the minimum requested capacity.
+ * Calculates an efficient growth scheme based on the current length
+ * of data, and the minimum requested length;
+ * will assert if overflow
  *
  * Params:
  *   currentLength = current length/capacity
@@ -43,7 +44,7 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
  *   sizeOfT = size of T in bytes
  */
 pragma(inline, true);
-static size_t arrayCalcCapacity(const(size_t) currentLength, const(size_t) additionalLength, const(size_t) sizeOfT) @nogc nothrow pure @safe
+size_t arrayCalcCapacity(const(size_t) currentLength, const(size_t) additionalLength, const(size_t) sizeOfT) @nogc nothrow pure @safe
 in
 {
     assert(sizeOfT > 0);
@@ -53,7 +54,39 @@ do
     const increment = currentLength > 1_000
         ? (currentLength / 2)
         : (currentLength != 0 ? currentLength : (sizeOfT == 1 ? 32 : (sizeOfT == 2 ? 16 : 8)));
-    return currentLength + (increment > additionalLength ? increment : additionalLength);
+    const result = currentLength + (increment > additionalLength ? increment : additionalLength);
+
+    if (result <= currentLength)
+        assert(0, "The allocation size would exceed the available pointer range");
+
+    return result;
+}
+
+/**
+ * Calculates a malloc size for an array length & element size;
+ * will assert if overflow
+ *
+ * Params:
+ *   length = length of array
+ *   sizeOfT = size of T in bytes
+ */
+pragma(inline, true);
+size_t arrayMallocSize(const(size_t) length, const(size_t) sizeOfT) @nogc nothrow pure @safe
+in
+{
+    assert(sizeOfT > 0);
+}
+do
+{
+    import core.checkedint : mulu;
+
+    bool overflow;
+    const result = mulu(length, sizeOfT, overflow);
+
+    if (overflow)
+        assert(0, "The allocation size would exceed the available pointer range");
+
+    return result;
 }
 
 void arrayClear(T)(T[] array)
@@ -92,7 +125,6 @@ in
 }
 do
 {
-    import core.checkedint : mulu;
     import core.memory : GC;
     import core.stdc.string : memcpy, memset;
     import std.traits : hasIndirections;
@@ -129,10 +161,7 @@ do
                 return GC.BlkAttr.NO_SCAN;
         }
 
-        bool overflow;
-        const allocSize = mulu(allocCapacity, T.sizeof, overflow);
-        if (overflow)
-            assert(0, "The allocation would exceed the available pointer range");
+        const allocSize = arrayMallocSize(allocCapacity, T.sizeof);
 
         // Try extending the current block
         if (tryExtendBlock)
@@ -195,7 +224,7 @@ do
 {
     import core.stdc.string : memmove;
     import std.traits : hasElaborateDestructor, Unqual;
-    
+
     alias UT = Unqual!T;
 
     const afterLength = currentLength - beginIndex - shiftLength;
@@ -209,7 +238,7 @@ do
         {
             auto p = cast(UT*)(array.ptr + beginIndex);
             memmove(p, p + shiftLength, afterLength * T.sizeof);
-            
+
             static if (__traits(hasPostblit, T))
             {
                 foreach (ref e; array[beginIndex..beginIndex + shiftLength])
@@ -226,7 +255,7 @@ do
                 const b = beginIndex + i;
                 array[b] = array[b + shiftLength];
             }
-            
+
             static if (hasElaborateDestructor!T)
             {
                 const b = beginIndex + shiftLength;
@@ -239,7 +268,7 @@ do
                 arrayDestroy!T(array[beginIndex..beginIndex + shiftLength], false);
         }
     }
-    
+
     arrayZeroInit!T(array[currentLength-shiftLength..currentLength]);
 }
 
@@ -277,7 +306,7 @@ do
 
         if (newLength >= 8 && newLength < currentLength / 2)
         {
-            const allocSize = newLength * T.sizeof;
+            const allocSize = arrayMallocSize(newLength, T.sizeof);
             auto bi = GC.qalloc(allocSize, blockAttribute);
             static if (arrayZeroNeeded!T)
             {

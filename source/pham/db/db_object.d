@@ -429,7 +429,7 @@ struct DbCustomAttributeList
 nothrow @safe:
 
 public:
-    string opIndex(string name)
+    string opIndex(string name) const
     {
         return values.get(name, null);
     }

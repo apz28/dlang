@@ -385,10 +385,8 @@ public:
      *  key = the key of the value to get
      *  defaultValue = the default value being returned if the key is not found
      */
-    inout(V) get(scope const(K) key, lazy inout(V) defaultValue) inout nothrow // lazy does not infer nothrow
+    inout(V) get(scope const(K) key, inout(V) defaultValue) inout
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         if (length != 0)
         {
             if (auto f = aa.find(key))
@@ -398,6 +396,20 @@ public:
         return defaultValue;
     }
 
+    inout(V) get(C)(scope const(K) key, C defaultValue) inout
+    if (is(typeof(defaultValue()) : UV))
+    {
+        //pragma(msg, C.stringof);
+
+        if (length != 0)
+        {
+            if (auto f = aa.find(key))
+                return *f;
+        }
+
+        return cast(inout(V))defaultValue();
+    }
+
     /**
      * Returns the value at index.
      * If the index is out of bound, defaultValue is returned
@@ -405,13 +417,19 @@ public:
      *  index = the location of key-value pair
      *  defaultValue = the default value being returned if the index is out of bound
      */
-    inout(V) getAt(size_t index, lazy inout(V) defaultValue) inout nothrow // lazy does not infer nothrow
+    inout(V) getAt(size_t index, inout(V) defaultValue) inout
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         return index < length
             ? aa.entries[index].value
             : defaultValue;
+    }
+
+    inout(V) getAt(C)(size_t index, C defaultValue) inout
+    if (is(typeof(defaultValue()) : UV))
+    {
+        return index < length
+            ? aa.entries[index].value
+            : cast(inout(V))defaultValue();
     }
 
     /**
@@ -507,9 +525,10 @@ public:
      *  key = the key of the element to lookup/add
      *  createValue = the value being added if key is not found
      */
-    ref V require(K key, lazy V createValue) nothrow return // lazy does not infer nothrow
+    ref V require(C)(K key, auto ref C createValue) return
+    if (is(typeof(createValue()) : V) || is(C : V))
     {
-        scope (failure) assert(0, "Assume nothrow failed");
+        //pragma(msg, C.stringof);
 
         if (!aa)
             aa = createAA(0, 0);
@@ -549,17 +568,20 @@ public:
      * Looks up key; if it exists applies the update delegate else evaluates the create delegate and adds it to the Dictionary
      * Params:
      *  key = the key of the element to lookup/add
-     *  createVal = a delegate to create new value if the key is not found
-     *  updateVal = a delegate being called when the key is found
+     *  createValue = a delegate to create new value if the key is not found
+     *  updateValue = a delegate being called when the key is found
      */
-    ref V update(C, U)(K key, scope C createVal, scope U updateVal) return
-    if ((is(C : V delegate()) || is(C : V function()))
-        && (is(U : void delegate(ref V)) || is(U : void function(ref V))))
+    ref V update(C, U)(K key, scope C createValue, scope U updateValue) return
+    if (is(typeof(createValue()) : V)
+        && (is(typeof(updateValue(this[K.init])) : V) || is(typeof(updateValue(this[K.init])) == void)))
     {
+        //pragma(msg, C.stringof);
+        //pragma(msg, U.stringof);
+
         if (!aa)
             aa = createAA(0, 0);
 
-        return aa.update(key, createVal, updateVal);
+        return aa.update(key, createValue, updateValue);
     }
 
     /**
@@ -820,8 +842,7 @@ private:
 
         inout(V)* find(ref const(K) key) inout return
         {
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
@@ -830,8 +851,7 @@ private:
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
         inout(V)* find(scope const(KE)[] key) inout return
         {
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry ? &entry.value : null;
@@ -903,8 +923,7 @@ private:
 
         ptrdiff_t indexOf(ref const(K) key) const nothrow pure
         {
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             return findSlotLookup(calcHash(key), key, index, bucket, keyCollision) !is null
                 ? index
@@ -954,8 +973,7 @@ private:
 
         ref V put(ref K key, ref V value) return @trusted
         {
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             const hash = calcHash(key);
             auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
@@ -1018,8 +1036,7 @@ private:
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
 
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry !is null
@@ -1032,8 +1049,7 @@ private:
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "(key=", key, ")");
 
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             auto entry = findSlotLookup(calcHash(key), key, index, bucket, keyCollision);
             return entry !is null
@@ -1122,8 +1138,7 @@ private:
 
             if (entry._key != key)
             {
-                Index indexDup;
-                Index bucket;
+                Index bucket, indexDup;
                 uint keyCollision;
                 const hash = calcHash(key);
                 // Duplicate?
@@ -1140,10 +1155,9 @@ private:
             return true;
         }
 
-        ref V require(ref K key, lazy V createValue) return
+        ref V require(C)(ref K key, auto ref C createValue) return
         {
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             const hash = calcHash(key);
             auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
@@ -1152,7 +1166,10 @@ private:
                 if (grow())
                     bucket = findSlotInsert(hash, keyCollision);
 
-                entries ~= Entry(-1, hash, key, createValue);
+                static if (is(C : V))
+                    entries ~= Entry(-1, hash, key, createValue);
+                else
+                    entries ~= Entry(-1, hash, key, createValue());
                 attachEntryToBucket(bucket, entries.length, keyCollision);
 
                 debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && keyCollision) debug writeln(__FUNCTION__, "(key=", key,
@@ -1208,8 +1225,7 @@ private:
 
         ref V update(C, U)(ref K key, scope C createValue, scope U updateValue) return
         {
-            Index index;
-            Index bucket;
+            Index bucket, index;
             uint keyCollision;
             const hash = calcHash(key);
             auto entry = findSlotLookup(hash, key, index, bucket, keyCollision);
@@ -1224,7 +1240,10 @@ private:
             }
             else
             {
-                updateValue(entry.value);
+                static if (is(typeof(updateValue(entry.value)) == void))
+                    updateValue(entry.value);
+                else
+                    entry.value = updateValue(entry.value);
                 return entry.value;
             }
         }
@@ -1825,10 +1844,10 @@ unittest // Dictionary testGet2()
     auto a = new T;
     aa["foo"] = a;
     assert(T.count == 1);
-    auto b = aa.get("foo", new T);
+    auto b = aa.get("foo", { return new T; });
     assert(T.count == 1);
     assert(b is a);
-    auto c = aa.get("bar", new T);
+    auto c = aa.get("bar", { return new T; });
     assert(T.count == 2);
     assert(c !is a);
 
@@ -1850,16 +1869,20 @@ unittest // Dictionary testRequire1()
     auto a = new T;
     aa["foo"] = a;
     assert(T.count == 1);
-    auto b = aa.require("foo", new T);
+    auto b = aa.require("foo", { return new T; });
+    //import std.stdio : writeln; debug writeln("T.count=", T.count);
     assert(T.count == 1);
     assert(b is a);
     auto c = aa.require("bar", T.init);
     assert(T.count == 1);
     assert(c is null);
     assert("bar" in aa);
-    auto d = aa.require("bar", new T);
+    auto d = aa.require("bar", { return new T; });
+    //import std.stdio : writeln; debug writeln("T.count=", T.count);
     assert(d is null);
-    auto e = aa.require("baz", new T);
+    assert(T.count == 1);
+    auto e = aa.require("baz", { return new T; });
+    //import std.stdio : writeln; debug writeln("T.count=", T.count);
     assert(T.count == 2);
     assert(e !is a);
 
@@ -1922,17 +1945,30 @@ unittest // Dictionary testUpdate1()
     C newer;
     C older;
 
-    void test(string key)
+    void test1(string key)
+    {
+        aa.update(key, { newer = new C; return newer; }, (C c) { older = c; newer = new C; return newer; });
+    }
+
+    void test2(string key)
     {
         aa.update(key, { newer = new C; return newer; }, (ref C c) { older = c; newer = new C; c = newer; });
     }
 
-    test("foo");
+    // Test create
+    test1("bar");
+    assert(newer is aa["bar"]);
+
+    // Test update return C
+    test1("foo");
     assert(older is orig);
     assert(newer is aa["foo"]);
 
-    test("bar");
-    assert(newer is aa["bar"]);
+    // Test update return void
+    auto orig2 = newer;
+    test2("foo");
+    assert(older is orig2);
+    assert(newer is aa["foo"]);
 }
 
 @safe unittest // Dictionary testByKey1()
