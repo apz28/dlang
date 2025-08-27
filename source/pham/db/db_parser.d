@@ -113,6 +113,11 @@ public:
             : s;
     }
 
+    @property dchar currentAlternatedQuotedChar() const @nogc pure
+    {
+        return _currentAlternatedQuotedChar;
+    }
+    
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
@@ -231,9 +236,16 @@ private:
             : (c == '\t' || isSpace(c) ? SpaceKind.space : SpaceKind.none);
     }
 
+    pragma(inline, true)
+    bool hasChar() const @nogc pure
+    {
+        return _p < _sql.length;
+    }
+
     void popFrontImpl() pure
     {
         _currentParameterIndicator = null;
+        _currentAlternatedQuotedChar = '\0';
         _malformed = false;
         _beginP = _p;
 
@@ -290,7 +302,7 @@ private:
 
             case CharKind.parameterNamed:
                 _currentParameterIndicator = _sql[_beginP.._p];
-                if (_p < _sql.length)
+                if (hasChar())
                 {
                     const parameter2P = _p;
                     if (isNameChar(readChar()))
@@ -336,7 +348,7 @@ private:
                 return closeToken(DbTokenKind.parenthesisBegin);
 
             case CharKind.commentSingle:
-                if (_p < _sql.length)
+                if (hasChar())
                 {
                     const commentSingleP = _p;
                     if (readChar() == c)
@@ -351,7 +363,7 @@ private:
                 return literalToken();
 
             case CharKind.commentMulti:
-                if (_p < _sql.length)
+                if (hasChar())
                 {
                     const commentMultiP = _p;
                     if (readChar() == '*')
@@ -366,6 +378,21 @@ private:
                 return literalToken();
 
             case CharKind.literal:
+                // alternatedQuotedString?
+                if (c == 'q' || c == 'Q')
+                {
+                    const saveP = _p;
+                    if (hasChar() && (readChar() == '\'') && hasChar())
+                    {
+                        _currentAlternatedQuotedChar = readChar();
+                        _currentToken = readQuoted('\'', _currentAlternatedQuotedChar);
+                        _currentKind = DbTokenKind.quotedSingle;
+                        return;
+                    }
+                    else
+                        _p = saveP;
+                }
+
                 _currentToken = readLiteral();
                 _currentKind = DbTokenKind.literal;
                 return literalToken();
@@ -384,8 +411,8 @@ private:
 
     S readCommentMulti() pure
     {
-        dchar prevC = 0;
-        while (_p < _sql.length)
+        dchar prevC = '\0';
+        while (hasChar())
         {
             const c = readChar();
             if (c == '/' && prevC == '*')
@@ -399,7 +426,7 @@ private:
 
     S readCommentSingle() pure
     {
-        while (_p < _sql.length)
+        while (hasChar())
         {
             const c = readChar();
             if (c == 0x0A)
@@ -407,7 +434,7 @@ private:
             else if (c == 0x0D)
             {
                 // Skip return line feed?
-                if (_p < _sql.length)
+                if (hasChar())
                 {
                     const saveP = _p;
                     if (readChar() != 0x0A)
@@ -421,7 +448,7 @@ private:
 
     S readLiteral() pure
     {
-        while (_p < _sql.length)
+        while (hasChar())
         {
             const saveP = _p;
             if (charKind(readChar()) != CharKind.literal)
@@ -437,7 +464,7 @@ private:
     {
         debug(debug_pham_db_db_parser) debug writeln(__FUNCTION__, "(_beginP=", _beginP, ", _sql=", _sql[_beginP.._p], ")");
 
-        while (_p < _sql.length)
+        while (hasChar())
         {
             const saveP = _p;
             if (!isNameChar(readChar()))
@@ -449,19 +476,28 @@ private:
         return _sql[_beginP.._p];
     }
 
-    S readQuoted(const(dchar) endQuotedChar) pure
+    S readQuoted(const(dchar) endQuotedChar, const(dchar) extraChar = '\0') pure
     {
+        dchar previousChar = '\0';
         bool escaped;
-        while (_p < _sql.length)
+
+        bool isExtraChar() const nothrow
+        {
+            return extraChar == '\0' || extraChar == previousChar;
+        }
+
+        while (hasChar())
         {
             const c = readChar();
-            if (c == endQuotedChar && !escaped)
+            if (c == endQuotedChar && !escaped && isExtraChar())
                 return _sql[_beginP.._p];
 
             if (escaped)
                 escaped = false;
             else if (c == '\\')
                 escaped = true;
+
+            previousChar = c;
         }
 
         _malformed = true;
@@ -470,7 +506,7 @@ private:
 
     S readSpace(ref DbTokenKind tk) pure
     {
-        while (_p < _sql.length)
+        while (hasChar())
         {
             const saveP = _p;
             const ck = charKind(readChar());
@@ -495,6 +531,7 @@ private:
     S _sql, _currentParameterIndicator, _currentToken;
     size_t _p, _beginP;
     DbTokenKind[] _lastKinds;
+    dchar _currentAlternatedQuotedChar = '\0';
     DbTokenKind _currentKind;
     bool _malformed;
 }
@@ -1234,6 +1271,16 @@ unittest // DbTokenizer - SkipLevel
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "test"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, true, false, "", DbTokenKind.eos, "");
+}
+
+unittest // DbTokenizer - Alternate quoting string
+{
+    auto tokenizer = DbTokenizer!(string, DbTokenSkipLevel.space)("FROM ' first ' qTest q'$ alternate quoting $ string $'");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "' first '"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "qTest"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "q'$ alternate quoting $ string $'"); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // parseParameter

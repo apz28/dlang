@@ -850,9 +850,9 @@ private:
 
         static if (useTSlice)
         {
+            size_t ep;
             Appender!string str;
             bool useStr;
-            size_t ep;
 
             void copyTSlice() nothrow
             {
@@ -985,6 +985,7 @@ private:
                 {
                     _token.put(c);
                 }
+                
                 goto Next;
         }
 
