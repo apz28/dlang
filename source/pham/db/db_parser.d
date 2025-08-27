@@ -29,11 +29,13 @@ nothrow @safe:
 enum DbTokenKind : ubyte
 {
     space,
+    spaceLine, // Space with line break
     commentSingle, // --xyz... or ##xyz...
     commentMulti, // /*xyz...*/
-    spaceLine, // Space with line break
     literal,
     quotedSingle, // 'xyz...' or `xyz...`
+    quotedAlternatedSingle, // 'xyz...' or `xyz...`
+    quotedHexSingle, // 'xyz...' or `xyz...`
     quotedDouble, // "xyz..."
     parameterNamed,  // :xyz... or @xyz...
     parameterUnnamed, // ?
@@ -49,8 +51,8 @@ enum DbTokenSkipLevel : ubyte
 {
     none,
     space,
-    comment,
     spaceLine,
+    comment,
 }
 
 // S should be either 'const(char)[]' or 'string'
@@ -85,10 +87,10 @@ public:
         {
             enum skipTokenLevel = skipLevel == DbTokenSkipLevel.space
                 ? DbTokenKind.space
-                : (skipLevel == DbTokenSkipLevel.comment
-                    ? DbTokenKind.commentMulti
-                    : (skipLevel == DbTokenSkipLevel.spaceLine
-                        ? DbTokenKind.spaceLine
+                : (skipLevel == DbTokenSkipLevel.spaceLine                
+                    ? DbTokenKind.spaceLine
+                    : (skipLevel == DbTokenSkipLevel.comment
+                        ? DbTokenKind.commentMulti
                         : assert(0, "Missing implementing of DbTokenSkipLevel element")));
             while (_currentKind <= skipTokenLevel)
                 popFrontImpl();
@@ -117,7 +119,7 @@ public:
     {
         return _currentAlternatedQuotedChar;
     }
-    
+
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
@@ -163,9 +165,9 @@ private:
     enum CharKind : ubyte
     {
         space,
+        spaceLine,
         commentSingle,
         commentMulti,
-        spaceLine,
         literal,
         quotedSingle,
         quotedDouble,
@@ -378,7 +380,7 @@ private:
                 return literalToken();
 
             case CharKind.literal:
-                // alternatedQuotedString?
+                // Alternated quoted string?
                 if (c == 'q' || c == 'Q')
                 {
                     const saveP = _p;
@@ -386,11 +388,24 @@ private:
                     {
                         _currentAlternatedQuotedChar = readChar();
                         _currentToken = readQuoted('\'', _currentAlternatedQuotedChar);
-                        _currentKind = DbTokenKind.quotedSingle;
+                        _currentKind = DbTokenKind.quotedAlternatedSingle;
                         return;
                     }
-                    else
-                        _p = saveP;
+
+                    _p = saveP;
+                }
+                // Binary quoted string?
+                else if (c == 'x' || c == 'X')
+                {
+                    const saveP = _p;
+                    if (hasChar() && (readChar() == '\''))
+                    {
+                        _currentToken = readQuoted('\'');
+                        _currentKind = DbTokenKind.quotedHexSingle;
+                        return;
+                    }
+
+                    _p = saveP;
                 }
 
                 _currentToken = readLiteral();
@@ -640,11 +655,13 @@ do
                 break;
 
             case DbTokenKind.space:
+            case DbTokenKind.spaceLine:
             case DbTokenKind.commentSingle:
             case DbTokenKind.commentMulti:
-            case DbTokenKind.spaceLine:
             case DbTokenKind.literal:
             case DbTokenKind.quotedSingle:
+            case DbTokenKind.quotedAlternatedSingle:
+            case DbTokenKind.quotedHexSingle:
             case DbTokenKind.quotedDouble:
             case DbTokenKind.comma:
             case DbTokenKind.bracketBegin:
@@ -1263,23 +1280,34 @@ unittest // DbTokenizer - SkipLevel
     checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.literal, "FROM"); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.literal, "test"); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerComment.popFront();
-    checkTokenizer(tokenizerComment, false, false, "", DbTokenKind.spaceLine, " \n "); tokenizerComment.popFront();
     checkTokenizer(tokenizerComment, true, false, "", DbTokenKind.eos, "");
 
     auto tokenizerSpaceLine = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM test /* comment1 */ /* comment2 */ \n \n @_LongName$123 \n ");
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "FROM"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.literal, "test"); tokenizerSpaceLine.popFront();
+    checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.commentMulti, "/* comment1 */"); tokenizerSpaceLine.popFront();
+    checkTokenizer(tokenizerSpaceLine, false, false, "", DbTokenKind.commentMulti, "/* comment2 */"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, false, false, "@", DbTokenKind.parameterNamed, "_LongName$123"); tokenizerSpaceLine.popFront();
     checkTokenizer(tokenizerSpaceLine, true, false, "", DbTokenKind.eos, "");
 }
 
 unittest // DbTokenizer - Alternate quoting string
 {
-    auto tokenizer = DbTokenizer!(string, DbTokenSkipLevel.space)("FROM ' first ' qTest q'$ alternate quoting $ string $'");
+    auto tokenizer = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM ' first ' qTest q'$ alternate quoting $ string $'");
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "' first '"); tokenizer.popFront();
     checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "qTest"); tokenizer.popFront();
-    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "q'$ alternate quoting $ string $'"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedAlternatedSingle, "q'$ alternate quoting $ string $'"); tokenizer.popFront();
+    checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
+}
+
+unittest // DbTokenizer - Hex quoting string
+{
+    auto tokenizer = DbTokenizer!(string, DbTokenSkipLevel.spaceLine)("FROM ' first ' qTest x'deadbeef'");
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "FROM"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedSingle, "' first '"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.literal, "qTest"); tokenizer.popFront();
+    checkTokenizer(tokenizer, false, false, "", DbTokenKind.quotedHexSingle, "x'deadbeef'"); tokenizer.popFront();
     checkTokenizer(tokenizer, true, false, "", DbTokenKind.eos, "");
 }
 
