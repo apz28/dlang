@@ -1120,7 +1120,7 @@ struct CipherHelper
     }
 }
 
-pragma(inline, true);
+pragma(inline, true)
 size_t calculateBufferLength(const(size_t) n, const(size_t) blockLength, const(size_t) paddingSize) @nogc nothrow pure @safe
 in
 {

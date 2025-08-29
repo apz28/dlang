@@ -291,8 +291,8 @@ public:
      * Params:
      *  key = the key of the value to get
      */
-    ref V opIndex(scope const(K) key,
-        string file = __FILE__, uint line = __LINE__) return
+    ref inout(V) opIndex(scope const(K) key,
+        string file = __FILE__, uint line = __LINE__) inout return
     {
         if (auto v = key in this)
             return *v;

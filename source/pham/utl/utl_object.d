@@ -24,7 +24,7 @@ import std.traits : isSomeChar, isSomeString, Unqual;
  * Returns:
  *   roundup value
  */
-pragma(inline, true);
+pragma(inline, true)
 size_t alignRoundup(const(size_t) n, const(size_t) powerOf2AlignmentSize) @nogc nothrow pure @safe
 in
 {

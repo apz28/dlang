@@ -14,8 +14,8 @@ module pham.cp.cp_openssl;
 import std.string : fromStringz, toStringz;
 
 debug(debug_pham_cp_cp_openssl) import std.stdio : writeln;
-
 import pham.io.io_socket_error;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason;
 public import pham.utl.utl_result : ResultStatus;
 import pham.cp.cp_cipher : calculateBufferLength, CipherRawKey;
@@ -1403,80 +1403,87 @@ ubyte[] toTerminatedzIf(scope const(ubyte)[] s, const(size_t) maxLengh) nothrow 
         return null;
 }
 
-static immutable OpenSSLKeyInfo[string] mappedKeyInfos;
+static immutable Dictionary!(string, OpenSSLKeyInfo) mappedKeyInfos;
 
 
 // Any below codes are private
 private:
 
-shared static this() nothrow @safe
+Dictionary!(string, OpenSSLKeyInfo) defaultMappedKeyInfos() nothrow @safe
+{
+    auto result = Dictionary!(string, OpenSSLKeyInfo)(70, 64);
+    
+    result["bf_cbc"] = OpenSSLKeyInfo.bf_cbc();
+    result["bf-cbc"] = OpenSSLKeyInfo.bf_cbc();
+    result["bf_cfb"] = OpenSSLKeyInfo.bf_cfb();
+    result["bf-cfb"] = OpenSSLKeyInfo.bf_cfb();
+    result["bf_ecb"] = OpenSSLKeyInfo.bf_ecb();
+    result["bf-ecb"] = OpenSSLKeyInfo.bf_ecb();
+    result["bf_ofb"] = OpenSSLKeyInfo.bf_ofb();
+    result["bf-ofb"] = OpenSSLKeyInfo.bf_ofb();
+
+    result["cast5_cbc"] = OpenSSLKeyInfo.cast5_cbc();
+    result["cast5-cbc"] = OpenSSLKeyInfo.cast5_cbc();
+    result["cast5_cfb"] = OpenSSLKeyInfo.cast5_cfb();
+    result["cast5-cfb"] = OpenSSLKeyInfo.cast5_cfb();
+    result["cast5_ecb"] = OpenSSLKeyInfo.cast5_ecb();
+    result["cast5-ecb"] = OpenSSLKeyInfo.cast5_ecb();
+    result["cast5_ofb"] = OpenSSLKeyInfo.cast5_ofb();
+    result["cast5-ofb"] = OpenSSLKeyInfo.cast5_ofb();
+
+    result["des_cbc"] = OpenSSLKeyInfo.des_cbc();
+    result["des-cbc"] = OpenSSLKeyInfo.des_cbc();
+    result["des_cfb"] = OpenSSLKeyInfo.des_cfb();
+    result["des-cfb"] = OpenSSLKeyInfo.des_cfb();
+    result["des_ecb"] = OpenSSLKeyInfo.des_ecb();
+    result["des-ecb"] = OpenSSLKeyInfo.des_ecb();
+    result["des_ofb"] = OpenSSLKeyInfo.des_ofb();
+    result["des-ofb"] = OpenSSLKeyInfo.des_ofb();
+
+    result["des_ede3_cbc"] = OpenSSLKeyInfo.des_ede3_cbc();
+    result["des-ede3-cbc"] = OpenSSLKeyInfo.des_ede3_cbc();
+    result["des_ede3_cfb"] = OpenSSLKeyInfo.des_ede3_cfb();
+    result["des-ede3-cfb"] = OpenSSLKeyInfo.des_ede3_cfb();
+    result["des_ede3_ecb"] = OpenSSLKeyInfo.des_ede3_ecb();
+    result["des-ede3-ecb"] = OpenSSLKeyInfo.des_ede3_ecb();
+    result["des_ede3_ofb"] = OpenSSLKeyInfo.des_ede3_ofb();
+    result["des-ede3-ofb"] = OpenSSLKeyInfo.des_ede3_ofb();
+
+    result["aes_cbc_128"] = OpenSSLKeyInfo.aes_cbc(128 / 8);
+    result["aes-cbc-128"] = OpenSSLKeyInfo.aes_cbc(128 / 8);
+    result["aes_cbc_192"] = OpenSSLKeyInfo.aes_cbc(192 / 8);
+    result["aes-cbc-192"] = OpenSSLKeyInfo.aes_cbc(192 / 8);
+    result["aes_cbc_256"] = OpenSSLKeyInfo.aes_cbc(256 / 8);
+    result["aes-cbc-256"] = OpenSSLKeyInfo.aes_cbc(256 / 8);
+
+    result["aes_cfb_128"] = OpenSSLKeyInfo.aes_cfb(128 / 8);
+    result["aes-cfb-128"] = OpenSSLKeyInfo.aes_cfb(128 / 8);
+    result["aes_cfb_192"] = OpenSSLKeyInfo.aes_cfb(192 / 8);
+    result["aes-cfb-192"] = OpenSSLKeyInfo.aes_cfb(192 / 8);
+    result["aes_cfb_256"] = OpenSSLKeyInfo.aes_cfb(256 / 8);
+    result["aes-cfb-256"] = OpenSSLKeyInfo.aes_cfb(256 / 8);
+
+    result["aes_ecb_128"] = OpenSSLKeyInfo.aes_ecb(128 / 8);
+    result["aes-ecb-128"] = OpenSSLKeyInfo.aes_ecb(128 / 8);
+    result["aes_ecb_192"] = OpenSSLKeyInfo.aes_ecb(192 / 8);
+    result["aes-ecb-192"] = OpenSSLKeyInfo.aes_ecb(192 / 8);
+    result["aes_ecb_256"] = OpenSSLKeyInfo.aes_ecb(256 / 8);
+    result["aes-ecb-256"] = OpenSSLKeyInfo.aes_ecb(256 / 8);
+
+    result["aes_ofb_128"] = OpenSSLKeyInfo.aes_ofb(128 / 8);
+    result["aes-ofb-128"] = OpenSSLKeyInfo.aes_ofb(128 / 8);
+    result["aes_ofb_192"] = OpenSSLKeyInfo.aes_ofb(192 / 8);
+    result["aes-ofb-192"] = OpenSSLKeyInfo.aes_ofb(192 / 8);
+    result["aes_ofb_256"] = OpenSSLKeyInfo.aes_ofb(256 / 8);
+    result["aes-ofb-256"] = OpenSSLKeyInfo.aes_ofb(256 / 8);
+    
+    return result;
+}
+
+shared static this() nothrow @trusted
 {
     if (opensslApi.status().isOK)
-    {
-        mappedKeyInfos["bf_cbc"] = OpenSSLKeyInfo.bf_cbc();
-        mappedKeyInfos["bf-cbc"] = OpenSSLKeyInfo.bf_cbc();
-        mappedKeyInfos["bf_cfb"] = OpenSSLKeyInfo.bf_cfb();
-        mappedKeyInfos["bf-cfb"] = OpenSSLKeyInfo.bf_cfb();
-        mappedKeyInfos["bf_ecb"] = OpenSSLKeyInfo.bf_ecb();
-        mappedKeyInfos["bf-ecb"] = OpenSSLKeyInfo.bf_ecb();
-        mappedKeyInfos["bf_ofb"] = OpenSSLKeyInfo.bf_ofb();
-        mappedKeyInfos["bf-ofb"] = OpenSSLKeyInfo.bf_ofb();
-
-        mappedKeyInfos["cast5_cbc"] = OpenSSLKeyInfo.cast5_cbc();
-        mappedKeyInfos["cast5-cbc"] = OpenSSLKeyInfo.cast5_cbc();
-        mappedKeyInfos["cast5_cfb"] = OpenSSLKeyInfo.cast5_cfb();
-        mappedKeyInfos["cast5-cfb"] = OpenSSLKeyInfo.cast5_cfb();
-        mappedKeyInfos["cast5_ecb"] = OpenSSLKeyInfo.cast5_ecb();
-        mappedKeyInfos["cast5-ecb"] = OpenSSLKeyInfo.cast5_ecb();
-        mappedKeyInfos["cast5_ofb"] = OpenSSLKeyInfo.cast5_ofb();
-        mappedKeyInfos["cast5-ofb"] = OpenSSLKeyInfo.cast5_ofb();
-
-        mappedKeyInfos["des_cbc"] = OpenSSLKeyInfo.des_cbc();
-        mappedKeyInfos["des-cbc"] = OpenSSLKeyInfo.des_cbc();
-        mappedKeyInfos["des_cfb"] = OpenSSLKeyInfo.des_cfb();
-        mappedKeyInfos["des-cfb"] = OpenSSLKeyInfo.des_cfb();
-        mappedKeyInfos["des_ecb"] = OpenSSLKeyInfo.des_ecb();
-        mappedKeyInfos["des-ecb"] = OpenSSLKeyInfo.des_ecb();
-        mappedKeyInfos["des_ofb"] = OpenSSLKeyInfo.des_ofb();
-        mappedKeyInfos["des-ofb"] = OpenSSLKeyInfo.des_ofb();
-
-        mappedKeyInfos["des_ede3_cbc"] = OpenSSLKeyInfo.des_ede3_cbc();
-        mappedKeyInfos["des-ede3-cbc"] = OpenSSLKeyInfo.des_ede3_cbc();
-        mappedKeyInfos["des_ede3_cfb"] = OpenSSLKeyInfo.des_ede3_cfb();
-        mappedKeyInfos["des-ede3-cfb"] = OpenSSLKeyInfo.des_ede3_cfb();
-        mappedKeyInfos["des_ede3_ecb"] = OpenSSLKeyInfo.des_ede3_ecb();
-        mappedKeyInfos["des-ede3-ecb"] = OpenSSLKeyInfo.des_ede3_ecb();
-        mappedKeyInfos["des_ede3_ofb"] = OpenSSLKeyInfo.des_ede3_ofb();
-        mappedKeyInfos["des-ede3-ofb"] = OpenSSLKeyInfo.des_ede3_ofb();
-
-        mappedKeyInfos["aes_cbc_128"] = OpenSSLKeyInfo.aes_cbc(128 / 8);
-        mappedKeyInfos["aes-cbc-128"] = OpenSSLKeyInfo.aes_cbc(128 / 8);
-        mappedKeyInfos["aes_cbc_192"] = OpenSSLKeyInfo.aes_cbc(192 / 8);
-        mappedKeyInfos["aes-cbc-192"] = OpenSSLKeyInfo.aes_cbc(192 / 8);
-        mappedKeyInfos["aes_cbc_256"] = OpenSSLKeyInfo.aes_cbc(256 / 8);
-        mappedKeyInfos["aes-cbc-256"] = OpenSSLKeyInfo.aes_cbc(256 / 8);
-
-        mappedKeyInfos["aes_cfb_128"] = OpenSSLKeyInfo.aes_cfb(128 / 8);
-        mappedKeyInfos["aes-cfb-128"] = OpenSSLKeyInfo.aes_cfb(128 / 8);
-        mappedKeyInfos["aes_cfb_192"] = OpenSSLKeyInfo.aes_cfb(192 / 8);
-        mappedKeyInfos["aes-cfb-192"] = OpenSSLKeyInfo.aes_cfb(192 / 8);
-        mappedKeyInfos["aes_cfb_256"] = OpenSSLKeyInfo.aes_cfb(256 / 8);
-        mappedKeyInfos["aes-cfb-256"] = OpenSSLKeyInfo.aes_cfb(256 / 8);
-
-        mappedKeyInfos["aes_ecb_128"] = OpenSSLKeyInfo.aes_ecb(128 / 8);
-        mappedKeyInfos["aes-ecb-128"] = OpenSSLKeyInfo.aes_ecb(128 / 8);
-        mappedKeyInfos["aes_ecb_192"] = OpenSSLKeyInfo.aes_ecb(192 / 8);
-        mappedKeyInfos["aes-ecb-192"] = OpenSSLKeyInfo.aes_ecb(192 / 8);
-        mappedKeyInfos["aes_ecb_256"] = OpenSSLKeyInfo.aes_ecb(256 / 8);
-        mappedKeyInfos["aes-ecb-256"] = OpenSSLKeyInfo.aes_ecb(256 / 8);
-
-        mappedKeyInfos["aes_ofb_128"] = OpenSSLKeyInfo.aes_ofb(128 / 8);
-        mappedKeyInfos["aes-ofb-128"] = OpenSSLKeyInfo.aes_ofb(128 / 8);
-        mappedKeyInfos["aes_ofb_192"] = OpenSSLKeyInfo.aes_ofb(192 / 8);
-        mappedKeyInfos["aes-ofb-192"] = OpenSSLKeyInfo.aes_ofb(192 / 8);
-        mappedKeyInfos["aes_ofb_256"] = OpenSSLKeyInfo.aes_ofb(256 / 8);
-        mappedKeyInfos["aes-ofb-256"] = OpenSSLKeyInfo.aes_ofb(256 / 8);
-    }
+        mappedKeyInfos = cast(immutable Dictionary!(string, OpenSSLKeyInfo))defaultMappedKeyInfos();        
 }
 
 ResultStatus currentError(string apiName) nothrow @trusted

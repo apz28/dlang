@@ -25,7 +25,8 @@ extern(Windows)
 {
 @nogc nothrow:
 
-    enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
+    static if (!is(typeof(AI_V4MAPPED)))
+        enum AI_V4MAPPED = 0x0800; // https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-addrinfoex4
 
     // Not found in core.sys.windows.winsock2, so declare it here
     // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll

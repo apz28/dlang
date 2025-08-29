@@ -43,7 +43,7 @@ if (is(C == char) || is(C == byte) || is(C == ubyte))
  *   additionalLength = additional count
  *   sizeOfT = size of T in bytes
  */
-pragma(inline, true);
+pragma(inline, true)
 size_t arrayCalcCapacity(const(size_t) currentLength, const(size_t) additionalLength, const(size_t) sizeOfT) @nogc nothrow pure @safe
 in
 {
@@ -70,7 +70,7 @@ do
  *   length = length of array
  *   sizeOfT = size of T in bytes
  */
-pragma(inline, true);
+pragma(inline, true)
 size_t arrayMallocSize(const(size_t) length, const(size_t) sizeOfT) @nogc nothrow pure @safe
 in
 {

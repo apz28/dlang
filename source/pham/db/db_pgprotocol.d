@@ -843,7 +843,7 @@ public:
         PgGenericResponse result;
         while (true)
         {
-            const type = reader.readChar();
+            auto type = reader.readChar();
             if (type == 0)
                 break;
 

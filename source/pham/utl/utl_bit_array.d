@@ -692,7 +692,6 @@ public:
 
 private:
     // clear high bit values in the last element
-    pragma(inline, true);
     void clearUnusedHighBits() @nogc pure
     {
         if (const e = endBits)
@@ -729,7 +728,7 @@ private:
     }
 
     // Bit mask to extract the bits after the last full word
-    pragma(inline, true);
+    pragma(inline, true)
     static T endMask(size_t endBits) @nogc pure
     {
         return cast(T)((T(1) << endBits) - 1);
