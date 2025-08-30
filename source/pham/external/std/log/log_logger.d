@@ -35,6 +35,7 @@ import std.utf : encode;
 
 debug(debug_pham_external_std_log_log_logger) import std.stdio : writeln;
 import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.external.std.log.log_date_time_format;
 
@@ -335,7 +336,7 @@ protected:
     {
         if (isDisposing(disposingReason))
         {
-            values = null;
+            values.clear();
 
             if (mutex !is null)
             {
@@ -348,7 +349,7 @@ protected:
 
 private:
     Mutex mutex;
-    ModuleLoggerOption[string] values;
+    Dictionary!(string, ModuleLoggerOption) values;
     bool ownMutex;
 }
 
@@ -1656,6 +1657,16 @@ public:
             this.threadID = threadID;
             this.timestamp = timestamp;
             this.exception = null;
+        }
+
+        string exceptionCallStack() @trusted
+        {
+            if (exception is null || exception.info is null)
+                return null;
+
+            try {
+                return exception.info.toString();
+            } catch (Exception e) { debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(), msg=", e.msg); return null; }
         }
 
         LogLocation location;
@@ -3196,7 +3207,9 @@ public:
                             break;
                         case OutputPatternName.stacktrace:
                             /// The stack trace of the logging event The stack trace level specifier may be enclosed between braces
-                            // TODO - output stack
+                            auto stacktrace = payload.header.exceptionCallStack();
+                            if (stacktrace.length)
+                                text(sink, element, stacktrace);
                             break;
                         case OutputPatternName.timestamp:
                             timestamp(sink, element, payload.header.timestamp);

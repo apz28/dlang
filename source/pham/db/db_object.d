@@ -636,7 +636,7 @@ public:
     @property final List list() pure @trusted
     {
         debug(debug_pham_db_db_object) debug writeln(__FUNCTION__, "(cast(List)_list=", cast(List)_list !is null, ")");
-        
+
         return cast(List)_list;
     }
 
@@ -718,6 +718,7 @@ public:
 
     /**
      * Returns item at index
+     * If the index is over bound (invalid), a T.init will be returned instead
      */
     final inout(T) opIndex(size_t index) inout nothrow @safe
     in
@@ -731,6 +732,7 @@ public:
 
     /**
      * Returns item with matching name
+     * If the name is not found (invalid), a T.init will be returned instead
      */
     final inout(T) opIndex(scope const(DbIdentitier) name) inout nothrow @safe
     {
@@ -784,6 +786,10 @@ public:
         return result;
     }
 
+    /**
+     * Returns item with matching name
+     * If the name is not found (invalid), DbException will be thrown
+     */
     final inout(T) get(const(DbIdentitier) name) inout @safe
     {
         return getImpl(name);
@@ -801,11 +807,6 @@ public:
 
         auto msg = DbMessage.eInvalidName.fmtMessage(name, shortClassName(this));
         throw new DbException(0, msg);
-    }
-
-    final inout(T) getAt(size_t index) inout @safe
-    {
-        return items.getAt(index, inout(T).init);
     }
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow @safe
@@ -884,7 +885,7 @@ public:
     {
         T result;
         if (items.remove(name, result))
-        {            
+        {
             result._list = null;
             notify(result, NotificationKind.removed);
         }
@@ -911,7 +912,7 @@ protected:
         removed,
         cleared,
     }
-    
+
     final void add(T item) nothrow @safe
     {
         item._list = this;
@@ -949,7 +950,7 @@ protected:
 
     void notify(T item, const(NotificationKind) kind) nothrow @safe
     {}
-    
+
 protected:
     Dictionary!(DbIdentitier, T) items;
 }
@@ -1361,7 +1362,7 @@ protected:
         removed,
         cleared,
     }
-    
+
     final void add(ref DbIdentitierValuePair item) nothrow @safe
     {
         item._list = this;
@@ -1452,7 +1453,7 @@ public:
     do
     {
         assert(length <= items.length);
-        
+
         return items[index];
     }
 
@@ -1462,7 +1463,7 @@ public:
     inout(T)[] opSlice() inout nothrow
     {
         assert(length <= items.length);
-        
+
         return items[0..length];
     }
 
@@ -1476,10 +1477,10 @@ public:
     do
     {
         assert(length <= items.length);
-        
+
         return items[begin..end];
     }
-    
+
     ref typeof(this) clear() nothrow return
     {
         if (length)
@@ -1501,7 +1502,7 @@ public:
         }
         return this;
     }
-    
+
 public:
     size_t tag;
     size_t length;

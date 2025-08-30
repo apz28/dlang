@@ -16,6 +16,7 @@ import std.traits : Unqual;
 import std.uni : sicmp;
 
 debug(debug_pham_dtm_dtm_date_time_parse) import std.stdio : writeln;
+import pham.utl.utl_array_dictionary;
 import pham.utl.utl_object : RAIIMutex;
 import pham.dtm.dtm_tick;
 public import pham.dtm.dtm_tick : DateTimeKind, DateTimeSetting, dateTimeSetting, DateTimeZoneKind,
@@ -1037,7 +1038,7 @@ nothrow @safe:
     DateTimeKind parseType;
 }
 
-DateTimePatternInfo[CacheDateTimePatternInfoKey] cacheDateTimePatternInfos;
+Dictionary!(CacheDateTimePatternInfoKey, DateTimePatternInfo) cacheDateTimePatternInfos; // Thread local var
 
 unittest // DateTimePatternInfo
 {
@@ -1111,7 +1112,7 @@ unittest // DateTimePatternInfo
 unittest // tryParse
 {
     import std.conv : to;
-    
+
     ptrdiff_t r;
     auto p = DateTimePattern.usShortDateTime;
 

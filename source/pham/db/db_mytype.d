@@ -569,7 +569,7 @@ public:
     }
 
 public:
-    MyColumnTypeMapKind[string] columnNames; //TODO Dictionary
+    Dictionary!(string, MyColumnTypeMapKind) columnNames;
 
     deprecated("please use columnNames")
     alias fieldNames = columnNames;

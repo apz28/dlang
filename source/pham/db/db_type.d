@@ -734,6 +734,7 @@ public:
         return _value.toDuration();
     }
 
+    pragma(inline, true)
     size_t toHash() const @nogc pure
     {
         return _value.toHash();
@@ -1711,6 +1712,7 @@ public:
         return _value.toDuration();
     }
 
+    pragma(inline, true)
     size_t toHash() const @nogc pure
     {
         return _value.toHash();
@@ -1749,11 +1751,13 @@ public:
         return DbTime(tz.convertDateTimeToUTC(dt).time);
     }
 
+    pragma(inline, true)
     @property bool isTZ() const @nogc pure
     {
         return _zoneOffset.hasOffset;
     }
 
+    pragma(inline, true)
     @property DateTimeZoneKind kind() const @nogc pure
     {
         return _value.kind;
@@ -1840,6 +1844,7 @@ public:
             microsecond /= 10;
     }
 
+    pragma(inline, true)
     size_t toHash() const @nogc pure
     {
         return hashOf(ticks);
@@ -1879,6 +1884,7 @@ public:
         return DbTimeSpan(Duration.zero);
     }
 
+    pragma(inline, true)
     @property long ticks() const @nogc pure
     {
         return toTicks(_value);

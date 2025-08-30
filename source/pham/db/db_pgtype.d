@@ -163,7 +163,7 @@ struct PgGenericResponse
 nothrow @safe:
 
 public:
-    this(string[char] typeValues,
+    this(Dictionary!(char, string) typeValues,
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
     {
         this.typeValues = typeValues;
@@ -281,7 +281,7 @@ public:
     }
 
 public:
-    string[char] typeValues;
+    Dictionary!(char, string) typeValues;
     string file;
     string funcName;
     uint line;
