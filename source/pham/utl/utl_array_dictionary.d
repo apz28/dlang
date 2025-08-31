@@ -324,7 +324,7 @@ public:
     /**
      * Removes all keys and values
      */
-    ref typeof(this) clear() nothrow pure return
+    ref typeof(this) clear() nothrow return
     {
         if (length)
             aa.clear();
@@ -437,7 +437,7 @@ public:
      * Params:
      *  key = the key of the value to locate
      */
-    ptrdiff_t indexOf(scope const(K) key) const nothrow pure
+    ptrdiff_t indexOf(scope const(K) key) const nothrow
     {
         return length != 0 ? aa.indexOf(key) : -1;
     }
@@ -447,7 +447,7 @@ public:
      * Rehash is effective when there were a lot of removed keys
      * Returns a reference to the Dictionary.
      */
-    ref typeof(this) rehash() nothrow pure return @safe
+    ref typeof(this) rehash() nothrow return @safe
     {
         if (length)
             aa.rehash();
@@ -763,7 +763,7 @@ private:
         }
 
         pragma(inline, true)
-        void attachEntryToBucket(const(Index) bucket, const(Index) entryPos, const(uint) collision) nothrow pure @safe
+        void attachEntryToBucket(const(Index) bucket, const(Index) entryPos, const(uint) collision) nothrow @safe
         in
         {
             assert(entries[entryPos - 1].hash != 0);
@@ -796,7 +796,7 @@ private:
         }
 
         pragma(inline, true)
-        size_t calcHash(ref const(K) key) const nothrow pure @safe
+        size_t calcHash(ref const(K) key) const nothrow @safe
         {
             if (customHashOf)
                 return customHashOf(key);
@@ -832,7 +832,7 @@ private:
                     : mixMurmurHash2(hash);
         }
 
-        void clear() nothrow pure @safe
+        void clear() nothrow @safe
         {
             // clear all data, but don't change bucket array length
             arrayZeroInit(buckets);
@@ -858,7 +858,7 @@ private:
         }
 
         // find the first slot to insert a value with hash
-        Index findSlotInsert(const(size_t) hash, out uint keyCollision) const @nogc nothrow pure @safe
+        Index findSlotInsert(const(size_t) hash, out uint keyCollision) const @nogc nothrow @safe
         {
             keyCollision = 0;
             const bucket = calcBucket(hash);
@@ -875,7 +875,7 @@ private:
         }
 
         // lookup a key
-        inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow pure @safe
+        inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow @safe
         {
             keyCollision = 0;
             bucket = calcBucket(hash);
@@ -892,7 +892,7 @@ private:
         }
 
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
-        inout(Entry)* findSlotLookup(const(size_t) hash, scope const(KE)[] key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow pure @safe
+        inout(Entry)* findSlotLookup(const(size_t) hash, scope const(KE)[] key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow @safe
         {
             keyCollision = 0;
             bucket = calcBucket(hash);
@@ -921,7 +921,7 @@ private:
                 return false;
         }
 
-        ptrdiff_t indexOf(ref const(K) key) const nothrow pure
+        ptrdiff_t indexOf(ref const(K) key) const nothrow
         {
             Index bucket, index;
             uint keyCollision;
@@ -931,7 +931,7 @@ private:
         }
 
         //pragma(inline, true)
-        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref uint keyCollision) const @nogc nothrow pure @safe
+        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref uint keyCollision) const @nogc nothrow @safe
         {
             do
             {
@@ -952,7 +952,7 @@ private:
         static if (is(K == string) || is(K == wstring) || is(K == dstring))
         {
             //pragma(inline, true)
-            bool isIndexedKey(ref Index index, const(size_t) hash, scope const(KE)[] key, ref uint keyCollision) const @nogc nothrow pure @safe
+            bool isIndexedKey(ref Index index, const(size_t) hash, scope const(KE)[] key, ref uint keyCollision) const @nogc nothrow @safe
             {
                 do
                 {
@@ -1015,7 +1015,7 @@ private:
             }
         }
 
-        void rehash() nothrow pure @safe
+        void rehash() nothrow @safe
         {
             //debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__, "()");
 
@@ -1190,7 +1190,7 @@ private:
                 entries.reserve(entryCapacity);
         }
 
-        void resize(const(size_t) newDim) nothrow pure @safe
+        void resize(const(size_t) newDim) nothrow @safe
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe) debug writeln(__FUNCTION__, "(buckets.length=",
                 buckets.length, ", newDim=", newDim, ")");
@@ -2797,4 +2797,32 @@ unittest
 {
     const Dictionary!(int, int) caa;
     version(none) static assert(is(typeof(caa.byValue().front) == const int));
+}
+
+unittest
+{
+    static extern(C++) class C
+    {
+        int ti;
+
+        this(int ti)
+        {
+            this.ti = ti;
+        }
+
+        size_t toHash() const @nogc nothrow @safe
+        {
+            return ti;
+        }
+
+        bool opEquals(const(C) rhs) const @nogc nothrow @safe
+        {
+            return rhs.ti == ti;
+        }
+    }
+
+    Dictionary!(C, int) aa;
+    auto c = new C(3);
+    aa[c] = 4;
+    assert(aa[c] == 4);
 }

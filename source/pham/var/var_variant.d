@@ -5584,8 +5584,6 @@ nothrow @safe unittest // Algebraic
     static assert(hasElaborateDestructor!(Algebraic!S));
     static assert(hasElaborateDestructor!(Algebraic!(bool, S)));
 
-    version(none)
-    {
     alias Value = Algebraic!bool;
     static struct T
     {
@@ -5593,10 +5591,8 @@ nothrow @safe unittest // Algebraic
         @disable this(this);
         @disable void opAssign(typeof(this));
     }
-    
-    import pham.utl.utl_array_append : appender;
-    auto a = appender!(T[]);
-    }
+
+    auto t = T(Value(true));
 }
 
 @safe unittest // https://issues.dlang.org/show_bug.cgi?id=13871

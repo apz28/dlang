@@ -117,7 +117,7 @@ void arrayFree(T)(ref T[] array) nothrow pure @trusted
     array = [];
 }
 
-pragma(inline, false);
+pragma(inline, false)
 void arrayGrow(T)(ref T[] array, ref bool tryExtendBlock, const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow pure @trusted
 in
 {
@@ -134,7 +134,7 @@ do
 
     if (__ctfe)
     {
-        static if (__traits(compiles, new T[](1)))
+        static if (__traits(compiles, { T[] t; t.reserve(1); t.length = 1; }))
         {
             array.reserve(allocCapacity);
             array.length = currentLength + additionalLength;
@@ -213,6 +213,7 @@ do
     }
 }
 
+pragma(inline, false)
 void arrayShiftLeft(T)(ref T[] array, const(size_t) currentLength, const(size_t) beginIndex, const(size_t) shiftLength) @trusted
 in
 {
@@ -272,6 +273,7 @@ do
     arrayZeroInit!T(array[currentLength-shiftLength..currentLength]);
 }
 
+pragma(inline, false)
 void arrayShrink(T)(ref T[] array, ref size_t currentLength, ref bool tryExtendBlock, const(size_t) newLength) @trusted
 in
 {
