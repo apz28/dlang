@@ -29,7 +29,7 @@ import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
-import pham.utl.utl_object : RAIIMutex, shortClassName;
+import pham.utl.utl_object : asSizeT, RAIIMutex, shortClassName;
 import pham.utl.utl_result : addLine, ResultIf;
 import pham.utl.utl_timer;
 import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;
@@ -307,10 +307,10 @@ public:
         {
             case FindResult.found:
                 return items.remove(key);
-            case FindResult.unfound:
-                return false;
             case FindResult.expired:
                 items.remove(key);
+                return false;
+            case FindResult.unfound:
                 return false;
         }
     }
@@ -352,8 +352,8 @@ protected:
     enum FindResult : ubyte
     {
         found,
-        unfound,
         expired,
+        unfound,
     }
 
     final FindResult findImpl(V : Object)(K key, ref V found)
@@ -408,7 +408,7 @@ protected:
         static immutable string prefix = "DbCache_";
         auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
         buffer.put(prefix);
-        return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
+        return toString!16(buffer, this.asSizeT()).data;
     }
 
     final unregisterWithTimer()

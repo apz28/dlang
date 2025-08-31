@@ -37,16 +37,40 @@ do
 }
 
 /**
+ * Convert object to equivalent value in pointer type
+ */
+pragma(inline, true)
+void* asPointer(const(Object) object) @nogc nothrow pure @safe
+{
+    return cast(void*)object;
+}
+
+/**
+ * Convert object to equivalent value in integral type
+ */
+pragma(inline, true)
+size_t asSizeT(const(Object) object) @nogc nothrow pure @safe
+{
+    return cast(size_t)(cast(void*)object);
+}
+
+/**
+ * Convert pointer to equivalent value in integral type
+ */
+pragma(inline, true)
+size_t asSizeT(const(void*) pointer) @nogc nothrow pure @safe
+{
+    return cast(size_t)pointer;
+}
+
+/**
  * Returns the class-name of object. If it is null, returns "null"
  * Params:
  *   object = the object to get the class-name from
  */
 string className(const(Object) object) nothrow pure @safe
 {
-    if (object is null)
-        return "null";
-    else
-        return typeid(object).name;
+    return object is null ? "null" : typeid(object).name;
 }
 
 /**
@@ -903,4 +927,19 @@ nothrow @safe unittest // VersionString
     assert(vNull.toString() == "");
     assert(vNull < "1.2.3.4");
     assert("1.2.3.4" > vNull);
+}
+
+nothrow @safe unittest // asPointer
+{
+    Object object = new Object();
+    assert(object.asPointer is cast(void*)object);
+}
+
+nothrow @safe unittest // asSizeT
+{
+    Object object = new Object();
+    assert(object.asSizeT() != 0);
+
+    void* pointer = object.asPointer();
+    assert(pointer.asSizeT() == object.asSizeT());
 }

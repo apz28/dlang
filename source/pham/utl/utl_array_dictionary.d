@@ -2826,3 +2826,30 @@ unittest
     aa[c] = 4;
     assert(aa[c] == 4);
 }
+
+unittest // Passing const as key
+{
+    Dictionary!(char, int) aa;
+    const c = 'a';
+    aa[c] = 1;
+    assert(aa[c] == 1);
+
+    static struct K
+    {
+        int ti;
+
+        size_t toHash() const @nogc nothrow @safe
+        {
+            return ti;
+        }
+
+        bool opEquals(scope const(K) rhs) const @nogc nothrow @safe
+        {
+            return rhs.ti == ti;
+        }
+    }
+    Dictionary!(K, int) aa2;
+    const k = K(2);
+    aa2[k] = 1;
+    assert(aa2[k] == 1);
+}

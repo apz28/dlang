@@ -27,7 +27,7 @@ import pham.utl.utl_delegate_list;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet, toEnum, toName;
 import pham.utl.utl_disposable;
-import pham.utl.utl_object : RAIIMutex, singleton;
+import pham.utl.utl_object : asSizeT, RAIIMutex, singleton;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.utl.utl_timer;
 import pham.utl.utl_utf8 : encodeUTF8, nextUTF8Char, UTF8Iterator;
@@ -2898,14 +2898,14 @@ protected:
         }
     }
 
-    final string timerName() nothrow pure @trusted
+    final string timerName() nothrow pure
     {
         import pham.utl.utl_convert : toString;
 
         static immutable string prefix = "DbConnectionPool_";
         auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
         buffer.put(prefix);
-        return toString!16(buffer, cast(size_t)(cast(void*)this)).data;
+        return toString!16(buffer, this.asSizeT()).data;
     }
 
     final void unregisterWithTimer() nothrow
@@ -4886,9 +4886,10 @@ protected:
     {
         if (type == DbType.unknown && _dbValue.type != DbType.unknown)
         {
-            if (isDbTypeHasSize(_dbValue.type) && _dbValue.hasSize)
-                size = cast(int32)_dbValue.size;
             type = _dbValue.type;
+            size = isDbTypeHasSize(_dbValue.type) && _dbValue.hasSize
+                ? cast(int32)_dbValue.size
+                : 0;
             reevaluateBaseType();
         }
         else if (type != DbType.unknown)
