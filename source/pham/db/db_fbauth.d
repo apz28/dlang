@@ -30,7 +30,7 @@ CipherKey createCryptKey(scope const(char)[] cryptAlgorithm, scope const(ubyte)[
 {
     import std.system : Endian;
     import pham.cp.cp_cipher_digest : DigestId, digestOf;
-    import pham.db.db_convert : uintDecode;
+    import pham.db.db_convert : unsignedDecode;
     import pham.db.db_type : uint32, uint64;
     import pham.db.db_fbisc : FbIscText;    
 
@@ -57,7 +57,7 @@ CipherKey createCryptKey(scope const(char)[] cryptAlgorithm, scope const(ubyte)[
             const serverKey = findPluginKey(cryptAlgorithm);
             const nonce = serverKey[0..CipherChaChaKey.nonceSizeCounter32];
             const uint32 counter32 = serverKey.length == withCounter32
-                ? uintDecode!(uint32, Endian.bigEndian)(serverKey[CipherChaChaKey.nonceSizeCounter32..withCounter32])
+                ? unsignedDecode!(uint32, Endian.bigEndian)(serverKey[CipherChaChaKey.nonceSizeCounter32..withCounter32])
                 : 0u;
             const k = toChaChaKey();
             return CipherKey(CipherChaChaKey(cast(uint)(k.length * 8), k, nonce, counter32));
@@ -67,7 +67,7 @@ CipherKey createCryptKey(scope const(char)[] cryptAlgorithm, scope const(ubyte)[
             const serverKey = findPluginKey(cryptAlgorithm);
             const nonce = serverKey[0..CipherChaChaKey.nonceSizeCounter64];
             const uint64 counter64 = serverKey.length == withCounter64
-                ? uintDecode!(uint64, Endian.bigEndian)(serverKey[CipherChaChaKey.nonceSizeCounter64..withCounter64])
+                ? unsignedDecode!(uint64, Endian.bigEndian)(serverKey[CipherChaChaKey.nonceSizeCounter64..withCounter64])
                 : 0u;
             const k = toChaChaKey();
             return CipherKey(CipherChaChaKey(cast(uint)(k.length * 8), k, nonce, counter64));

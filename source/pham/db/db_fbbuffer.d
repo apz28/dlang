@@ -15,6 +15,7 @@ import std.algorithm.comparison : max, min;
 import std.array : replicate;
 import std.string : representation;
 import std.system : Endian;
+import std.traits : isIntegral;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_db_db_fbbuffer) import std.stdio : writeln;
@@ -33,6 +34,74 @@ import pham.db.db_fbtype;
 
 alias FbParameterWriter = DbValueWriter!(Endian.littleEndian);
 
+private enum maxLength = int32.max;
+
+pragma(inline, true)
+private bool isValidLength(const(size_t) length, const(bool) isLimitLength, const(size_t) limitLength) @nogc nothrow pure @safe
+{
+    return (!isLimitLength && length <= maxLength) || (isLimitLength && length <= limitLength);
+}
+
+struct FbBufferStorage
+{
+@safe:
+
+public:
+    this(DbWriteBuffer buffer, uint8 versionId = 0) nothrow
+    {
+        this.connection = null;
+        this.bufferOwner = DbBufferOwner.none;
+        this.buffer = buffer;
+        this.writer = FbParameterWriter(buffer);
+        this.versionId = versionId;
+    }
+
+    this(FbConnection connection, uint8 versionId = 0) nothrow
+    {
+        this.connection = connection;
+        this.bufferOwner = DbBufferOwner.acquired;
+        this.buffer = connection.acquireParameterWriteBuffer();
+        this.writer = FbParameterWriter(this.buffer);
+        this.versionId = versionId;
+    }
+
+    ~this() nothrow
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        writer.dispose(disposingReason);
+
+        if (buffer !is null)
+        {
+            final switch (bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (connection !is null)
+                        connection.releaseParameterWriteBuffer(buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
+        buffer = null;
+        bufferOwner = DbBufferOwner.none;
+        connection = null;
+    }
+
+    DbWriteBuffer buffer;
+    FbConnection connection;
+    FbParameterWriter writer;
+    DbBufferOwner bufferOwner;
+    uint8 versionId;
+}
+
 struct FbArrayWriter
 {
 @safe:
@@ -43,10 +112,7 @@ public:
 
     this(FbConnection connection) nothrow
     {
-        this._connection = connection;
-        this._bufferOwner = DbBufferOwner.acquired;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
+        this.storage = FbBufferStorage(connection);
     }
 
     ~this() nothrow
@@ -56,91 +122,67 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposingReason);
-
-        if (_buffer !is null)
-        {
-            final switch (_bufferOwner)
-            {
-                case DbBufferOwner.acquired:
-                    if (_connection !is null)
-                        _connection.releaseParameterWriteBuffer(_buffer);
-                    break;
-                case DbBufferOwner.owned:
-                    _buffer.dispose(disposingReason);
-                    break;
-                case DbBufferOwner.none:
-                    break;
-            }
-        }
-
-        _bufferOwner = DbBufferOwner.none;
-        _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        storage.dispose(disposingReason);
     }
 
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return
     {
-        return _buffer.peekBytes();
+        return storage.buffer.peekBytes();
     }
 
     void writeInt8(int8 v) nothrow
     {
-        _writer.writeInt8(v);
+        storage.writer.writeInt8(v);
     }
 
     void writeInt16(int16 v) nothrow
     {
-        _writer.writeInt16(v);
+        storage.writer.writeInt16(v);
     }
 
     void writeLiteral(int32 v) nothrow
     {
 		if (v >= int8.min && v <= int8.max)
 		{
-            _writer.writeUInt8(FbIsc.isc_sdl_tiny_integer);
-            _writer.writeInt8(cast(int8)v);
+            storage.writer.writeUInt8(FbIsc.isc_sdl_tiny_integer);
+            storage.writer.writeInt8(cast(int8)v);
 		}
 		else if (v >= int16.min && v <= int16.max)
 		{
-            _writer.writeUInt8(FbIsc.isc_sdl_short_integer);
-            _writer.writeInt16(cast(int16)v);
+            storage.writer.writeUInt8(FbIsc.isc_sdl_short_integer);
+            storage.writer.writeInt16(cast(int16)v);
 		}
         else
         {
-            _writer.writeUInt8(FbIsc.isc_sdl_long_integer);
-            _writer.writeInt32(v);
+            storage.writer.writeUInt8(FbIsc.isc_sdl_long_integer);
+            storage.writer.writeInt32(v);
         }
     }
 
     void writeName(uint8 type, scope const(char)[] v) nothrow
     in
     {
-        assert(v.length < uint32.max);
+        assert(v.length <= uint8.max);
     }
     do
     {
-        _writer.writeUInt8(type);
-        _writer.writeUInt8(cast(uint8)v.length);
-        _writer.writeChars(v);
+        storage.writer.writeUInt8(type);
+        storage.writer.writeUInt8(cast(uint8)v.length);
+        storage.writer.writeChars(v);
     }
 
     void writeUInt8(uint8 v) nothrow
     {
-        _writer.writeUInt8(v);
+        storage.writer.writeUInt8(v);
     }
 
     @property DbWriteBuffer buffer() nothrow pure
     {
-        return _buffer;
+        return storage.buffer;
     }
 
 private:
-    DbWriteBuffer _buffer;
-    FbConnection _connection;
-    FbParameterWriter _writer;
-    DbBufferOwner _bufferOwner;
+    FbBufferStorage storage;
 }
 
 struct FbBatchWriter
@@ -153,11 +195,7 @@ public:
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
-        this._connection = connection;
-        this._versionId = versionId;
-        this._bufferOwner = DbBufferOwner.acquired;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
+        this.storage = FbBufferStorage(connection, versionId);
     }
 
     ~this() nothrow
@@ -167,52 +205,30 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposingReason);
-
-        if (_buffer !is null)
-        {
-            final switch (_bufferOwner)
-            {
-                case DbBufferOwner.acquired:
-                    if (_connection !is null)
-                        _connection.releaseParameterWriteBuffer(_buffer);
-                    break;
-                case DbBufferOwner.owned:
-                    _buffer.dispose(disposingReason);
-                    break;
-                case DbBufferOwner.none:
-                    break;
-            }
-        }
-
-        _bufferOwner = DbBufferOwner.none;
-        _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        storage.dispose(disposingReason);
     }
 
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return
     {
-        return _buffer.peekBytes();
+        return storage.buffer.peekBytes();
     }
 
 	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
     in
     {
-        assert(v.length < uint32.max);
+        assert(v.length <= maxLength);
     }
     do
 	{
-		_writer.writeUInt8(type);
-		_writer.writeUInt32(v.length);
+		storage.writer.writeUInt8(type);
+		storage.writer.writeUInt32(v.length);
         if (v.length)
-		    _writer.writeBytes(v);
+		    storage.writer.writeBytes(v);
 	}
 
 	void writeChars(uint8 type, scope const(char)[] v) nothrow
 	{
-        auto bytes = v.representation;
-		writeBytes(type, bytes);
+		writeBytes(type, v.representation);
 	}
 
 	bool writeCharsIf(uint8 type, scope const(char)[] v) nothrow
@@ -228,48 +244,43 @@ public:
 
 	void writeInt8(uint8 type, int8 v) nothrow
 	{
-		_writer.writeUInt8(type);
-		_writer.writeUInt32(1); // length
-		_writer.writeInt8(v);
+		storage.writer.writeUInt8(type);
+		storage.writer.writeUInt32(1); // length
+		storage.writer.writeInt8(v);
 	}
 
 	void writeInt16(uint8 type, int16 v) nothrow
 	{
-		_writer.writeUInt8(type);
-		_writer.writeUInt32(2); // length
-		_writer.writeInt16(v);
+		storage.writer.writeUInt8(type);
+		storage.writer.writeUInt32(2); // length
+		storage.writer.writeInt16(v);
 	}
 
 	void writeInt32(uint8 type, int32 v) nothrow
 	{
-		_writer.writeUInt8(type);
-        _writer.writeUInt32(4); // length
-		_writer.writeInt32(v);
+		storage.writer.writeUInt8(type);
+        storage.writer.writeUInt32(4); // length
+		storage.writer.writeInt32(v);
 	}
 
-    pragma(inline, true)
     void writeOpaqueUInt8(uint8 v) nothrow
     {
-        _writer.writeUInt8(v);
+        storage.writer.writeUInt8(v);
+    }
+
+    void writeVersion() nothrow
+    {
+        storage.writer.writeUInt8(versionId);
     }
 
     pragma(inline, true)
-    void writeVersion() nothrow
-    {
-        _writer.writeUInt8(versionId);
-    }
-
     @property uint8 versionId() const nothrow pure
     {
-        return _versionId;
+        return storage.versionId;
     }
 
 private:
-    DbWriteBuffer _buffer;
-    FbConnection _connection;
-    FbParameterWriter _writer;
-    uint8 _versionId;
-    DbBufferOwner _bufferOwner;
+    FbBufferStorage storage;
 }
 
 enum FbBlrWriteType : ubyte
@@ -287,20 +298,14 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(DbWriteBuffer buffer) nothrow pure
+    this(DbWriteBuffer buffer) nothrow
     {
-        this._connection = null;
-        this._bufferOwner = DbBufferOwner.none;
-        this._buffer = buffer;
-        this._writer = FbParameterWriter(buffer);
+        this.storage = FbBufferStorage(buffer);
     }
 
     this(FbConnection connection) nothrow
     {
-        this._connection = connection;
-        this._bufferOwner = DbBufferOwner.acquired;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
+        this.storage = FbBufferStorage(connection);
     }
 
     ~this() nothrow
@@ -310,33 +315,12 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposingReason);
-
-        if (_buffer !is null)
-        {
-            final switch (_bufferOwner)
-            {
-                case DbBufferOwner.acquired:
-                    if (_connection !is null)
-                        _connection.releaseParameterWriteBuffer(_buffer);
-                    break;
-                case DbBufferOwner.owned:
-                    _buffer.dispose(disposingReason);
-                    break;
-                case DbBufferOwner.none:
-                    break;
-            }
-        }
-
-        _bufferOwner = DbBufferOwner.none;
-        _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        storage.dispose(disposingReason);
     }
 
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return
     {
-        return _buffer.peekBytes();
+        return storage.buffer.peekBytes();
     }
 
     void writeBegin(size_t length) nothrow
@@ -346,11 +330,11 @@ public:
     }
     do
     {
-	    _writer.writeUInt8(FbIsc.blr_version);
-	    _writer.writeUInt8(FbIsc.blr_begin);
-	    _writer.writeUInt8(FbIsc.blr_message);
-	    _writer.writeUInt8(0);
-	    _writer.writeUInt16(cast(uint16)(length * 2));
+	    storage.writer.writeUInt8(FbIsc.blr_version);
+	    storage.writer.writeUInt8(FbIsc.blr_begin);
+	    storage.writer.writeUInt8(FbIsc.blr_message);
+	    storage.writer.writeUInt8(0);
+	    storage.writer.writeUInt16(cast(uint16)(length * 2));
     }
 
     void writeColumn(scope const(DbBaseTypeInfo) baseType, ref FbIscBlrDescriptor descriptor) nothrow
@@ -368,8 +352,8 @@ public:
 
         writeType(FbIscColumnInfo.fbTypeToBlrType(fbType), baseType, writeTypeFor, descriptor);
 
-	    _writer.writeUInt8(FbBlrType.blr_short);
-	    _writer.writeUInt8(0);
+	    storage.writer.writeUInt8(FbBlrType.blr_short);
+	    storage.writer.writeUInt8(0);
         descriptor.addSize(2, 2);
     }
 
@@ -380,8 +364,8 @@ public:
     }
     do
     {
-    	_writer.writeUInt8(FbIsc.blr_end);
-	    _writer.writeUInt8(FbIsc.blr_eoc);
+    	storage.writer.writeUInt8(FbIsc.blr_end);
+	    storage.writer.writeUInt8(FbIsc.blr_eoc);
     }
 
     void writeType(FbBlrType blrType, scope const(DbBaseTypeInfo) baseType, const(FbBlrWriteType) writeTypeFor,
@@ -396,15 +380,15 @@ public:
         if (writeTypeFor == FbBlrWriteType.null_)
         {
             const size = cast(int16)baseType.size;
-			_writer.writeUInt8(FbBlrType.blr_text);
-			_writer.writeInt16(size);
+			storage.writer.writeUInt8(FbBlrType.blr_text);
+			storage.writer.writeInt16(size);
             descriptor.addSize(0, size);
             return;
         }
         else if (writeTypeFor == FbBlrWriteType.array)
         {
-			_writer.writeUInt8(FbBlrType.blr_quad);
-			_writer.writeInt8(0);
+			storage.writer.writeUInt8(FbBlrType.blr_quad);
+			storage.writer.writeInt8(0);
             descriptor.addSize(4, 8);
             return;
         }
@@ -422,22 +406,22 @@ public:
             blrType = FbBlrType.blr_cstring2;
 
         // Type
-		_writer.writeUInt8(blrType);
+		storage.writer.writeUInt8(blrType);
 
 	    final switch (blrType) with (FbBlrType)
 	    {
             case blr_short:
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
+			    storage.writer.writeInt8(cast(int8)baseType.numericScale);
                 descriptor.addSize(2, 2);
 			    break;
 
             case blr_long:
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
+			    storage.writer.writeInt8(cast(int8)baseType.numericScale);
                 descriptor.addSize(4, 4);
 			    break;
 
             case blr_quad:
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
+			    storage.writer.writeInt8(cast(int8)baseType.numericScale);
                 descriptor.addSize(4, 8);
 			    break;
 
@@ -458,20 +442,20 @@ public:
             case blr_text:
             case blr_text2:
                 const size = cast(int16)baseType.size;
-			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
-			    _writer.writeInt16(size);
+			    storage.writer.writeInt16(cast(int16)baseType.subTypeId); // charset
+			    storage.writer.writeInt16(size);
                 descriptor.addSize(0, size);
 			    break;
 
             case blr_int64:
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
+			    storage.writer.writeInt8(cast(int8)baseType.numericScale);
                 descriptor.addSize(8, 8);
 			    break;
 
             case blr_blob2:
             case blr_blob:
-			    _writer.writeInt16(cast(int16)baseType.subTypeId);
-			    _writer.writeInt16(0); // charset
+			    storage.writer.writeInt16(cast(int16)baseType.subTypeId);
+			    storage.writer.writeInt16(0); // charset
                 descriptor.addSize(4, 8);
 			    break;
 
@@ -488,7 +472,7 @@ public:
 			    break;
 
             case blr_int128:
-			    _writer.writeInt8(cast(int8)baseType.numericScale);
+			    storage.writer.writeInt8(cast(int8)baseType.numericScale);
                 descriptor.addSize(8, 16);
 			    break;
 
@@ -517,8 +501,8 @@ public:
             case blr_cstring:
             case blr_cstring2:
                 const size = cast(int16)baseType.size;
-			    _writer.writeInt16(cast(int16)baseType.subTypeId); // charset
-			    _writer.writeInt16(size);
+			    storage.writer.writeInt16(cast(int16)baseType.subTypeId); // charset
+			    storage.writer.writeInt16(size);
                 descriptor.addSize(2, size + 2);
 			    break;
 
@@ -528,10 +512,7 @@ public:
     }
 
 private:
-    DbWriteBuffer _buffer;
-    FbConnection _connection;
-    FbParameterWriter _writer;
-    DbBufferOwner _bufferOwner;
+    FbBufferStorage storage;
 }
 
 struct FbConnectionWriter
@@ -544,11 +525,7 @@ public:
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
-        this._connection = connection;
-        this._versionId = versionId;
-        this._bufferOwner = DbBufferOwner.acquired;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
+        this.storage = FbBufferStorage(connection, versionId);
     }
 
     ~this() nothrow
@@ -556,71 +533,68 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    auto asBytes(T)(T v) const @nogc nothrow pure
+    if (isIntegral!T)
     {
-        _writer.dispose(disposingReason);
-
-        if (_buffer !is null)
-        {
-            final switch (_bufferOwner)
-            {
-                case DbBufferOwner.acquired:
-                    if (_connection !is null)
-                        _connection.releaseParameterWriteBuffer(_buffer);
-                    break;
-                case DbBufferOwner.owned:
-                    _buffer.dispose(disposingReason);
-                    break;
-                case DbBufferOwner.none:
-                    break;
-            }
-        }
-
-        _bufferOwner = DbBufferOwner.none;
-        _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        return storage.writer.asBytes(v);
     }
 
-    ubyte[] peekBytes() nothrow
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        return _buffer.peekBytes();
+        storage.dispose(disposingReason);
+    }
+
+    ubyte[] peekBytes() nothrow return
+    {
+        return storage.buffer.peekBytes();
     }
 
 	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
     in
     {
-        assert(v.length < uint32.max);
-        assert(v.length <= uint8.max || versionId > FbIsc.isc_dpb_version1);
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_dpb_version1, uint8.max));
     }
     do
 	{
         if (versionId <= FbIsc.isc_dpb_version1)
             v = truncate(v, uint8.max);
 
-		_writer.writeUInt8(type);
+		storage.writer.writeUInt8(type);
 		writeLength(v.length);
         if (v.length)
-		    _writer.writeBytes(v);
+		    storage.writer.writeBytes(v);
+	}
+
+	bool writeBytesIf(uint8 type, scope const(ubyte)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_dpb_version1, uint8.max));
+    }
+    do
+	{
+        if (v.length)
+        {
+            writeBytes(type, v);
+            return true;
+        }
+        else
+            return false;
 	}
 
 	void writeChars(uint8 type, scope const(char)[] v) nothrow
     in
     {
-        assert(v.length < uint32.max);
-        assert(v.length <= uint8.max || versionId > FbIsc.isc_dpb_version1);
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_dpb_version1, uint8.max));
     }
     do
 	{
-        auto bytes = v.representation;
-		writeBytes(type, bytes);
+		writeBytes(type, v.representation);
 	}
 
 	bool writeCharsIf(uint8 type, scope const(char)[] v) nothrow
     in
     {
-        assert(v.length < uint32.max);
-        assert(v.length <= uint8.max || versionId > FbIsc.isc_dpb_version1);
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_dpb_version1, uint8.max));
     }
     do
 	{
@@ -635,23 +609,23 @@ public:
 
 	void writeInt8(uint8 type, int8 v) nothrow
 	{
-		_writer.writeUInt8(type);
+		storage.writer.writeUInt8(type);
 		writeLength(1);
-		_writer.writeInt8(v);
+		storage.writer.writeInt8(v);
 	}
 
 	void writeInt16(uint8 type, int16 v) nothrow
 	{
-		_writer.writeUInt8(type);
+		storage.writer.writeUInt8(type);
 		writeLength(2);
-		_writer.writeInt16(v);
+		storage.writer.writeInt16(v);
 	}
 
 	void writeInt32(uint8 type, int32 v) nothrow
 	{
-		_writer.writeUInt8(type);
+		storage.writer.writeUInt8(type);
         writeLength(4);
-		_writer.writeInt32(v);
+		storage.writer.writeInt32(v);
 	}
 
     void writeMultiParts(uint8 type, scope const(ubyte)[] v) nothrow
@@ -659,38 +633,23 @@ public:
         if (versionId > FbIsc.isc_dpb_version1)
             return writeBytes(type, v);
 
-        uint8 partSequence = 0;
-        while (v.length)
-        {
-            // -1=Reserve 1 byte for sequence
-            auto partLength = cast(uint8)min(v.length, uint8.max - 1);
-
-            _writer.writeUInt8(type);
-            _writer.writeUInt8(cast(uint8)(partLength + 1)); // +1=Include the sequence
-            _writer.writeUInt8(partSequence);
-            _writer.writeBytes(v[0..partLength]);
-
-            v = v[partLength..$];
-            partSequence++;
-            assert(v.length == 0 || partSequence > 0); // Check partSequence for wrap arround
-        }
+        storage.writeMultiParts(type, v);
     }
 
-    pragma(inline, true)
     void writeOpaqueUInt8(uint8 v) nothrow
     {
-        _writer.writeUInt8(v);
+        storage.writer.writeUInt8(v);
+    }
+
+    void writeVersion() nothrow
+    {
+        storage.writer.writeUInt8(versionId);
     }
 
     pragma(inline, true)
-    void writeVersion() nothrow
-    {
-        _writer.writeUInt8(versionId);
-    }
-
     @property uint8 versionId() const nothrow pure
     {
-        return _versionId;
+        return storage.versionId;
     }
 
 private:
@@ -698,17 +657,208 @@ private:
     void writeLength(size_t len) nothrow
     {
         if (versionId > FbIsc.isc_dpb_version1)
-            _writer.writeUInt32(len);
+            storage.writer.writeUInt32(len);
         else
-            _writer.writeUInt8(len);
+            storage.writer.writeUInt8(len);
     }
 
 private:
-    DbWriteBuffer _buffer;
-    FbConnection _connection;
-    FbParameterWriter _writer;
-    uint8 _versionId;
-    DbBufferOwner _bufferOwner;
+    FbBufferStorage storage;
+}
+
+struct FbServiceWriter
+{
+@safe:
+
+public:
+    @disable this(this);
+    @disable void opAssign(typeof(this));
+
+    this(FbConnection connection, uint8 versionId) nothrow
+    {
+        this.storage = FbBufferStorage(connection, versionId);
+    }
+
+    ~this() nothrow
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        storage.dispose(disposingReason);
+    }
+
+    auto asBytes(T)(T v) const @nogc nothrow pure
+    if (isIntegral!T)
+    {
+        return storage.writer.asBytes(v);
+    }
+
+    ubyte[] peekBytes() nothrow return
+    {
+        return storage.buffer.peekBytes();
+    }
+
+	void writeBytes1(uint8 type, scope const(ubyte)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint8.max));
+    }
+    do
+	{
+		storage.writer.writeUInt8(type);
+        if (versionId <= FbIsc.isc_spb_version2)
+        {
+            v = truncate(v, uint8.max);
+            storage.writer.writeUInt8(v.length);
+        }
+        else
+            storage.writer.writeUInt32(v.length);
+        if (v.length)
+		    storage.writer.writeBytes(v);
+	}
+
+	bool writeBytes1If(uint8 type, scope const(ubyte)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint8.max));
+    }
+    do
+	{
+        if (v.length)
+        {
+		    writeBytes1(type, v);
+            return true;
+        }
+        else
+            return false;
+    }
+
+	void writeBytes2(uint8 type, scope const(ubyte)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint16.max));
+    }
+    do
+	{
+		storage.writer.writeUInt8(type);
+        if (versionId <= FbIsc.isc_spb_version2)
+        {
+            v = truncate(v, uint16.max);
+            storage.writer.writeUInt16(v.length);
+        }
+        else
+            storage.writer.writeUInt32(v.length);
+        if (v.length)
+		    storage.writer.writeBytes(v);
+	}
+
+	bool writeBytes2If(uint8 type, scope const(ubyte)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint16.max));
+    }
+    do
+	{
+        if (v.length)
+        {
+		    writeBytes2(type, v);
+            return true;
+        }
+        else
+            return false;
+    }
+
+	void writeChars1(uint8 type, scope const(char)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint8.max));
+    }
+    do
+	{
+		writeBytes1(type, v.representation);
+	}
+
+	void writeChars2(uint8 type, scope const(char)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint16.max));
+    }
+    do
+	{
+		writeBytes2(type, v.representation);
+	}
+
+	bool writeChars1If(uint8 type, scope const(char)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint8.max));
+    }
+    do
+	{
+        if (v.length)
+        {
+		    writeChars1(type, v);
+            return true;
+        }
+        else
+            return false;
+	}
+
+	bool writeChars2If(uint8 type, scope const(char)[] v) nothrow
+    in
+    {
+        assert(isValidLength(v.length, versionId <= FbIsc.isc_spb_version2, uint16.max));
+    }
+    do
+	{
+        if (v.length)
+        {
+		    writeChars2(type, v);
+            return true;
+        }
+        else
+            return false;
+	}
+
+    void writePreamble() nothrow
+    {
+        writeVersion();
+        if (versionId <= FbIsc.isc_spb_version2)
+            writeVersion();
+    }
+
+	void writeInt8(uint8 type, int8 v) nothrow
+	{
+		storage.writer.writeUInt8(type);
+		storage.writer.writeInt8(v);
+	}
+
+	void writeInt32(uint8 type, int32 v) nothrow
+	{
+		storage.writer.writeUInt8(type);
+		storage.writer.writeInt32(v);
+	}
+
+    void writeType(uint8 type) nothrow
+    {
+        storage.writer.writeUInt8(type);
+    }
+    
+    void writeVersion() nothrow
+    {
+        storage.writer.writeUInt8(versionId);
+    }
+
+    pragma(inline, true)
+    @property uint8 versionId() const nothrow pure
+    {
+        return storage.versionId;
+    }
+
+private:
+    FbBufferStorage storage;
 }
 
 struct FbTransactionWriter
@@ -721,10 +871,7 @@ public:
 
     this(FbConnection connection) nothrow
     {
-        this._connection = connection;
-        this._bufferOwner = DbBufferOwner.acquired;
-        this._buffer = connection.acquireParameterWriteBuffer();
-        this._writer = FbParameterWriter(this._buffer);
+        this.storage = FbBufferStorage(connection);
     }
 
     ~this() nothrow
@@ -734,33 +881,12 @@ public:
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     {
-        _writer.dispose(disposingReason);
-
-        if (_buffer !is null)
-        {
-            final switch (_bufferOwner)
-            {
-                case DbBufferOwner.acquired:
-                    if (_connection !is null)
-                        _connection.releaseParameterWriteBuffer(_buffer);
-                    break;
-                case DbBufferOwner.owned:
-                    _buffer.dispose(disposingReason);
-                    break;
-                case DbBufferOwner.none:
-                    break;
-            }
-        }
-
-        _bufferOwner = DbBufferOwner.none;
-        _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        storage.dispose(disposingReason);
     }
 
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return
     {
-        return _buffer.peekBytes();
+        return storage.buffer.peekBytes();
     }
 
 	void writeBytes(uint8 type, scope const(ubyte)[] v) nothrow
@@ -773,10 +899,10 @@ public:
         v = truncate(v, uint8.max);
         const vLen = v.length;
 
-		_writer.writeUInt8(type);
-		_writer.writeUInt8(vLen);
+		storage.writer.writeUInt8(type);
+		storage.writer.writeUInt8(vLen);
         if (vLen)
-		    _writer.writeBytes(v);
+		    storage.writer.writeBytes(v);
 	}
 
 	void writeChars(uint8 type, scope const(char)[] v) nothrow
@@ -791,35 +917,32 @@ public:
 
 	void writeInt16(uint8 type, int16 v) nothrow
 	{
-		_writer.writeUInt8(type);
-		_writer.writeUInt8(2);
-		_writer.writeInt16(v);
+		storage.writer.writeUInt8(type);
+		storage.writer.writeUInt8(2);
+		storage.writer.writeInt16(v);
 	}
 
 	void writeInt32(uint8 type, int32 v) nothrow
 	{
-		_writer.writeUInt8(type);
-		_writer.writeUInt8(4);
-		_writer.writeInt32(v);
+		storage.writer.writeUInt8(type);
+		storage.writer.writeUInt8(4);
+		storage.writer.writeInt32(v);
 	}
 
     pragma(inline, true)
     void writeOpaqueBytes(scope const(ubyte)[] v) nothrow
     {
-        _writer.writeBytes(v);
+        storage.writer.writeBytes(v);
     }
 
     pragma(inline, true)
     void writeOpaqueUInt8(uint8 v) nothrow
     {
-        _writer.writeUInt8(v);
+        storage.writer.writeUInt8(v);
     }
 
 private:
-    DbWriteBuffer _buffer;
-    FbConnection _connection;
-    FbParameterWriter _writer;
-    DbBufferOwner _bufferOwner;
+    FbBufferStorage storage;
 }
 
 struct FbXdrReader
@@ -874,8 +997,7 @@ public:
 
         _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
     }
 
     bool readBool()
@@ -1280,8 +1402,7 @@ public:
 
         _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
     }
 
     void flush()
@@ -1291,8 +1412,7 @@ public:
         _buffer.flush();
     }
 
-    pragma(inline, true)
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return
     {
         return _buffer.peekBytes();
     }
@@ -1450,7 +1570,7 @@ public:
     void writeInt32(size_t v) nothrow
     in
     {
-        assert(v < int32.max);
+        assert(v <= int32.max);
     }
     do
     {
@@ -1566,9 +1686,10 @@ private:
 
     void writePad(ptrdiff_t nBytes) nothrow
     {
-        static immutable ubyte[4] filler = [0, 0, 0, 0];
+        enum ptrdiff_t padSize = 4;
+        static immutable ubyte[padSize] filler = [0, 0, 0, 0];
 
-        const paddingNBytes = (4 - nBytes) & 3;
+        const paddingNBytes = (padSize - nBytes) & (padSize - 1);
         if (paddingNBytes != 0)
             _writer.writeBytes(filler[0..paddingNBytes]);
     }
@@ -1580,6 +1701,24 @@ private:
     DbBufferOwner _bufferOwner;
 }
 
+void writeMultiParts(ref FbBufferStorage storage, uint8 type, scope const(ubyte)[] v) nothrow @safe
+{
+    uint8 partSequence = 0;
+    while (v.length)
+    {
+        // -1=Reserve 1 byte for sequence
+        auto partLength = cast(uint8)min(v.length, uint8.max - 1);
+
+        storage.writer.writeUInt8(type);
+        storage.writer.writeUInt8(cast(uint8)(partLength + 1)); // +1=Include the sequence
+        storage.writer.writeUInt8(partSequence);
+        storage.writer.writeBytes(v[0..partLength]);
+
+        v = v[partLength..$];
+        partSequence++;
+        assert(v.length == 0 || partSequence > 0); // Check partSequence for wrap arround
+    }
+}
 
 // Any below codes are private
 private:

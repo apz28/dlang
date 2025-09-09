@@ -2151,6 +2151,8 @@ unittest // MyConnection.DML.execute...
 version(UnitTestMYDatabase)
 unittest // MyDatabase.currentTimeStamp...
 {
+    import core.thread : Thread;
+    import core.time : dur;
     import pham.dtm.dtm_date : DateTime;
 
     void countZero(string s, uint expectedLength)
@@ -2193,6 +2195,7 @@ unittest // MyDatabase.currentTimeStamp...
     countZero(v.value.toString(), baseLength+1+6);
 
     auto n = DateTime.now;
+    Thread.sleep(dur!"msecs"(1));
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
 }

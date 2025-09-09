@@ -138,6 +138,23 @@ string shortClassName(const(Object) object) nothrow pure @safe
     return object is null ? "null" : shortenTypeName(typeid(object).name);
 }
 
+string shortFunctionName(uint parts = 1, string fullName = __FUNCTION__) nothrow pure @safe
+{
+    import std.array : split;
+
+    string result;
+    auto nameParts = split(fullName, ".");
+    while (nameParts.length && parts--)
+    {
+        if (result.length)
+            result = nameParts[$-1] ~ "." ~ result;
+        else
+            result = nameParts[$-1];
+        nameParts = nameParts[0..$-1];
+    }
+    return result;
+}
+
 /**
  * Returns the complete aggregate-name of a class/struct without template type
  */
@@ -942,4 +959,23 @@ nothrow @safe unittest // asSizeT
 
     void* pointer = object.asPointer();
     assert(pointer.asSizeT() == object.asSizeT());
+}
+
+nothrow @safe unittest // shortFunctionName
+{
+    static void testSelf()
+    {
+        assert(shortFunctionName() == "testSelf");
+    }
+    
+    static immutable sample = "pham.db.db_fbdatabase.FbService.traceStart";
+    assert(shortFunctionName(0, sample).length == 0);
+    assert(shortFunctionName(1, sample) == "traceStart");
+    assert(shortFunctionName(2, sample) == "FbService.traceStart");
+    assert(shortFunctionName(3, sample) == "db_fbdatabase.FbService.traceStart");
+    assert(shortFunctionName(4, sample) == "db.db_fbdatabase.FbService.traceStart");
+    assert(shortFunctionName(5, sample) == sample);
+    assert(shortFunctionName(6, sample) == sample);
+    
+    testSelf();
 }

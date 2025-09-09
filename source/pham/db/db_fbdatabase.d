@@ -23,9 +23,10 @@ version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_convert : bytesFromBase64s, bytesToBase64s;
-import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_delegate_list;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
-import pham.utl.utl_object : VersionString;
+import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_object : shortFunctionName, VersionString;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -40,6 +41,7 @@ import pham.db.db_fbbuffer;
 import pham.db.db_fbexception;
 import pham.db.db_fbisc;
 import pham.db.db_fbprotocol;
+import pham.db.db_fbservice_info;
 import pham.db.db_fbtype;
 
 struct FbArray
@@ -1357,7 +1359,7 @@ protected:
         {
             import core.thread : Thread;
             import core.time : dur;
-            import std.stdio : writeln;
+            import pham.db.db_debug : writeln;
             if (unitTestSocketFailure)
             {
                 debug writeln("\t", "UnitTestSocketFailure - Need to shutdown FB database service in 15 seconds");
@@ -1601,7 +1603,7 @@ protected:
 
         auto protocol = fbConnection.protocol;
         protocol.recordsAffectedCommandWrite(this);
-        return protocol.recordsAffectedCommandRead(DbRecordsAffectedAggregateResult.changingOnly);
+        return protocol.recordsAffectedCommandRead(this, DbRecordsAffectedAggregateResult.changingOnly);
 	}
 
 	final void getStatementTypeRead(ref FbDeferredInfo deferredInfo) @safe
@@ -1705,7 +1707,7 @@ protected:
                 assert(false, "Unknown binding type: " ~ iscBindInfo.selectOrBind.to!string());
             }
         }
-        
+
         if (columnCount)
             doColumnCreated();
     }
@@ -2062,7 +2064,7 @@ public:
         }
         else
         {
-            auto saveType = _type;
+            const saveType = _type;
             _createDatabaseInfo = createDatabaseInfo;
             _type = DbConnectionType.create;
             scope (exit)
@@ -2353,19 +2355,26 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         FbConnectingStateInfo stateInfo;
-        stateInfo.connectionType = _type;
 
         doOpenSocket();
-        doOpenAuthentication(stateInfo);
-        doOpenAttachment(stateInfo);
+        if (connectionType == DbConnectionType.service)
+        {
+            doOpenAuthentication(stateInfo);
+            doServiceAttachment(stateInfo);
+        }
+        else
+        {
+            doOpenAuthentication(stateInfo);
+            doOpenAttachment(stateInfo);
+        }
     }
 
     final void doOpenAttachment(ref FbConnectingStateInfo stateInfo) @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
-        protocol.connectAttachmentWrite(stateInfo, _createDatabaseInfo);
-        _handle = protocol.connectAttachmentRead(stateInfo).handle;
+        _protocol.connectAttachmentWrite(stateInfo, _createDatabaseInfo);
+        _handle = _protocol.connectAttachmentRead(stateInfo).handle;
     }
 
     final void doOpenAuthentication(ref FbConnectingStateInfo stateInfo) @safe
@@ -2377,6 +2386,14 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         _protocol.connectAuthenticationRead(stateInfo);
     }
 
+    final void doServiceAttachment(ref FbConnectingStateInfo stateInfo) @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
+        _protocol.serviceAttachmentWrite(stateInfo);
+        _handle = _protocol.serviceAttachmentRead(stateInfo).handle;
+    }
+
     final override string getServerVersionImpl() @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
@@ -2384,6 +2401,35 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         // ex: "3.0.7"
         auto v = this.executeScalar("SELECT rdb$get_context('SYSTEM', 'ENGINE_VERSION') FROM rdb$database");
         return v.isNull() ? null : v.get!string();
+    }
+
+    final void openService() @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
+
+        checkInactive();
+
+        if (auto log = canTraceLog())
+            log.infof("%s.connection.openService()", forLogInfo());
+
+        reset();
+
+        const previousState = state;
+        _type = DbConnectionType.service;
+        _state = DbConnectionState.opening;
+        scope (exit)
+        {
+            if (_state == DbConnectionState.opening)
+                _state = DbConnectionState.opened;
+            doNotifyMessage();
+        }
+
+        scope (failure)
+            fatalError(DbFatalErrorReason.open, previousState);
+
+        doBeginStateChange(DbConnectionState.opening);
+        doOpenImpl();
+        doEndStateChange(previousState);
     }
 
 protected:
@@ -2775,6 +2821,368 @@ protected:
     }
 }
 
+struct FbService
+{
+@safe:
+
+public:
+    this(FbConnectionStringBuilder connectionStringBuilder) nothrow pure
+    in
+    {
+        assert(connectionStringBuilder !is null);
+    }
+    do
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
+        this._connectionStringBuilder = connectionStringBuilder;
+    }
+
+    ~this()
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
+        dispose(DisposingReason.destructor);
+    }
+
+    void close() nothrow
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
+
+        doClose(DisposingReason.other);
+    }
+
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+
+        doClose(disposingReason);
+    }
+
+	FbTraceVersion traceDetectVersion()
+	{
+        open();
+
+        enum serverVersion3 = VersionString("3.0");
+        return VersionString(_connection.serverVersion()) < serverVersion3
+            ? FbTraceVersion.version1
+            : FbTraceVersion.version2;
+	}
+
+    void traceResume(FbHandle sessionId)
+    {
+        open();
+        scope (exit)
+            close();
+
+        _connection._protocol.serviceTraceStartWrite(FbIsc.isc_action_svc_trace_resume, sessionId);
+        _connection._protocol.serviceTraceRead();
+        processOutputTrap(true);
+    }
+
+    /**
+     * Return trace seesionId
+     */
+    void traceStart(string sessionName, FbTraceDatabaseConfiguration[] databaseConfigurations,
+        ref FbHandle sessionId)
+    {
+        open();
+        scope (exit)
+            close();
+
+        if (traceVersion == FbTraceVersion.detect)
+            traceVersion = traceDetectVersion();
+        Appender!string configuration;
+        buildConfiguration(configuration, databaseConfigurations, traceVersion);
+        _connection._protocol.serviceTraceStartWrite(sessionName, configuration.data);
+        _connection._protocol.serviceTraceRead();
+
+        auto firstLine = queryLine(); // First line has session id
+        sessionId = parseTraceSessionId(firstLine);
+        notifyOutput(shortFunctionName(), firstLine);
+        processOutputTrap(true);
+    }
+
+    /**
+     * Return trace seesionId
+     */
+    void traceStart(string sessionName, FbTraceDatabaseConfiguration[] databaseConfigurations, FbTraceServiceConfiguration serviceConfiguration,
+        ref FbHandle sessionId)
+    {
+        open();
+        scope (exit)
+            close();
+
+        if (traceVersion == FbTraceVersion.detect)
+            traceVersion = traceDetectVersion();
+        Appender!string configuration;
+        buildConfiguration(configuration, databaseConfigurations, traceVersion);
+        serviceConfiguration.buildConfiguration(configuration, traceVersion);
+        _connection._protocol.serviceTraceStartWrite(sessionName, configuration.data);
+        _connection._protocol.serviceTraceRead();
+
+        auto firstLine = queryLine(); // First line has session id
+        sessionId = parseTraceSessionId(firstLine);
+        notifyOutput(shortFunctionName(), firstLine);
+        processOutputTrap(true);
+    }
+
+    void traceStop(FbHandle sessionId)
+    {
+        open();
+        scope (exit)
+            close();
+
+        _connection._protocol.serviceTraceStartWrite(FbIsc.isc_action_svc_trace_stop, sessionId);
+        _connection._protocol.serviceTraceRead();
+        processOutputTrap(false);
+    }
+
+    void traceSuspend(FbHandle sessionId)
+    {
+        open();
+        scope (exit)
+            close();
+
+        _connection._protocol.serviceTraceStartWrite(FbIsc.isc_action_svc_trace_suspend, sessionId);
+        _connection._protocol.serviceTraceRead();
+        processOutputTrap(false);
+    }
+
+    @property FbConnectionStringBuilder connectionStringBuilder() nothrow pure
+    {
+        return _connectionStringBuilder;
+    }
+
+public:
+    FbTraceVersion traceVersion = FbTraceVersion.version2;
+    nothrow @safe DelegateList!(DbConnection, string, string, int*) serviceOutputs;
+
+package(pham.db):
+    void doClose(const(DisposingReason) disposingReason) nothrow
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+
+        if (_connection !is null)
+            _connection.close();
+
+        if (isDisposing(disposingReason))
+            _connectionStringBuilder = null;
+    }
+
+    void open()
+    {
+        if (_connection is null)
+        {
+            _connection = new FbConnection(null, _connectionStringBuilder);
+            scope (failure)
+            {
+                _connection.dispose();
+                _connection = null;
+            }
+            _connection.openService();
+            return;
+        }
+
+        if (!_connection.isActive)
+        {
+            scope (failure)
+            {
+                _connection.dispose();
+                _connection = null;
+            }
+            _connection.openService();
+        }
+    }
+
+    int notifyOutput(string funcName, string textLine) @trusted
+    {
+        int result;
+        if (serviceOutputs)
+            serviceOutputs(_connection, funcName, textLine, &result);
+        return result;
+    }
+
+    void processOutput(const(bool) activeTrace, string funcName = __FUNCTION__)
+    {
+        funcName = shortFunctionName(1, funcName);
+        while (true)
+        {
+            auto textLine = queryLine();
+            if (textLine.length == 0)
+                break;
+
+            if (notifyOutput(funcName, textLine) != 0)
+                break;
+        }
+    }
+
+    void processOutputTrap(const(bool) activeTrace, string funcName = __FUNCTION__)
+    {
+        try
+        {
+            processOutput(activeTrace, funcName);
+        }
+        catch (DbException e)
+        {
+            if (e.socketCode != esocketReadTimeout)
+                throw e;
+        }
+    }
+
+    string queryLine()
+    {
+        string result;
+
+        void processLine(ref FbIscServiceInfoResponse info)
+        {
+            result = info.strValue.idup;
+        }
+
+        queryInfo([FbIsc.isc_info_svc_line], &processLine);
+
+        return result;
+    }
+
+    void queryInfo(scope const(uint8)[] receiveItems, void delegate(ref FbIscServiceInfoResponse) @safe processItem)
+    {
+        _connection._protocol.serviceInfoWrite(receiveItems);
+        queryInfo(receiveItems, processItem, _connection._protocol.serviceInfoRead());
+    }
+
+    void queryInfo(scope const(uint8)[] receiveItems, void delegate(ref FbIscServiceInfoResponse) @safe processItem, scope const(ubyte)[] data)
+    {
+        FbIscServiceInfoResponse info;
+        size_t pos = 0;
+        bool truncated = false;
+        while (pos < data.length)
+        {
+            const typ = data[pos++];
+            if (typ == FbIsc.isc_info_end)
+                break;
+
+			if (typ == FbIsc.isc_info_truncated)
+			{
+				_connection._protocol.serviceInfoWrite(receiveItems);
+                data = _connection._protocol.serviceInfoRead();
+				pos = 0;
+				truncated = true;
+				continue;
+			}
+
+            switch (typ)
+            {
+				case FbIsc.isc_info_svc_version:
+				case FbIsc.isc_info_svc_get_license_mask:
+				case FbIsc.isc_info_svc_capabilities:
+				case FbIsc.isc_info_svc_get_licensed_users:
+                    info.valueKind = FbIscServiceInfoValueKind.int32;
+                    info.code = typ;
+                    info.int32Value = parseInt32!true(data, pos, typ);
+                    truncated = false;
+                    processItem(info);
+                    break;
+
+				case FbIsc.isc_info_svc_server_version:
+				case FbIsc.isc_info_svc_implementation:
+				case FbIsc.isc_info_svc_get_env:
+				case FbIsc.isc_info_svc_get_env_lock:
+				case FbIsc.isc_info_svc_get_env_msg:
+				case FbIsc.isc_info_svc_user_dbpath:
+				case FbIsc.isc_info_svc_line:
+                    info.valueKind = FbIscServiceInfoValueKind.string;
+                    info.code = typ;
+                    auto str = parseString!true(data, pos, typ);
+                    if (truncated)
+                        info.strValue ~= str;
+                    else
+                        info.strValue = str;
+                    truncated = false;
+                    processItem(info);
+                    break;
+
+				case FbIsc.isc_info_svc_to_eof:
+                    info.valueKind = FbIscServiceInfoValueKind.buffer;
+                    info.code = typ;
+                    auto buf = parseBytes!2(data, pos, typ);
+                    if (buf.length)
+                    {
+                        if (truncated)
+                            info.bufferValue ~= buf;
+                        else
+                            info.bufferValue = buf;
+                        truncated = false;
+                        processItem(info);
+                    }
+                    break;
+
+				case FbIsc.isc_info_svc_svr_db_info:
+                    info.valueKind = FbIscServiceInfoValueKind.database;
+                    info.code = typ;
+                    auto buf = parseBytes!2(data, pos, typ);
+                    if (buf.length)
+                    {
+                        info.databaseInfoValue = parseDatabaseInfo(buf);
+                        truncated = false;
+                        processItem(info);
+                    }
+                    break;
+
+				case FbIsc.isc_info_svc_get_users:
+                    info.valueKind = FbIscServiceInfoValueKind.user;
+                    info.code = typ;
+                    auto buf = parseBytes!2(data, pos, typ);
+                    if (buf.length)
+					{
+                        if (truncated)
+                            info.userInfoValue ~= parseUserInfo(buf);
+                        else
+                            info.userInfoValue = parseUserInfo(buf);
+						truncated = false;
+                        processItem(info);
+					}
+                    break;
+
+                /*
+				case FbIsc.isc_info_svc_get_config:
+					{
+						var length = GetLength(buffer, 2, ref pos);
+						if (length == 0)
+							continue;
+						queryResponseAction(truncated, ParseServerConfig(buffer, ref pos, Service.Charset));
+						truncated = false;
+						break;
+					}
+                */
+
+                /*
+				case FbIsc.isc_info_svc_stdin:
+					{
+						var length = GetLength(buffer, 4, ref pos);
+						queryResponseAction(truncated, length);
+						truncated = false;
+						break;
+					}
+                */
+
+				case FbIsc.isc_info_data_not_ready:
+                    truncated = false;
+					break;
+
+                default:
+                    auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
+                    throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+            }
+        }
+    }
+
+package(pham.db):
+    FbConnection _connection;
+
+private:
+    FbConnectionStringBuilder _connectionStringBuilder;
+}
+
 class FbStoredProcedureInfo : DbRoutineInfo
 {
 @safe:
@@ -2927,18 +3335,11 @@ pragma(inline, true)
 
 version(UnitTestFBDatabase)
 {
-    FbConnection createUnitTestConnection(
+    FbConnectionStringBuilder setUnitTestConnectionString(FbConnectionStringBuilder csb,
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
         DbCompressConnection compress = DbCompressConnection.disabled,
         DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
     {
-        auto db = DbDatabaseList.getDb(DbScheme.fb);
-        assert(cast(FbDatabase)db !is null);
-
-        auto result = db.createConnection("");
-        assert(cast(FbConnection)result !is null);
-
-        auto csb = (cast(FbConnection)result).fbConnectionStringBuilder;
         csb.databaseName = "UNIT_TEST";  // Use alias mapping name
         csb.receiveTimeout = dur!"seconds"(40);
         csb.sendTimeout = dur!"seconds"(20);
@@ -2958,7 +3359,32 @@ version(UnitTestFBDatabase)
         assert(csb.compress == compress);
         assert(csb.integratedSecurity == integratedSecurity);
 
-        return cast(FbConnection)result;
+        return csb;
+    }
+
+    FbConnectionStringBuilder createUnitTestConnectionStringBuilder(
+        DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
+        DbCompressConnection compress = DbCompressConnection.disabled,
+        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
+    {
+        auto db = cast(FbDatabase)DbDatabaseList.getDb(DbScheme.fb);
+        assert(db !is null);
+
+        return setUnitTestConnectionString(new FbConnectionStringBuilder(db), encrypt, compress, integratedSecurity);
+    }
+
+    FbConnection createUnitTestConnection(
+        DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
+        DbCompressConnection compress = DbCompressConnection.disabled,
+        DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
+    {
+        auto db = cast(FbDatabase)DbDatabaseList.getDb(DbScheme.fb);
+        assert(db !is null);
+
+        auto result = cast(FbConnection)db.createConnection("");
+        assert(result !is null);
+        setUnitTestConnectionString(result.fbConnectionStringBuilder, encrypt, compress, integratedSecurity);
+        return result;
     }
 
     string testCreateDatabaseFileName()
@@ -3155,7 +3581,7 @@ unittest // FbDatabase.quoteString
 
 unittest // FbConnectionStringBuilder
 {
-    import std.stdio : writeln; writeln("UnitTestFBDatabase.FbConnectionStringBuilder"); // For first unittest
+    import pham.db.db_debug : writeln; writeln("UnitTestFBDatabase.FbConnectionStringBuilder"); // For first unittest
 
     auto db = DbDatabaseList.getDb(DbScheme.fb);
     assert(cast(FbDatabase)db !is null);
@@ -3198,37 +3624,52 @@ unittest // FbConnection.serverVersion
 }
 
 version(UnitTestFBDatabase)
-unittest // FbConnection.encrypt
+unittest // FbConnection.encrypt - enabled
 {
+    auto connection = createUnitTestConnection(DbEncryptedConnection.enabled);
+    scope (exit)
+        connection.dispose();
+    assert(connection.state == DbConnectionState.closed);
+
+    connection.open();
+    assert(connection.state == DbConnectionState.opened);
+
+    connection.close();
+    assert(connection.state == DbConnectionState.closed);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbConnection.encrypt - Arc4
+{
+    auto connection = createUnitTestConnection(DbEncryptedConnection.required);
+    connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptArc4Name;
+    scope (exit)
+        connection.dispose();
+    assert(connection.state == DbConnectionState.closed);
+
+    connection.open();
+    assert(connection.state == DbConnectionState.opened);
+
+    connection.close();
+    assert(connection.state == DbConnectionState.closed);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbConnection.encrypt - chacha
+{
+    bool canTest;
+
     {
-        auto connection = createUnitTestConnection(DbEncryptedConnection.enabled);
+        auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
-        assert(connection.state == DbConnectionState.closed);
 
         connection.open();
-        assert(connection.state == DbConnectionState.opened);
-
+        canTest = VersionString(connection.serverVersion()) >= VersionString("4.0");
         connection.close();
-        assert(connection.state == DbConnectionState.closed);
     }
 
-    // Encryption connection Arc4
-    {
-        auto connection = createUnitTestConnection(DbEncryptedConnection.required);
-        connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptArc4Name;
-        scope (exit)
-            connection.dispose();
-        assert(connection.state == DbConnectionState.closed);
-
-        connection.open();
-        assert(connection.state == DbConnectionState.opened);
-
-        connection.close();
-        assert(connection.state == DbConnectionState.closed);
-    }
-
-    // Encryption connection chacha
+    if (canTest)
     {
         auto connection = createUnitTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChachaName;
@@ -3242,8 +3683,24 @@ unittest // FbConnection.encrypt
         connection.close();
         assert(connection.state == DbConnectionState.closed);
     }
+}
 
-    // Encryption connection chacha64
+version(UnitTestFBDatabase)
+unittest // FbConnection.encrypt - chacha64
+{
+    bool canTest;
+
+    {
+        auto connection = createUnitTestConnection();
+        scope (exit)
+            connection.dispose();
+
+        connection.open();
+        canTest = VersionString(connection.serverVersion()) >= VersionString("4.0");
+        connection.close();
+    }
+
+    if (canTest)
     {
         auto connection = createUnitTestConnection(DbEncryptedConnection.required);
         connection.fbConnectionStringBuilder.cryptAlgorithm = FbIscText.filterCryptChacha64Name;
@@ -4215,9 +4672,7 @@ unittest // FbCommandBatch
         connection.dispose();
     connection.open();
 
-    const minSupportVersion = VersionString("4.0");
-    const canTest = VersionString(connection.serverVersion()) >= minSupportVersion;
-    if (!canTest)
+    if (VersionString(connection.serverVersion()) < VersionString("4.0"))
         return;
 
     {
@@ -4459,13 +4914,15 @@ unittest // FbConnection.DML.returning...
 version(UnitTestFBDatabase)
 unittest // FbDatabase.currentTimeStamp...
 {
+    import core.thread : Thread;
+    import core.time : dur;
     import pham.dtm.dtm_date : DateTime;
 
     void countZero(string s, uint leastCount)
     {
         import std.format : format;
 
-        //import std.stdio : writeln; debug writeln("s=", s, ", leastCount=", leastCount);
+        //import pham.db.db_debug : writeln; debug writeln("s=", s, ", leastCount=", leastCount);
 
         uint count;
         size_t left = s.length;
@@ -4494,18 +4951,29 @@ unittest // FbDatabase.currentTimeStamp...
     v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(3) ~ " as VARCHAR(50)), 24) FROM rdb$database");
     countZero(v.value.toString(), 1);
 
-    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(4) ~ " as VARCHAR(50)), 24) FROM rdb$database");
-    countZero(v.value.toString(), 1);
+    if (VersionString(connection.serverVersion()) >= VersionString("4.0"))
+    {
+        v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(4) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+        countZero(v.value.toString(), 1);
 
-    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(5) ~ " as VARCHAR(50)), 24) FROM rdb$database");
-    countZero(v.value.toString(), 1);
+        v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(5) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+        countZero(v.value.toString(), 1);
 
-    v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(6) ~ " as VARCHAR(50)), 24) FROM rdb$database");
-    countZero(v.value.toString(), 1);
+        v = connection.executeScalar("SELECT left(cast(" ~ connection.database.currentTimeStamp(6) ~ " as VARCHAR(50)), 24) FROM rdb$database");
+        countZero(v.value.toString(), 1);
 
-    auto n = DateTime.now;
-    auto t = connection.currentTimeStamp(6);
-    assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+        auto n = DateTime.now;
+        Thread.sleep(dur!"msecs"(1));
+        auto t = connection.currentTimeStamp(6);
+        assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+    }
+    else
+    {
+        auto n = DateTime.now;
+        Thread.sleep(dur!"msecs"(10));
+        auto t = connection.currentTimeStamp(3);
+        assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
+    }
 }
 
 version(UnitTestFBDatabase)
@@ -4515,7 +4983,7 @@ unittest // blob
     import std.string : representation;
     import pham.utl.utl_array_append : Appender;
 
-    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create text blob");
+    //import pham.db.db_debug : writeln; debug writeln(__FUNCTION__, " - create text blob");
     char[] textBlob = "1234567890qwertyuiop".dup;
     textBlob.reserve(200_000);
     while (textBlob.length < 200_000)
@@ -4539,7 +5007,7 @@ unittest // blob
         return segmentLength;
     }
 
-    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create binary blob");
+    //import pham.db.db_debug : writeln; debug writeln(__FUNCTION__, " - create binary blob");
     ubyte[] binaryBlob = "asdfghjkl;1234567890".dup.representation;
     binaryBlob.reserve(300_000);
     while (binaryBlob.length < 300_000)
@@ -4581,7 +5049,7 @@ unittest // blob
     scope (exit)
        command.dispose();
 
-    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - create table");
+    //import pham.db.db_debug : writeln; debug writeln(__FUNCTION__, " - create table");
     if (!connection.existTable("create_then_drop_blob"))
     {
         command.commandDDL = "CREATE TABLE create_then_drop_blob (txt BLOB SUB_TYPE TEXT, bin BLOB SUB_TYPE BINARY)";
@@ -4596,7 +5064,7 @@ unittest // blob
         }
     }
 
-    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - insert blob");
+    //import pham.db.db_debug : writeln; debug writeln(__FUNCTION__, " - insert blob");
     command.commandText = "INSERT INTO create_then_drop_blob(txt, bin) VALUES(@txt, @bin)";
     command.prepare();
     auto txt = command.parameters["txt"];
@@ -4608,7 +5076,7 @@ unittest // blob
     const insertResult = command.executeNonQuery();
     assert(insertResult == 1);
 
-    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - select blob");
+    //import pham.db.db_debug : writeln; debug writeln(__FUNCTION__, " - select blob");
     void setSaveLongData(DbCommand command) @safe
     {
         auto binColumn = command.columns.get("bin");
@@ -4620,7 +5088,7 @@ unittest // blob
     scope (exit)
         reader.dispose();
 
-    //import std.stdio : writeln; debug writeln(__FUNCTION__, " - read blob");
+    //import pham.db.db_debug : writeln; debug writeln(__FUNCTION__, " - read blob");
     const rs = reader.read();
     assert(rs);
     const txtVal = reader.getValue("txt").get!string;
@@ -4628,6 +5096,49 @@ unittest // blob
     const binVal = reader.getValue("bin");
     assert(binVal.isNull);
     assert(binaryBlob2.data == binaryBlob, text("length: ", binaryBlob2.length, " vs ", binaryBlob.length));
+}
+
+version(UnitTestFBDatabase)
+unittest // FbConnection.openService
+{
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+
+    connection.openService();
+    scope (exit)
+    {
+        connection.close();
+        assert(connection.state == DbConnectionState.closed);
+    }
+    assert(connection.state == DbConnectionState.opened);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbService.trace
+{
+    import pham.db.db_debug : writeln;
+
+    auto csb = createUnitTestConnectionStringBuilder();
+    csb.receiveTimeout = dur!"seconds"(3); // For production usage, should be desired duration to wait for to get all trace logs
+    auto service = FbService(csb);
+    scope (exit)
+        service.dispose();
+
+    void serviceOutput(DbConnection, string fct, string text, scope int*)
+    {
+        debug writeln(fct, "=", text);
+    }
+    service.serviceOutputs ~= &serviceOutput;
+
+    FbHandle sessionId;
+    FbTraceDatabaseConfiguration databaseConfiguration;
+    service.traceStart("test", [databaseConfiguration], sessionId);
+    service.traceStop(sessionId);
+
+    FbTraceServiceConfiguration serviceConfiguration;
+    service.traceStart("test", [databaseConfiguration], serviceConfiguration, sessionId);
+    service.traceStop(sessionId);
 }
 
 version(UnitTestPerfFBDatabase)
@@ -4792,6 +5303,6 @@ unittest
 version(UnitTestFBDatabase)
 unittest
 {
-    import std.stdio : writeln;
+    import pham.db.db_debug : writeln;
     writeln("UnitTestFBDatabase done");
 }

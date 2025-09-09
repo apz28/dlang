@@ -739,7 +739,7 @@ public:
 
     @property final typeof(this) commandTimeout(Duration value) nothrow @safe
     {
-        _commandTimeout = limitRangeTimeout(value);
+        _commandTimeout = limitRangeTime(value);
         return this;
     }
 
@@ -1752,16 +1752,16 @@ public:
         return result !is null && result.isInfo ? result : null;
     }
 
-    final typeof(this) close() @safe
+    final typeof(this) close() nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
-
-        if (auto log = canTraceLog())
-            log.infof("%s.connection.close()", forLogInfo());
 
         const previousState = state;
         if (previousState == DbConnectionState.closed)
             return this;
+
+        if (auto log = canTraceLog())
+            log.infof("%s.connection.close()", forLogInfo());
 
         _state = DbConnectionState.closing;
         scope (exit)
@@ -2040,15 +2040,17 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(state=", state, ")");
 
+        const previousState = state;
+        if (previousState == DbConnectionState.opened && connectionType == DbConnectionType.connect)
+            return this;
+            
+        checkInactive();
+        
         if (auto log = canTraceLog())
             log.infof("%s.connection.open()", forLogInfo());
 
-        if (_poolList !is null)
-            return _poolList.release(this);
-
-        const previousState = state;
-        if (previousState == DbConnectionState.opened)
-            return this;
+        //if (_poolList !is null)
+        //    return _poolList.release(this);
 
         reset();
 
@@ -2141,6 +2143,11 @@ public:
         return _connectionStringBuilder;
     }
 
+    @property final DbConnectionType connectionType() const nothrow pure @safe
+    {
+        return _type;
+    }
+
     @property final DbDatabase database() nothrow pure @safe
     {
         return _database;
@@ -2213,7 +2220,7 @@ public:
      *  connectin = this connection instance
      *  newState = new state value
      */
-    DelegateList!(DbConnection, DbConnectionState) beginStateChangeEvents;
+    nothrow @safe DelegateList!(DbConnection, DbConnectionState) beginStateChangeEvents;
 
     /**
      * Delegate to get notify when a state change
@@ -2222,7 +2229,7 @@ public:
      *  connectin = this connection instance
      *  oldState = old state value
      */
-    DelegateList!(DbConnection, DbConnectionState) endStateChangeEvents;
+    nothrow @safe DelegateList!(DbConnection, DbConnectionState) endStateChangeEvents;
 
     /**
      * Delegate to get notify when there are notification messages from server
@@ -2310,6 +2317,7 @@ package(pham.db):
         }
 
         _handle.reset();
+        _type = DbConnectionType.connect;
     }
 
     void fatalError(const(DbFatalErrorReason) fatalError, const(DbConnectionState) previousState,
@@ -2375,16 +2383,38 @@ protected:
             _transactions.remove(_transactions.last).dispose(disposingReason);
     }
 
-    final void doBeginStateChange(DbConnectionState state) @safe
+    final void doBeginStateChange(DbConnectionState state) nothrow @safe
     {
         if (beginStateChangeEvents)
-            beginStateChangeEvents(this, state);
+        {
+            try
+            {
+                beginStateChangeEvents(this, state);
+            }
+            catch (Exception e)
+            {
+                debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                if (auto log = canErrorLog())
+                    log.errorf("%s.connection.doBeginStateChange() - %s", forLogInfo(), e.msg, e);
+            }
+        }
     }
 
-    final void doEndStateChange(DbConnectionState state) @safe
+    final void doEndStateChange(DbConnectionState state) nothrow @safe
     {
         if (endStateChangeEvents)
-            endStateChangeEvents(this, state);
+        {
+            try
+            {
+                endStateChangeEvents(this, state);
+            }
+            catch (Exception e)
+            {
+                debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                if (auto log = canErrorLog())
+                    log.errorf("%s.connection.doEndStateChange() - %s", forLogInfo(), e.msg, e);
+            }
+        }
     }
 
     override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
@@ -2401,6 +2431,7 @@ protected:
         disposeCommands(disposingReason);
         serverInfo.clear();
         _handle.reset();
+        _type = DbConnectionType.connect;
         _state = DbConnectionState.disposed;
 
         if (_poolList !is null)

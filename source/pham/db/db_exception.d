@@ -13,6 +13,8 @@ module pham.db.db_exception;
 
 import pham.db.db_message;
 
+enum esocketReadTimeout = 10060;
+
 class DbException : Exception
 {
 @safe:

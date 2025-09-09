@@ -36,8 +36,8 @@ nothrow @safe:
  *   otherwise `value`
  */
 pragma(inline, true)
-Duration limitRangeTimeout(Duration value,
-    Duration min = minTimeoutDuration, Duration max = maxTimeoutDuration) @nogc pure
+Duration limitRangeTime(Duration value,
+    Duration min = minTimeDuration, Duration max = maxTimeDuration) @nogc pure
 {
     return limitRangeValue(value, min, max);
 }
@@ -54,8 +54,8 @@ Duration limitRangeTimeout(Duration value,
  *   otherwise `value`
  */
 pragma(inline, true)
-int32 limitRangeTimeoutAsMilliSecond(scope const(Duration) value,
-    scope const(Duration) min = minTimeoutDuration, scope const(Duration) max = maxTimeoutDuration) @nogc pure
+int32 limitRangeTimeAsMilliSecond(scope const(Duration) value,
+    scope const(Duration) min = minTimeDuration, scope const(Duration) max = maxTimeDuration) @nogc pure
 {
     return cast(int32)limitRangeValue(value.total!"msecs", min.total!"msecs"(), max.total!"msecs"());
 }
@@ -72,8 +72,8 @@ int32 limitRangeTimeoutAsMilliSecond(scope const(Duration) value,
  *   otherwise `value`
  */
 pragma(inline, true)
-int32 limitRangeTimeoutAsSecond(scope const(Duration) value,
-    scope const(Duration) min = minTimeoutDuration, scope const(Duration) max = maxTimeoutDuration) @nogc pure
+int32 limitRangeTimeAsSecond(scope const(Duration) value,
+    scope const(Duration) min = minTimeDuration, scope const(Duration) max = maxTimeDuration) @nogc pure
 {
     return cast(int32)limitRangeValue(value.total!"seconds", min.total!"seconds"(), max.total!"seconds"());
 }
@@ -89,7 +89,7 @@ int64 removeDateUnitFromHNSecs(const(int64) hnsecs) @nogc pure
 {
     const hnsecsAsDays = convert!("hnsecs", "days")(hnsecs);
     const result = hnsecs - convert!("days", "hnsecs")(hnsecsAsDays);
-    return result < 0 ? result + hnsecsPerDay : result;
+    return result < 0 ? (result + hnsecsPerDay) : result;
 }
 
 /**
@@ -151,15 +151,13 @@ if (isDecimal!D)
  * Returns:
  *   an integer value represented by `validIntegerStr`
  */
-I toIntegerSafe(I)(scope const(char)[] validIntegerStr, const(I) failedValue,
-    const(I) emptyValue = 0) pure
-if (is(I == int) || is(I == uint)
-    || is(I == long) || is(I == ulong)
-    || is(I == short) || is(I == ushort))
+T toIntegerSafe(T)(scope const(char)[] validIntegerStr, const(T) failedValue,
+    const(T) emptyValue = 0) pure
+if (isIntegral!T && T.sizeof > 1)
 {
     // Special try construct for grep
     try {
-        return validIntegerStr.length == 0 ? emptyValue : validIntegerStr.to!I();
+        return validIntegerStr.length == 0 ? emptyValue : validIntegerStr.to!T();
     } catch (Exception) return failedValue;
 }
 
@@ -202,12 +200,12 @@ if (is(S == wstring) || is(S == dstring))
     } catch (Exception) return failedValue;
 }
 
-string toStringSafe(I)(I number) pure
-if (isIntegral!I)
+string toStringSafe(T)(T number) pure
+if (isIntegral!T)
 {
     scope (failure) assert(0, "Assume nothrow failed");
-    
-    return number.to!string();    
+
+    return number.to!string();
 }
 
 /**
@@ -218,8 +216,8 @@ if (isIntegral!I)
  *   native unsigned integer represented the value, `v`
  */
 pragma(inline, true)
-T uintDecode(T, Endian EndianKind)(scope const(ubyte)[] v) @nogc pure
-if (isUnsigned!T && T.sizeof > 1)
+T unsignedDecode(T, Endian endianKind)(scope const(ubyte)[] v) @nogc pure
+if (isUnsigned!T)
 in
 {
     assert(v.length >= T.sizeof);
@@ -230,7 +228,7 @@ do
 
     static if (T.sizeof == 4)
     {
-        static if (EndianKind == Endian.littleEndian)
+        static if (endianKind == Endian.littleEndian)
             result = v[0]
                 | (cast(T)v[1] << 8)
                 | (cast(T)v[2] << 16)
@@ -243,7 +241,7 @@ do
     }
     else static if (T.sizeof == 8)
     {
-        static if (EndianKind == Endian.littleEndian)
+        static if (endianKind == Endian.littleEndian)
             result = v[0]
                 | (cast(T)v[1] << 8)
                 | (cast(T)v[2] << 16)
@@ -264,12 +262,16 @@ do
     }
     else static if (T.sizeof == 2)
     {
-        static if (EndianKind == Endian.littleEndian)
+        static if (endianKind == Endian.littleEndian)
             result = v[0]
                 | (cast(T)v[1] << 8);
         else
             result = (cast(T)v[0] << 8)
                 | v[1];
+    }
+    else static if (T.sizeof == 1)
+    {
+        result = v[0];
     }
     else
     {
@@ -277,7 +279,7 @@ do
     }
 
     version(BigEndian)
-    static if (EndianKind == Endian.littleEndian)
+    static if (endianKind == Endian.littleEndian && T.sizeof > 1)
         result = swapEndian(result);
 
     return result;
@@ -291,19 +293,19 @@ do
  *   static array of ubytes represented the value, `v`
  */
 pragma(inline, true)
-ubyte[T.sizeof] uintEncode(T, Endian EndianKind)(T v) @nogc pure
-if (isUnsigned!T && T.sizeof > 1)
+ubyte[T.sizeof] unsignedEncode(T, Endian endianKind)(T v) @nogc pure
+if (isUnsigned!T)
 {
     ubyte[T.sizeof] result = void;
     Unqual!T uv = v;
 
     version(BigEndian)
-    static if (EndianKind == Endian.littleEndian)
+    static if (endianKind == Endian.littleEndian && T.sizeof > 1)
         uv = swapEndian(uv);
 
     static if (T.sizeof == 4)
     {
-        static if (EndianKind == Endian.littleEndian)
+        static if (endianKind == Endian.littleEndian)
         {
             result[0] = uv & 0xFF;
             result[1] = (uv >> 8) & 0xFF;
@@ -320,7 +322,7 @@ if (isUnsigned!T && T.sizeof > 1)
     }
     else static if (T.sizeof == 8)
     {
-        static if (EndianKind == Endian.littleEndian)
+        static if (endianKind == Endian.littleEndian)
         {
             result[0] = uv & 0xFF;
             result[1] = (uv >> 8) & 0xFF;
@@ -345,7 +347,7 @@ if (isUnsigned!T && T.sizeof > 1)
     }
     else static if (T.sizeof == 2)
     {
-        static if (EndianKind == Endian.littleEndian)
+        static if (endianKind == Endian.littleEndian)
         {
             result[0] = uv & 0xFF;
             result[1] = (uv >> 8) & 0xFF;
@@ -356,9 +358,13 @@ if (isUnsigned!T && T.sizeof > 1)
             result[1] = uv & 0xFF;
         }
     }
+    else static if (T.sizeof == 1)
+    {
+        result[0] = uv;
+    }
     else
     {
-        static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
+        static assert(0, "Unsupported integeral type " ~ T.stringof);
     }
 
     return result;
@@ -368,18 +374,18 @@ if (isUnsigned!T && T.sizeof > 1)
 // Any below codes are private
 private:
 
-unittest // limitRangeTimeout
+unittest // limitRangeTime
 {
-    assert(limitRangeTimeout(dur!"seconds"(-1)) == minTimeoutDuration);
-    assert(limitRangeTimeout(dur!"seconds"(1)) == dur!"seconds"(1));
-    assert(limitRangeTimeout(Duration.max) == maxTimeoutDuration);
+    assert(limitRangeTime(dur!"seconds"(-1)) == minTimeDuration);
+    assert(limitRangeTime(dur!"seconds"(1)) == dur!"seconds"(1));
+    assert(limitRangeTime(Duration.max) == maxTimeDuration);
 }
 
-unittest // limitRangeTimeoutAsSecond
+unittest // limitRangeTimeAsSecond
 {
-    assert(limitRangeTimeoutAsSecond(dur!"seconds"(-1)) == minTimeoutDuration.total!"seconds"());
-    assert(limitRangeTimeoutAsSecond(dur!"seconds"(1)) == 1);
-    assert(limitRangeTimeoutAsSecond(Duration.max) == maxTimeoutDuration.total!"seconds"());
+    assert(limitRangeTimeAsSecond(dur!"seconds"(-1)) == minTimeDuration.total!"seconds"());
+    assert(limitRangeTimeAsSecond(dur!"seconds"(1)) == 1);
+    assert(limitRangeTimeAsSecond(Duration.max) == maxTimeDuration.total!"seconds"());
 }
 
 unittest // removeDateUnitFromHNSecs
@@ -459,65 +465,65 @@ unittest // toStringSafe
     assert(toStringSafe("c"d, null) == "c");
 }
 
-unittest // uintDecode & uintEncode
+unittest // unsignedDecode & unsignedEncode
 {
     // 16 bits
-    auto b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.min);
-    auto u16 = uintDecode!(ushort, Endian.littleEndian)(b16);
+    auto b16 = unsignedEncode!(ushort, Endian.littleEndian)(ushort.min);
+    auto u16 = unsignedDecode!(ushort, Endian.littleEndian)(b16);
     assert(u16 == ushort.min);
 
-    b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.max);
-    u16 = uintDecode!(ushort, Endian.littleEndian)(b16);
+    b16 = unsignedEncode!(ushort, Endian.littleEndian)(ushort.max);
+    u16 = unsignedDecode!(ushort, Endian.littleEndian)(b16);
     assert(u16 == ushort.max);
 
-    b16 = uintEncode!(ushort, Endian.littleEndian)(0u);
-    u16 = uintDecode!(ushort, Endian.littleEndian)(b16);
+    b16 = unsignedEncode!(ushort, Endian.littleEndian)(0u);
+    u16 = unsignedDecode!(ushort, Endian.littleEndian)(b16);
     assert(u16 == 0u);
 
-    b16 = uintEncode!(ushort, Endian.littleEndian)(ushort.max / 3);
-    u16 = uintDecode!(ushort, Endian.littleEndian)(b16);
+    b16 = unsignedEncode!(ushort, Endian.littleEndian)(ushort.max / 3);
+    u16 = unsignedDecode!(ushort, Endian.littleEndian)(b16);
     assert(u16 == ushort.max / 3);
 
-    assert(uintEncode!(ushort, Endian.littleEndian)(0u) == uintEncode!(ushort, Endian.bigEndian)(0u));
-    assert(uintEncode!(ushort, Endian.littleEndian)(ushort.max) == uintEncode!(ushort, Endian.bigEndian)(ushort.max));
+    assert(unsignedEncode!(ushort, Endian.littleEndian)(0u) == unsignedEncode!(ushort, Endian.bigEndian)(0u));
+    assert(unsignedEncode!(ushort, Endian.littleEndian)(ushort.max) == unsignedEncode!(ushort, Endian.bigEndian)(ushort.max));
 
     // 32 bits
-    auto b32 = uintEncode!(uint, Endian.littleEndian)(uint.min);
-    auto u32 = uintDecode!(uint, Endian.littleEndian)(b32);
+    auto b32 = unsignedEncode!(uint, Endian.littleEndian)(uint.min);
+    auto u32 = unsignedDecode!(uint, Endian.littleEndian)(b32);
     assert(u32 == uint.min);
 
-    b32 = uintEncode!(uint, Endian.littleEndian)(uint.max);
-    u32 = uintDecode!(uint, Endian.littleEndian)(b32);
+    b32 = unsignedEncode!(uint, Endian.littleEndian)(uint.max);
+    u32 = unsignedDecode!(uint, Endian.littleEndian)(b32);
     assert(u32 == uint.max);
 
-    b32 = uintEncode!(uint, Endian.littleEndian)(0u);
-    u32 = uintDecode!(uint, Endian.littleEndian)(b32);
+    b32 = unsignedEncode!(uint, Endian.littleEndian)(0u);
+    u32 = unsignedDecode!(uint, Endian.littleEndian)(b32);
     assert(u32 == 0u);
 
-    b32 = uintEncode!(uint, Endian.littleEndian)(uint.max / 3);
-    u32 = uintDecode!(uint, Endian.littleEndian)(b32);
+    b32 = unsignedEncode!(uint, Endian.littleEndian)(uint.max / 3);
+    u32 = unsignedDecode!(uint, Endian.littleEndian)(b32);
     assert(u32 == uint.max / 3);
 
-    assert(uintEncode!(uint, Endian.littleEndian)(0u) == uintEncode!(uint, Endian.bigEndian)(0u));
-    assert(uintEncode!(uint, Endian.littleEndian)(uint.max) == uintEncode!(uint, Endian.bigEndian)(uint.max));
+    assert(unsignedEncode!(uint, Endian.littleEndian)(0u) == unsignedEncode!(uint, Endian.bigEndian)(0u));
+    assert(unsignedEncode!(uint, Endian.littleEndian)(uint.max) == unsignedEncode!(uint, Endian.bigEndian)(uint.max));
 
     // 64 bits
-    auto b64 = uintEncode!(ulong, Endian.littleEndian)(ulong.min);
-    auto u64 = uintDecode!(ulong, Endian.littleEndian)(b64);
+    auto b64 = unsignedEncode!(ulong, Endian.littleEndian)(ulong.min);
+    auto u64 = unsignedDecode!(ulong, Endian.littleEndian)(b64);
     assert(u64 == ulong.min);
 
-    b64 = uintEncode!(ulong, Endian.littleEndian)(ulong.max);
-    u64 = uintDecode!(ulong, Endian.littleEndian)(b64);
+    b64 = unsignedEncode!(ulong, Endian.littleEndian)(ulong.max);
+    u64 = unsignedDecode!(ulong, Endian.littleEndian)(b64);
     assert(u64 == ulong.max);
 
-    b64 = uintEncode!(ulong, Endian.littleEndian)(0u);
-    u64 = uintDecode!(ulong, Endian.littleEndian)(b64);
+    b64 = unsignedEncode!(ulong, Endian.littleEndian)(0u);
+    u64 = unsignedDecode!(ulong, Endian.littleEndian)(b64);
     assert(u64 == 0u);
 
-    b64 = uintEncode!(ulong, Endian.littleEndian)(ulong.max / 3);
-    u64 = uintDecode!(ulong, Endian.littleEndian)(b64);
+    b64 = unsignedEncode!(ulong, Endian.littleEndian)(ulong.max / 3);
+    u64 = unsignedDecode!(ulong, Endian.littleEndian)(b64);
     assert(u64 == ulong.max / 3);
 
-    assert(uintEncode!(ulong, Endian.littleEndian)(0u) == uintEncode!(ulong, Endian.bigEndian)(0u));
-    assert(uintEncode!(ulong, Endian.littleEndian)(ulong.max) == uintEncode!(ulong, Endian.bigEndian)(ulong.max));
+    assert(unsignedEncode!(ulong, Endian.littleEndian)(0u) == unsignedEncode!(ulong, Endian.bigEndian)(0u));
+    assert(unsignedEncode!(ulong, Endian.littleEndian)(ulong.max) == unsignedEncode!(ulong, Endian.bigEndian)(ulong.max));
 }

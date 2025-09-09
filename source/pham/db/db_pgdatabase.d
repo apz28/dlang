@@ -2738,6 +2738,8 @@ unittest // PgConnection.DML.returning...
 version(UnitTestPGDatabase)
 unittest // PgDatabase.currentTimeStamp...
 {
+    import core.thread : Thread;
+    import core.time : dur;
     import pham.dtm.dtm_date : DateTime;
 
     void countZero(string s, uint leastCount)
@@ -2785,6 +2787,7 @@ unittest // PgDatabase.currentTimeStamp...
     countZero(v.value.toString(), 0);
 
     auto n = DateTime.now;
+    Thread.sleep(dur!"msecs"(1));
     auto t = connection.currentTimeStamp(6);
     assert(t.value.get!DateTime() >= n, t.value.get!DateTime().toString("%s") ~ " vs " ~ n.toString("%s"));
 }

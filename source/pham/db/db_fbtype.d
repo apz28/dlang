@@ -21,7 +21,7 @@ import pham.utl.utl_array_dictionary;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_enum_set : toName;
 import pham.var.var_variant : Algebraic, VariantType;
-import pham.db.db_convert : toStringSafe;
+import pham.db.db_convert : toIntegerSafe, toStringSafe;
 import pham.db.db_message;
 import pham.db.db_type;
 import pham.db.db_util : toVersionString;
@@ -239,6 +239,18 @@ public:
     bool overwrite;
 }
 
+struct FbProtocolInfo
+{
+nothrow @safe:
+
+public:
+    int32 version_;
+    int32 achitectureClient;
+    int32 minType;
+    int32 maxType;
+    int32 priority;
+}
+
 struct FbIscAcceptDataResponse
 {
 nothrow @safe:
@@ -254,6 +266,13 @@ public:
         this.authName = authName;
         this.authenticated = authenticated;
         this.authKey = authKey;
+    }
+
+    void reset()
+    {
+        authData = authKey = null;
+        authName = null;
+        acceptType = architecture = authenticated = version_ = 0;
     }
 
     @property bool canCompress() const
@@ -302,6 +321,11 @@ public:
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(version_=", version_, ", result=", result, ")");
 
         return result;
+    }
+
+    void reset()
+    {
+        acceptType = architecture = version_ = 0;
     }
 
 public:
@@ -1061,7 +1085,7 @@ public:
 
 alias FbIscCondAcceptResponse = FbIscAcceptDataResponse;
 
-struct FbIscCondAuthResponse
+struct FbIscContAuthResponse
 {
 nothrow @safe:
 
@@ -1072,6 +1096,12 @@ public:
         this.name = name;
         this.list = list;
         this.key = key;
+    }
+
+    void reset()
+    {
+        data = key = list = null;
+        name = null;
     }
 
 public:
@@ -1092,9 +1122,36 @@ public:
         this.size = size;
     }
 
+    void reset()
+    {
+        data = null;
+        size = 0;
+    }
+
 public:
     const(ubyte)[] data;
     int32 size; // For >= FbIsc.protocol_version15
+}
+
+struct FbIscDatabaseInfo
+{
+@safe:
+
+public:
+    this(int32 connectionCount, string[] databaseNames)
+    {
+        this.connectionCount = connectionCount;
+        this.databaseNames = databaseNames;
+    }
+
+    static typeof(this) parse(scope const(ubyte)[] data)
+    {
+        return parseDatabaseInfo(data);
+    }
+
+public:
+    int32 connectionCount;
+    string[] databaseNames;
 }
 
 struct FbIscError
@@ -1213,6 +1270,14 @@ public:
     FbIscObject getIscObject() const
     {
         return FbIscObject(handle, id);
+    }
+
+    void reset()
+    {
+        data = null;
+        statues.reset();
+        id = 0;
+        handle = 0;
     }
 
     pragma(inline, true)
@@ -1661,6 +1726,59 @@ private:
     DbId _idStorage;
 }
 
+struct FbIscOPResponse
+{
+nothrow @safe:
+
+    void reset() @trusted
+    {
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(op=", op, ")");
+
+        switch (op)
+        {
+            case FbIsc.op_accept:
+                accept.reset();
+                break;
+
+            case FbIsc.op_accept_data:
+            case FbIsc.op_cond_accept:
+                acceptData.reset();
+                break;
+
+            case FbIsc.op_cont_auth:
+                contAuth.reset();
+                break;
+
+            case FbIsc.op_crypt_key_callback:
+                cryptKeyCallback.reset();
+                break;
+
+            case FbIsc.op_response:
+                generic.reset();
+                break;
+
+            case FbIsc.op_trusted_auth:
+                trustedAuth.reset();
+                break;
+
+            default:
+                if (op != 0)
+                    assert(0);
+                break;
+        }
+
+        op = 0;
+    }
+
+    FbOperation op;
+    FbIscAcceptResponse accept;
+    FbIscAcceptDataResponse acceptData;
+    FbIscContAuthResponse contAuth;
+    FbIscCryptKeyCallbackResponse cryptKeyCallback;
+    FbIscGenericResponse generic;
+    FbIscTrustedAuthResponse trustedAuth;
+}
+
 struct FbIscServerPluginKey
 {
 @safe:
@@ -1756,6 +1874,26 @@ public:
     string pluginType;
     string pluginNames;
     FbIscServerPluginKey[] pluginKeys;
+}
+
+enum FbIscServiceInfoValueKind : ubyte
+{
+    buffer,
+    database,
+    int32,
+    string,
+    user,
+}
+
+struct FbIscServiceInfoResponse
+{
+    int code;
+    const(char)[] strValue;
+    const(ubyte)[] bufferValue;
+    FbIscDatabaseInfo databaseInfoValue;
+    FbIscUserInfo[] userInfoValue;
+    int32 int32Value;
+    FbIscServiceInfoValueKind valueKind;
 }
 
 struct FbIscSqlResponse
@@ -1888,6 +2026,14 @@ public:
         errors ~= error;
     }
 
+    void reset()
+    {
+        errors = null;
+        sqlCode = 0;
+        file = funcName = null;
+        line = 0;
+    }
+
     string sqlState() const
     {
         foreach (ref error; errors)
@@ -1931,82 +2077,41 @@ public:
         this.data = data;
     }
 
+    void reset()
+    {
+        data = null;
+    }
+
 public:
     ubyte[] data;
-
 }
 
-struct FbProtocolInfo
+struct FbIscUserInfo
 {
-nothrow @safe:
+@safe:
 
 public:
-    int32 version_;
-    int32 achitectureClient;
-    int32 minType;
-    int32 maxType;
-    int32 priority;
-}
-
-version(none)
-class FbResponse
-{
-nothrow @safe:
-
-public:
-    this(FbOperation operation) pure
+    static typeof(this)[] parse(scope const(ubyte)[] data)
     {
-        this._operation = operation;
+        return parseUserInfo(data);
     }
 
-    this(FbOperation operation, FbIscGenericResponse generic) pure @trusted
+    void reset()
     {
-        this._operation = operation;
-        this.generic = generic;
-    }
-
-    this(FbOperation operation, FbIscTrustedAuthenticationResponse trustedAuthentication) pure @trusted
-    {
-        this._operation = operation;
-        this.trustedAuthentication = trustedAuthentication;
-    }
-
-    this(FbOperation operation, FbIscCryptKeyCallbackResponse cryptKeyCallback) pure @trusted
-    {
-        this._operation = operation;
-        this.cryptKeyCallback = cryptKeyCallback;
-    }
-
-    this(FbOperation operation, FbIscFetchResponse fetch) pure @trusted
-    {
-        this._operation = operation;
-        this.fetch = fetch;
-    }
-
-    this(FbOperation operation, FbIscSqlResponse sql) pure @trusted
-    {
-        this._operation = operation;
-        this.sql = sql;
-    }
-
-    pragma(inline, true)
-    @property FbOperation operation() const
-    {
-        return _operation;
+        userName = userPassword = firstName = lastName = middleName = groupName = null; //roleName = null;
+        userId = groupId = 0;
     }
 
 public:
-    union
-    {
-        FbIscGenericResponse generic;
-        FbIscCryptKeyCallbackResponse cryptKeyCallback;
-        FbIscFetchResponse fetch;
-        FbIscSqlResponse sql;
-        FbIscTrustedAuthenticationResponse trustedAuthentication;
-    }
-
-private:
-    FbOperation _operation;
+    string userName;
+    string userPassword;
+	string firstName;
+	string lastName;
+	string middleName;
+	int32 userId;
+	int32 groupId;
+	string groupName;
+	//string roleName;
 }
 
 DbParameterDirection fbParameterModeToDirection(const(int16) mode)
@@ -2078,20 +2183,21 @@ FbIscBlobSize parseBlobSize(scope const(ubyte)[] data)
         }
     }
 
-    debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(maxSegment=", result.maxSegment, ", segmentCount=", result.segmentCount, ", length=", result.length, ", type=", result.type, ")");
+    debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(maxSegment=", result.maxSegment,
+        ", segmentCount=", result.segmentCount, ", length=", result.length, ", type=", result.type, ")");
 
     return result;
 }
 
-bool parseBool(bool Advance)(scope const(ubyte)[] data, size_t index, int type) pure
-if (Advance == false)
+bool parseBool(bool advance)(scope const(ubyte)[] data, size_t index, int type) pure
+if (advance == false)
 {
     parseCheckLength(data, index, 1, type);
     return parseBoolImpl(data, index);
 }
 
-int parseBool(bool Advance)(scope const(ubyte)[] data, ref size_t index, int type) pure
-if (Advance == true)
+int parseBool(bool advance)(scope const(ubyte)[] data, ref size_t index, int type) pure
+if (advance == true)
 {
     parseCheckLength(data, index, 1, type);
     return parseBoolImpl(data, index);
@@ -2107,6 +2213,14 @@ const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, uint length, in
 {
     parseCheckLength(data, index, length, type);
     return parseBytesImpl(data, index, length);
+}
+
+const(ubyte)[] parseBytes(byte byteLength = 2)(const(ubyte)[] data, ref size_t index, int type) pure
+{
+    uint length;
+    return parseLength!byteLength(data, index, length, type)
+        ? parseBytes(data, index, length, type)
+        : null;
 }
 
 pragma(inline, true)
@@ -2155,18 +2269,65 @@ FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
 	return FbIscCommandType.none;
 }
 
-int32 parseInt32(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
-if (Advance == false)
+FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data)
+{
+    FbIscDatabaseInfo result;
+
+    if (data.length <= 2)
+        return result;
+
+    const endPos = data.length - 2; // -2 for item length
+    size_t pos = 0;
+    while (pos < endPos)
+    {
+        const typ = data[pos++];
+        if (typ == FbIsc.isc_info_end)
+            break;
+
+        switch (typ)
+        {
+            case FbIsc.isc_spb_num_att:
+                result.connectionCount = parseInt32!true(data, pos, 4, typ);
+                break;
+
+            case FbIsc.isc_spb_dbname:
+                result.databaseNames ~= parseString!true(data, pos, typ).idup;
+                break;
+
+            case FbIsc.isc_spb_num_db:
+                pos += 4;
+                break;
+
+            default:
+                auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+        }
+    }
+
+    return result;
+}
+
+int32 parseInt32(bool advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
+if (advance == false)
 {
     parseCheckLength(data, index, length, type);
     return parseInt32Impl(data, index, length);
 }
 
-int32 parseInt32(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
-if (Advance == true)
+int32 parseInt32(bool advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
+if (advance == true)
 {
     parseCheckLength(data, index, length, type);
     return parseInt32Impl(data, index, length);
+}
+
+int32 parseInt32(bool advance, byte byteLength = 2)(scope const(ubyte)[] data, ref size_t index, int type) pure
+if (advance == true)
+{
+    uint length;
+    return parseLength!byteLength(data, index, length, type)
+        ? parseInt32!true(data, index, length, type)
+        : 0;
 }
 
 private int32 parseInt32Impl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
@@ -2182,23 +2343,23 @@ private int32 parseInt32Impl(scope const(ubyte)[] data, ref size_t index, uint l
 }
 
 version(none)
-int64 parseInt64(bool Advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
-if (Advance == false)
+int64 parseInt64(bool advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
+if (advance == false)
 {
     parseCheckLength(data, index, length, type);
     return parseInt64Impl(data, index, length);
 }
 
 version(none)
-int64 parseInt64(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
-if (Advance == true)
+int64 parseInt64(bool advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
+if (advance == true)
 {
     parseCheckLength(data, index, length, type);
     return parseInt64Impl(data, index, length);
 }
 
 version(none)
-private int64 parseInt64Impl(bool Advance)(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+private int64 parseInt64Impl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
 {
 	int64 result = 0;
 	uint shift = 0;
@@ -2208,6 +2369,12 @@ private int64 parseInt64Impl(bool Advance)(scope const(ubyte)[] data, ref size_t
 		shift += 8;
 	}
 	return result;
+}
+
+bool parseLength(byte byteLength = 2)(scope const(ubyte)[] data, ref size_t index, out uint length, int type) pure
+{
+    length = parseInt32!true(data, index, byteLength, type);
+    return length != 0;
 }
 
 string parsePlan(scope const(ubyte)[] data, FbIsc describeMode) pure
@@ -2220,7 +2387,7 @@ string parsePlan(scope const(ubyte)[] data, FbIsc describeMode) pure
 
 DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 {
-    debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+    debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "()");
 
     DbRecordsAffectedAggregate result;
 
@@ -2243,22 +2410,22 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 			switch (typ)
 			{
 				case FbIsc.isc_info_req_select_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "selectCount=", count);
+                    debug(debug_pham_db_db_fbtype) debug writeln("\t", "selectCount=", count);
 					result.selectCount += count;
 					break;
 
 				case FbIsc.isc_info_req_insert_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "insertCount=", count);
+                    debug(debug_pham_db_db_fbtype) debug writeln("\t", "insertCount=", count);
 					result.insertCount += count;
 					break;
 
 				case FbIsc.isc_info_req_update_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "updateCount=", count);
+                    debug(debug_pham_db_db_fbtype) debug writeln("\t", "updateCount=", count);
 					result.updateCount += count;
 					break;
 
 				case FbIsc.isc_info_req_delete_count:
-                    debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "deleteCount=", count);
+                    debug(debug_pham_db_db_fbtype) debug writeln("\t", "deleteCount=", count);
 					result.deleteCount += count;
 					break;
 
@@ -2290,18 +2457,57 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 	return result;
 }
 
-const(char)[] parseString(bool Advance)(return const(ubyte)[] data, size_t index, uint length, int type) pure
-if (Advance == false)
+FbHandle parseTraceSessionId(scope const(char)[] statusLine) nothrow
+{
+    import std.array : split;
+    import std.ascii : isWhite;
+
+    // Sample of statusLine: Trace session ID 22 started
+    if (statusLine.length == 0)
+        return FbHandle.init;
+
+    try
+    {
+        auto words = statusLine.split!isWhite();
+        int state = 0;
+        foreach (w; words)
+        {
+            if (state == 0 && w == "session")
+                state++;
+            else if (state == 1 && (w == "ID" || w == "id"))
+                state++;
+            else if (state == 2)
+                return toIntegerSafe!FbHandle(w, FbHandle.init, FbHandle.init);
+            else if (state != 0)
+                break;
+        }
+    }
+    catch (Exception)
+    {}
+    return FbHandle.init;
+}
+
+const(char)[] parseString(bool advance)(return const(ubyte)[] data, size_t index, uint length, int type) pure
+if (advance == false)
 {
     parseCheckLength(data, index, length, type);
     return parseStringImpl(data, index, length);
 }
 
-const(char)[] parseString(bool Advance)(return const(ubyte)[] data, ref size_t index, uint length, int type) pure
-if (Advance == true)
+const(char)[] parseString(bool advance)(return const(ubyte)[] data, ref size_t index, uint length, int type) pure
+if (advance == true)
 {
     parseCheckLength(data, index, length, type);
     return parseStringImpl(data, index, length);
+}
+
+const(char)[] parseString(bool advance, byte byteLength = 2)(return const(ubyte)[] data, ref size_t index, int type) pure
+if (advance == true)
+{
+    uint length;
+    return parseLength!byteLength(data, index, length, type)
+        ? parseString!true(data, index, length, type)
+        : null;
 }
 
 pragma(inline, true)
@@ -2315,6 +2521,69 @@ private const(char)[] parseStringImpl(return const(ubyte)[] data, ref size_t ind
     }
     else
         return null;
+}
+
+FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
+{
+    FbIscUserInfo[] result;
+
+    if (data.length <= 2)
+        return result;
+
+    FbIscUserInfo currentUser;
+    const endPos = data.length - 2; // -2 for item length
+    size_t pos = 0;
+    while (pos < endPos)
+    {
+        const typ = data[pos++];
+        if (typ == FbIsc.isc_info_end)
+            break;
+
+        switch (typ)
+        {
+            case FbIsc.isc_spb_sec_username:
+                if (currentUser.userName.length)
+                    result ~= currentUser;
+
+                currentUser.reset();
+                currentUser.userName = parseString!true(data, pos, typ).idup;
+                break;
+
+            case FbIsc.isc_spb_sec_firstname:
+                currentUser.firstName = parseString!true(data, pos, typ).idup;
+                break;
+
+            case FbIsc.isc_spb_sec_middlename:
+                currentUser.middleName = parseString!true(data, pos, typ).idup;
+                break;
+
+            case FbIsc.isc_spb_sec_lastname:
+                currentUser.lastName = parseString!true(data, pos, typ).idup;
+                break;
+
+            case FbIsc.isc_spb_sec_userid:
+                currentUser.userId = parseInt32!true(data, pos, 4, typ);
+                break;
+
+            case FbIsc.isc_spb_sec_groupid:
+                currentUser.groupId = parseInt32!true(data, pos, 4, typ);
+                break;
+
+            case FbIsc.isc_spb_sec_groupname:
+                currentUser.groupName = parseString!true(data, pos, typ).idup;
+                break;
+
+            case FbIsc.isc_spb_sec_password:
+                currentUser.userPassword = parseString!true(data, pos, typ).idup;
+                break;
+
+            default:
+                auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+        }
+    }
+
+    return result;
 }
 
 

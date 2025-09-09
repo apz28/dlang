@@ -15,7 +15,7 @@ import pham.dtm.dtm_time_zone : ZoneOffset;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 import pham.utl.utl_object : singleton;
 import pham.db.db_type : uint16;
-import pham.db.db_fbisc : FbIscDefaultInt, FbIscDefaultStr;
+import pham.db.db_fbisc : FbIscDefaultInt, FbIscText;
 
 nothrow @safe:
 
@@ -182,7 +182,7 @@ private:
 }
 
 static immutable FbTimeZone[] timeZones = [
-	FbTimeZone(FbIscDefaultStr.gmt_zoneName, FbIscDefaultInt.gmt_zoneId),
+	FbTimeZone(FbIscText.zoneGMTName, FbIscDefaultInt.zoneGMTId),
 	FbTimeZone("ACT", 65534),
 	FbTimeZone("AET", 65533),
 	FbTimeZone("AGT", 65532),

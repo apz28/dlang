@@ -66,8 +66,8 @@ enum hnsecsPerDay = convert!("hours", "hnsecs")(24);
 //enum hnsecsPerHour = convert!("hours", "hnsecs")(1);
 enum nullDate = Date(1, 1, 1);
 
-enum minTimeoutDuration = Duration.zero;
-enum maxTimeoutDuration = dur!"msecs"(int32.max);
+enum minTimeDuration = Duration.zero;
+enum maxTimeDuration = dur!"msecs"(int32.max);
 
  /**
   * All possible values for conversion between bool and its' string
@@ -155,6 +155,7 @@ enum DbConnectionType : ubyte
 {
     connect, // Must be first as default
     create,
+    service,
 }
 
 enum DbDefault

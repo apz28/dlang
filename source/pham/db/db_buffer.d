@@ -14,6 +14,7 @@ module pham.db.db_buffer;
 import std.bitmanip : swapEndian;
 import std.string : representation;
 import std.system : Endian;
+import std.traits : isIntegral, isUnsigned;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
 debug(debug_pham_db_db_buffer) import pham.db.db_debug;
@@ -22,6 +23,7 @@ import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_object : alignRoundup;
+import pham.utl.utl_trait : UnsignedTypeOf;
 import pham.db.db_convert;
 import pham.db.db_exception;
 import pham.db.db_message;
@@ -360,7 +362,7 @@ debug(debug_pham_db_db_buffer)
     }
 }
 
-struct DbValueReader(Endian EndianKind)
+struct DbValueReader(Endian endianKind)
 {
 @safe:
 
@@ -513,7 +515,7 @@ public:
         //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint16.sizeof, ", total=", totalReadOf(uint16.sizeof), ")");
 
         const bytes = _buffer.consume(uint16.sizeof);
-        return uintDecode!(uint16, EndianKind)(bytes);
+        return unsignedDecode!(uint16, endianKind)(bytes);
     }
 
     uint32 readUInt32()
@@ -521,7 +523,7 @@ public:
         //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint32.sizeof, ", total=", totalReadOf(uint32.sizeof), ")");
 
         const bytes = _buffer.consume(uint32.sizeof);
-        return uintDecode!(uint32, EndianKind)(bytes);
+        return unsignedDecode!(uint32, endianKind)(bytes);
     }
 
     uint64 readUInt64()
@@ -529,7 +531,7 @@ public:
         //debug(debug_pham_db_db_buffer) debug writeln(__FUNCTION__, "(", uint64.sizeof, ", total=", totalReadOf(uint64.sizeof), ")");
 
         const bytes = _buffer.consume(uint64.sizeof);
-        return uintDecode!(uint64, EndianKind)(bytes);
+        return unsignedDecode!(uint64, endianKind)(bytes);
     }
 
     @property DbReadBuffer buffer() nothrow pure
@@ -628,7 +630,7 @@ protected:
     }
 }
 
-struct DbValueWriter(Endian EndianKind)
+struct DbValueWriter(Endian endianKind)
 {
 @safe:
 
@@ -639,6 +641,17 @@ public:
     this(DbWriteBuffer buffer) nothrow pure
     {
         this._buffer = buffer;
+    }
+
+    pragma(inline, true)
+    static auto asBytes(T)(T v) @nogc nothrow pure
+    if (isIntegral!T)
+    {
+        alias UT = UnsignedTypeOf!T;
+        static if (isUnsigned!T)
+            return unsignedEncode!(UT, endianKind)(v);
+        else
+            return unsignedEncode!(UT, endianKind)(numericBitCast!UT(v));
     }
 
     void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
@@ -767,7 +780,7 @@ public:
 
     void writeUInt16(uint16 v) nothrow
     {
-        auto bytes = uintEncode!(uint16, EndianKind)(v);
+        const bytes = asBytes(v);
         _buffer.writeBytesImpl(bytes[]);
     }
 
@@ -784,7 +797,7 @@ public:
 
     void writeUInt32(uint32 v) nothrow
     {
-        auto bytes = uintEncode!(uint32, EndianKind)(v);
+        const bytes = asBytes(v);
         _buffer.writeBytesImpl(bytes[]);
     }
 
@@ -802,7 +815,7 @@ public:
 
     void writeUInt64(uint64 v) nothrow
     {
-        auto bytes = uintEncode!(uint64, EndianKind)(v);
+        const bytes = asBytes(v);
         _buffer.writeBytesImpl(bytes[]);
     }
 

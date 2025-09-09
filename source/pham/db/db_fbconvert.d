@@ -157,7 +157,7 @@ DbDateTime dateTimeDecodeTZ(int32 fbDate, int32 fbTime, uint16 fbZoneId, int16 f
 
 void dateTimeEncodeTZ(scope const(DbDateTime) value, out int32 fbDate, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIscDefaultInt.gmt_zoneId;
+	fbZoneId = FbIscDefaultInt.zoneGMTId;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	if (value.kind == DateTimeZoneKind.utc)
 		dateTimeEncode(value, fbDate, fbTime);
@@ -269,7 +269,7 @@ DbTime timeDecodeTZ(int32 fbTime, uint16 fbZoneId, int16 fbZoneOffset)
 
 void timeEncodeTZ(scope const(DbTime) value, out int32 fbTime, out uint16 fbZoneId, out int16 fbZoneOffset)
 {
-	fbZoneId = FbIscDefaultInt.gmt_zoneId;
+	fbZoneId = FbIscDefaultInt.zoneGMTId;
 	fbZoneOffset = 0; // Already in UTC so set it to zero
 	fbTime = value.kind == DateTimeZoneKind.utc
 		? timeEncode(value)

@@ -35,6 +35,7 @@ struct DbMessage
     static immutable eNoSendingData = "Unable to send data for %d bytes";
 
     static immutable eConnect = "Unable to connect to '%s'\n%s";
+    static immutable eConnectOverflow = "Unable to continue operation for %s";
     static immutable eConnectTimeoutRaw = "Connection timeout";
     static immutable eReadData = "Unable to receive data from '%s'\n%s";
     static immutable eReadInvalidData = "Unable to convert data from '%s' to type '%s'";

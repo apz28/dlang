@@ -11,13 +11,36 @@
 
 module pham.db.db_debug;
 
-public import std.stdio : writeln;
-import std.traits : isFloatingPoint, isIntegral;
+import std.traits : isIntegral;
+
+string dgLimitString(scope const(char)[] chars, size_t limit = 100) nothrow pure @safe
+{
+    import std.array : Appender;
+    //import std.ascii : newline;
+    
+    if (chars.length <= limit)
+        return chars.idup;
+    
+    Appender!string result;
+    while (chars.length)
+    {
+        const count = chars.length > limit ? limit : chars.length;
+        result.put(chars[0..count]);
+        result.put('\n');
+        chars = chars[count..$];
+    }
+    return result[];
+}
 
 string dgToString(scope const(ubyte)[] bytes) nothrow pure @safe
 {
     import std.digest : toHexString;
-    debug return toHexString(bytes);
+    debug return bytes.length == 0 ? "" : dgLimitString(toHexString(bytes));
+}
+
+string dgToString(scope const(char)[] chars) nothrow pure @safe
+{
+    return chars.length == 0 ? "" : dgLimitString(chars);
 }
 
 string dgToString(T)(const(T) n) nothrow pure @safe
@@ -25,6 +48,14 @@ if (isIntegral!T)
 {    
     import std.conv : to;
     debug return n.to!string;
+}
+
+void writeln(S...)(S args)
+{
+    import std.stdio : stdout, write;
+    
+    debug write(args, '\n');
+    debug stdout.flush();
 }
 
 struct DgMarker

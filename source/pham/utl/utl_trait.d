@@ -12,8 +12,9 @@
 module pham.utl.utl_trait;
 
 import std.meta : Filter;
-import std.traits : BaseClassesTuple, BaseTypeTuple, fullyQualifiedName, FunctionAttribute, functionAttributes,
-    isCallable, isDelegate, isFunction, Parameters, ReturnType, Unqual;
+import std.traits : BaseClassesTuple, BaseTypeTuple, Parameters, ReturnType, Unqual,
+    fullyQualifiedName, FunctionAttribute, functionAttributes,
+    isCallable, isDelegate, isFunction, isIntegral;
 
 @safe:
 
@@ -29,6 +30,21 @@ template ElementTypeOf(R)
         alias ElementTypeOf = dchar;
     else
         alias ElementTypeOf = Unqual!(ElementType!R);
+}
+
+template UnsignedTypeOf(T)
+if (isIntegral!T)
+{
+    static if (T.sizeof == 4)
+        alias UnsignedTypeOf = uint;
+    else static if (T.sizeof == 8)
+        alias UnsignedTypeOf = ulong;
+    else static if (T.sizeof == 2)
+        alias UnsignedTypeOf = ushort;
+    else static if (T.sizeof == 1)
+        alias UnsignedTypeOf = ubyte;
+    else
+        static assert(0, "Unsupported integeral type " ~ T.stringof);
 }
 
 template getParamType(alias functionSymbol, size_t i)
@@ -185,6 +201,33 @@ template isTypeOf(T, checkingT)
 
 // Any below codes are private
 private:
+
+unittest // ElementTypeOf
+{
+    static assert(is(ElementTypeOf!string == char));
+    static assert(is(ElementTypeOf!(char[]) == char));
+
+    static assert(is(ElementTypeOf!wstring == wchar));
+    static assert(is(ElementTypeOf!(wchar[]) == wchar));
+
+    static assert(is(ElementTypeOf!dstring == dchar));
+    static assert(is(ElementTypeOf!(dchar[]) == dchar));
+}
+
+unittest // UnsignedTypeOf
+{
+    static assert(is(UnsignedTypeOf!long == ulong));
+    static assert(is(UnsignedTypeOf!ulong == ulong));
+
+    static assert(is(UnsignedTypeOf!int == uint));
+    static assert(is(UnsignedTypeOf!uint == uint));
+
+    static assert(is(UnsignedTypeOf!short == ushort));
+    static assert(is(UnsignedTypeOf!ushort == ushort));
+
+    static assert(is(UnsignedTypeOf!byte == ubyte));
+    static assert(is(UnsignedTypeOf!ubyte == ubyte));
+}
 
 unittest // isTypeOf
 {
