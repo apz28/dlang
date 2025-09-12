@@ -40,8 +40,13 @@ import pham.db.db_value;
 import pham.db.db_fbbuffer;
 import pham.db.db_fbexception;
 import pham.db.db_fbisc;
+public import pham.db.db_fbisc : FbIsc;
 import pham.db.db_fbprotocol;
 import pham.db.db_fbservice_info;
+public import pham.db.db_fbservice_info : FbBackupFlags, FbNBackupFlags, FbBackupRestoreStatistic, FbRepairFlags,
+    FbRestoreFlags, FbShutdownType, FbShutdownActivateMode, FbTraceDatabaseEvent, FbTraceServiceEvent,
+    FbBackupFile, FbBackupConfiguration, FbNBackupConfiguration, FbNRestoreConfiguration,
+    FbRepairConfiguration, FbRestoreConfiguration, FbTraceDatabaseConfiguration, FbTraceServiceConfiguration;
 import pham.db.db_fbtype;
 
 struct FbArray
@@ -2826,6 +2831,9 @@ struct FbService
 @safe:
 
 public:
+    @disable this(this);
+    @disable void opAssign(typeof(this));
+
     this(FbConnectionStringBuilder connectionStringBuilder) nothrow pure
     in
     {
@@ -2845,6 +2853,73 @@ public:
         dispose(DisposingReason.destructor);
     }
 
+    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    {
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+
+        doClose(disposingReason);
+    }
+
+    void activate(FbShutdownActivateMode mode,
+        string databaseName = null)
+    {
+        if (databaseName.length == 0)
+            databaseName = _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+        paramWriter.writeType(FbIsc.isc_action_svc_properties);
+        paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+        paramWriter.writeInt8(FbIsc.isc_spb_prp_online_mode, mode.toIscCode());
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+    }
+
+    void backup(FbBackupConfiguration backupConfiguration)
+    in
+    {
+        assert(backupConfiguration.backupFiles.length != 0);
+    }
+    do
+    {
+        const databaseName = backupConfiguration.databaseName.length != 0
+            ? backupConfiguration.databaseName
+            : _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_backup);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+		foreach (ref file; backupConfiguration.backupFiles)
+		{
+			paramWriter.writeChars2(FbIsc.isc_spb_bkp_file, file.fileName);
+			if (file.length > 0)
+				paramWriter.writeInt32(FbIsc.isc_spb_bkp_length, file.length);
+		}
+		paramWriter.writeInt32(FbIsc.isc_spb_options, backupConfiguration.options);
+        paramWriter.writeChars2If(FbIsc.isc_spb_bkp_skip_data, backupConfiguration.skipData);
+		paramWriter.writeChars2If(FbIsc.isc_spb_bkp_stat, buildConfiguration(backupConfiguration.statistics));
+		if (backupConfiguration.factor > 0)
+			paramWriter.writeInt32(FbIsc.isc_spb_bkp_factor, backupConfiguration.factor);
+		if (backupConfiguration.parallelWorkers > 0)
+			paramWriter.writeInt32(FbIsc.isc_spb_bkp_parallel_workers, backupConfiguration.parallelWorkers);
+		if (backupConfiguration.verbose)
+			paramWriter.writeType(FbIsc.isc_spb_verbose);
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+
+		if (backupConfiguration.verbose)
+            processOutput(serviceLineItems, false);
+    }
+
     void close() nothrow
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
@@ -2852,11 +2927,174 @@ public:
         doClose(DisposingReason.other);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    void logGet()
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+        open();
+        scope (exit)
+            close();
 
-        doClose(disposingReason);
+        _connection._protocol.serviceStartWrite(FbIsc.isc_action_svc_get_fb_log);
+        _connection._protocol.serviceRead();
+        processOutput(serviceLineItems, false);
+    }
+
+    void nbackup(FbNBackupConfiguration nbackupConfiguration)
+    in
+    {
+        assert(nbackupConfiguration.backupFileName.length != 0);
+    }
+    do
+    {
+        const databaseName = nbackupConfiguration.databaseName.length != 0
+            ? nbackupConfiguration.databaseName
+            : _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_nbak);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+		paramWriter.writeChars2(FbIsc.isc_spb_nbk_file, nbackupConfiguration.backupFileName);
+        paramWriter.writeInt32(FbIsc.isc_spb_nbk_level, nbackupConfiguration.level);
+        paramWriter.writeInt32(FbIsc.isc_spb_options, nbackupConfiguration.options);
+		paramWriter.writeChars2(FbIsc.isc_spb_nbk_direct, nbackupConfiguration.directIO ? "ON" : "OFF");
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+
+        processOutput(serviceLineItems, false);
+    }
+
+    void nrestore(FbNRestoreConfiguration nrestoreConfiguration)
+    in
+    {
+        assert(nrestoreConfiguration.backupFiles.length != 0);
+    }
+    do
+    {
+        const databaseName = nrestoreConfiguration.databaseName.length != 0
+            ? nrestoreConfiguration.databaseName
+            : _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_nrest);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+        foreach (ref file; nrestoreConfiguration.backupFiles)
+            paramWriter.writeChars2(FbIsc.isc_spb_nbk_file, file.fileName);
+		paramWriter.writeChars2(FbIsc.isc_spb_nbk_direct, nrestoreConfiguration.directIO ? "ON" : "OFF");
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+
+        processOutput(serviceLineItems, false);
+    }
+
+    void nfixup(string databaseName = null)
+    {
+        if (databaseName.length == 0)
+            databaseName = _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_nfix);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+
+        processOutput(serviceLineItems, false);
+    }
+
+    void repair(FbRepairConfiguration repairConfiguration)
+    {
+        const databaseName = repairConfiguration.databaseName.length != 0
+            ? repairConfiguration.databaseName
+            : _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_repair);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+		paramWriter.writeInt32(FbIsc.isc_spb_options, repairConfiguration.options);
+		if (repairConfiguration.parallelWorkers > 0)
+			paramWriter.writeInt32(FbIsc.isc_spb_rpr_par_workers, repairConfiguration.parallelWorkers);
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+
+        processOutput(serviceLineItems, false);
+    }
+
+    void restore(FbRestoreConfiguration restoreConfiguration)
+    in
+    {
+        assert(restoreConfiguration.backupFiles.length != 0);
+    }
+    do
+    {
+        const databaseName = restoreConfiguration.databaseName.length != 0
+            ? restoreConfiguration.databaseName
+            : _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_restore);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+		foreach (ref file; restoreConfiguration.backupFiles)
+			paramWriter.writeChars2(FbIsc.isc_spb_bkp_file, file.fileName);
+        paramWriter.writeInt32(FbIsc.isc_spb_options, restoreConfiguration.options);
+        paramWriter.writeChars2If(FbIsc.isc_spb_res_skip_data, restoreConfiguration.skipData);
+		paramWriter.writeChars2If(FbIsc.isc_spb_res_stat, buildConfiguration(restoreConfiguration.statistics));
+		if (restoreConfiguration.pageBuffers > 0)
+			paramWriter.writeInt32(FbIsc.isc_spb_res_buffers, restoreConfiguration.pageBuffers);
+		if (restoreConfiguration.pageSize > 0)
+			paramWriter.writeInt32(FbIsc.isc_spb_res_page_size, restoreConfiguration.pageSize);
+		paramWriter.writeInt8(FbIsc.isc_spb_res_access_mode, restoreConfiguration.readOnly ? FbIsc.isc_spb_res_am_readonly : FbIsc.isc_spb_res_am_readwrite);
+		if (restoreConfiguration.parallelWorkers > 0)
+			paramWriter.writeInt32(FbIsc.isc_spb_res_parallel_workers, restoreConfiguration.parallelWorkers);
+		if (restoreConfiguration.verbose)
+			paramWriter.writeType(FbIsc.isc_spb_verbose);
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
+
+		if (restoreConfiguration.verbose)
+            processOutput(serviceLineItems, false);
+    }
+
+    void shutdown(FbShutdownActivateMode mode, FbShutdownType type, Duration waitForTime,
+        string databaseName = null)
+    {
+        if (databaseName.length == 0)
+            databaseName = _connectionStringBuilder.databaseName;
+
+        open();
+        scope (exit)
+            close();
+
+        auto paramWriter = FbServiceWriter(_connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_properties);
+		paramWriter.writeChars2(FbIsc.isc_spb_dbname, databaseName);
+        paramWriter.writeInt8(FbIsc.isc_spb_prp_shutdown_mode, mode.toIscCode());
+        paramWriter.writeInt32(type.toIscCode(), waitForTime.limitRangeTimeAsSecond());
+        const paramBytes = paramWriter.peekBytes();
+        _connection._protocol.serviceStartWrite(paramBytes);
+        _connection._protocol.serviceRead();
     }
 
 	FbTraceVersion traceDetectVersion()
@@ -2876,8 +3114,8 @@ public:
             close();
 
         _connection._protocol.serviceTraceStartWrite(FbIsc.isc_action_svc_trace_resume, sessionId);
-        _connection._protocol.serviceTraceRead();
-        processOutputTrap(true);
+        _connection._protocol.serviceRead();
+        processOutputTrap(serviceLineItems, true);
     }
 
     /**
@@ -2895,19 +3133,19 @@ public:
         Appender!string configuration;
         buildConfiguration(configuration, databaseConfigurations, traceVersion);
         _connection._protocol.serviceTraceStartWrite(sessionName, configuration.data);
-        _connection._protocol.serviceTraceRead();
+        _connection._protocol.serviceRead();
 
-        auto firstLine = queryLine(); // First line has session id
-        sessionId = parseTraceSessionId(firstLine);
-        notifyOutput(shortFunctionName(), firstLine);
-        processOutputTrap(true);
+        auto firstInfo = queryInfo(serviceLineItems); // First line has session id
+        sessionId = parseTraceSessionId(firstInfo.strValue);
+        notifyOutput(shortFunctionName(), firstInfo);
+        processOutputTrap(serviceLineItems, true);
     }
 
     /**
      * Return trace seesionId
      */
-    void traceStart(string sessionName, FbTraceDatabaseConfiguration[] databaseConfigurations, FbTraceServiceConfiguration serviceConfiguration,
-        ref FbHandle sessionId)
+    void traceStart(string sessionName, FbTraceDatabaseConfiguration[] databaseConfigurations,
+        FbTraceServiceConfiguration serviceConfiguration, ref FbHandle sessionId)
     {
         open();
         scope (exit)
@@ -2919,12 +3157,12 @@ public:
         buildConfiguration(configuration, databaseConfigurations, traceVersion);
         serviceConfiguration.buildConfiguration(configuration, traceVersion);
         _connection._protocol.serviceTraceStartWrite(sessionName, configuration.data);
-        _connection._protocol.serviceTraceRead();
+        _connection._protocol.serviceRead();
 
-        auto firstLine = queryLine(); // First line has session id
-        sessionId = parseTraceSessionId(firstLine);
-        notifyOutput(shortFunctionName(), firstLine);
-        processOutputTrap(true);
+        auto firstInfo = queryInfo(serviceLineItems); // First line has session id
+        sessionId = parseTraceSessionId(firstInfo.strValue);
+        notifyOutput(shortFunctionName(), firstInfo);
+        processOutputTrap(serviceLineItems, true);
     }
 
     void traceStop(FbHandle sessionId)
@@ -2934,8 +3172,8 @@ public:
             close();
 
         _connection._protocol.serviceTraceStartWrite(FbIsc.isc_action_svc_trace_stop, sessionId);
-        _connection._protocol.serviceTraceRead();
-        processOutputTrap(false);
+        _connection._protocol.serviceRead();
+        processOutput(serviceLineItems, false);
     }
 
     void traceSuspend(FbHandle sessionId)
@@ -2945,8 +3183,51 @@ public:
             close();
 
         _connection._protocol.serviceTraceStartWrite(FbIsc.isc_action_svc_trace_suspend, sessionId);
-        _connection._protocol.serviceTraceRead();
-        processOutputTrap(false);
+        _connection._protocol.serviceRead();
+        processOutput(serviceLineItems, false);
+    }
+
+    void userAdd(scope const(FbIscUserInfo) userInfo)
+    in
+    {
+        assert(userInfo.userName.length != 0);
+    }
+    do
+    {
+        open();
+
+        _connection._protocol.serviceUserAddWrite(userInfo);
+        _connection._protocol.serviceRead();
+    }
+
+    void userDelete(string userName,
+        string roleName = null)
+    in
+    {
+        assert(userName.length != 0);
+    }
+    do
+    {
+        open();
+
+        _connection._protocol.serviceUserDeleteWrite(userName, roleName);
+        _connection._protocol.serviceRead();
+    }
+
+    FbIscUserInfo userGet(string userName)
+    in
+    {
+        assert(userName.length != 0);
+    }
+    do
+    {
+        open();
+
+        _connection._protocol.serviceUserGetWrite(userName);
+        _connection._protocol.serviceRead();
+
+        auto firstInfo = queryInfo([FbIsc.isc_info_svc_get_users]);
+        return firstInfo.userInfoValues.length ? firstInfo.userInfoValues[0] : FbIscUserInfo.init;
     }
 
     @property FbConnectionStringBuilder connectionStringBuilder() nothrow pure
@@ -2956,9 +3237,12 @@ public:
 
 public:
     FbTraceVersion traceVersion = FbTraceVersion.version2;
-    nothrow @safe DelegateList!(DbConnection, string, string, int*) serviceOutputs;
+    alias ServiceOutputEvent = void delegate(DbConnection, string, FbIscServiceInfoResponse, ref int) @safe;
+    DelegateList!(ServiceOutputEvent, DbConnection, string, FbIscServiceInfoResponse, int) serviceOutputEvents;
 
 package(pham.db):
+    static immutable uint8[] serviceLineItems = [FbIsc.isc_info_svc_line];
+
     void doClose(const(DisposingReason) disposingReason) nothrow
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
@@ -2995,33 +3279,35 @@ package(pham.db):
         }
     }
 
-    int notifyOutput(string funcName, string textLine) @trusted
+    int notifyOutput(string funcName, ref FbIscServiceInfoResponse info) @trusted
     {
         int result;
-        if (serviceOutputs)
-            serviceOutputs(_connection, funcName, textLine, &result);
+        if (serviceOutputEvents)
+            serviceOutputEvents(_connection, funcName, info, result);
         return result;
     }
 
-    void processOutput(const(bool) activeTrace, string funcName = __FUNCTION__)
+    void processOutput(scope const(uint8)[] receiveItems, const(bool) activeTrace,
+        string funcName = __FUNCTION__)
     {
         funcName = shortFunctionName(1, funcName);
         while (true)
         {
-            auto textLine = queryLine();
-            if (textLine.length == 0)
+            auto info = queryInfo(receiveItems);
+            if (info.valueKind == FbIscServiceInfoResponse.ValueKind.unassigned)
                 break;
 
-            if (notifyOutput(funcName, textLine) != 0)
+            if (notifyOutput(funcName, info) != 0)
                 break;
         }
     }
 
-    void processOutputTrap(const(bool) activeTrace, string funcName = __FUNCTION__)
+    void processOutputTrap(scope const(uint8)[] receiveItems, const(bool) activeTrace,
+        string funcName = __FUNCTION__)
     {
         try
         {
-            processOutput(activeTrace, funcName);
+            processOutput(receiveItems, activeTrace, funcName);
         }
         catch (DbException e)
         {
@@ -3030,17 +3316,16 @@ package(pham.db):
         }
     }
 
-    string queryLine()
+    FbIscServiceInfoResponse queryInfo(scope const(uint8)[] receiveItems)
     {
-        string result;
+        FbIscServiceInfoResponse result;
 
-        void processLine(ref FbIscServiceInfoResponse info)
+        void processInfo(ref FbIscServiceInfoResponse info)
         {
-            result = info.strValue.idup;
+            result = info;
         }
 
-        queryInfo([FbIsc.isc_info_svc_line], &processLine);
-
+        queryInfo(receiveItems, &processInfo);
         return result;
     }
 
@@ -3050,7 +3335,8 @@ package(pham.db):
         queryInfo(receiveItems, processItem, _connection._protocol.serviceInfoRead());
     }
 
-    void queryInfo(scope const(uint8)[] receiveItems, void delegate(ref FbIscServiceInfoResponse) @safe processItem, scope const(ubyte)[] data)
+    void queryInfo(scope const(uint8)[] receiveItems, void delegate(ref FbIscServiceInfoResponse) @safe processItem,
+        scope const(ubyte)[] data) @trusted
     {
         FbIscServiceInfoResponse info;
         size_t pos = 0;
@@ -3076,9 +3362,10 @@ package(pham.db):
 				case FbIsc.isc_info_svc_get_license_mask:
 				case FbIsc.isc_info_svc_capabilities:
 				case FbIsc.isc_info_svc_get_licensed_users:
-                    info.valueKind = FbIscServiceInfoValueKind.int32;
+                    auto iv = parseInt32!true(data, pos, typ);
+                    info.valueKind = FbIscServiceInfoResponse.ValueKind.int32;
                     info.code = typ;
-                    info.int32Value = parseInt32!true(data, pos, typ);
+                    info.int32Value = iv;
                     truncated = false;
                     processItem(info);
                     break;
@@ -3090,57 +3377,63 @@ package(pham.db):
 				case FbIsc.isc_info_svc_get_env_msg:
 				case FbIsc.isc_info_svc_user_dbpath:
 				case FbIsc.isc_info_svc_line:
-                    info.valueKind = FbIscServiceInfoValueKind.string;
-                    info.code = typ;
                     auto str = parseString!true(data, pos, typ);
-                    if (truncated)
-                        info.strValue ~= str;
+                    const concateStr = truncated && info.strValue.length;
+                    if (str.length || concateStr)
+                    {
+                        info.valueKind = FbIscServiceInfoResponse.ValueKind.string;
+                        info.code = typ;
+                        info.strValue = concateStr ? (info.strValue ~ cast(string)str) : str.idup;
+                    }
                     else
-                        info.strValue = str;
+                        info.reset();
                     truncated = false;
                     processItem(info);
                     break;
 
 				case FbIsc.isc_info_svc_to_eof:
-                    info.valueKind = FbIscServiceInfoValueKind.buffer;
-                    info.code = typ;
                     auto buf = parseBytes!2(data, pos, typ);
-                    if (buf.length)
+                    const concateBytes = truncated && info.byteValues.length;
+                    if (buf.length || concateBytes)
                     {
-                        if (truncated)
-                            info.bufferValue ~= buf;
-                        else
-                            info.bufferValue = buf;
-                        truncated = false;
-                        processItem(info);
+                        info.valueKind = FbIscServiceInfoResponse.ValueKind.buffer;
+                        info.code = typ;
+                        info.byteValues = concateBytes ? (info.byteValues ~ buf) : buf.dup;
                     }
+                    else
+                        info.reset();
+                    truncated = false;
+                    processItem(info);
                     break;
 
 				case FbIsc.isc_info_svc_svr_db_info:
-                    info.valueKind = FbIscServiceInfoValueKind.database;
-                    info.code = typ;
-                    auto buf = parseBytes!2(data, pos, typ);
-                    if (buf.length)
+                    auto dbData = parseBytes!2(data, pos, typ);
+                    auto db = dbData.length ? parseDatabaseInfo(dbData) : FbIscDatabaseInfo.init;
+                    if (dbData.length)
                     {
-                        info.databaseInfoValue = parseDatabaseInfo(buf);
-                        truncated = false;
-                        processItem(info);
+                        info.valueKind = FbIscServiceInfoResponse.ValueKind.database;
+                        info.code = typ;
+                        info.databaseInfoValue = db;
                     }
+                    else
+                        info.reset();
+                    truncated = false;
+                    processItem(info);
                     break;
 
 				case FbIsc.isc_info_svc_get_users:
-                    info.valueKind = FbIscServiceInfoValueKind.user;
-                    info.code = typ;
-                    auto buf = parseBytes!2(data, pos, typ);
-                    if (buf.length)
+                    auto usrData = parseBytes!2(data, pos, typ);
+                    auto usr = usrData.length ? parseUserInfo(usrData) : cast(FbIscUserInfo[])null;
+                    if (usr.length || (truncated && info.userInfoValues.length))
 					{
-                        if (truncated)
-                            info.userInfoValue ~= parseUserInfo(buf);
-                        else
-                            info.userInfoValue = parseUserInfo(buf);
-						truncated = false;
-                        processItem(info);
-					}
+                        info.valueKind = FbIscServiceInfoResponse.ValueKind.user;
+                        info.code = typ;
+                        info.userInfoValues = truncated ? (info.userInfoValues ~ usr) : usr;
+                    }
+                    else
+                        info.reset();
+					truncated = false;
+                    processItem(info);
                     break;
 
                 /*
@@ -3166,6 +3459,8 @@ package(pham.db):
                 */
 
 				case FbIsc.isc_info_data_not_ready:
+                    info.reset();
+                    info.code = typ;
                     truncated = false;
 					break;
 
@@ -5115,7 +5410,7 @@ unittest // FbConnection.openService
 }
 
 version(UnitTestFBDatabase)
-unittest // FbService.trace
+unittest // FbService.trace...
 {
     import pham.db.db_debug : writeln;
 
@@ -5125,11 +5420,11 @@ unittest // FbService.trace
     scope (exit)
         service.dispose();
 
-    void serviceOutput(DbConnection, string fct, string text, scope int*)
+    void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
     {
-        debug writeln(fct, "=", text);
+        debug writeln(fct, "=", info.strValue);
     }
-    service.serviceOutputs ~= &serviceOutput;
+    service.serviceOutputEvents ~= &serviceOutput;
 
     FbHandle sessionId;
     FbTraceDatabaseConfiguration databaseConfiguration;
@@ -5139,6 +5434,132 @@ unittest // FbService.trace
     FbTraceServiceConfiguration serviceConfiguration;
     service.traceStart("test", [databaseConfiguration], serviceConfiguration, sessionId);
     service.traceStop(sessionId);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbService.logGet
+{
+    import pham.db.db_debug : writeln;
+
+    auto csb = createUnitTestConnectionStringBuilder();
+    auto service = FbService(csb);
+    scope (exit)
+        service.dispose();
+
+    size_t lineCount;
+    void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
+    {
+        lineCount++;
+        if (lineCount <= 4)
+            debug writeln(fct, "=", info.strValue);
+    }
+    service.serviceOutputEvents ~= &serviceOutput;
+    lineCount = 0;
+    service.logGet();
+}
+
+version(UnitTestFBDatabase)
+unittest // FbService.repair
+{
+    import pham.db.db_debug : writeln;
+
+    auto csb = createUnitTestConnectionStringBuilder();
+    auto service = FbService(csb);
+    scope (exit)
+        service.dispose();
+
+    void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
+    {
+        debug writeln(fct, "=", info.strValue);
+    }
+    service.serviceOutputEvents ~= &serviceOutput;
+
+    FbRepairConfiguration repairConfiguration;
+    repairConfiguration.options = FbRepairFlags.sweepDatabase;
+    service.repair(repairConfiguration);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbService.backup & restore
+{
+    import std.array : array;
+    import std.file : tempDir;
+    import std.path : chainPath;
+    //import std.process : thisProcessID;
+    import pham.db.db_debug : writeln;
+
+    static void deleteFile(string fileName)
+    {
+        import std.file : exists, remove;
+
+        if (exists(fileName))
+            remove(fileName);
+    }
+
+    auto csb = createUnitTestConnectionStringBuilder();
+    auto service = FbService(csb);
+    scope (exit)
+        service.dispose();
+
+    string lastLine;
+    void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
+    {
+        if (lastLine != info.strValue)
+        {
+            debug writeln(fct, "=", info.strValue);
+            lastLine = info.strValue;
+        }
+    }
+    service.serviceOutputEvents ~= &serviceOutput;
+
+    string backupFileName = chainPath(tempDir(), "unittest_backup.fbk").array;
+    string restoreFileName = chainPath(tempDir(), "unittest_restore.fbd").array;
+    scope (exit)
+    {
+        deleteFile(backupFileName);
+        deleteFile(restoreFileName);
+    }
+
+    lastLine = null;
+    FbBackupConfiguration backupConfiguration;
+    backupConfiguration.backupFiles ~= FbBackupFile(backupFileName);
+    backupConfiguration.options = FbBackupFlags.metaDataOnly | FbBackupFlags.ignoreLimbo
+        | FbBackupFlags.noDatabaseTriggers | FbBackupFlags.noGarbageCollect;
+    backupConfiguration.verbose = true;
+    service.backup(backupConfiguration);
+
+    lastLine = null;
+    FbRestoreConfiguration restoreConfiguration;
+    restoreConfiguration.databaseName = restoreFileName;
+    restoreConfiguration.backupFiles ~= FbBackupFile(backupFileName);
+    restoreConfiguration.options = FbRestoreFlags.create | FbRestoreFlags.replace;
+    restoreConfiguration.verbose = true;
+    service.restore(restoreConfiguration);
+}
+
+version(UnitTestFBDatabase)
+unittest // FbService.user...
+{
+    import pham.db.db_debug : writeln;
+
+    auto csb = createUnitTestConnectionStringBuilder();
+    auto service = FbService(csb);
+    scope (exit)
+        service.dispose();
+
+    FbIscUserInfo userInfo;
+    userInfo.userName = "UNIT_TEST";
+    userInfo.userPassword = "masterkey";
+	userInfo.firstName = "First";
+	userInfo.lastName = "Last";
+    userInfo.roleName = "UNIT_ROLE";
+
+    service.userAdd(userInfo);
+    auto getInfo = service.userGet(userInfo.userName);
+    service.userDelete(userInfo.userName, userInfo.roleName);
+    assert(userInfo.userName == getInfo.userName, getInfo.userName);
+    assert(userInfo.firstName == getInfo.firstName, getInfo.firstName);
+    assert(userInfo.lastName == getInfo.lastName, getInfo.lastName);
 }
 
 version(UnitTestPerfFBDatabase)

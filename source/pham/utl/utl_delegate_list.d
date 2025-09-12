@@ -11,12 +11,32 @@
 
 module pham.utl.utl_delegate_list;
 
+import std.traits : isDelegate, ReturnType;
+
 import pham.utl.utl_array_static : StaticArray;
 
-struct DelegateList(Args...)
+template DelegateList(Args...)
+{
+    private alias DelegateHandler = void delegate(Args args);
+    //pragma(msg, DelegateHandler.stringof);
+    
+    alias DelegateList = DelegateListOf!(DelegateHandler, Args);
+}
+
+template DelegateList(DelegateHandler, Args...)
+if (isDelegate!DelegateHandler)
+{
+    //pragma(msg, DelegateHandler.stringof);
+    
+    alias DelegateList = DelegateListOf!(DelegateHandler, Args);
+}
+
+struct DelegateListOf(DelegateHandler, Args...)
+if (isDelegate!DelegateHandler)
 {
 public:
-    alias DelegateHandler = void delegate(Args args) @safe;
+    alias Return = ReturnType!DelegateHandler;
+    //pragma(msg, Return.stringof);
 
 public:
     @disable this(this);
@@ -41,52 +61,40 @@ public:
             static assert(0);
     }
 
-    void opCall(Args args) @safe
+    Return opCall()(Args args)
     {
         switch (items.length)
         {
             // Special call to avoid duplicate delegate array (@NoGC)
             case 1:
-                items[0](args);
-                return;
+                return items[0](args);
 
             // Special call to avoid duplicate delegate array (@NoGC)
             case 2:
                 DelegateHandler[2] h2 = items[0..2];
-                h2[0](args);
-                h2[1](args);
-                return;
+                return call(h2[], args);
 
             // Special call to avoid duplicate delegate array (@NoGC)
             case 3:
                 DelegateHandler[3] h3 = items[0..3];
-                h3[0](args);
-                h3[1](args);
-                h3[2](args);
-                return;
+                return call(h3[], args);
 
             // Special call to avoid duplicate delegate array (@NoGC)
             case 4:
                 DelegateHandler[4] h4 = items[0..4];
-                h4[0](args);
-                h4[1](args);
-                h4[2](args);
-                h4[3](args);
-                return;
+                return call(h4[], args);
 
             default:
                 // Always make a copy to avoid skip/misbehavior if handler removes
                 // any from the list that means the lifetime of the caller instance
                 // must be out lived while notifying
-                auto hn = items[].dup;
-                foreach (item; hn)
-                {
-                    item(args);
-                }
-                return;
+                return call(items[].dup, args);
 
             case 0:
-                return;
+                static if (is(Return == void))
+                    return;
+                else
+                    return Return.init;
         }
     }
 
@@ -134,6 +142,23 @@ public:
         return items.length;
     }
 
+private:
+    Return call()(scope DelegateHandler[] handlers, Args args)
+    {
+        static if (is(Return == void))
+        {
+            foreach (handler; handlers)
+                handler(args);
+        }
+        else
+        {
+            Return result;
+            foreach (handler; handlers)
+                result = handler(args);
+            return result;
+        }
+    }
+    
 private:
     StaticArray!(DelegateHandler, 4) items;
 }

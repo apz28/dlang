@@ -276,7 +276,15 @@ enum FbIsc
     isc_spb_password_enc = isc_dpb_password_enc, // 30
     isc_spb_connect_timeout = isc_dpb_connect_timeout, // 57
     isc_spb_dummy_packet_interval = isc_dpb_dummy_packet_interval, // 58
+    isc_spb_specific_auth_data = isc_spb_trusted_auth,
     isc_spb_sql_role_name = isc_dpb_sql_role_name, // 60
+    isc_spb_prp_am_readonly = 39,
+    isc_spb_prp_am_readwrite = 40,
+	isc_spb_prp_force_shutdown = 41,
+	isc_spb_prp_attachments_shutdown = 42,
+	isc_spb_prp_transactions_shutdown = 43,
+	isc_spb_prp_shutdown_mode = 44,
+	isc_spb_prp_online_mode = 45,
     isc_spb_command_line = 105,
     isc_spb_dbname = 106,
     isc_spb_verbose = 107,
@@ -297,12 +305,23 @@ enum FbIsc
     isc_spb_os_user = 122,
     isc_spb_config = 123,
     isc_spb_expected_db = 124,
-    isc_spb_specific_auth_data = isc_spb_trusted_auth,
 
-    // backup
+	isc_spb_prp_sm_normal = 0,
+	isc_spb_prp_sm_multi = 1,
+	isc_spb_prp_sm_single = 2,
+	isc_spb_prp_sm_full = 3,
+
+    // Backup
     isc_spb_bkp_file = 5,
     isc_spb_bkp_factor = 6,
     isc_spb_bkp_length = 7,
+	isc_spb_bkp_skip_data = 8,
+	isc_spb_bkp_stat = 15,
+	isc_spb_bkp_keyholder = 16,
+	isc_spb_bkp_keyname = 17,
+	isc_spb_bkp_crypt = 18,
+	isc_spb_bkp_include_data = 19,
+	isc_spb_bkp_parallel_workers = 21,
     isc_spb_bkp_ignore_checksums = 0x01,
     isc_spb_bkp_ignore_limbo = 0x02,
     isc_spb_bkp_metadata_only = 0x04,
@@ -310,9 +329,24 @@ enum FbIsc
     isc_spb_bkp_old_descriptions = 0x10,
     isc_spb_bkp_non_transportable = 0x20,
     isc_spb_bkp_convert = 0x40,
-    isc_spb_bkp_expand = 0x8,
+    isc_spb_bkp_expand = 0x80,
+	isc_spb_bkp_no_triggers = 0x8000,
+	isc_spb_bkp_zip = 0x010000,
+	isc_spb_bkp_direct_io = 0x020000,
 
-    // restore
+	// NBackup
+	isc_spb_nbk_level = 5,
+	isc_spb_nbk_file = 6,
+	isc_spb_nbk_direct = 7,
+	isc_spb_nbk_no_triggers = 0x01,
+
+    // Restore
+    isc_spb_res_metadata_only = isc_spb_bkp_metadata_only,
+    isc_spb_res_parallel_workers = isc_spb_bkp_parallel_workers,
+    isc_spb_res_skip_data = isc_spb_bkp_skip_data,
+    isc_spb_res_am_readonly = isc_spb_prp_am_readonly,
+    isc_spb_res_am_readwrite = isc_spb_prp_am_readwrite,
+    isc_spb_res_stat = isc_spb_bkp_stat,
     isc_spb_res_buffers = 9,
     isc_spb_res_page_size = 10,
     isc_spb_res_length = 11,
@@ -325,7 +359,7 @@ enum FbIsc
     isc_spb_res_create = 0x2000,
     isc_spb_res_use_all_space = 0x4000,
 
-    // trace
+    // Trace
     isc_spb_trc_id = 1,
     isc_spb_trc_name = 2,
     isc_spb_trc_cfg = 3,
@@ -345,6 +379,7 @@ enum FbIsc
     isc_spb_sts_nocreation = 0x80,
 
     // isc_action_svc_repair params
+    isc_spb_rpr_par_workers = 52,
     isc_spb_rpr_validate_db = 0x01,
     isc_spb_rpr_sweep_db = 0x02,
     isc_spb_rpr_mend_db = 0x04,
@@ -379,8 +414,9 @@ enum FbIsc
     isc_action_svc_drop_mapping = 28,
     isc_action_svc_display_user_adm = 29,
     isc_action_svc_last = 30,
+    isc_action_svc_nfix = 31, // Fixup database after file system copy
 
-	// Security Service
+	// Security Service items
 	isc_spb_sec_userid = 5,
 	isc_spb_sec_groupid = 6,
 	isc_spb_sec_username = 7,
@@ -389,6 +425,7 @@ enum FbIsc
 	isc_spb_sec_firstname = 10,
 	isc_spb_sec_middlename = 11,
 	isc_spb_sec_lastname = 12,
+    isc_spb_sec_admin = 13,
 
     dsql_close = 1,
     dsql_drop = 2,

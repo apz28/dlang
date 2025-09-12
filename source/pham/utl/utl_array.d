@@ -132,6 +132,22 @@ do
     const currentLength = array.length;
     const allocCapacity = arrayCalcCapacity(currentLength, additionalLength, T.sizeof);
 
+    static auto finalAttribute() @nogc nothrow pure @safe
+    {
+        static if (is(T == struct) && __traits(hasMember, T, "xdtor"))
+            return GC.BlkAttr.FINALIZE;
+        else
+            return GC.BlkAttr.NONE;
+    }
+
+    static auto scanAttribute() @nogc nothrow pure @safe
+    {
+        static if (is(T == void) || hasIndirections!T)
+            return GC.BlkAttr.NONE;
+        else
+            return GC.BlkAttr.NO_SCAN;
+    }
+
     if (__ctfe)
     {
         static if (__traits(compiles, { T[] t; t.reserve(1); t.length = 1; }))
@@ -152,14 +168,6 @@ do
         // Clear out previous garbage to avoid runtime pinned memory?
         static if (arrayZeroNeeded!T)
             zeroInit = true;
-
-        auto blockAttribute() @nogc nothrow pure @safe
-        {
-            static if (hasIndirections!T || is(T == void))
-                return GC.BlkAttr.NONE;
-            else
-                return GC.BlkAttr.NO_SCAN;
-        }
 
         const allocSize = arrayMallocSize(allocCapacity, T.sizeof);
 
@@ -184,7 +192,7 @@ do
             }
         }
 
-        auto bi = GC.qalloc(allocSize, blockAttribute);
+        auto bi = GC.qalloc(allocSize, finalAttribute | scanAttribute);
         debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "(currentLength=", currentLength, ", allocCapacity=", allocCapacity
             , ", allocSize=", allocSize, ", bi.size=", bi.size, ", T.sizeof=", T.sizeof, ")");
 

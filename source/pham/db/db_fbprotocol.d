@@ -1009,6 +1009,14 @@ public:
         writer.flush();
     }
 
+    final FbIscGenericResponse serviceRead()
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+        auto deferredInfo = FbDeferredInfo.init;
+        return readGenericResponse(deferredInfo, null);
+    }
+
     final void serviceTraceStartWrite(uint8 action, FbHandle sessionId)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(action=", action, ", sessionId=", sessionId, ")");
@@ -1019,15 +1027,7 @@ public:
 			paramWriter.writeInt32(FbIsc.isc_spb_trc_id, sessionId);
         const paramBytes = paramWriter.peekBytes();
 
-        serviceTraceStartWrite(paramBytes);
-    }
-
-    final FbIscGenericResponse serviceTraceRead()
-    {
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
-
-        auto deferredInfo = FbDeferredInfo.init;
-        return readGenericResponse(deferredInfo, null);
+        serviceStartWrite(paramBytes);
     }
 
     final void serviceTraceStartWrite(string sessionName, string configuration)
@@ -1041,10 +1041,21 @@ public:
 		paramWriter.writeChars2(FbIsc.isc_spb_trc_cfg, configuration);
         const paramBytes = paramWriter.peekBytes();
 
-        serviceTraceStartWrite(paramBytes);
+        serviceStartWrite(paramBytes);
     }
 
-    final void serviceTraceStartWrite(scope const(ubyte)[] spb)
+    final void serviceStartWrite(uint8 action)
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(action=", action, ")");
+
+        auto paramWriter = FbServiceWriter(connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(action);
+        const paramBytes = paramWriter.peekBytes();
+
+        serviceStartWrite(paramBytes);
+    }
+
+    final void serviceStartWrite(scope const(ubyte)[] spb)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(spb.length=", spb.length, ")");
 
@@ -1062,6 +1073,51 @@ public:
         }
 
         writer.flush();
+    }
+
+    final void serviceUserAddWrite(scope const(FbIscUserInfo) userInfo)
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+        auto paramWriter = FbServiceWriter(connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_add_user);
+		paramWriter.writeChars2(FbIsc.isc_spb_sec_username, userInfo.userName);
+		paramWriter.writeChars2(FbIsc.isc_spb_sec_password, userInfo.userPassword);
+		paramWriter.writeChars2If(FbIsc.isc_spb_sec_firstname, userInfo.firstName);
+		paramWriter.writeChars2If(FbIsc.isc_spb_sec_middlename, userInfo.middleName);
+		paramWriter.writeChars2If(FbIsc.isc_spb_sec_lastname, userInfo.lastName);
+        paramWriter.writeInt32If(FbIsc.isc_spb_sec_userid, userInfo.userId);
+		paramWriter.writeInt32If(FbIsc.isc_spb_sec_groupid, userInfo.groupId);
+        paramWriter.writeChars2If(FbIsc.isc_spb_sec_groupname, userInfo.groupName);
+		paramWriter.writeChars2If(FbIsc.isc_spb_sql_role_name, userInfo.roleName);
+        const paramBytes = paramWriter.peekBytes();
+
+        serviceStartWrite(paramBytes);
+    }
+
+    final void serviceUserDeleteWrite(string userName, string roleName)
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+        auto paramWriter = FbServiceWriter(connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_delete_user);
+		paramWriter.writeChars2(FbIsc.isc_spb_sec_username, userName);
+		paramWriter.writeChars2If(FbIsc.isc_spb_sql_role_name, roleName);
+        const paramBytes = paramWriter.peekBytes();
+
+        serviceStartWrite(paramBytes);
+    }
+
+    final void serviceUserGetWrite(string userName)
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+        auto paramWriter = FbServiceWriter(connection, FbIsc.isc_spb_version2);
+		paramWriter.writeType(FbIsc.isc_action_svc_display_user);
+		paramWriter.writeChars2(FbIsc.isc_spb_sec_username, userName);
+        const paramBytes = paramWriter.peekBytes();
+
+        serviceStartWrite(paramBytes);
     }
 
     final FbIscObject startTransactionRead()
@@ -1327,6 +1383,7 @@ public:
         return _connection;
     }
 
+    // Protocol version
     @property final int32 serverVersion() const nothrow pure @nogc
     {
         return _serverVersion;
@@ -2547,7 +2604,7 @@ protected:
 
 private:
     FbConnection _connection;
-    int32 _serverVersion;
+    int32 _serverVersion; // Protocol version
 }
 
 // If change, please update FbIscBlobSize

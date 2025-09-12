@@ -18,7 +18,7 @@ import std.system : Endian;
 import std.traits : isIntegral;
 import std.typecons : Flag, No, Yes;
 
-debug(debug_pham_db_db_fbbuffer) import std.stdio : writeln;
+debug(debug_pham_db_db_fbbuffer) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_array_static : ShortStringBuffer;
@@ -42,7 +42,7 @@ private bool isValidLength(const(size_t) length, const(bool) isLimitLength, cons
     return (!isLimitLength && length <= maxLength) || (isLimitLength && length <= limitLength);
 }
 
-struct FbBufferStorage
+struct FbParameterStorage
 {
 @safe:
 
@@ -112,7 +112,7 @@ public:
 
     this(FbConnection connection) nothrow
     {
-        this.storage = FbBufferStorage(connection);
+        this.storage = FbParameterStorage(connection);
     }
 
     ~this() nothrow
@@ -182,7 +182,7 @@ public:
     }
 
 private:
-    FbBufferStorage storage;
+    FbParameterStorage storage;
 }
 
 struct FbBatchWriter
@@ -195,7 +195,7 @@ public:
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
-        this.storage = FbBufferStorage(connection, versionId);
+        this.storage = FbParameterStorage(connection, versionId);
     }
 
     ~this() nothrow
@@ -280,7 +280,7 @@ public:
     }
 
 private:
-    FbBufferStorage storage;
+    FbParameterStorage storage;
 }
 
 enum FbBlrWriteType : ubyte
@@ -300,12 +300,12 @@ public:
 
     this(DbWriteBuffer buffer) nothrow
     {
-        this.storage = FbBufferStorage(buffer);
+        this.storage = FbParameterStorage(buffer);
     }
 
     this(FbConnection connection) nothrow
     {
-        this.storage = FbBufferStorage(connection);
+        this.storage = FbParameterStorage(connection);
     }
 
     ~this() nothrow
@@ -512,7 +512,7 @@ public:
     }
 
 private:
-    FbBufferStorage storage;
+    FbParameterStorage storage;
 }
 
 struct FbConnectionWriter
@@ -525,7 +525,7 @@ public:
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
-        this.storage = FbBufferStorage(connection, versionId);
+        this.storage = FbParameterStorage(connection, versionId);
     }
 
     ~this() nothrow
@@ -663,7 +663,7 @@ private:
     }
 
 private:
-    FbBufferStorage storage;
+    FbParameterStorage storage;
 }
 
 struct FbServiceWriter
@@ -676,7 +676,7 @@ public:
 
     this(FbConnection connection, uint8 versionId) nothrow
     {
-        this.storage = FbBufferStorage(connection, versionId);
+        this.storage = FbParameterStorage(connection, versionId);
     }
 
     ~this() nothrow
@@ -841,11 +841,20 @@ public:
 		storage.writer.writeInt32(v);
 	}
 
+	void writeInt32If(uint8 type, int32 v) nothrow
+	{
+        if (v)
+        {
+            storage.writer.writeUInt8(type);
+            storage.writer.writeInt32(v);
+        }
+	}
+
     void writeType(uint8 type) nothrow
     {
         storage.writer.writeUInt8(type);
     }
-    
+
     void writeVersion() nothrow
     {
         storage.writer.writeUInt8(versionId);
@@ -858,7 +867,7 @@ public:
     }
 
 private:
-    FbBufferStorage storage;
+    FbParameterStorage storage;
 }
 
 struct FbTransactionWriter
@@ -871,7 +880,7 @@ public:
 
     this(FbConnection connection) nothrow
     {
-        this.storage = FbBufferStorage(connection);
+        this.storage = FbParameterStorage(connection);
     }
 
     ~this() nothrow
@@ -942,7 +951,7 @@ public:
     }
 
 private:
-    FbBufferStorage storage;
+    FbParameterStorage storage;
 }
 
 struct FbXdrReader
@@ -1701,7 +1710,7 @@ private:
     DbBufferOwner _bufferOwner;
 }
 
-void writeMultiParts(ref FbBufferStorage storage, uint8 type, scope const(ubyte)[] v) nothrow @safe
+void writeMultiParts(ref FbParameterStorage storage, uint8 type, scope const(ubyte)[] v) nothrow @safe
 {
     uint8 partSequence = 0;
     while (v.length)

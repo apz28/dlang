@@ -17,52 +17,127 @@ import std.ascii : newline;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.db.db_convert : limitRangeTimeAsMilliSecond;
-import pham.db.db_fbtype;
+import pham.db.db_type : int32, uint32;
+import pham.db.db_fbisc;
+import pham.db.db_fbtype : FbHandle;
 
-enum FbStatistical
+enum FbBackupFlags : int32
 {
-	dataPages,
+	convert = FbIsc.isc_spb_bkp_convert,
+	expand = FbIsc.isc_spb_bkp_expand,
+	ignoreChecksums = FbIsc.isc_spb_bkp_ignore_checksums,
+	ignoreLimbo = FbIsc.isc_spb_bkp_ignore_limbo,
+	metaDataOnly = FbIsc.isc_spb_bkp_metadata_only,
+	noDatabaseTriggers = FbIsc.isc_spb_bkp_no_triggers,
+	noGarbageCollect = FbIsc.isc_spb_bkp_no_garbage_collect,
+	nonTransportable = FbIsc.isc_spb_bkp_non_transportable,
+	oldDescriptions = FbIsc.isc_spb_bkp_old_descriptions,
+}
+
+enum FbBackupRestoreStatistic : ubyte
+{
+	pageReads,
+	pageWrites,
+	timeDelta,
+	totalTime,
+}
+
+enum FbNBackupFlags : int32
+{
+    noDatabaseTriggers = FbIsc.isc_spb_nbk_no_triggers,
+}
+
+enum FbRepairFlags : int32
+{
+	checkDatabase = FbIsc.isc_spb_rpr_check_db,
+	full = FbIsc.isc_spb_rpr_full,
+	ignoreChecksum = FbIsc.isc_spb_rpr_ignore_checksum,
+	killShadows = FbIsc.isc_spb_rpr_kill_shadows,
+	mendDatabase = FbIsc.isc_spb_rpr_mend_db,
+	sweepDatabase = FbIsc.isc_spb_rpr_sweep_db,
+	validateDatabase = FbIsc.isc_spb_rpr_validate_db,
+}
+
+enum FbRestoreFlags : int32
+{
+	create = FbIsc.isc_spb_res_create,
+	deactivateIndexes = FbIsc.isc_spb_res_deactivate_idx,
+	individualCommit = FbIsc.isc_spb_res_one_at_a_time,
+	metaDataOnly = FbIsc.isc_spb_res_metadata_only,
+	noShadow = FbIsc.isc_spb_res_no_shadow,
+	noValidity = FbIsc.isc_spb_res_no_validity,
+	replace = FbIsc.isc_spb_res_replace,
+	useAllSpace = FbIsc.isc_spb_res_use_all_space,
+}
+
+enum FbShutdownType : ubyte
+{
+	force,
+	attachments,
+	transactions,
+}
+
+version(none)
+enum FbShutdownMode : ubyte
+{
+	forced,
+	denyConnection,
+	denyTransaction,
+}
+
+enum FbShutdownActivateMode : ubyte
+{
+	normal,
+	full,
+	multi,
+	single,
+}
+
+version(none)
+enum FbStatistical : ubyte
+{
 	databaseLog,
+	dataPages,
 	headerPages,
 	indexPages,
 	systemTablesRelations,
 }
 
-enum FbTraceDatabaseEvent
+enum FbTraceDatabaseEvent : ubyte
 {
+	blrRequests,
 	connections,
-	transactions,
-	statementPrepare,
-	statementFree,
-	statementStart,
-	statementFinish,
-	procedureStart,
-	procedureFinish,
-	functionStart,
+	context,
+	dynRequests,
+	errors,
+	explainPlan,
 	functionFinish,
+	functionStart,
+	initFini,
+	printBLR,
+	printDYN,
+	printPerf,
+	printPlan,
+	procedureFinish,
+	procedureStart,
+	statementFinish,
+	statementFree,
+	statementPrepare,
+	statementStart,
+	sweep,
+	transactions,
 	triggerStart,
 	triggerFinish,
-	context,
-	errors,
 	warnings,
-	initFini,
-	sweep,
-	printPlan,
-	explainPlan,
-	printPerf,
-	blrRequests,
-	printBLR,
-	dynRequests,
-	printDYN,
 }
 
-enum FbTraceServiceEvent
+enum FbTraceServiceEvent : ubyte
 {
-	services,
-	serviceQuery,
 	errors,
-	warnings,
 	initFini,
+	serviceQuery,
+	services,
+	warnings,
 }
 
 enum FbTraceVersion : ubyte
@@ -70,6 +145,61 @@ enum FbTraceVersion : ubyte
 	detect,
 	version1,
 	version2,
+}
+
+struct FbBackupFile
+{
+	string fileName;
+	uint32 length;
+}
+
+struct FbBackupConfiguration
+{
+    string databaseName; // If empty, it will use connection databaseName
+	FbBackupFile[] backupFiles;
+	string skipData;
+	FbBackupFlags options;
+	EnumSet!FbBackupRestoreStatistic statistics;
+	uint32 factor;
+    uint32 parallelWorkers;
+	bool verbose;
+}
+
+struct FbNBackupConfiguration
+{
+    string databaseName; // If empty, it will use connection databaseName
+    string backupFileName;
+    FbNBackupFlags options;
+    uint32 level;
+    bool directIO;
+}
+
+struct FbNRestoreConfiguration
+{
+    string databaseName; // If empty, it will use connection databaseName
+	FbBackupFile[] backupFiles;
+    bool directIO;
+}
+
+struct FbRepairConfiguration
+{
+    string databaseName; // If empty, it will use connection databaseName
+    FbRepairFlags options;
+    uint32 parallelWorkers;
+}
+
+struct FbRestoreConfiguration
+{
+    string databaseName; // If empty, it will use connection databaseName
+	FbBackupFile[] backupFiles;
+    string skipData;
+	FbRestoreFlags options;
+    EnumSet!FbBackupRestoreStatistic statistics;
+    uint32 pageBuffers;
+    uint32 pageSize;
+    uint32 parallelWorkers;
+    bool readOnly;
+	bool verbose;
 }
 
 struct FbTraceDatabaseConfiguration
@@ -126,6 +256,59 @@ public:
         return result.traceLineToIf()
             .traceRawTo("database")
             .traceRegExTo(databaseName, version2Sep)
+            .traceLineTo()
+            .traceRawTo("{")
+            .traceLineTo()
+            .buildConfiguration(this, version2Sep, FbTraceVersion.version2)
+            .traceRawTo("}");
+	}
+}
+
+struct FbTraceServiceConfiguration
+{
+@safe:
+
+public:
+	bool enabled;
+	EnumSet!FbTraceServiceEvent events;
+	string includeFilter;
+	string excludeFilter;
+	string includeGdsCodes;
+	string excludeGdsCodes;
+
+	ref Appender!string buildConfiguration(return ref Appender!string result, FbTraceVersion traceVersion) const
+    in
+    {
+        assert(traceVersion != FbTraceVersion.detect);
+    }
+    do
+	{
+		final switch (traceVersion)
+		{
+			case FbTraceVersion.version1:
+				return buildConfiguration1(result);
+			case FbTraceVersion.version2:
+				return buildConfiguration2(result);
+			case FbTraceVersion.detect:
+				assert(0);
+		}
+	}
+
+    // XML like format
+	ref Appender!string buildConfiguration1(return ref Appender!string result) const
+	{
+        return result.traceLineToIf()
+            .traceRawTo("<services>")
+            .traceLineTo()
+            .buildConfiguration(this, version1Sep, FbTraceVersion.version1)
+            .traceRawTo("</services>");
+	}
+
+    // JSON like format
+	ref Appender!string buildConfiguration2(return ref Appender!string result) const
+	{
+		return result.traceLineToIf()
+            .traceRawTo("services")
             .traceLineTo()
             .traceRawTo("{")
             .traceLineTo()
@@ -192,59 +375,6 @@ private ref Appender!string buildConfiguration(return ref Appender!string result
     return result;
 }
 
-struct FbTraceServiceConfiguration
-{
-@safe:
-
-public:
-	bool enabled;
-	EnumSet!FbTraceServiceEvent events;
-	string includeFilter;
-	string excludeFilter;
-	string includeGdsCodes;
-	string excludeGdsCodes;
-
-	ref Appender!string buildConfiguration(return ref Appender!string result, FbTraceVersion traceVersion) const
-    in
-    {
-        assert(traceVersion != FbTraceVersion.detect);
-    }
-    do
-	{
-		final switch (traceVersion)
-		{
-			case FbTraceVersion.version1:
-				return buildConfiguration1(result);
-			case FbTraceVersion.version2:
-				return buildConfiguration2(result);
-			case FbTraceVersion.detect:
-				assert(0);
-		}
-	}
-
-    // XML like format
-	ref Appender!string buildConfiguration1(return ref Appender!string result) const
-	{
-        return result.traceLineToIf()
-            .traceRawTo("<services>")
-            .traceLineTo()
-            .buildConfiguration(this, version1Sep, FbTraceVersion.version1)
-            .traceRawTo("</services>");
-	}
-
-    // JSON like format
-	ref Appender!string buildConfiguration2(return ref Appender!string result) const
-	{
-		return result.traceLineToIf()
-            .traceRawTo("services")
-            .traceLineTo()
-            .traceRawTo("{")
-            .traceLineTo()
-            .buildConfiguration(this, version2Sep, FbTraceVersion.version2)
-            .traceRawTo("}");
-	}
-}
-
 private ref Appender!string buildConfiguration(return ref Appender!string result, ref const(FbTraceServiceConfiguration) configuration, string sep, FbTraceVersion traceVersion) @safe
 {
 	result.traceBoolTo("enabled", sep, configuration.enabled)
@@ -263,6 +393,54 @@ private ref Appender!string buildConfiguration(return ref Appender!string result
     }
 
     return result;
+}
+
+ref Appender!string buildConfiguration(return ref Appender!string result, scope const(EnumSet!FbBackupRestoreStatistic) statistics) nothrow @safe
+{
+	if (statistics.totalTime)
+		result.put("T");
+	if (statistics.timeDelta)
+		result.put("D");
+	if (statistics.pageReads)
+		result.put("R");
+	if (statistics.pageWrites)
+		result.put("W");
+
+    return result;
+}
+
+string buildConfiguration(scope const(EnumSet!FbBackupRestoreStatistic) statistics) nothrow @safe
+{
+    Appender!string result;
+    return buildConfiguration(result, statistics).data;
+}
+
+ubyte toIscCode(FbShutdownActivateMode mode) @nogc nothrow pure @safe
+{
+    final switch (mode)
+	{
+		case FbShutdownActivateMode.normal:
+            return FbIsc.isc_spb_prp_sm_normal;
+		case FbShutdownActivateMode.full:
+            return FbIsc.isc_spb_prp_sm_full;
+		case FbShutdownActivateMode.multi:
+            return FbIsc.isc_spb_prp_sm_multi;
+		case FbShutdownActivateMode.single:
+            return FbIsc.isc_spb_prp_sm_single;
+	}
+}
+
+ubyte toIscCode(FbShutdownType type) @nogc nothrow pure @safe
+{
+    final switch (type)
+	{
+		case FbShutdownType.force:
+            return FbIsc.isc_spb_prp_force_shutdown;
+		case FbShutdownType.attachments:
+            return FbIsc.isc_spb_prp_attachments_shutdown;
+		case FbShutdownType.transactions:
+            return FbIsc.isc_spb_prp_transactions_shutdown;
+	}
 }
 
 enum version1Sep = " ";

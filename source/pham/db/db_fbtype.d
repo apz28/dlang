@@ -1149,6 +1149,12 @@ public:
         return parseDatabaseInfo(data);
     }
 
+    void reset() nothrow
+    {
+        connectionCount = 0;
+        databaseNames = null;
+    }
+
 public:
     int32 connectionCount;
     string[] databaseNames;
@@ -1627,16 +1633,10 @@ private:
                 return *value.peek!int();
             case VariantType.string:
                 auto s = *value.peek!string();
-                if (s.length)
-                    return s.to!int();
-                else
-                    return 0;
+                return s.length ? s.to!int() : 0;
             case VariantType.dynamicArray: // const(char)[]
                 auto s2 = *value.peek!(const(char)[])();
-                if (s2.length)
-                    return s2.to!int();
-                else
-                    return 0;
+                return s2.length ? s2.to!int() : 0;
             default:
                 assert(0);
         }
@@ -1730,7 +1730,7 @@ struct FbIscOPResponse
 {
 nothrow @safe:
 
-    void reset() @trusted
+    void reset()
     {
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(op=", op, ")");
 
@@ -1876,24 +1876,36 @@ public:
     FbIscServerPluginKey[] pluginKeys;
 }
 
-enum FbIscServiceInfoValueKind : ubyte
-{
-    buffer,
-    database,
-    int32,
-    string,
-    user,
-}
-
 struct FbIscServiceInfoResponse
 {
-    int code;
-    const(char)[] strValue;
-    const(ubyte)[] bufferValue;
+nothrow @safe:
+    enum ValueKind : ubyte
+    {
+        unassigned,
+        int32,
+        buffer,
+        database,
+        string,
+        user,
+    }
+
+    void reset() 
+    {
+        code = int32Value = 0;
+        strValue = null;
+        byteValues = null;
+        databaseInfoValue.reset();
+        userInfoValues = null;
+        valueKind = ValueKind.unassigned;
+    }
+    
+    string strValue;
+    ubyte[] byteValues;
     FbIscDatabaseInfo databaseInfoValue;
-    FbIscUserInfo[] userInfoValue;
+    FbIscUserInfo[] userInfoValues;
     int32 int32Value;
-    FbIscServiceInfoValueKind valueKind;
+    int32 code;
+    ValueKind valueKind;
 }
 
 struct FbIscSqlResponse
@@ -2098,8 +2110,8 @@ public:
 
     void reset()
     {
-        userName = userPassword = firstName = lastName = middleName = groupName = null; //roleName = null;
-        userId = groupId = 0;
+        userName = userPassword = firstName = lastName = middleName = groupName = roleName = null;
+        admin = userId = groupId = 0;
     }
 
 public:
@@ -2108,10 +2120,11 @@ public:
 	string firstName;
 	string lastName;
 	string middleName;
-	int32 userId;
+    int32 admin;
 	int32 groupId;
+	int32 userId;
 	string groupName;
-	//string roleName;
+	string roleName;
 }
 
 DbParameterDirection fbParameterModeToDirection(const(int16) mode)
@@ -2525,6 +2538,8 @@ private const(char)[] parseStringImpl(return const(ubyte)[] data, ref size_t ind
 
 FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
 {
+    debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(data.length=", data.length, ")");
+
     FbIscUserInfo[] result;
 
     if (data.length <= 2)
@@ -2538,6 +2553,8 @@ FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
         const typ = data[pos++];
         if (typ == FbIsc.isc_info_end)
             break;
+
+        //debug writeln("\t", "typ=", typ, ", currentUser.userName=", currentUser.userName);
 
         switch (typ)
         {
@@ -2569,6 +2586,10 @@ FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
                 currentUser.groupId = parseInt32!true(data, pos, 4, typ);
                 break;
 
+            case FbIsc.isc_spb_sec_admin:
+                currentUser.admin = parseInt32!true(data, pos, 4, typ);
+                break;
+
             case FbIsc.isc_spb_sec_groupname:
                 currentUser.groupName = parseString!true(data, pos, typ).idup;
                 break;
@@ -2582,6 +2603,9 @@ FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
                 throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
         }
     }
+
+    if (currentUser.userName.length)
+        result ~= currentUser;
 
     return result;
 }

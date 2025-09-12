@@ -13,8 +13,7 @@ module pham.db.db_auth;
 
 import std.conv : to;
 
-debug(debug_pham_db_db_auth) import std.stdio : writeln;
-
+debug(debug_pham_db_db_auth) import pham.db.db_debug;
 public import pham.cp.cp_cipher : CipherBuffer, CipherRawKey;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_object : VersionString;

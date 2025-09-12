@@ -955,7 +955,8 @@ public:
      * Params:
      *  command = this command instance
      */
-    DelegateList!(DbCommand) columnCreatedEvents;
+    alias ColumnCreatedEvent = void delegate(DbCommand) @safe;
+    DelegateList!(ColumnCreatedEvent, DbCommand) columnCreatedEvents;
 
     /**
      * Delegate to notify when there are notification messages from server
@@ -963,7 +964,8 @@ public:
      *  sender = this command instance
      *  messages = array of DbNotificationMessages
      */
-    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessageEvents;
+    alias NotifyMessageEvent = void delegate(Object, DbNotificationMessage[]) @safe;
+    DelegateList!(NotifyMessageEvent, Object, DbNotificationMessage[]) notifyMessageEvents;
     DbNotificationMessage[] notificationMessages;
 
     /**
@@ -972,7 +974,8 @@ public:
      *  command = this command instance
      *  state = new command state value
      */
-    DelegateList!(DbCommand, DbCommandState) stateChangeEvents;
+    alias StateChangeEvent = void delegate(DbCommand, DbCommandState) @safe;
+    @safe DelegateList!(StateChangeEvent, DbCommand, DbCommandState) stateChangeEvents;
 
     DbCustomAttributeList customAttributes;
     Duration logTimmingWarningDur;
@@ -2043,9 +2046,9 @@ public:
         const previousState = state;
         if (previousState == DbConnectionState.opened && connectionType == DbConnectionType.connect)
             return this;
-            
+
         checkInactive();
-        
+
         if (auto log = canTraceLog())
             log.infof("%s.connection.open()", forLogInfo());
 
@@ -2220,7 +2223,8 @@ public:
      *  connectin = this connection instance
      *  newState = new state value
      */
-    nothrow @safe DelegateList!(DbConnection, DbConnectionState) beginStateChangeEvents;
+    alias BeginStateChangeEvent = void delegate(DbConnection, DbConnectionState) @safe;
+    DelegateList!(BeginStateChangeEvent, DbConnection, DbConnectionState) beginStateChangeEvents;
 
     /**
      * Delegate to get notify when a state change
@@ -2229,7 +2233,8 @@ public:
      *  connectin = this connection instance
      *  oldState = old state value
      */
-    nothrow @safe DelegateList!(DbConnection, DbConnectionState) endStateChangeEvents;
+    alias EndStateChangeEvent = void delegate(DbConnection, DbConnectionState) @safe;
+    DelegateList!(EndStateChangeEvent, DbConnection, DbConnectionState) endStateChangeEvents;
 
     /**
      * Delegate to get notify when there are notification messages from server
@@ -2237,7 +2242,8 @@ public:
      *  sender = this connection instance
      *  messages = array of DbNotificationMessages
      */
-    nothrow @safe DelegateList!(Object, DbNotificationMessage[]) notifyMessageEvents;
+    alias NotifyMessageEvent = void delegate(Object, DbNotificationMessage[]) @safe;
+    DelegateList!(NotifyMessageEvent, Object, DbNotificationMessage[]) notifyMessageEvents;
     DbNotificationMessage[] notificationMessages;
 
     /**

@@ -88,6 +88,23 @@ if (is(T == struct) || is(T == class))
         enum bool hasCallableWithParameterTypes = false;
 }
 
+enum HasPostblit : ubyte
+{
+    none, // Must be first to be 0 for if (...) usage
+    postBlit,
+    xpostBlit,
+}
+
+template hasPostblit(T)
+{
+    static if (__traits(hasMember, T, "__postblit") && !__traits(isDisabled, T.__postblit))
+        enum hasPostblit = HasPostblit.postBlit;
+    else static if (__traits(hasMember, T, "__xpostblit") && !__traits(isDisabled, T.__xpostblit))
+        enum hasPostblit = HasPostblit.xpostBlit;
+    else
+        enum hasPostblit = HasPostblit.none;
+}
+
 template hasUDA(alias symbol, alias attribute)
 {
     enum bool hasUDA = getUDAs!(symbol, attribute).length != 0;
@@ -299,4 +316,25 @@ unittest // isCallableWithParameterTypes
     static assert (isCallableWithParameterTypes!(deserializeMember, Deserializer, SerializableMemberOptions, size_t, Serializable));
     alias serializeMember = __traits(getMember, S, "serialize");
     static assert (isCallableWithParameterTypes!(serializeMember, Serializer, SerializableMemberOptions, Serializable));
+}
+
+unittest // hasPostblit
+{
+    static struct N {}
+    static struct P { this(this) {} }
+    static struct XP { P p; }
+    static struct D { @disable this(this); }
+    static struct XD { D d; }
+    
+    static assert(!hasPostblit!N);
+    static assert(hasPostblit!N == HasPostblit.none);
+    static assert(hasPostblit!P);
+    static assert(hasPostblit!P == HasPostblit.postBlit);
+    static assert(hasPostblit!XP);
+    static assert(hasPostblit!XP == HasPostblit.xpostBlit);
+
+    static assert(!hasPostblit!D);
+    static assert(hasPostblit!D == HasPostblit.none);
+    static assert(!hasPostblit!XD);
+    static assert(hasPostblit!XD == HasPostblit.none);
 }

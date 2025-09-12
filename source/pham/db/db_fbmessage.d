@@ -11,7 +11,7 @@
 
 module pham.db.db_fbmessage;
 
-debug(debug_pham_db_db_fbmessage) import std.stdio : writeln;
+debug(debug_pham_db_db_fbmessage) import pham.db.db_debug;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_object : singleton;
 
