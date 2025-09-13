@@ -17,7 +17,6 @@ import std.system : Endian;
 import pham.utl.utl_bit : fromBytes, Map32Bit, nativeToBytes, toBytes;
 import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
-import pham.utl.utl_convert : toString;
 import pham.utl.utl_result;
 import pham.utl.utl_text : simpleIndexOf;
 
@@ -1226,17 +1225,22 @@ struct IPv4AddressHelper
 @safe:
 
 public:
-    static void appendSections(ref Appender!string destination, scope const(ubyte)[] ipv4Address) nothrow pure
+    static ref Appender!string putSections(return ref Appender!string destination, scope const(ubyte)[] ipv4Address) nothrow pure
     {
-        .toString(destination, ipv4Address[0]);
-        destination.put('.');
-        .toString(destination, ipv4Address[1]);
-        destination.put('.');
-        .toString(destination, ipv4Address[2]);
-        destination.put('.');
-        .toString(destination, ipv4Address[3]);
+        import pham.utl.utl_convert : putNumber;
+        
+        return destination.putNumber(ipv4Address[0])
+            .put('.')
+            .putNumber(ipv4Address[1])
+            .put('.')
+            .putNumber(ipv4Address[2])
+            .put('.')
+            .putNumber(ipv4Address[3]);
     }
 
+    deprecated("please use IPv4AddressHelper.putSections")
+    alias appendSections = putSections;
+    
     static ResultIf!IPSocketAddress parse(scope const(char)[] address, const(bool) notImplicitFile = true) nothrow pure
     {
         ResultIf!IPSocketAddress error(size_t index) nothrow pure
@@ -1435,18 +1439,21 @@ public:
     static string toString(scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
     {
         auto buffer = Appender!string(IPSocketAddress.maxIPv4StringLength + (port ? 6+1: 0));
-        return toString(buffer, ipv4Address, port)[];
+        return toString(buffer, ipv4Address, port).data;
     }
 
     static ref Appender!string toString(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
     {
-        appendSections(destination, ipv4Address);
+        import pham.utl.utl_convert : putNumber;
+        
         if (port)
         {
-            destination.put(':');
-            .toString(destination, port);
+            return putSections(destination, ipv4Address)
+                .put(':')
+                .putNumber(port);
         }
-        return destination;
+        else
+            return putSections(destination, ipv4Address);
     }
 }
 
@@ -1462,8 +1469,10 @@ public:
     // Appends each of the numbers in address in indexed range [fromInclusive, toExclusive),
     // while also replacing the longest sequence of 0s found in that range with "::", as long
     // as the sequence is more than one 0.
-    static void appendSections(ref Appender!string destination, scope const(ushort)[] ipv6Address) nothrow pure
+    static ref Appender!string putSections(return ref Appender!string destination, scope const(ushort)[] ipv6Address) nothrow pure
     {
+        import pham.utl.utl_convert : putNumber;
+        
         // Find the longest sequence of zeros to be combined into a "::"
         const r = findCompressionRange(ipv6Address);
         bool needsColon = false;
@@ -1476,7 +1485,7 @@ public:
             {
                 if (needsColon)
                     destination.put(':');
-                .toString!16(destination, ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
+                destination.putNumber!16(ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
                 needsColon = true;
             }
 
@@ -1490,11 +1499,16 @@ public:
         {
             if (needsColon)
                 destination.put(':');
-            .toString!16(destination, ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
+            destination.putNumber!16(ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
             needsColon = true;
         }
+        
+        return destination;
     }
 
+    deprecated("please use IPv6AddressHelper.putSections")
+    alias appendSections = putSections;
+    
     static const(ubyte)[] extractIPv4Address(return scope const(ushort)[] ipv6Address) nothrow pure
     {
         return cast(const(ubyte)[])ipv6Address[6..8];
@@ -1745,11 +1759,13 @@ public:
     static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
     {
         auto buffer = Appender!string(IPSocketAddress.maxIPv6StringLength + (port ? 6+3: 0));
-        return toString(buffer, ipv6Address, scopeId, port)[];
+        return toString(buffer, ipv6Address, scopeId, port).data;
     }
 
     static ref Appender!string toString(return ref Appender!string destination, scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
     {
+        import pham.utl.utl_convert : putNumber;
+
         const ipv6Address2 = cast(const(ushort)[])ipv6Address;
 
         if (port)
@@ -1757,26 +1773,26 @@ public:
 
         if (shouldHaveIpv4Embedded(ipv6Address2))
         {
-            appendSections(destination, ipv6Address2[0..6]);
-            destination.put(':');
-            IPv4AddressHelper.appendSections(destination, extractIPv4Address(ipv6Address2));
+            putSections(destination, ipv6Address2[0..6])
+                .put(':');
+            IPv4AddressHelper.putSections(destination, extractIPv4Address(ipv6Address2));
         }
         else
         {
-            appendSections(destination, ipv6Address2);
+            putSections(destination, ipv6Address2);
         }
 
         if (scopeId != 0)
         {
-            destination.put('%');
-            .toString(destination, scopeId);
+            destination.put('%')
+                .putNumber(scopeId);
         }
 
         if (port)
         {
-            destination.put(']');
-            destination.put(':');
-            .toString(destination, port);
+            destination.put(']')
+                .put(':')
+                .putNumber(port);
         }
 
         return destination;

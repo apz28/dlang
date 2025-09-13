@@ -1042,7 +1042,7 @@ protected:
 
 class MyDatabase : DbDatabase
 {
-    import pham.utl.utl_convert : nToString = toString;
+    import pham.utl.utl_convert : putNumber;
 
 @safe:
 
@@ -1221,9 +1221,9 @@ public:
 
         auto buffer = Appender!string(40);
         return buffer.put("LIMIT ")
-            .nToString(rows)
+            .putNumber(rows)
             .put(" OFFSET ")
-            .nToString(offset)
+            .putNumber(offset)
             .data;
     }
 

@@ -87,13 +87,13 @@ char isQuoted(scope const(char)[] symbol) @nogc nothrow pure
 string makeCommandName(const(void*) command, uint counter)
 {
     import pham.utl.utl_array_append : Appender;
-    import pham.utl.utl_convert : nToString = toString;
+    import pham.utl.utl_convert : putNumber;
 
     auto result = Appender!string((size_t.sizeof * 2) + 10 + 2);
     return result.put('x') // Name must start with a character, so pick one
-        .nToString!16(cast(size_t)command)
+        .putNumber!16(cast(size_t)command)
         .put('_')
-        .nToString(counter)
+        .putNumber(counter)
         .data;
 }
 
@@ -108,7 +108,7 @@ string makeCommandName(const(void*) command, uint counter)
 string toSeparatedString(scope const(int)[] values, const(char)[] separator) pure
 {
     import pham.utl.utl_array_append : Appender;
-    import pham.utl.utl_convert : nToString = toString;
+    import pham.utl.utl_convert : putNumber;
 
     if (values.length == 0)
         return null;
@@ -118,7 +118,7 @@ string toSeparatedString(scope const(int)[] values, const(char)[] separator) pur
     {
         if (result.length)
             result.put(separator);
-        result.nToString(v);
+        result.putNumber(v);
     }
     return result.data;
 }

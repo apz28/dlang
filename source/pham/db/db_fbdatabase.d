@@ -2560,7 +2560,7 @@ protected:
 
 class FbDatabase : DbDatabase
 {
-    import pham.utl.utl_convert : nToString = toString;
+    import pham.utl.utl_convert : putNumber;
 
 @safe:
 
@@ -2713,9 +2713,9 @@ public:
 
         auto buffer = Appender!string(30);
         return buffer.put("ROWS ")
-            .nToString(offset + 1)
+            .putNumber(offset + 1)
             .put(" TO ")
-            .nToString(offset + rows)
+            .putNumber(offset + rows)
             .data;
     }
 
@@ -2727,7 +2727,7 @@ public:
 
         auto buffer = Appender!string(20);
         return buffer.put("FIRST(")
-            .nToString(rows)
+            .putNumber(rows)
             .put(')')
             .data;
     }

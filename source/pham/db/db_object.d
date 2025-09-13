@@ -403,12 +403,13 @@ protected:
 
     final string timerName() nothrow pure @trusted
     {
-        import pham.utl.utl_convert : toString;
+        import pham.utl.utl_convert : putNumber;
 
         static immutable string prefix = "DbCache_";
         auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
-        buffer.put(prefix);
-        return toString!16(buffer, this.asSizeT()).data;
+        return buffer.put(prefix)
+            .putNumber!16(this.asSizeT())
+            .data;
     }
 
     final unregisterWithTimer()

@@ -15,7 +15,6 @@ public import std.format : FormatException;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isSomeChar, isSomeString, Unqual;
 
-import pham.utl.utl_convert : toString;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek, JulianDate;
 import pham.dtm.dtm_tick;
 import pham.dtm.dtm_time : Time;
@@ -492,6 +491,7 @@ uint formattedWrite(Writer, Char)(scope auto ref Writer sink, scope ref FormatDa
 if (isOutputRange!(Writer, Char) && isSomeChar!Char)
 {
     import std.math.algebraic : abs;
+    import pham.utl.utl_convert : putNumber;
 
     void putAMorPM(bool space) nothrow @safe
     {
@@ -518,31 +518,31 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     if (fmtSpec.customSpecCount == 3)
                         put(sink, fmtValue.dayOfWeekName(setting, useShort));
                     else
-                        toString(sink, fmtValue.day, fmtSpec.customSpecCount);
+                        putNumber(sink, fmtValue.day, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customFraction: // time fraction, 1..3=msec, 4..7=usec
                     if (fmtSpec.customSpecCount <= Tick.millisMaxPrecision)
-                        toString(sink, fmtValue.millisecond, fmtSpec.customSpecCount);
+                        putNumber(sink, fmtValue.millisecond, fmtSpec.customSpecCount);
                     else
-                        toString(sink, fmtValue.tick, fmtSpec.customSpecCount);
+                        putNumber(sink, fmtValue.tick, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customLongHour:
-                    toString(sink, fmtValue.hour, fmtSpec.customSpecCount);
+                    putNumber(sink, fmtValue.hour, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customShortHour:
-                    toString(sink, fmtValue.shortHour, fmtSpec.customSpecCount);
+                    putNumber(sink, fmtValue.shortHour, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customMinute:
-                    toString(sink, fmtValue.minute, fmtSpec.customSpecCount);
+                    putNumber(sink, fmtValue.minute, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customMonth:
                     if (fmtSpec.customSpecCount == 3)
                         put(sink, fmtValue.monthName(setting, useShort));
                     else
-                        toString(sink, fmtValue.month, fmtSpec.customSpecCount);
+                        putNumber(sink, fmtValue.month, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customSecond:
-                    toString(sink, fmtValue.second, fmtSpec.customSpecCount);
+                    putNumber(sink, fmtValue.second, fmtSpec.customSpecCount);
                     break;
                 case FormatDateTimeSpecifier.customSeparatorDate:
                     put(sink, setting.dateSeparator);
@@ -552,9 +552,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     break;
                 case FormatDateTimeSpecifier.customYear:
                     if (fmtSpec.customSpecCount <= 2)
-                        toString(sink, fmtValue.shortYear, fmtSpec.customSpecCount);
+                        putNumber(sink, fmtValue.shortYear, fmtSpec.customSpecCount);
                     else
-                        toString(sink, fmtValue.year, fmtSpec.customSpecCount);
+                        putNumber(sink, fmtValue.year, fmtSpec.customSpecCount);
                     break;
                 default:
                     assert(0);
@@ -579,35 +579,35 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         put(sink, ", ");
         put(sink, fmtValue.monthName(setting, false));
         put(sink, ' ');
-        toString(sink, fmtValue.day);
+        putNumber(sink, fmtValue.day);
         put(sink, ", ");
-        toString(sink, fmtValue.year, 4);
+        putNumber(sink, fmtValue.year, 4);
         put(sink, ' ');
         toString(sink, fmtValue.shortHour);
         put(sink, setting.timeSeparator);
-        toString(sink, fmtValue.minute, 2);
+        putNumber(sink, fmtValue.minute, 2);
     }
 
     version(none)
     void putGeneralDateTime() nothrow @safe
     {
-        toString(sink, fmtValue.month);
+        putNumber(sink, fmtValue.month);
         put(sink, setting.dateSeparator);
-        toString(sink, fmtValue.day);
+        putNumber(sink, fmtValue.day);
         put(sink, setting.dateSeparator);
-        toString(sink, fmtValue.year, 4);
+        putNumber(sink, fmtValue.year, 4);
         put(sink, ' ');
-        toString(sink, fmtValue.shortHour);
+        putNumber(sink, fmtValue.shortHour);
         put(sink, setting.timeSeparator);
-        toString(sink, fmtValue.minute, 2);
+        putNumber(sink, fmtValue.minute, 2);
     }
 
     version(none)
     void putTime() nothrow @safe
     {
-        toString(sink, fmtValue.shortHour);
+        putNumber(sink, fmtValue.shortHour);
         put(sink, setting.timeSeparator);
-        toString(sink, fmtValue.minute, 2);
+        putNumber(sink, fmtValue.minute, 2);
     }
 
     uint result = 0;
@@ -648,12 +648,12 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     // 2009-06-15T13:45:30 -> 6/15/2009 1:45:30 PM
                     putGeneralDateTime();
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                     putAMorPM(true);
                 }
                 break;
             case FormatDateTimeSpecifier.julianDay:
-                toString(sink, fmtValue.julianDay);
+                putNumber(sink, fmtValue.julianDay);
                 break;
             case FormatDateTimeSpecifier.longDate:
                 if (putCustomFor(setting.longFormat.date, false) == FormatWriteResult.error)
@@ -665,9 +665,9 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     put(sink, ", ");
                     put(sink, fmtValue.monthName(setting, false));
                     put(sink, ' ');
-                    toString(sink, fmtValue.day);
+                    putNumber(sink, fmtValue.day);
                     put(sink, ", ");
-                    toString(sink, fmtValue.year, 4);
+                    putNumber(sink, fmtValue.year, 4);
                 }
                 break;
             case FormatDateTimeSpecifier.longDateTime:
@@ -678,7 +678,7 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     // 2009-06-15T13:1:30 -> Monday, June 15, 2009 1:01:30 PM
                     putFullDateTime();
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                     putAMorPM(true);
                 }
                 break;
@@ -690,19 +690,19 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                     // 2009-06-15T13:45:30 -> 1:45:30 PM
                     putTime();
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                     putAMorPM(true);
                 }
                 break;
             case FormatDateTimeSpecifier.monthDay: // 2009-06-15T13:45:30 -> June 15
                 put(sink, fmtValue.monthName(setting, false));
                 put(sink, ' ');
-                toString(sink, fmtValue.day);
+                putNumber(sink, fmtValue.day);
                 break;
             case FormatDateTimeSpecifier.monthYear: // 2009-06-15T13:45:30 -> June 2009
                 put(sink, fmtValue.monthName(setting, false));
                 put(sink, ' ');
-                toString(sink, fmtValue.year, 4);
+                putNumber(sink, fmtValue.year, 4);
                 break;
             case FormatDateTimeSpecifier.shortDate:
                 if (putCustomFor(setting.shortFormat.date, true) == FormatWriteResult.error)
@@ -710,11 +710,11 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 version(none)
                 {
                     // 2009-06-15T13:45:30 -> 6/15/2009
-                    toString(sink, fmtValue.month);
+                    putNumber(sink, fmtValue.month);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.day);
+                    putNumber(sink, fmtValue.day);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.year, 4);
+                    putNumber(sink, fmtValue.year, 4);
                 }
                 break;
             case FormatDateTimeSpecifier.shortDateTime:
@@ -741,11 +741,11 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Date part
                 if (fmtValue.kind != DateTimeKind.time)
                 {
-                    toString(sink, fmtValue.year, 4);
+                    putNumber(sink, fmtValue.year, 4);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.month, 2);
+                    putNumber(sink, fmtValue.month, 2);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.day, 2);
+                    putNumber(sink, fmtValue.day, 2);
 
                     // Has time?
                     if (fmtValue.kind != DateTimeKind.date)
@@ -755,24 +755,24 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Time part
                 if (fmtValue.kind != DateTimeKind.date)
                 {
-                    toString(sink, fmtValue.hour, 2);
+                    putNumber(sink, fmtValue.hour, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.minute, 2);
+                    putNumber(sink, fmtValue.minute, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                     put(sink, '.');
-                    toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
+                    putNumber(sink, fmtValue.tick, Tick.ticksMaxPrecision);
                 }
                 break;
             case FormatDateTimeSpecifier.sortableDateTimeLess: // 2009-06-15T13:45:30.000001 -> 2009-06-15T13:45:30
                 // Date part
                 if (fmtValue.kind != DateTimeKind.time)
                 {
-                    toString(sink, fmtValue.year, 4);
+                    putNumber(sink, fmtValue.year, 4);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.month, 2);
+                    putNumber(sink, fmtValue.month, 2);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.day, 2);
+                    putNumber(sink, fmtValue.day, 2);
 
                     // Has time?
                     if (fmtValue.kind != DateTimeKind.date)
@@ -782,22 +782,22 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Time part
                 if (fmtValue.kind != DateTimeKind.date)
                 {
-                    toString(sink, fmtValue.hour, 2);
+                    putNumber(sink, fmtValue.hour, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.minute, 2);
+                    putNumber(sink, fmtValue.minute, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                 }
                 break;
             case FormatDateTimeSpecifier.utcSortableDateTime: // 2009-06-15T13:45:30.0000001 -> 2009-06-15T13:45:30.0000001Z
                 // Date part
                 if (fmtValue.kind != DateTimeKind.time)
                 {
-                    toString(sink, fmtValue.year, 4);
+                    putNumber(sink, fmtValue.year, 4);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.month, 2);
+                    putNumber(sink, fmtValue.month, 2);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.day, 2);
+                    putNumber(sink, fmtValue.day, 2);
 
                     // Has time?
                     if (fmtValue.kind != DateTimeKind.date)
@@ -807,13 +807,13 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Time part
                 if (fmtValue.kind != DateTimeKind.date)
                 {
-                    toString(sink, fmtValue.hour, 2);
+                    putNumber(sink, fmtValue.hour, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.minute, 2);
+                    putNumber(sink, fmtValue.minute, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                     put(sink, '.');
-                    toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
+                    putNumber(sink, fmtValue.tick, Tick.ticksMaxPrecision);
                     put(sink, 'Z');
                 }
                 break;
@@ -821,11 +821,11 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Date part
                 if (fmtValue.kind != DateTimeKind.time)
                 {
-                    toString(sink, fmtValue.year, 4);
+                    putNumber(sink, fmtValue.year, 4);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.month, 2);
+                    putNumber(sink, fmtValue.month, 2);
                     put(sink, setting.dateSeparator);
-                    toString(sink, fmtValue.day, 2);
+                    putNumber(sink, fmtValue.day, 2);
 
                     // Has time?
                     if (fmtValue.kind != DateTimeKind.date)
@@ -835,13 +835,13 @@ if (isOutputRange!(Writer, Char) && isSomeChar!Char)
                 // Time part
                 if (fmtValue.kind != DateTimeKind.date)
                 {
-                    toString(sink, fmtValue.hour, 2);
+                    putNumber(sink, fmtValue.hour, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.minute, 2);
+                    putNumber(sink, fmtValue.minute, 2);
                     put(sink, setting.timeSeparator);
-                    toString(sink, fmtValue.second, 2);
+                    putNumber(sink, fmtValue.second, 2);
                     put(sink, '.');
-                    toString(sink, fmtValue.tick, Tick.ticksMaxPrecision);
+                    putNumber(sink, fmtValue.tick, Tick.ticksMaxPrecision);
                     fmtValue.utcBias.toString(sink);
                 }
                 break;

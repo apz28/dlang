@@ -533,7 +533,7 @@ public:
 
     static struct Parts
     {
-        import pham.utl.utl_convert : intToString = toString;
+        import pham.utl.utl_convert : putNumber;
 
     nothrow @safe:
 
@@ -544,7 +544,7 @@ public:
             ShortStringBuffer!char tempBuffer;
             this._length = cast(ubyte)len;
             foreach (i; 0..len)
-                this.data[i] = intToString(tempBuffer.clear(), parti[i]).toString();
+                this.data[i] = putNumber(tempBuffer.clear(), parti[i]).toString();
         }
 
         bool opEquals(scope const(Parts) rhs) const @nogc pure

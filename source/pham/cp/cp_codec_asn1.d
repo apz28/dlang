@@ -20,7 +20,6 @@ import pham.dtm.dtm_tick : DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_big_integer : BigInteger;
-import pham.utl.utl_convert : toString;
 import pham.utl.utl_result : cmp, ResultStatus;
 import pham.var.var_variant : Variant;
 import pham.cp.cp_cipher_buffer : CipherBuffer;
@@ -1257,17 +1256,19 @@ public:
     static void writeGeneralizedTime(ref CipherBuffer!ubyte destination, const(DateTime) x,
         const(ASN1Tag) tag = ASN1Tag.generalizedTime) pure
     {
+        import pham.utl.utl_convert : putNumber;
+        
         int y, m, d, h, n, s;
         x.getDate(y, m, d);
         x.getTime(h, n, s);
 
         ShortStringBuffer!char buffer;
-        toString(buffer, y, 4);
-        toString(buffer, m, 2);
-        toString(buffer, d, 2);
-        toString(buffer, h, 2);
-        toString(buffer, n, 2);
-        toString(buffer, s, 2);
+        putNumber(buffer, y, 4);
+        putNumber(buffer, m, 2);
+        putNumber(buffer, d, 2);
+        putNumber(buffer, h, 2);
+        putNumber(buffer, n, 2);
+        putNumber(buffer, s, 2);
         buffer.put('Z');
 
         writeTagValue(destination, tag, buffer[].representation);
@@ -1509,15 +1510,17 @@ public:
 
     string toString() const pure
     {
+        import pham.utl.utl_convert : putNumber;
+        
         if (_value.length == 0)
             return null;
 
         ShortStringBuffer!char buffer;
-        .toString(buffer, _value[0]);
+        putNumber(buffer, _value[0]);
         foreach (i; 1.._value.length)
         {
             buffer.put('.');
-            .toString(buffer, _value[i]);
+            putNumber(buffer, _value[i]);
         }
         return buffer.toString();
     }

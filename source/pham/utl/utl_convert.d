@@ -30,7 +30,7 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 
     if (validBase64Text.length == 0)
         return null;
-        
+
     NoDecodeInputRange!(validBase64Text, char) inputRange;
     Appender!(ubyte[]) result;
     result.reserve((validBase64Text.length / 4) * 3);
@@ -109,7 +109,7 @@ char[] bytesToHexs(scope const(ubyte)[] bytes) nothrow pure @safe
  * Returns:
  *   passed in paramter `sink`
  */
-ref Writer toString(uint radix = 10, N, Writer)(return ref Writer sink, N n,
+ref Writer putNumber(uint radix = 10, N, Writer)(return ref Writer sink, N n,
     const(ubyte) paddingSize = 0, const(char) paddingChar = '0',
     const(LetterCase) letterCase = LetterCase.upper) nothrow pure @safe
 if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
@@ -185,6 +185,9 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
     return sink;
 }
 
+deprecated("please use pham.utl.utl_convert.putNumber")
+alias toString = putNumber;
+
 
 // Any below codes are private
 private:
@@ -220,7 +223,7 @@ nothrow @safe unittest // bytesFromBase64s
     assert(bytesFromBase64s("QUIx") == "AB1".representation());
 }
 
-@safe unittest // toString
+@safe unittest // putNumber
 {
     import std.conv : to;
     import pham.utl.utl_array_append : Appender;
@@ -229,7 +232,7 @@ nothrow @safe unittest // bytesFromBase64s
         uint line = __LINE__)
     {
         auto buffer = Appender!string(64);
-        toString!radix(buffer, n, pad);
+        putNumber!radix(buffer, n, pad);
         assert(buffer.data == expected, line.to!string() ~ ": " ~ buffer.data ~ " vs " ~ expected);
     }
 
@@ -257,5 +260,5 @@ nothrow @safe unittest // bytesFromBase64s
 
     // Test default call
     auto buffer = Appender!string(10);
-    assert(toString(buffer, 10).data == "10");
+    assert(putNumber(buffer, 10).data == "10");
 }

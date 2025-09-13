@@ -1509,7 +1509,7 @@ protected:
 
 class PgDatabase : DbDatabase
 {
-    import pham.utl.utl_convert : nToString = toString;
+    import pham.utl.utl_convert : putNumber;
 
 @safe:
 
@@ -1653,9 +1653,9 @@ public:
 
         auto buffer = Appender!string(40);
         return buffer.put("LIMIT ")
-            .nToString(rows)
+            .putNumber(rows)
             .put(" OFFSET ")
-            .nToString(offset)
+            .putNumber(offset)
             .data;
     }
 
@@ -1663,7 +1663,7 @@ public:
     {
         auto buffer = Appender!string(1 + 10);
         return buffer.put('$')
-            .nToString(ordinal)
+            .putNumber(ordinal)
             .data;
     }
 

@@ -657,9 +657,9 @@ public:
     final void writeImpl(V)(V v)
     if (isIntegral!V)
     {
-        import pham.utl.utl_convert : toString;
+        import pham.utl.utl_convert : putNumber;
 
-        toString(buffer, v);
+        buffer.putNumber(v);
     }
 
     final void writeImpl(V)(V v, scope ref Serializable attribute)

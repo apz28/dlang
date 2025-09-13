@@ -1397,12 +1397,12 @@ nothrow @safe:
 
     ref Writer toString(Writer)(return ref Writer sink) const scope
     {
-        import pham.utl.utl_convert : nToString = toString;
+        import pham.utl.utl_convert : putNumber;
 
         sink.put(hour < 0 || minute < 0 ? '-' : '+');
-        sink.nToString(abs(hour), 2);
+        sink.putNumber(abs(hour), 2);
         sink.put(':');
-        sink.nToString(abs(minute), 2);
+        sink.putNumber(abs(minute), 2);
         return sink;
     }
 

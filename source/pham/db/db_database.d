@@ -137,11 +137,11 @@ public:
 
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
-        import pham.utl.utl_convert : nToString = toString;
+        import pham.utl.utl_convert : putNumber;
 
         auto buffer = Appender!string(anonymousColumnNamePrefix.length + 10);
         return buffer.put(anonymousColumnNamePrefix)
-            .nToString(ordinal)
+            .putNumber(ordinal)
             .data;
     }
 
@@ -2937,12 +2937,13 @@ protected:
 
     final string timerName() nothrow pure
     {
-        import pham.utl.utl_convert : toString;
+        import pham.utl.utl_convert : putNumber;
 
         static immutable string prefix = "DbConnectionPool_";
         auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
-        buffer.put(prefix);
-        return toString!16(buffer, this.asSizeT()).data;
+        return buffer.put(prefix)
+            .putNumber!16(this.asSizeT())
+            .data;
     }
 
     final void unregisterWithTimer() nothrow
@@ -4765,11 +4766,11 @@ public:
 
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
-        import pham.utl.utl_convert : nToString = toString;
+        import pham.utl.utl_convert : putNumber;
 
         auto buffer = Appender!string(anonymousParameterNamePrefix.length + 10);
         return buffer.put(anonymousParameterNamePrefix)
-            .nToString(ordinal)
+            .putNumber(ordinal)
             .data;
     }
 
