@@ -28,14 +28,14 @@ version(Posix)
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
     public import pham.io.io_socket_posix;
-    
+
     enum : int
     {
         SD_RECEIVE = SHUT_RD,
         SD_SEND    = SHUT_WR,
         SD_BOTH    = SHUT_RDWR,
-    }    
-    
+    }
+
     enum : int
     {
         SO_USELOOPBACK = 0x0040,
@@ -180,7 +180,7 @@ public:
         address._family = value;
         return this;
     }
-    
+
 public:
     string canonName;
     IPSocketAddress address;
@@ -1217,30 +1217,15 @@ TimeVal toSocketTimeVal(long timeMSecs) @nogc nothrow pure
 
 private:
 
+import std.ascii : LetterCase, isDigit;
+import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_convert : putNumber;
+
 struct IPv4AddressHelper
 {
-    import std.ascii : isDigit;
-    import pham.utl.utl_array_append : Appender;
-
 @safe:
 
 public:
-    static ref Appender!string putSections(return ref Appender!string destination, scope const(ubyte)[] ipv4Address) nothrow pure
-    {
-        import pham.utl.utl_convert : putNumber;
-        
-        return destination.putNumber(ipv4Address[0])
-            .put('.')
-            .putNumber(ipv4Address[1])
-            .put('.')
-            .putNumber(ipv4Address[2])
-            .put('.')
-            .putNumber(ipv4Address[3]);
-    }
-
-    deprecated("please use IPv4AddressHelper.putSections")
-    alias appendSections = putSections;
-    
     static ResultIf!IPSocketAddress parse(scope const(char)[] address, const(bool) notImplicitFile = true) nothrow pure
     {
         ResultIf!IPSocketAddress error(size_t index) nothrow pure
@@ -1437,79 +1422,62 @@ public:
     }
 
     static string toString(scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
+    in
+    {
+        assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
+    }
+    do
     {
         auto buffer = Appender!string(IPSocketAddress.maxIPv4StringLength + (port ? 6+1: 0));
-        return toString(buffer, ipv4Address, port).data;
+        return buffer.putIpv4Address(ipv4Address, port).data;
     }
+}
 
-    static ref Appender!string toString(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
+static ref Appender!string putIpv4Address(return ref Appender!string destination, scope const(ubyte)[] ipv4Address) nothrow pure @safe
+in
+{
+    assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
+}
+do
+{
+    return destination.putNumber(ipv4Address[0])
+        .put('.')
+        .putNumber(ipv4Address[1])
+        .put('.')
+        .putNumber(ipv4Address[2])
+        .put('.')
+        .putNumber(ipv4Address[3]);
+}
+
+static ref Appender!string putIpv4Address(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, ushort port) nothrow pure @safe
+in
+{
+    assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
+}
+do
+{
+    if (port)
     {
-        import pham.utl.utl_convert : putNumber;
-        
-        if (port)
-        {
-            return putSections(destination, ipv4Address)
-                .put(':')
-                .putNumber(port);
-        }
-        else
-            return putSections(destination, ipv4Address);
+        return destination.putIpv4Address(ipv4Address)
+            .put(':')
+            .putNumber(port);
     }
+    else
+        return destination.putIpv4Address(ipv4Address);
 }
 
 struct IPv6AddressHelper
 {
-    import std.ascii : LetterCase;
-    import pham.utl.utl_array_append : Appender;
-
 @safe:
     enum maxIPv6AddressShorts = IPSocketAddress.maxIPv6AddressBytes / 2;
 
 public:
-    // Appends each of the numbers in address in indexed range [fromInclusive, toExclusive),
-    // while also replacing the longest sequence of 0s found in that range with "::", as long
-    // as the sequence is more than one 0.
-    static ref Appender!string putSections(return ref Appender!string destination, scope const(ushort)[] ipv6Address) nothrow pure
-    {
-        import pham.utl.utl_convert : putNumber;
-        
-        // Find the longest sequence of zeros to be combined into a "::"
-        const r = findCompressionRange(ipv6Address);
-        bool needsColon = false;
-
-        // Handle a zero sequence if there is one
-        if (r[0] >= 0)
-        {
-            // Output all of the numbers before the zero sequence
-            foreach (i; 0..r[0])
-            {
-                if (needsColon)
-                    destination.put(':');
-                destination.putNumber!16(ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
-                needsColon = true;
-            }
-
-            // Output the zero sequence if there is one
-            destination.put("::");
-            needsColon = false;
-        }
-
-        // Output everything after the zero sequence
-        foreach (i; r[1]..ipv6Address.length)
-        {
-            if (needsColon)
-                destination.put(':');
-            destination.putNumber!16(ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
-            needsColon = true;
-        }
-        
-        return destination;
-    }
-
-    deprecated("please use IPv6AddressHelper.putSections")
-    alias appendSections = putSections;
-    
     static const(ubyte)[] extractIPv4Address(return scope const(ushort)[] ipv6Address) nothrow pure
+    in
+    {
+        assert(ipv6Address.length >= maxIPv6AddressShorts);
+    }
+    do
     {
         return cast(const(ubyte)[])ipv6Address[6..8];
     }
@@ -1518,6 +1486,11 @@ public:
     // Longest consecutive sequence of zero segments, minimum 2.
     // On equal, first sequence wins. <-1, -1> for no compression.
     static ptrdiff_t[2] findCompressionRange(scope const(ushort)[] ipv6Address) nothrow pure
+    in
+    {
+        assert(ipv6Address.length >= maxIPv6AddressShorts/2);
+    }
+    do
     {
         int longestSequenceLength, longestSequenceStart = -1, currentSequenceLength;
 
@@ -1736,6 +1709,11 @@ public:
     // Returns true if the IPv6 address should be formatted with an embedded IPv4 address:
     // ::192.168.1.1
     static bool shouldHaveIpv4Embedded(scope const(ushort)[] ipv6Address) nothrow pure
+    in
+    {
+        assert(ipv6Address.length >= maxIPv6AddressShorts);
+    }
+    do
     {
         // 0:0 : 0:0 : x:x : x.x.x.x
         if (ipv6Address[0] == 0 && ipv6Address[1] == 0 && ipv6Address[2] == 0 && ipv6Address[3] == 0 && ipv6Address[6] != 0)
@@ -1757,46 +1735,96 @@ public:
     }
 
     static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+    in
     {
-        auto buffer = Appender!string(IPSocketAddress.maxIPv6StringLength + (port ? 6+3: 0));
-        return toString(buffer, ipv6Address, scopeId, port).data;
+        assert(ipv6Address.length >= IPSocketAddress.maxIPv6AddressBytes);
     }
-
-    static ref Appender!string toString(return ref Appender!string destination, scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+    do
     {
-        import pham.utl.utl_convert : putNumber;
-
         const ipv6Address2 = cast(const(ushort)[])ipv6Address;
-
-        if (port)
-            destination.put('[');
-
-        if (shouldHaveIpv4Embedded(ipv6Address2))
-        {
-            putSections(destination, ipv6Address2[0..6])
-                .put(':');
-            IPv4AddressHelper.putSections(destination, extractIPv4Address(ipv6Address2));
-        }
-        else
-        {
-            putSections(destination, ipv6Address2);
-        }
-
-        if (scopeId != 0)
-        {
-            destination.put('%')
-                .putNumber(scopeId);
-        }
-
-        if (port)
-        {
-            destination.put(']')
-                .put(':')
-                .putNumber(port);
-        }
-
-        return destination;
+        auto buffer = Appender!string(IPSocketAddress.maxIPv6StringLength + (port ? 6+3: 0));
+        return buffer.putIpv6Address(ipv6Address2, scopeId, port).data;
     }
+}
+
+// Appends each of the numbers in address in indexed range [fromInclusive, toExclusive),
+// while also replacing the longest sequence of 0s found in that range with "::", as long
+// as the sequence is more than one 0.
+static ref Appender!string putIpv6Address(return ref Appender!string destination, scope const(ushort)[] ipv6Address) nothrow pure @safe
+in
+{
+    assert(ipv6Address.length >= IPv6AddressHelper.maxIPv6AddressShorts/2);
+}
+do
+{
+    // Find the longest sequence of zeros to be combined into a "::"
+    const r = IPv6AddressHelper.findCompressionRange(ipv6Address);
+    bool needsColon = false;
+
+    // Handle a zero sequence if there is one
+    if (r[0] >= 0)
+    {
+        // Output all of the numbers before the zero sequence
+        foreach (i; 0..r[0])
+        {
+            if (needsColon)
+                destination.put(':');
+            destination.putNumber!16(ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
+            needsColon = true;
+        }
+
+        // Output the zero sequence if there is one
+        destination.put("::");
+        needsColon = false;
+    }
+
+    // Output everything after the zero sequence
+    foreach (i; r[1]..ipv6Address.length)
+    {
+        if (needsColon)
+            destination.put(':');
+        destination.putNumber!16(ntohs(ipv6Address[i]), 0, '0', LetterCase.lower);
+        needsColon = true;
+    }
+
+    return destination;
+}
+
+static ref Appender!string putIpv6Address(return ref Appender!string destination, scope const(ushort)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+in
+{
+    assert(ipv6Address.length >= IPv6AddressHelper.maxIPv6AddressShorts);
+}
+do
+{
+    if (port)
+        destination.put('[');
+
+    if (IPv6AddressHelper.shouldHaveIpv4Embedded(ipv6Address))
+    {
+        destination.putIpv6Address(ipv6Address[0..6])
+            .put(':')
+            .putIpv4Address(IPv6AddressHelper.extractIPv4Address(ipv6Address));
+    }
+    else
+    {
+        destination.putIpv6Address(ipv6Address);
+    }
+
+    if (scopeId != 0)
+    {
+        destination.put('%')
+            .putNumber(scopeId);
+    }
+
+    if (port)
+    {
+        destination.put(']')
+            .put(':')
+            .putNumber(port);
+    }
+
+    return destination;
 }
 
 unittest // toSocketTimeClamp
