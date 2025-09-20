@@ -16,13 +16,13 @@ import std.format : FormatSpec, formatValue;
 import std.string : representation;
 import std.system : Endian;
 
-debug(debug_pham_db_db_mybuffer) import std.stdio : writeln;
-
+debug(debug_pham_db_db_mybuffer) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
-import pham.utl.utl_object : simpleFloatFmt, simpleIntegerFmt;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : simpleFloatFmt, simpleIntegerFmt;
 import pham.db.db_buffer;
 import pham.db.db_message;
 import pham.db.db_type;
@@ -59,7 +59,12 @@ public:
         this._buffer = new DbReadBuffer(packetData);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         if (_buffer !is null)
         {
@@ -79,8 +84,9 @@ public:
 
         _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        _packetLength = sequenceByte = 0;
+        return ResultCode.ok;
     }
 
     bool isAuthSha2Caching(string authMethod) nothrow pure
@@ -198,13 +204,18 @@ public:
         _buffer.advance(nBytes);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _reader.dispose(disposingReason);
 
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)
@@ -717,7 +728,12 @@ public:
         this._writer.writeUInt32(0);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _writer.dispose(disposingReason);
 
@@ -739,8 +755,9 @@ public:
 
         _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        _reserveLenghtOffset = _maxSinglePackage = _sequenceByte = 0;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)

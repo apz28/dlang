@@ -13,8 +13,7 @@ module pham.db.db_myauth_sspi;
 
 version(Windows):
 
-debug(debug_pham_db_db_myauth_sspi) import std.stdio : writeln;
-
+debug(debug_pham_db_db_myauth_sspi) import pham.db.db_debug;
 import pham.external.std.windows.sspi_ex : RequestSecClient, RequestSecResult;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.db.db_auth;
@@ -103,11 +102,11 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _secClient.dispose(disposingReason);
         _remotePrincipal = _secPackage = null;
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
 private:

@@ -22,7 +22,8 @@ debug(debug_pham_db_db_pgprotocol) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_object : shortClassName;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : shortClassName;
 import pham.db.db_buffer;
 import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
@@ -1264,12 +1265,13 @@ protected:
         valueWriter.writeArrayEnd(marker);
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         if (isDisposing(disposingReason))
             _connection = null;
 
         debug(debug_pham_db_db_pgprotocol) debug writeln("**********");
+        return ResultCode.ok;
     }
 
     final T[] readValueArray(T)(ref PgReader reader, DbNamedColumn column, const(int32) valueLength)

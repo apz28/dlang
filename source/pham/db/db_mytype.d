@@ -11,7 +11,7 @@
 
 module pham.db.db_mytype;
 
-debug(debug_pham_db_db_mytype) import std.stdio : writeln;
+debug(debug_pham_db_db_mytype) import pham.db.db_debug;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : Map32Bit;

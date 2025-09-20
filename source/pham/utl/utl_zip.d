@@ -14,9 +14,9 @@ module pham.utl.utl_zip;
 import std.format : format;
 
 public import pham.utl.utl_zip_constant;
-import pham.utl.utl_zip_tree;
 import pham.utl.utl_zip_deflate;
 import pham.utl.utl_zip_inflate;
+import pham.utl.utl_zip_tree;
 
 nothrow @safe:
 

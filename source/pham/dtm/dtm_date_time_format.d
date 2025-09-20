@@ -15,7 +15,8 @@ public import std.format : FormatException;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isSomeChar, isSomeString, Unqual;
 
-import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, firstDayOfMonth, firstDayOfWeek, JulianDate;
+import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, JulianDate,
+    firstDayOfMonth, firstDayOfWeek;
 import pham.dtm.dtm_tick;
 import pham.dtm.dtm_time : Time;
 import pham.dtm.dtm_time_zone : TimeZoneInfo, ZoneOffset;
@@ -192,12 +193,12 @@ public:
     {
         return _year;
     }
-    
+
     @property ZoneOffset utcBias() const @nogc pure
     {
         return _utcBias;
     }
-    
+
 private:
     union
     {
@@ -903,7 +904,7 @@ private:
 
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%g");
     assert(s == "6/15/2009 1:45 PM", s);
-    
+
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%G");
     assert(s == "06/15/2009 1:45:30 PM", s);
 }
@@ -947,13 +948,13 @@ private:
     assert(s == "Monday, June 15, 2009", s);
     s = Date(2009, 06, 15).toString("%d");
     assert(s == "6/15/2009");
-    
+
     DateTimeSetting setting = DateTimeSetting.us;
     setting.dateSeparator = '-';
     s = DateTime(2009, 06, 15, 13, 45, 30).toString("%d", setting);
     assert(s == "6-15-2009", s);
     s = Date(2009, 06, 15).toString("%d", setting);
-    assert(s == "6-15-2009");    
+    assert(s == "6-15-2009");
 }
 
 @safe unittest // FormatDateTimeSpecifier.longTime, shortTime - %t %T
@@ -1000,7 +1001,7 @@ private:
     // Time
     s = Time(13, 45, 30).toString("%s");
     assert(s == "13:45:30.0000000", s);
-        
+
     auto setting = DateTimeSetting.iso8601;
     s = Date(2009, 06, 15).toString("%s", setting);
     assert(s == "2009-06-15", s);
@@ -1020,7 +1021,7 @@ private:
     assert(s == "2009/06/15T13:45:30", s);
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%S");
     assert(s == "2009/06/15T13:45:30", s);
-    
+
     auto setting = DateTimeSetting.iso8601;
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%S", setting);
     assert(s == "2009-06-15T13:45:30", s);
@@ -1032,7 +1033,7 @@ private:
 
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%u");
     assert(s == "2009/06/15T13:45:30.0000001Z", s);
-    
+
     auto setting = DateTimeSetting.iso8601Utc;
     s = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1).toString("%u", setting);
     assert(s == "2009-06-15T13:45:30.0000001Z", s);
@@ -1043,7 +1044,7 @@ private:
     DateTime d;
     string s, expected;
 
-    d = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1);    
+    d = DateTime(2009, 06, 15, 13, 45, 30).addTicks(1);
     s = d.toString("%U");
     expected = "2009/06/15T13:45:30.0000001" ~ d.utcBias.toString();
     assert(s == expected, s ~ " vs " ~ expected);

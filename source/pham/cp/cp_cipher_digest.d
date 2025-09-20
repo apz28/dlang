@@ -17,6 +17,7 @@ import std.digest.sha : Digest, SHA1Digest, SHA256Digest, SHA384Digest, SHA512Di
 import std.string : representation;
 
 import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_result : ResultCode;
 import pham.cp.cp_cipher_buffer;
 
 nothrow @safe:
@@ -83,10 +84,16 @@ public:
         return buffer[0..length];
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         buffer[] = 0;
         length = 0;
+        return ResultCode.ok;
     }
 
     ref typeof(this) reset() pure return
@@ -188,6 +195,19 @@ public:
         return this;
     }
 
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) pure
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        _digestId = null;
+        _digester = null;
+        _digestBits = 0;
+        return ResultCode.ok;
+    }
+
     ubyte[] finish(return ref DigestResult outBuffer) @trusted
     {
         outBuffer.length = digestLength;
@@ -271,12 +291,20 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
     {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        _digestId = null;
         _key[] = 0;
         _iPad[] = 0;
         _oPad[] = 0;
         _blockSize = 0;
+        _hasher.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
     ubyte[] finish(return ref DigestResult outBuffer)

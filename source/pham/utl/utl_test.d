@@ -20,8 +20,8 @@ import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
 version(TraceLog)
 {
-    import pham.external.std.log.log_logger : defaultOutputPattern, FileLogger, FileLoggerOption, LoggerOption,
-        LogLevel, LogLocation, OutputPattern;
+    import pham.external.std.log.log_logger : FileLogger, FileLoggerOption, LoggerOption,
+        LogLevel, LogLocation, OutputPattern, defaultOutputPattern;
 }
 
 nothrow @safe:
@@ -500,7 +500,7 @@ unittest // PerfCpuUsage
     import core.time : dur;
     import core.thread.osthread : Thread;
     import pham.utl.utl_test;
-    traceUnitTest("unittest pham.utl.utltest.PerfCpuUsage");
+    traceUnitTest("unittest pham.utl.utl_test.PerfCpuUsage");
 
     void delay() nothrow @trusted
     {

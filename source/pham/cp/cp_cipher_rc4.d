@@ -75,11 +75,11 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    final override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _stateData[] = 0;
         x = y = 0;
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
 private:

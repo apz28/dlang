@@ -17,8 +17,8 @@ import std.exception : enforce;
 import std.format.spec : FormatSpec, singleSpec;
 import std.format.write : formatValue;
 import std.range.primitives : ElementEncodingType, ElementType, empty, front, isInputRange, isOutputRange, popFront;
-import std.traits : hasElaborateAssign,
-    isAssignable, isCopyable, isDynamicArray, isMutable, isSomeChar, Unqual;
+import std.traits : Unqual, hasElaborateAssign,
+    isAssignable, isCopyable, isDynamicArray, isMutable, isSomeChar;
 
 import pham.utl.utl_array : arrayCalcCapacity, arrayGrow, arrayShrink;
 

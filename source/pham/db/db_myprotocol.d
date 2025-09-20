@@ -14,14 +14,16 @@ module pham.db.db_myprotocol;
 import std.algorithm.comparison : max;
 import std.conv : to;
 
-debug(debug_pham_db_db_myprotocol) import std.stdio : writeln;
+debug(debug_pham_db_db_myprotocol) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_bit : bitLengthToElement;
 import pham.utl.utl_bit_array : BitArrayImpl;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_object : shortClassName, VersionString;
+import pham.utl.utl_object : VersionString;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : shortClassName;
 import pham.db.db_buffer;
 import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
@@ -1188,12 +1190,13 @@ protected:
         assert(0, toName!DbType(parameter.type));
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         if (isDisposing(disposingReason))
             _connection = null;
 
         debug(debug_pham_db_db_myprotocol) debug writeln("**********");
+        return ResultCode.ok;
     }
 
     final MyOkResponse handleAuthenticationChallenge(ref MyConnectingStateInfo stateInfo, bool authMethodChanged)

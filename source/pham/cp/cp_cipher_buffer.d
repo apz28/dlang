@@ -14,6 +14,7 @@ module pham.cp.cp_cipher_buffer;
 import pham.utl.utl_array_static : StaticStringBuffer;
 import pham.utl.utl_convert : bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_result : ResultCode;
 
 nothrow @safe:
 
@@ -69,9 +70,10 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         data.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
     ref typeof(this) put(T v) nothrow pure return
@@ -186,9 +188,10 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
         clear();
+        return ResultCode.ok;
     }
 
     pragma(inline, true)

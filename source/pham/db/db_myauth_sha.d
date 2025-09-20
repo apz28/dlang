@@ -13,8 +13,7 @@ module pham.db.db_myauth_sha;
 
 import std.string : representation;
 
-debug(debug_pham_db_db_myauth_sha) import std.stdio : writeln;
-
+debug(debug_pham_db_db_myauth_sha) import pham.db.db_debug;
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult;
 import pham.db.db_auth;
 import pham.db.db_message;
@@ -94,7 +93,7 @@ protected:
     static ref CipherBuffer!ubyte xor(return ref CipherBuffer!ubyte xorResult, scope const(ubyte)[] left, scope const(ubyte)[] right) pure
     {
         xorResult.clear();
-        
+
         const len = left.length;
         if (len == 0 || len != right.length)
             return xorResult;
@@ -112,7 +111,7 @@ protected:
     static ref CipherBuffer!ubyte xorNonce(return ref CipherBuffer!ubyte xorResult, scope const(ubyte)[] src, scope const(ubyte)[] nonce) pure
     {
         xorResult.clear();
-        
+
         foreach (i; 0..src.length)
         {
             xorResult.put(src[i] ^ nonce[i % nonce.length]);
@@ -265,7 +264,7 @@ DbAuth createAuthSha2Caching()
 unittest // myauth_sha.MyAuthSha2Caching
 {
     import pham.utl.utl_convert : bytesFromHexs;
-    
+
     CipherBuffer!ubyte obfuscated;
     MyAuthSha.xorNonce(obfuscated, "masterkey".representation(), bytesFromHexs("773529605513697D2E3F02211E41096D1E4F5E40"));
     assert(obfuscated[] == bytesFromHexs("1A545A1430610218573F"), obfuscated.toString());

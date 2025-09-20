@@ -17,7 +17,7 @@ public import core.time : dur, Duration, TimeException;
 import std.conv : to;
 import std.traits : isIntegral;
 
-import pham.utl.utl_result : cmp, ResultIf;
+import pham.utl.utl_result : ResultIf, cmp;
 
 version = RelaxCompareTime;
 

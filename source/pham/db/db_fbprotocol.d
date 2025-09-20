@@ -24,6 +24,7 @@ import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_object : InitializedValue;
+import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.db.db_buffer_filter;
 import pham.db.db_buffer_filter_cipher;
@@ -2235,13 +2236,14 @@ protected:
         }
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _serverVersion = 0;
         if (isDisposing(disposingReason))
             _connection = null;
 
         debug(debug_pham_db_db_fbprotocol) debug writeln("**********");
+        return ResultCode.ok;
     }
 
     final int32 getCryptedConnectionCode() nothrow

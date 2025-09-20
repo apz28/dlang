@@ -24,8 +24,8 @@ import pham.json.json_type;
 import pham.json.json_writer;
 public import pham.utl.utl_array_dictionary : Dictionary;
 public import pham.json.json_exception : JSONException;
-public import pham.json.json_type : defaultOptions, defaultPrettyOptions, defaultTab,
-    JSONFloatLiteralType, JSONLiteral, JSONOptions, JSONType;
+public import pham.json.json_type : JSONFloatLiteralType, JSONLiteral, JSONOptions, JSONType,
+    defaultOptions, defaultPrettyOptions, defaultTab;
 
 
 /**

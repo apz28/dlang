@@ -13,7 +13,7 @@ module pham.utl.utl_bit;
 
 import std.bitmanip : bigEndianToNative, littleEndianToNative, nativeToBigEndian, nativeToLittleEndian, swapEndian;
 import std.system : Endian;
-import std.traits : isIntegral, isNumeric, isSomeChar, isUnsigned, Unqual;
+import std.traits : Unqual, isIntegral, isNumeric, isSomeChar, isUnsigned;
 
 nothrow @safe:
 

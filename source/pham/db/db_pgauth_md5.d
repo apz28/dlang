@@ -16,8 +16,7 @@ import std.conv : to;
 import std.digest.md : md5Of;
 import std.string : representation;
 
-debug(debug_pham_db_db_pgauth_md5) import std.stdio : writeln;
-
+debug(debug_pham_db_db_pgauth_md5) import pham.db.db_debug;
 import pham.utl.utl_numeric_parser : cvtBytesBase16;
 import pham.db.db_auth;
 import pham.db.db_message;

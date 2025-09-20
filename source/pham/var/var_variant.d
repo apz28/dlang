@@ -19,13 +19,13 @@ import std.conv : to;
 import std.math.traits : isNaN;
 import std.meta : AliasSeq, allSatisfy, anySatisfy, staticIndexOf;
 import std.range.primitives : ElementType;
-import std.traits : ConstOf, fullyQualifiedName,
-    hasElaborateCopyConstructor, hasElaborateDestructor, hasIndirections, hasMember, ImmutableOf,
+import std.traits : ConstOf, ImmutableOf, Parameters, ReturnType, SharedConstOf, SharedOf, Unqual, 
+    ImplicitConversionTargets = AllImplicitConversionTargets, fullyQualifiedName,
+    hasElaborateCopyConstructor, hasElaborateDestructor, hasIndirections, hasMember,
     isArray, isAssociativeArray, isBasicType, isBoolean, isDelegate, isDynamicArray,
     isFloatingPoint, isFunctionPointer, isInstanceOf, isIntegral, isPointer,
     isSigned, isSomeChar, isSomeFunction, isSomeString, isStaticArray, isUnsigned,
-    Parameters, ReturnType, staticMap, SharedConstOf, SharedOf, Unqual,
-    ImplicitConversionTargets = AllImplicitConversionTargets;
+    staticMap;    
 import std.typecons : ReplaceTypeUnless, Tuple;
 
 debug(debug_pham_var_var_variant) import std.stdio : writeln;

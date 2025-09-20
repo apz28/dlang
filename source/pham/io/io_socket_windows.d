@@ -13,7 +13,7 @@ module pham.io.io_socket_windows;
 
 version(Windows):
 
-import core.sys.windows.winbase : GetComputerNameA, WAIT_FAILED, WAIT_OBJECT_0;
+import core.sys.windows.winbase : WAIT_FAILED, WAIT_OBJECT_0, GetComputerNameA;
 import core.sys.windows.windef : BOOL, HANDLE, DWORD, MAKEWORD;
 import core.sys.windows.winerror : ERROR_INVALID_HANDLE, WAIT_TIMEOUT;
 import core.sys.windows.winsock2;
@@ -31,7 +31,7 @@ extern(Windows)
     // Not found in core.sys.windows.winsock2, so declare it here
     // https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll
     // events
-    enum // POLL_XXX
+    enum : int // POLL_XXX
     {
         // events
         POLLPRI    = 0x0400,
@@ -70,7 +70,7 @@ extern(Windows)
     enum WSA_INVALID_EVENT = cast(WSAEVENT)(0);
     enum WSA_INVALID_HANDLE = ERROR_INVALID_HANDLE;
 
-    enum // FD_XXX network events
+    enum : int // FD_XXX network events
     {
         FD_READ_BIT = 0,
         FD_READ = (1 << FD_READ_BIT),
@@ -140,9 +140,9 @@ alias socklen_t = int;
 enum errorSocketResult = SOCKET_ERROR;
 enum invalidSocketHandle = INVALID_SOCKET;
 
-import pham.utl.utl_result : resultOK, resultError;
-import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
-    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs, toSocketTimeVal;
+import pham.utl.utl_result : ResultCode;
+import pham.io.io_socket_type : PollFDSet, PollResult,
+    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, isSelectMode, toSocketTimeMSecs, toSocketTimeVal;
 
 struct WSAStartupResult
 {
@@ -369,10 +369,10 @@ do
     if (isSelectMode(resultModes, SelectMode.error))
     {
         lastSocketError(pollSets.pollResults[0].errorCode);
-        return resultError;
+        return ResultCode.error;
     }
     else
-        return resultOK;
+        return ResultCode.ok;
 }
 
 pragma(inline, true)
@@ -435,10 +435,10 @@ do
     if (isSelectMode(resultModes, SelectMode.error))
     {
         lastSocketError(selectSets.pollResults[0].errorCode);
-        return resultError;
+        return ResultCode.error;
     }
     else
-        return resultOK;
+        return ResultCode.ok;
 }
 
 pragma(inline, true)
@@ -530,7 +530,7 @@ do
 {
     SelectMode resultModes;
     selectSocket(handle, SelectMode.waitforConnect, timeout, resultModes);
-    return resultModes & SelectMode.error ? resultError : resultOK;
+    return resultModes & SelectMode.error ? ResultCode.error : ResultCode.ok;
 }
 
 static immutable WSAStartupResult wsaStartupResult;

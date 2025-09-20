@@ -12,7 +12,7 @@
 module pham.utl.utl_array_dictionary;
 
 import core.stdc.string : memmove;
-import std.traits : isAssignable, Unqual;
+import std.traits : Unqual, isAssignable;
 
 debug(debug_pham_utl_utl_array_dictionary)
 {

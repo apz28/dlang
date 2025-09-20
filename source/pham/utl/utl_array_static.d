@@ -17,6 +17,7 @@ debug(debug_pham_utl_utl_array_static) import std.stdio : writeln;
 import pham.utl.utl_array : arrayClear, arrayDestroy, arrayGrow, arrayShiftLeft, arrayShrink,
     arrayZeroInit, arrayZeroNeeded;
 import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_result : ResultCode;
 
 struct StaticArray(T, ushort StaticSize)
 if (StaticSize != 0)
@@ -262,14 +263,21 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         if (_length)
             arrayClear!T(_items[0.._length]);
+            
         arrayZeroInit(_staticItems[]);
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
+        return ResultCode.ok;
     }
 
     /**
@@ -994,17 +1002,24 @@ public:
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
-        return result;
+        return result;               
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         if (_length)
             _items[0.._length] = 0;
+            
         _staticItems[] = 0;
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
+        return ResultCode.ok;
     }
 
     /**

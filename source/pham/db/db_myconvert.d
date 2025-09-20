@@ -21,7 +21,7 @@ import pham.dtm.dtm_date_time_parse;
 import pham.dtm.dtm_tick : Tick, TickPart;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : numericBitCast;
-import pham.utl.utl_object : simpleIntegerFmt;
+import pham.utl.utl_text : simpleIntegerFmt;
 import pham.db.db_type;
 import pham.db.db_myoid;
 import pham.db.db_mytype;

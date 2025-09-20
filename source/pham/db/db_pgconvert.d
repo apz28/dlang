@@ -14,8 +14,7 @@ module pham.db.db_pgconvert;
 
 import core.time : Duration, dur;
 
-debug(debug_pham_db_db_pgconvert) import std.stdio : writeln;
-
+debug(debug_pham_db_db_pgconvert) import pham.db.db_debug;
 import pham.dtm.dtm_tick : Tick;
 import pham.dtm.dtm_time_zone : TimeZoneInfo;
 import pham.utl.utl_array_static : ShortStringBuffer, StaticStringBuffer;

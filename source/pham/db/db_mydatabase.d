@@ -21,6 +21,8 @@ import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set;
 import pham.utl.utl_object : VersionString;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : shortFunctionName;
 import pham.db.db_buffer;
 import pham.db.db_database;
 import pham.db.db_exception;
@@ -121,7 +123,7 @@ public:
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
+            log.infof("%s.%s(vendorMode=%d)%s%s", forLogInfo(), shortFunctionName(2), vendorMode, newline, commandText);
 
         string explainFormat() nothrow @safe
         {
@@ -287,7 +289,7 @@ protected:
         {
             debug(debug_pham_db_db_mydatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.command.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+                log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
     }
 
@@ -297,7 +299,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         const lPrepared = prepared;
@@ -359,7 +361,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
@@ -389,7 +391,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare);
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
@@ -553,7 +555,7 @@ protected:
         {
             debug(debug_pham_db_db_mydatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.command.purgePendingRows() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+                log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
     }
 
@@ -813,19 +815,21 @@ protected:
         {
             debug(debug_pham_db_db_mydatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.connection.doCloseImpl() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
 
         super.doCloseImpl(reasonState);
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
+        // Must call super first to close the connection with use protocol & parameter buffers
         super.doDispose(disposingReason);
         disposePackageReadBuffers(disposingReason);
         disposeProtocol(disposingReason);
+        return ResultCode.ok;
     }
 
     final override DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe

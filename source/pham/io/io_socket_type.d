@@ -14,9 +14,9 @@ module pham.io.io_socket_type;
 import core.time : Duration, dur;
 import std.system : Endian;
 
-import pham.utl.utl_bit : fromBytes, Map32Bit, nativeToBytes, toBytes;
+import pham.utl.utl_bit : Map32Bit, fromBytes, nativeToBytes, toBytes;
 import pham.utl.utl_enum_set : EnumSet, toName;
-import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit, NumericParsedKind, parseIntegral;
+import pham.utl.utl_numeric_parser : NumericParsedKind, cvtDigit, cvtHexDigit, parseIntegral;
 import pham.utl.utl_result;
 import pham.utl.utl_text : simpleIndexOf;
 
@@ -28,18 +28,6 @@ version(Posix)
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
     public import pham.io.io_socket_posix;
-
-    enum : int
-    {
-        SD_RECEIVE = SHUT_RD,
-        SD_SEND    = SHUT_WR,
-        SD_BOTH    = SHUT_RDWR,
-    }
-
-    enum : int
-    {
-        SO_USELOOPBACK = 0x0040,
-    }
 }
 else version(Windows)
 {
@@ -123,7 +111,7 @@ enum SocketType : int
 
 enum ShutdownReason : int
 {
-    receive = SD_RECEIVE,      /// socket receives are disallowed
+    receive = SD_RECEIVE,   /// socket receives are disallowed
     send = SD_SEND,         /// socket sends are disallowed
     both = SD_BOTH,         /// both RECEIVE and SEND
 }

@@ -17,7 +17,7 @@ debug(debug_pham_db_db_auth) import pham.db.db_debug;
 public import pham.cp.cp_cipher : CipherBuffer, CipherRawKey;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_object : VersionString;
-public import pham.utl.utl_result : ResultStatus;
+public import pham.utl.utl_result : ResultCode, ResultStatus;
 import pham.db.db_message : DbMessage, fmtMessage;
 import pham.db.db_object : DbDisposableObject;
 import pham.db.db_type : DbScheme;
@@ -137,11 +137,14 @@ protected:
         }
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        serverVersion = VersionString("");
+        isSSLConnection = false;
         _serverPublicKey.dispose(disposingReason);
         _serverSalt.dispose(disposingReason);
         _nextState = 0;
+        return ResultCode.ok;
     }
 
 public:

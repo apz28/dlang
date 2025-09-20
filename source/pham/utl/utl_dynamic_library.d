@@ -12,103 +12,61 @@
 module pham.utl.utl_dynamic_library;
 
 import std.format : format;
-import std.string : toStringz;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
-alias DllHandle = void*;
-alias DllProc = void*;
-
-string concateLineIf(string lines, string addedLine)
-{
-    if (addedLine.length == 0)
-        return lines;
-    else if (lines.length == 0)
-        return addedLine;
-    else
-        return lines ~ "\n" ~ addedLine;
-}
-
-struct DllMessage
-{
-    static immutable eLoadFunction = "Unknown procedure name: %s.%s";
-    static immutable eLoadLibrary = "Unable to load library: %s";
-    static immutable eUnknownError = "Unknown error.";
-    static immutable notLoadedLibrary = "Library is not loaded: %s";
-}
+import pham.utl.utl_result : getSystemErrorMessage, lastSystemError;
+import pham.utl.utl_system : SafeHandle;
+import pham.utl.utl_text : concateLineIf;
 
 class DllException : Exception
 {
-    string libName;
-    uint errorCode;
-
     this(string message, string libName,
-        Exception next = null, string file = __FILE__, size_t line = __LINE__)
+        Exception next = null, string file = __FILE__, size_t line = __LINE__) nothrow @safe
     {
-        this(message, getLastErrorString(), getLastErrorCode(), libName, next, file, line);
+        const lastErrorCode = lastSystemError();
+        this(message, getSystemErrorMessage(lastErrorCode), lastErrorCode, libName, next, file, line);
     }
 
     this(string message, string lastErrorMessage, uint lastErrorCode, string libName,
-        Exception next = null, string file = __FILE__, size_t line = __LINE__)
+        Exception next = null, string file = __FILE__, size_t line = __LINE__) nothrow @safe
     {
         this.errorCode = lastErrorCode;
         this.libName = libName;
         super(concateLineIf(message, lastErrorMessage), file, line, next);
     }
 
-    /**
-     * Platform/OS specific last error code & last error message
-     */
-    version(Windows)
-    {
-        import core.sys.windows.windows;
-        import std.windows.syserror;
+    string libName;
+    uint errorCode;
+}
 
-        static uint getLastErrorCode()
-        {
-            return GetLastError();
-        }
-
-        static string getLastErrorString()
-        {
-            return sysErrorString(GetLastError());
-        }
-    }
-    else version(Posix)
-    {
-        import core.sys.posix.dlfcn;
-
-        static uint getLastErrorCode()
-        {
-            return 0;
-        }
-
-        static string getLastErrorString()
-        {
-            import std.conv : to;
-
-            auto errorText = dlerror();
-            if (errorText is null)
-                return DllMessage.eUnknownError;
-
-            return errorText.to!string();
-        }
-    }
-    else
-    {
-        static assert(0, "Unsupport system for " ~ __FUNCTION__);
-    }
+version(Windows)
+{
+    import core.sys.windows.winbase;
+    import core.sys.windows.windef;
+    alias DllHandle = HMODULE;
+    alias DllProc = FARPROC;
+    alias LibHandle = SafeHandle!(HMODULE, FreeLibrary, null);
+}
+else version(Posix)
+{
+    import core.sys.posix.dlfcn;
+    alias DllHandle = void*;
+    alias DllProc = void*;
+    alias LibHandle = SafeHandle!(void*, dlclose, null);
 }
 
 class DllLibrary
 {
+    import std.string : toStringz;
+
 public:
-    this(string libName)
+    this(string libName) nothrow @safe
     {
         this._libName = libName;
     }
 
-    ~this()
+    ~this() @safe
     {
         unload();
     }
@@ -116,7 +74,7 @@ public:
     /**
      * Load library if it is not loaded yet
      */
-    final bool load(Flag!"throwIfError" throwIfError = Yes.throwIfError)()
+    final bool load(Flag!"throwIfError" throwIfError = Yes.throwIfError)() @safe
     {
         if (!isLoaded)
         {
@@ -147,24 +105,26 @@ public:
      * Example:
      *  fct = loadProc("AFunctionNameToBeLoaded...")
      */
-    final DllProc loadProc(Flag!"throwIfError" throwIfError = Yes.throwIfError)(string procName)
+    final DllProc loadProc(Flag!"throwIfError" throwIfError = Yes.throwIfError)(string procName) @safe
     {
         DllProc res;
         if (isLoaded)
-            res = loadProc(_libHandle, procName);
+            res = loadProc(_libHandle.handle, procName);
 
         static if (throwIfError)
-        if (res is null)
         {
-            if (!isLoaded)
+            if (res is null)
             {
-                auto err = format(DllMessage.notLoadedLibrary, _libName);
-                throw new DllException(err, null, 0, _libName);
-            }
-            else
-            {
-                auto err = format(DllMessage.eLoadFunction, _libName, procName);
-                throw new DllException(err, null, 0, _libName);
+                if (!isLoaded)
+                {
+                    auto err = format(DllMessage.notLoadedLibrary, _libName);
+                    throw new DllException(err, _libName);
+                }
+                else
+                {
+                    auto err = format(DllMessage.eLoadFunction, _libName, procName);
+                    throw new DllException(err, _libName);
+                }
             }
         }
 
@@ -174,13 +134,11 @@ public:
     /**
      * Unload the library if it is loaded
      */
-    final void unload()
+    final void unload() @safe
     {
         if (isLoaded)
         {
-            unloadLib(_libHandle);
-            _libHandle = null;
-
+            _libHandle.dispose();
             unloaded();
         }
     }
@@ -190,40 +148,30 @@ public:
      */
     version(Windows)
     {
-        import core.sys.windows.windows;
-
-        DllHandle loadLib(string libName)
+        static DllHandle loadLib(string libName) nothrow @trusted
         {
-            return LoadLibraryA(libName.toStringz());
+            auto libNamez = libName.toStringz();
+            return LoadLibraryA(libNamez);
         }
 
-        DllProc loadProc(DllHandle libHandle, string procName)
+        static DllProc loadProc(DllHandle libHandle, string procName) nothrow @trusted
         {
-            return GetProcAddress(libHandle, procName.toStringz());
-        }
-
-        void unloadLib(DllHandle libHandle)
-        {
-            FreeLibrary(libHandle);
+            auto procNamez = procName.toStringz();
+            return GetProcAddress(libHandle, procNamez);
         }
     }
     else version(Posix)
     {
-        import core.sys.posix.dlfcn;
-
-        DllHandle loadLib(string libName)
+        static DllHandle loadLib(string libName) nothrow @trusted
         {
-            return dlopen(libName.toStringz(), RTLD_NOW);
+            auto libNamez = libName.toStringz();
+            return dlopen(libNamez, RTLD_NOW);
         }
 
-        DllProc loadProc(DllHandle libHandle, string procName)
+        static DllProc loadProc(DllHandle libHandle, string procName) nothrow @trusted
         {
-            return dlsym(libHandle, procName.toStringz());
-        }
-
-        void unloadLib(DllHandle libHandle)
-        {
-            dlclose(libHandle);
+            auto procNamez = procName.toStringz();
+            return dlsym(libHandle, procNamez);
         }
     }
     else
@@ -236,7 +184,7 @@ public:
      */
     @property final bool isLoaded() const nothrow @safe
     {
-        return (_libHandle !is null);
+        return _libHandle.isValid;
     }
 
     /**
@@ -244,7 +192,7 @@ public:
      */
     @property final DllHandle libHandle() nothrow @safe
     {
-        return _libHandle;
+        return _libHandle.handle;
     }
 
     /**
@@ -259,27 +207,30 @@ protected:
     /**
      * Let the derived class to perform further action when library is loaded
      */
-    void loaded()
+    void loaded() @safe
     {}
 
     /**
      * Let the derived class to perform further action when library is unloaded
      */
-    void unloaded()
+    void unloaded() @safe
     {}
 
 private:
     string _libName;
-    DllHandle _libHandle;
+    LibHandle _libHandle;
 }
 
-unittest // concateLineIf
+struct DllMessage
 {
-    assert(concateLineIf("", "") == "");
-    assert(concateLineIf("a", "") == "a");
-    assert(concateLineIf("", "bc") == "bc");
-    assert(concateLineIf("a", "bc") == "a\nbc");
+    static immutable eLoadFunction = "Unknown procedure name: %s.%s";
+    static immutable eLoadLibrary = "Unable to load library: %s";
+    static immutable eUnknownError = "Unknown error.";
+    static immutable notLoadedLibrary = "Library is not loaded: %s";
 }
+
+
+private:
 
 unittest // DllLibrary
 {

@@ -12,7 +12,8 @@
 module pham.io.io_socket_error;
 
 import pham.utl.utl_array_dictionary;
-import pham.utl.utl_result : genericErrorMessage, getSystemErrorMessage, ResultStatus;
+import pham.utl.utl_result : ResultStatus,
+    genericErrorMessage, getSystemErrorMessage;
 
 @safe:
 

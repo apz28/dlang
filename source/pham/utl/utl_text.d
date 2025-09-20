@@ -11,7 +11,8 @@
 
 module pham.utl.utl_text;
 
-import std.traits : isSomeChar;
+import std.format : FormatSpec;
+import std.traits : Unqual, isSomeChar, isSomeString;
 
 public import pham.utl.utl_result : ResultIf;
 
@@ -23,6 +24,26 @@ struct NamedValue(S)
     S value;
 }
 
+/**
+ * Returns the class-name of object. If it is null, returns "null"
+ * Params:
+ *   object = the object to get the class-name from
+ */
+string className(const(Object) object) nothrow pure @safe
+{
+    return object is null ? "null" : typeid(object).name;
+}
+
+string concateLineIf(string lines, string addedLine)
+{
+    if (addedLine.length == 0)
+        return lines;
+    else if (lines.length == 0)
+        return addedLine;
+    else
+        return lines ~ "\n" ~ addedLine;
+}
+
 ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) pure
 {
     foreach (i, ref v; values)
@@ -31,16 +52,6 @@ ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) pu
             return i;
     }
     return -1;
-}
-
-S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) pure
-{
-    foreach (ref v; values)
-    {
-        if (v.name == name)
-            return v.value;
-    }
-    return notFound;
 }
 
 ResultIf!(Char[]) decodeFormValue(Char)(return Char[] encodedFormValue,
@@ -133,6 +144,39 @@ bool isAllSimpleChar(scope const(char)[] chars) @nogc pure
     return true;
 }
 
+/**
+ * Pads the string `value` with character `c` if `value.length` is shorter than `size`
+ * Params:
+ *   value = the string value to be checked and padded
+ *   size = max length to be checked against value.length
+ *          a positive value will do a left padding
+ *          a negative value will do a right padding
+ *   c = a character used for padding
+ * Returns:
+ *   a string with proper padded character(s)
+ */
+S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
+if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
+{
+    import std.math : abs;
+
+    const n = abs(size);
+    if (value.length >= n)
+        return value;
+
+    return size > 0
+        ? (stringOfChar!C(n - value.length, c) ~ value)
+        : (value ~ stringOfChar!C(n - value.length, c));
+}
+
+ref Writer padRight(C, Writer)(return ref Writer sink, const(size_t) length, const(size_t) size, C c) nothrow pure @safe
+if (isSomeChar!C)
+{
+    return length >= size
+        ? sink
+        : stringOfChar!(C, Writer)(sink, size - length, c);
+}
+
 void parseFormEncodedValues(Char)(return Char[] formEncodedValues,
     bool delegate(size_t index, return ResultIf!(Char[]) name, return ResultIf!(Char[]) value) nothrow @safe valueCallBack,
     const(Char) invalidReplacementChar = '?')
@@ -157,6 +201,73 @@ if (isSomeChar!Char)
                 break;
         }
     }
+}
+
+/**
+ * Returns the complete class-name of 'object' without template type if any. If `object` is null, returns "null"
+ * Params:
+ *   object = the object to get the class-name from
+ */
+string shortClassName(const(Object) object, uint parts = 2) nothrow pure @safe
+{
+    return object is null 
+        ? "null" 
+        : shortenTypeNameTemplate(typeid(object).name).shortenTypeNameModule(parts);
+}
+
+string shortFunctionName(uint parts = 2, string fullName = __FUNCTION__) nothrow pure @safe
+{
+    return shortenTypeNameTemplate(fullName).shortenTypeNameModule(parts);
+}
+
+/**
+ * Returns the complete aggregate-name of a class/struct without template type
+ */
+string shortTypeName(T)(uint parts = 2) nothrow @safe
+if (is(T == class) || is(T == struct))
+{
+    return shortenTypeNameTemplate(typeid(T).name).shortenTypeNameModule(parts);
+}
+
+string shortenTypeNameModule(string fullName, uint parts = 2) nothrow pure @safe
+{
+    import std.array : split;
+
+    string result;
+    auto nameParts = split(fullName, ".");
+    while (nameParts.length && parts--)
+    {
+        if (result.length)
+            result = nameParts[$-1] ~ "." ~ result;
+        else
+            result = nameParts[$-1];
+        nameParts = nameParts[0..$-1];
+    }
+    return result;
+}
+
+/**
+ * Strip out the template type if any and returns it
+ * Params:
+ *   fullName = the complete type name
+ */
+string shortenTypeNameTemplate(string fullName) nothrow pure @safe
+{
+    import std.algorithm.iteration : filter;
+    import std.array : join, split;
+    import std.string : indexOf;
+
+    return split(fullName, ".").filter!(e => e.indexOf('!') < 0).join(".");
+}
+
+/**
+ * Returns FormatSpec!char with `f` format specifier
+ */
+FormatSpec!char simpleFloatFmt() nothrow pure @safe
+{
+    FormatSpec!char result;
+    result.spec = 'f';
+    return result;
 }
 
 /**
@@ -236,6 +347,19 @@ if (isSomeChar!Char)
 			return i;
     }
 	return -1;
+}
+
+/**
+ * Returns FormatSpec!char with `d` format specifier
+ * Params:
+ *   width = optional width of formated string
+ */
+FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
+{
+    FormatSpec!char result;
+    result.spec = 'd';
+    result.width = width;
+    return result;
 }
 
 auto simpleSplitter(S, Separator)(S str, Separator separator)
@@ -324,8 +448,103 @@ auto simpleSplitter(S, Separator)(S str, Separator separator)
     return Result(str, separator);
 }
 
+/**
+ * Returns a string with length `count` with specified character `c`
+ * Params:
+ *   count = number of characters
+ *   c = expected string of character
+ */
+auto stringOfChar(C = char)(size_t count, C c) nothrow pure @trusted
+if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
+{
+    auto result = new Unqual!C[](count);
+    result[] = c;
+    static if (is(Unqual!C == char))
+        return cast(string)result;
+    else static if (is(Unqual!C == wchar))
+        return cast(wstring)result;
+    else
+        return cast(dstring)result;
+}
+
+ref Writer stringOfChar(C = char, Writer)(return ref Writer sink, size_t count, C c) nothrow pure @safe
+if (isSomeChar!C)
+{
+    while (count)
+    {
+        sink.put(c);
+        count--;
+    }
+    return sink;
+}
+
+S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) pure
+{
+    foreach (ref v; values)
+    {
+        if (v.name == name)
+            return v.value;
+    }
+    return notFound;
+}
+
 
 private:
+
+version(unittest)
+{
+    class TestClassName
+    {
+        string testFN() nothrow @safe
+        {
+            return __FUNCTION__;
+        }
+    }
+
+    class TestClassTemplate(T) {}
+
+    struct TestStructName
+    {
+        string testFN() nothrow @safe
+        {
+            return __FUNCTION__;
+        }
+    }
+
+    string testFN() nothrow @safe
+    {
+        return __FUNCTION__;
+    }
+}
+
+nothrow @safe unittest // className
+{
+    auto c1 = new TestClassName();
+    assert(className(c1) == "pham.utl.utl_text.TestClassName");
+
+    auto c2 = new TestClassTemplate!int();
+    assert(className(c2) == "pham.utl.utl_text.TestClassTemplate!int.TestClassTemplate");
+}
+
+nothrow @safe unittest // concateLineIf
+{
+    assert(concateLineIf("", "") == "");
+    assert(concateLineIf("a", "") == "a");
+    assert(concateLineIf("", "bc") == "bc");
+    assert(concateLineIf("a", "bc") == "a\nbc");
+}
+
+nothrow @safe unittest // decodeFormValue
+{
+    assert(decodeFormValue("Hello World", '\0') == "Hello World");
+    assert(decodeFormValue("%0D%0a", '\0') == "\r\n");
+	assert(decodeFormValue("%c2%aE", '\0') == "®");
+	assert(decodeFormValue("This+is%20a+test", '\0') == "This is a test");
+    assert(decodeFormValue("This~is%20a-test%21%0D%0AHello%2C%20W%C3%B6rld..%20", '\0') == "This~is a-test!\r\nHello, Wörld.. ");
+
+    assert(decodeFormValue("Hello+%x2orld", '?') == "Hello ?orld");
+    assert(decodeFormValue("Hello+Worl%", '?') == "Hello Worl?");
+}
 
 nothrow @safe unittest // isSimpleChar
 {
@@ -337,6 +556,98 @@ nothrow @safe unittest // isAllSimpleChar
 {
     assert(isAllSimpleChar("az"));
     assert(!isAllSimpleChar("áz"));
+}
+
+nothrow @safe unittest // pad
+{
+    assert(pad("", 2, ' ') == "  ");
+    assert(pad("12", 2, ' ') == "12");
+    assert(pad("12", 3, ' ') == " 12");
+    assert(pad("12", -3, ' ') == "12 ");
+}
+
+nothrow @safe unittest // padRight
+{
+    import std.array : Appender;
+
+    Appender!(char[]) s;
+    assert(padRight(s, s.data.length, 2, ' ').data == "  ");
+
+    s.clear();
+    s.put("12");
+    assert(padRight(s, s.data.length, 2, ' ').data == "12");
+
+    s.clear();
+    s.put("12");
+    assert(padRight(s, s.data.length, 3, ' ').data == "12 ");
+}
+
+nothrow @safe unittest // parseFormEncodedValues
+{
+    string[string] values;
+
+    bool parsedValue(size_t index, ResultIf!string name, ResultIf!string value) nothrow @safe
+    {
+        values[name] = value;
+        return true;
+    }
+
+    values = null;
+    parseFormEncodedValues!(immutable(char))("a=b;c;dee=asd&e=fgh&f=j%20l", &parsedValue);
+    assert("a" in values && values["a"] == "b");
+	assert("c" in values && values["c"] == "");
+	assert("dee" in values && values["dee"] == "asd");
+	assert("e" in values && values["e"] == "fgh");
+	assert("f" in values && values["f"] == "j l");
+}
+
+nothrow @safe unittest // shortClassName
+{
+    auto c1 = new TestClassName();
+    assert(shortClassName(c1) == "utl_text.TestClassName");
+
+    auto c2 = new TestClassTemplate!int();
+    assert(shortClassName(c2) == "utl_text.TestClassTemplate");
+}
+
+nothrow @safe unittest // shortFunctionName
+{
+    static void testSelf()
+    {
+        assert(shortFunctionName(1) == "testSelf");
+    }
+    
+    static immutable sample = "pham.db.db_fbdatabase.FbService.traceStart";
+    assert(shortFunctionName(0, sample).length == 0);
+    assert(shortFunctionName(1, sample) == "traceStart");
+    assert(shortFunctionName(2, sample) == "FbService.traceStart");
+    assert(shortFunctionName(3, sample) == "db_fbdatabase.FbService.traceStart");
+    assert(shortFunctionName(4, sample) == "db.db_fbdatabase.FbService.traceStart");
+    assert(shortFunctionName(5, sample) == sample);
+    assert(shortFunctionName(6, sample) == sample);
+    
+    testSelf();
+}
+
+nothrow @safe unittest // shortTypeName
+{
+    //import std.stdio : writeln; debug writeln(typeid(TestClassTemplate!int).name);
+    
+    assert(shortTypeName!TestClassName() == "utl_text.TestClassName", shortTypeName!TestClassName());
+    assert(shortTypeName!(TestClassTemplate!int)() == "utl_text.TestClassTemplate", shortTypeName!(TestClassTemplate!int)());
+    assert(shortTypeName!TestStructName() == "utl_text.TestStructName", shortTypeName!TestStructName());
+}
+
+nothrow @safe unittest // shortenTypeNameModule
+{
+    assert(shortenTypeNameModule("pham.utl.utl_text.TestType") == "utl_text.TestType", shortenTypeNameModule("pham.utl.utl_text.TestType"));
+    assert(shortenTypeNameModule("pham.utl.utl_text.TestTemplate!int.TestClassName") == "TestTemplate!int.TestClassName", shortenTypeNameModule("pham.utl.utl_text.TestTemplate!int.TestClassName"));
+}
+
+nothrow @safe unittest // shortenTypeNameTemplate
+{
+    assert(shortenTypeNameTemplate("utl_text.TestClassName") == "utl_text.TestClassName");
+    assert(shortenTypeNameTemplate("utl_text.TestClassTemplate!int.TestClassTemplate") == "utl_text.TestClassTemplate");
 }
 
 nothrow @safe unittest // simpleIndexOf
@@ -379,33 +690,19 @@ nothrow @safe unittest  // simpleSplitter
     assert("a|bc|def".simpleSplitter('|').equal(["a", "bc", "def"]));
 }
 
-nothrow @safe unittest // decodeFormValue
+nothrow @safe unittest // stringOfChar (string)
 {
-    assert(decodeFormValue("Hello World", '\0') == "Hello World");
-    assert(decodeFormValue("%0D%0a", '\0') == "\r\n");
-	assert(decodeFormValue("%c2%aE", '\0') == "®");
-	assert(decodeFormValue("This+is%20a+test", '\0') == "This is a test");
-    assert(decodeFormValue("This~is%20a-test%21%0D%0AHello%2C%20W%C3%B6rld..%20", '\0') == "This~is a-test!\r\nHello, Wörld.. ");
-
-    assert(decodeFormValue("Hello+%x2orld", '?') == "Hello ?orld");
-    assert(decodeFormValue("Hello+Worl%", '?') == "Hello Worl?");
+    assert(stringOfChar(4, ' ') == "    ");
+    assert(stringOfChar(0, ' ').length == 0);
 }
 
-nothrow @safe unittest // parseFormEncodedValues
+nothrow @safe unittest // stringOfChar (Writer)
 {
-    string[string] values;
+    import std.array : Appender;
 
-    bool parsedValue(size_t index, ResultIf!string name, ResultIf!string value) nothrow @safe
-    {
-        values[name] = value;
-        return true;
-    }
+    Appender!(char[]) s;
+    assert(stringOfChar(s, 4, ' ').data == "    ");
 
-    values = null;
-    parseFormEncodedValues!(immutable(char))("a=b;c;dee=asd&e=fgh&f=j%20l", &parsedValue);
-    assert("a" in values && values["a"] == "b");
-	assert("c" in values && values["c"] == "");
-	assert("dee" in values && values["dee"] == "asd");
-	assert("e" in values && values["e"] == "fgh");
-	assert("f" in values && values["f"] == "j l");
+    s.clear();
+    assert(stringOfChar(s, 0, ' ').data.length == 0);
 }

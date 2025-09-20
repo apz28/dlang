@@ -21,7 +21,7 @@ import pham.io.io_type;
 
 @safe:
 
-struct StreamWriter(Endian EndianKind = Endian.littleEndian, KindType = ubyte)
+struct StreamWriter(Endian endianKind = Endian.littleEndian, KindType = ubyte)
 {
 @safe:
 
@@ -121,14 +121,14 @@ public:
     void write(scope const(char)[] v)
     {
         if (v.length)
-            writeBuffer(&v[0], v.length);
+            writeBuffer(&v[0], v.length, v.length);
     }
 
     pragma(inline, true)
     void write(scope const(ubyte)[] v)
     {
         if (v.length)
-            writeBuffer(&v[0], v.length);
+            writeBuffer(&v[0], v.length, v.length);
     }
 
     pragma(inline, true)
@@ -261,9 +261,9 @@ public:
 
     void writeNullTerminatedChars(scope const(char)[] v)
     {
-        if (v.length)
+        if (const len = v.length)
         {
-            writeBuffer(&v[0], v.length);
+            writeBuffer(&v[0], len, len);
             if (v[$-1] != '\0')
                 writeBuffer('\0');
         }
@@ -283,7 +283,7 @@ public:
     {
         writeLength(v.length);
         if (v.length)
-            writeBuffer(&v[0], v.length);
+            writeBuffer(&v[0], v.length, v.length);
     }
 
     pragma(inline, true)
@@ -291,7 +291,7 @@ public:
     {
         writeLength(v.length);
         if (v.length)
-            writeBuffer(&v[0], v.length);
+            writeBuffer(&v[0], v.length, v.length);
     }
 
     pragma(inline, true)
@@ -347,27 +347,31 @@ package(pham.io):
             _stream.lastError.throwIt!StreamWriteException();
     }
 
-    void writeBuffer(scope const(void)* buffer, size_t size) @trusted
+    size_t writeBuffer(scope const(void)* buffer, size_t size, size_t minSize = 0) @trusted
     {
+        size_t result;
         const(ubyte)* p = cast(const(ubyte)*)buffer;
         while (size)
         {
             const wSize = _stream.write(p[0..size]);
             if (wSize <= 0)
                 break;
-            p += cast(size_t)wSize;
-            size -= cast(size_t)wSize;
+                
+            p += wSize;
+            size -= wSize;
+            result += wSize;
         }
-        if (size != 0)
+        if (minSize && result < minSize)
             _stream.lastError.throwIt!StreamWriteException();
+        return result;
     }
 
     pragma(inline, true)
     void writeEndianInteger(T)(T v) @trusted
     {
-        static if (isSameRTEndian(EndianKind))
+        static if (isSameRTEndian(endianKind))
             writeBuffer(&v, T.sizeof);
-        else static if (EndianKind == Endian.bigEndian)
+        else static if (endianKind == Endian.bigEndian)
         {
             const bytes = nativeToBigEndian!T(v);
             writeBuffer(&bytes[0], T.sizeof);

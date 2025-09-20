@@ -25,7 +25,7 @@ pragma(lib, "kernel32");
 extern (Windows) BOOL FlushFileBuffers(HANDLE hFile) @nogc nothrow @system;
 //extern (Windows) DWORD GetFileType(HANDLE hFile) @nogc nothrow @system;
 
-import pham.utl.utl_result : resultError, resultOK;
+import pham.utl.utl_result : ResultCode;
 import pham.io.io_type : SeekOrigin, StreamOpenInfo;
 
 alias FileHandle = HANDLE;
@@ -40,7 +40,7 @@ in
 }
 do
 {
-    return CloseHandle(handle) ? resultOK : resultError;
+    return CloseHandle(handle) ? ResultCode.ok : ResultCode.error;
 }
 
 /// Follow Posix return convention = -1=error, 0=success
@@ -54,21 +54,21 @@ int createFilePipes(const(bool) asInput, out FileHandle inputHandle, out FileHan
 
     inputHandle = outputHandle = invalidFileHandle;
     int result = CreatePipe(&inputHandle, &outputHandle, &saAttr, bufferSize)
-        ? resultOK
-        : resultError;
-    if (result == resultOK)
+        ? ResultCode.ok
+        : ResultCode.error;
+    if (result == ResultCode.ok)
     {
         if (asInput)
         {
             if (!SetHandleInformation(outputHandle, HANDLE_FLAG_INHERIT, 0))
-                result = resultError;
+                result = ResultCode.error;
         }
         else
         {
             if (!SetHandleInformation(inputHandle, HANDLE_FLAG_INHERIT, 0))
-                result = resultError;
+                result = ResultCode.error;
         }
-        if (result == resultError)
+        if (result == ResultCode.error)
         {
             const e = GetLastError();
             CloseHandle(inputHandle);
@@ -88,7 +88,7 @@ in
 }
 do
 {
-    return FlushFileBuffers(handle) ? resultOK : resultError;
+    return FlushFileBuffers(handle) ? ResultCode.ok : ResultCode.error;
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its length
@@ -101,7 +101,7 @@ in
 do
 {
     LARGE_INTEGER li;
-    return GetFileSizeEx(handle, &li) ? li.QuadPart : resultError;
+    return GetFileSizeEx(handle, &li) ? li.QuadPart : ResultCode.error;
 }
 
 FileHandle openFile(scope const(char)[] fileName, scope const(StreamOpenInfo) openInfo) nothrow @trusted
@@ -134,7 +134,7 @@ do
     uint result = 0;
     return ReadFile(handle, cast(void*)bytes.ptr, cast(uint)bytes.length, &result, null)
         ? cast(int)result
-        : resultError;
+        : ResultCode.error;
 }
 
 /// Follow Posix return convention = -1=error, 0=success
@@ -143,7 +143,7 @@ int removeFile(scope const(char)[] fileName) nothrow @trusted
     import std.internal.cstring : tempCStringW;
 
     auto lpFileName = fileName.tempCStringW();
-    return DeleteFileW(lpFileName) ? resultOK : resultError;
+    return DeleteFileW(lpFileName) ? ResultCode.ok : ResultCode.error;
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its seek position
@@ -159,7 +159,7 @@ do
     li.QuadPart = offset;
     li.LowPart = SetFilePointer(handle, li.LowPart, &li.HighPart, origin);
     return li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR
-        ? resultError
+        ? ResultCode.error
         : li.QuadPart;
 }
 
@@ -172,7 +172,7 @@ in
 }
 do
 {
-    return SetEndOfFile(handle) ? resultOK : resultError;
+    return SetEndOfFile(handle) ? ResultCode.ok : ResultCode.error;
 }
 
 /// Follow Posix return convention = -1=error, >=0=success with its written length
@@ -189,5 +189,5 @@ do
     uint result = 0;
     return WriteFile(handle, cast(void*)bytes.ptr, cast(uint)bytes.length, &result, null)
         ? cast(int)result
-        : resultError;
+        : ResultCode.error;
 }

@@ -18,7 +18,7 @@ import std.algorithm : remove;
 import std.algorithm.comparison : min;
 import std.ascii : isWhite;
 import std.conv : to;
-import std.traits : isIntegral, isSomeString, ParameterTypeTuple, Unqual;
+import std.traits : Unqual, isIntegral, isSomeString, ParameterTypeTuple;
 import std.uni : sicmp, toUpper;
 
 debug(debug_pham_db_db_object) import pham.db.db_debug;
@@ -29,10 +29,11 @@ import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
-import pham.utl.utl_object : asSizeT, RAIIMutex, shortClassName;
-import pham.utl.utl_result : addLine, ResultIf;
+import pham.utl.utl_object : RAIIMutex, asSizeT;
+import pham.utl.utl_result : ResultCode, ResultIf, addLine;
+import pham.utl.utl_text : shortClassName;
 import pham.utl.utl_timer;
-import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;
+import pham.utl.utl_utf8 : UTF8Iterator, nextUTF8Char;
 import pham.db.db_exception;
 import pham.db.db_message;
 import pham.db.db_parser;
@@ -330,7 +331,7 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @trusted
     {
         unregisterWithTimer();
         secondTimer = null;
@@ -342,6 +343,8 @@ protected:
             mutex.destroy();
             mutex = null;
         }
+        
+        return ResultCode.ok;
     }
 
     final void doTimer(TimerEvent event)
@@ -581,7 +584,7 @@ protected:
 abstract class DbDisposableObject : DbObject, IDisposable
 {
 public:
-    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    final int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -589,10 +592,10 @@ public:
     do
     {
         if (!_lastDisposingReason.canDispose(disposingReason))
-            return;
+            return ResultCode.ok;
 
         _lastDisposingReason = disposingReason;
-        doDispose(disposingReason);
+        return doDispose(disposingReason);
     }
 
     pragma(inline, true)
@@ -602,7 +605,7 @@ public:
     }
 
 protected:
-    abstract void doDispose(const(DisposingReason) disposingReason) nothrow @safe;
+    abstract int doDispose(const(DisposingReason) disposingReason) nothrow @safe;
 
 private:
     LastDisposingReason _lastDisposingReason;

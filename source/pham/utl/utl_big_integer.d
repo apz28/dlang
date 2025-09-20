@@ -18,7 +18,7 @@ import std.conv : ConvException;
 import std.format : FormatException, FormatSpec, formatValue;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
 import std.string : indexOf;
-import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isUnsigned, Unqual;
+import std.traits : Unqual, isFloatingPoint, isIntegral, isSigned, isSomeChar, isUnsigned;
 import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
@@ -28,8 +28,10 @@ import pham.utl.utl_bit : bitLength, trailingZeroBits;
 import pham.utl.utl_convert : bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason;
 public import pham.utl.utl_numeric_parser : NumericLexerFlag, NumericLexerOptions;
-import pham.utl.utl_numeric_parser : cvtDigit, cvtHexDigit2, isHexDigit, isNumericLexerRange, NumericLexer, NumericStringRange;
-import pham.utl.utl_object : simpleIntegerFmt;
+import pham.utl.utl_numeric_parser : NumericLexer, NumericStringRange,
+    cvtDigit, cvtHexDigit2, isHexDigit, isNumericLexerRange;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : simpleIntegerFmt;
 import pham.utl.utl_big_integer_calculator;
 public import pham.utl.utl_big_integer_calculator : UByteTempArray, UIntTempArray;
 import pham.utl.utl_big_integer_helper;
@@ -957,10 +959,17 @@ public:
     /**
      * For security reason, need a way clear the internal data
      */
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) @nogc nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) @nogc nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _sign = 0;
         _bits[] = 0;
+        _bits = null;
+        return ResultCode.ok;
     }
 
     BigInteger dup() const nothrow pure

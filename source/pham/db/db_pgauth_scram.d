@@ -15,8 +15,7 @@ import std.algorithm : startsWith;
 import std.conv : to;
 import std.string : representation;
 
-debug(debug_pham_db_db_pgauth_scram) import std.stdio : writeln;
-
+debug(debug_pham_db_db_pgauth_scram) import pham.db.db_debug;
 import pham.cp.cp_cipher : CipherHelper;
 import pham.cp.cp_cipher_digest : DigestId, DigestResult, HMACS, digestOf;
 import pham.cp.cp_random : CipherRandomGenerator;
@@ -27,7 +26,7 @@ import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;
 import pham.db.db_pgauth;
-import pham.db.db_pgtype : pgAuthScram256Name, PgOIdScramSHA256FinalMessage, PgOIdScramSHA256FirstMessage;
+import pham.db.db_pgtype : PgOIdScramSHA256FinalMessage, PgOIdScramSHA256FirstMessage, pgAuthScram256Name;
 
 nothrow @safe:
 
@@ -171,17 +170,15 @@ protected:
             ", authData.length=", authData.length, ", authData=", cast(const(char)[])(authData[]));
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _cbind[] = 0;
-        _cbind = null;
         _cbindFlag[] = 0;
-        _cbindFlag = null;
         _nonce[] = 0;
-        _nonce = null;
+        _cbind = _cbindFlag = _nonce = null; // Set to null after filled buffer with zeros
         _saltedPassword.dispose(disposingReason);
         _serverSignature.dispose(disposingReason);
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
     final const(char)[] finalRequestWithoutProof(scope const(char)[] serverNonce) const pure scope

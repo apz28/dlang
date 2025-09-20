@@ -12,7 +12,7 @@
 module pham.cp.cp_cipher;
 
 import std.range.primitives : isOutputRange, put;
-import std.traits : isUnsigned, Unqual;
+import std.traits : Unqual, isUnsigned;
 import std.typecons : No, Yes;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
@@ -20,6 +20,7 @@ import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_big_integer : BigInteger, defaultParseBigIntegerOptions;
 import pham.utl.utl_disposable : DisposableObject, DisposingReason;
 import pham.utl.utl_numeric_parser : NumericLexerFlag, NumericLexerOptions;
+import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_utf8 : NoDecodeInputRange, NoDecodeOutputRange, UTF8CharRange;
 public import pham.cp.cp_cipher_buffer;
 import pham.cp.cp_cipher_digest : DigestId;
@@ -103,9 +104,15 @@ public:
         return rounds == 0 ? chacha20 : rounds;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         clear();
+        return ResultCode.ok;
     }
 
     bool isValid() const @nogc pure
@@ -227,9 +234,15 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         clear();
+        return ResultCode.ok;
     }
 
     bool isValid() const @nogc pure
@@ -301,9 +314,15 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         clear();
+        return ResultCode.ok;
     }
 
     bool isValid() const @nogc pure
@@ -359,9 +378,15 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         clear();
+        return ResultCode.ok;
     }
 
     bool isValid() const @nogc pure
@@ -418,9 +443,15 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         clear();
+        return ResultCode.ok;
     }
 
     bool isValid() const @nogc pure
@@ -604,10 +635,16 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _keyBitLength = 0;
         clearKey();
+        return ResultCode.ok;
     }
 
     static CipherRawKey!char hexDigitsFromBigInteger(scope const(BigInteger) n) pure
@@ -795,11 +832,18 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
     {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        _digestId = null;
         _privateKey.dispose(disposingReason);
         _publicKey.dispose(disposingReason);
         _salt.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
     @property DigestId digestId() const @nogc pure
@@ -847,9 +891,10 @@ public:
     @property string name() const pure;
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _parameters.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
 protected:

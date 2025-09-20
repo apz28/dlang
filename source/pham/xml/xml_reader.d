@@ -16,7 +16,6 @@ import std.traits : hasMember;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_xml_xml_reader) import std.stdio : writeln;
-
 import pham.utl.utl_utf8 : nextUTF8Char, nextUTF16Char;
 import pham.xml.xml_buffer;
 import pham.xml.xml_exception;

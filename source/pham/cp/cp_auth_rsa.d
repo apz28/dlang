@@ -15,6 +15,7 @@ import std.typecons : No;
 
 import pham.utl.utl_big_integer : BigInteger, modInverse, modPow;
 import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_result : ResultCode;
 import pham.cp.cp_cipher;
 import pham.cp.cp_openssl;
 import pham.cp.cp_pad;
@@ -38,12 +39,18 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         publicKey.dispose(disposingReason);
         d.dispose(disposingReason);
         foreach (ref prime; primes)
              prime.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
 public:
@@ -61,10 +68,16 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         N.dispose(disposingReason);
         E = 0;
+        return ResultCode.ok;
     }
 
     @property CipherRSAValidState isValidState() const @nogc pure
@@ -260,14 +273,14 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    final override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         privateExponent.dispose(disposingReason);
         privateModulus.dispose(disposingReason);
         publicExponent.dispose(disposingReason);
         publicModulus.dispose(disposingReason);
         tempBlock.dispose(disposingReason);
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
 protected:

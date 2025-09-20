@@ -23,6 +23,7 @@ import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_object : alignRoundup;
+import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_trait : UnsignedTypeOf;
 import pham.db.db_convert;
 import pham.db.db_exception;
@@ -60,11 +61,12 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _data = null;
         _offset = 0;
         _next = _prev = null;
+        return ResultCode.ok;
     }
 
 protected:
@@ -305,10 +307,10 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _maxLength = 0;
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
     final void mergeOffset() nothrow
@@ -375,9 +377,15 @@ public:
         this._buffer = buffer;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _buffer = null;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)
@@ -654,9 +662,15 @@ public:
             return unsignedEncode!(UT, endianKind)(numericBitCast!UT(v));
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _buffer = null;
+        return ResultCode.ok;
     }
 
     void rewriteInt32(int32 v, size_t rewriteOffset) nothrow

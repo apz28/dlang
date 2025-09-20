@@ -16,7 +16,8 @@ version(Windows):
 import core.sys.windows.winerror : ERROR_ALREADY_EXISTS;
 import core.sys.windows.winsock2;
 import std.algorithm : remove;
-import pham.utl.utl_result : resultOK, resultError;
+
+import pham.utl.utl_result : ResultCode;
 import pham.io.io_socket_windows;
 
 enum // EPOLL_EVENTS - Posix
@@ -114,7 +115,7 @@ int epoll_ctl(int epfd, int op, SocketHandle fd, epoll_event* event) nothrow
     if (event is null && (op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD || op == EPOLL_CTL_LER))
     {
         lastSocketError(WSAEINVAL);
-        return resultError;
+        return ResultCode.error;
     }
 
     switch (op)
@@ -134,7 +135,7 @@ int epoll_ctl(int epfd, int op, SocketHandle fd, epoll_event* event) nothrow
 
         default:
             lastSocketError(WSAEINVAL);
-            return resultError;
+            return ResultCode.error;
     }
 }
 
@@ -146,7 +147,7 @@ int epoll_ctl_ex(int epfd, int op, SocketHandle fd, ref EPollEvent event) nothro
     if (fd == invalidSocketHandle)
     {
         lastSocketError(WSAEBADF);
-        return resultError;
+        return ResultCode.error;
     }
 
     auto lock = RAIIMutex(mutex);
@@ -169,12 +170,12 @@ int epoll_ctl_ex(int epfd, int op, SocketHandle fd, ref EPollEvent event) nothro
 
             default:
                 lastSocketError(WSAEINVAL);
-                return resultError;
+                return ResultCode.error;
         }
     }
 
     lastSocketError(WSAEBADF);
-    return resultError;
+    return ResultCode.error;
 }
 
 /**
@@ -196,7 +197,7 @@ int epoll_wait(int epfd, epoll_event* events, int maxEvents, int timeout) nothro
     if (events is null || maxEvents < 1)
     {
         lastSocketError(WSAEINVAL);
-        return resultError;
+        return ResultCode.error;
     }
 
     auto resultEventExs = new EPollEventEx[](maxEvents);
@@ -231,7 +232,7 @@ int epoll_wait_ex(int epfd, ref EPollEventEx[] events, int timeout) nothrow @tru
         else
         {
             lastSocketError(WSAEBADF);
-            return resultError;
+            return ResultCode.error;
         }
     }
     assert(waitEvents.length == waitHandles.length);
@@ -243,7 +244,7 @@ int epoll_wait_ex(int epfd, ref EPollEventEx[] events, int timeout) nothrow @tru
     if (wsaResult == WSA_WAIT_TIMEOUT)
         return 0;
     else if (wsaResult == WSA_WAIT_FAILED)
-        return resultError;
+        return ResultCode.error;
 
     int result, errorCount;
     for (size_t i = wsaResult - WSA_WAIT_EVENT_0; i < waitHandles.length; ++i)
@@ -300,11 +301,11 @@ int epoll_close(int epfd) nothrow @trusted
     {
         data.cleanup();
         epfdData.remove(epfd);
-        return resultOK;
+        return ResultCode.ok;
     }
 
     lastSocketError(WSAEBADF);
-    return resultError;
+    return ResultCode.error;
 }
 
 /**
@@ -419,7 +420,7 @@ struct EPollSocketFD
             {
                 lastErrorNumber = lastSocketError();
                 waitHandle = WSAEVENT.init;
-                return resultError;
+                return ResultCode.error;
             }
 
             if (WSAEventSelect(fd, waitHandle, pollEvent.events) == SOCKET_ERROR)
@@ -428,11 +429,11 @@ struct EPollSocketFD
                 WSACloseEvent(waitHandle);
                 waitHandle = WSAEVENT.init;
                 lastSocketError(lastErrorNumber); // Set back the original error number
-                return resultError;
+                return ResultCode.error;
             }
         }
 
-        return resultOK;
+        return ResultCode.ok;
     }
 
     void setResultEvent(ref const(WSANETWORKEVENTS) pollResult) @nogc nothrow @safe
@@ -480,17 +481,17 @@ struct EPollInternalFD
         if (indexOfSocket(fd) >= 0)
         {
             lastSocketError(ERROR_ALREADY_EXISTS);
-            return resultError;
+            return ResultCode.error;
         }
 
         auto epv = EPollSocketFD(fd, event);
-        if (epv.prepareWaitEvent() == resultOK)
+        if (epv.prepareWaitEvent() == ResultCode.ok)
         {
             fdEvents ~= epv;
-            return resultOK;
+            return ResultCode.ok;
         }
 
-        return resultError;
+        return ResultCode.error;
     }
 
     int changeEvent(SocketHandle fd, EPollEvent event) nothrow @safe
@@ -499,7 +500,7 @@ struct EPollInternalFD
         if (i < 0)
         {
             lastSocketError(WSAEBADF);
-            return resultError;
+            return ResultCode.error;
         }
 
         fdEvents[i].changeEvent(event);
@@ -520,12 +521,12 @@ struct EPollInternalFD
         if (i < 0)
         {
             lastSocketError(WSAEBADF);
-            return resultError;
+            return ResultCode.error;
         }
 
         fdEvents[i].cleanupWaitEvent();
         fdEvents.remove(i);
-        return resultOK;
+        return ResultCode.ok;
     }
 
     int getLastErrorNumber(SocketHandle fd, ref EPollEvent event) nothrow @safe
@@ -534,11 +535,11 @@ struct EPollInternalFD
         if (i < 0)
         {
             lastSocketError(WSAEBADF);
-            return resultError;
+            return ResultCode.error;
         }
 
         event.data.u32 = fdEvents[i].lastErrorNumber;
-        return resultOK;
+        return ResultCode.ok;
     }
 
     ptrdiff_t indexOfSocket(SocketHandle fd) const nothrow @safe
@@ -560,7 +561,7 @@ struct EPollInternalFD
             waitEvents[i] = fdEvent;
             waitHandles[i] = fdEvent.waitHandle;
             // Set on the copy instance
-            if (r == resultOK)
+            if (r == ResultCode.ok)
                 waitEvents[i].clearResultEvent();
         }
     }
@@ -609,7 +610,7 @@ int epollCreate(int size, int flags) nothrow @trusted
     if (size < 0)
     {
         lastSocketError(WSAEINVAL);
-        return resultError;
+        return ResultCode.error;
     }
 
     ++epfdNextId;
@@ -630,7 +631,7 @@ int epollCreate(int size, int flags) nothrow @trusted
     if (epfdNextId < 0)
     {
         lastSocketError(WSAEMFILE);
-        return resultError;
+        return ResultCode.error;
     }
 
     epfdData[epfdNextId] = EPollInternalFD(epfdNextId, size, flags);

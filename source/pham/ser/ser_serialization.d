@@ -14,9 +14,9 @@ module pham.ser.ser_serialization;
 import std.conv : to;
 import std.meta : AliasSeq, aliasSeqOf, Filter, NoDuplicates, staticMap;
 import std.range : ElementType, isInputRange;
-import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, fullyQualifiedName,
+import std.traits : BaseClassesTuple, BaseTypeTuple, EnumMembers, Unqual, fullyQualifiedName,
     isAggregateType, isCallable, isDynamicArray, isFloatingPoint, isIntegral, isSomeChar, isSomeFunction,
-    isStaticArray, Unqual;
+    isStaticArray;
 import std.uni : sicmp;
 
 debug(pham_ser_ser_serialization) import std.stdio : writeln;

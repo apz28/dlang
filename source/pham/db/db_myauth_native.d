@@ -13,8 +13,7 @@ module pham.db.db_myauth_native;
 
 import std.conv : to;
 
-debug(debug_pham_db_db_myauth_native) import std.stdio : writeln;
-
+debug(debug_pham_db_db_myauth_native) import pham.db.db_debug;
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult;
 import pham.db.db_auth;
 import pham.db.db_message;

@@ -37,6 +37,7 @@ debug(debug_pham_external_std_log_log_logger) import std.stdio : writeln;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_result : ResultCode;
 import pham.external.std.log.log_date_time_format;
 
 
@@ -222,14 +223,20 @@ public:
         this.mutex = this.ownMutex ? (new Mutex()) : mutex;
     }
 
+    version(none)
     ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe scope
+    final int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe scope
+    in
     {
-        doDispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return doDispose(disposingReason);
     }
 
     final LogLevel logLevel(scope string moduleName,
@@ -332,7 +339,7 @@ public:
     }
 
 protected:
-    void doDispose(const(DisposingReason) disposingReason) @trusted scope
+    int doDispose(const(DisposingReason) disposingReason) @trusted scope
     {
         if (isDisposing(disposingReason))
         {
@@ -345,6 +352,7 @@ protected:
                 mutex = null;
             }
         }
+        return ResultCode.ok;
     }
 
 private:
@@ -763,14 +771,20 @@ public:
         this._mutex = new Mutex();
     }
 
+    version(none)
     ~this() nothrow @safe
     {
         dispose(DisposingReason.destructor);
     }
 
-    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe scope
+    final int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe scope
+    in
     {
-        doDispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return doDispose(disposingReason);
     }
 
     /**
@@ -1689,7 +1703,7 @@ public:
     }
 
 protected:
-    void doDispose(const(DisposingReason) disposingReason) nothrow @trusted scope
+    int doDispose(const(DisposingReason) disposingReason) nothrow @trusted scope
     {
         _option.logLevel = LogLevel.off;
         if (isDisposing(disposingReason))
@@ -1702,6 +1716,7 @@ protected:
                 _mutex = null;
             }
         }
+        return ResultCode.ok;
     }
 
     void doFatal() nothrow @safe

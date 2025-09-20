@@ -11,8 +11,7 @@
 
 module pham.db.db_buffer_filter_compressor;
 
-debug(debug_pham_db_db_buffer_filter_compressor) import std.stdio : writeln;
-
+debug(debug_pham_db_db_buffer_filter_compressor) import pham.db.db_debug;
 import pham.utl.utl_object : alignRoundup;
 import pham.db.db_buffer_filter;
 
@@ -74,8 +73,8 @@ public:
 
         bool returnError(int errorNumber)
         {
-            errorCode = errorNumber;
-            errorMessage = codec.errorMessage.length != 0 ? codec.errorMessage : ZlibException.codeMessage(errorNumber);
+            const errorMessage = codec.errorMessage.length != 0 ? codec.errorMessage : ZlibException.codeMessage(errorNumber);
+            errorStatus.set(errorNumber, errorMessage);
             codec.resetBuffers(null, null);
 
             debug(debug_pham_db_db_buffer_filter_compressor) debug writeln(__FUNCTION__, "(errorNumber=", errorNumber, ", errorMessage=", errorMessage, ")");

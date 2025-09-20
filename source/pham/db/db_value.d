@@ -18,6 +18,7 @@ import std.traits : isArrayT = isArray, Unqual;
 
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_result : ResultCode;
 import pham.var.var_coerce;
 import pham.var.var_coerce_dec_decimal;
 import pham.var.var_coerce_pham_date_time;
@@ -74,9 +75,16 @@ public:
         return result;
     }
 
-    void dispose(bool disposing = true) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _value.nullify();
+        _type = DbType.unknown;
+        return ResultCode.ok;
     }
 
     static DbValue entity(T)(T value, DbType type) nothrow
@@ -433,16 +441,22 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         if (_columnValues)
         {
             foreach (ref c; _columnValues)
                 c.nullify();
-
-            if (isDisposing(disposingReason))
-                _columnValues = null;
         }
+        
+        _columnValues = null;
+        _row = 0;
+        return ResultCode.ok;
     }
 
     void nullify() nothrow @safe
@@ -488,12 +502,18 @@ public:
             dequeueItem();
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         clearItems(head);
         clearItems(pools);
         tail = null;
         _length = 0;
+        return ResultCode.ok;
     }
 
     DbRowValue dequeue() nothrow @safe
@@ -597,6 +617,7 @@ private:
         }
     }
 
+private:
     DbRowValueQueueItem head;
     DbRowValueQueueItem tail;
     DbRowValueQueueItem pools;

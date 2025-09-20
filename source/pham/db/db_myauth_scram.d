@@ -17,7 +17,7 @@ import std.base64 : Base64, Base64Impl;
 import std.conv : to;
 import std.string : representation;
 
-debug(debug_pham_db_db_myauth_scram) import std.stdio : writeln;
+debug(debug_pham_db_db_myauth_scram) import pham.db.db_debug;
 import pham.cp.cp_cipher : CipherHelper;
 import pham.cp.cp_cipher_digest : Digester, DigestId, DigestResult, HMACS;
 import pham.cp.cp_random : CipherRandomGenerator;
@@ -178,7 +178,7 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         client[] = 0;
         client = null;
@@ -188,7 +188,7 @@ protected:
         auth = null;
         salted[] = 0;
         salted = null;
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
     final DigestResult hashOf(scope const(ubyte)[] str)

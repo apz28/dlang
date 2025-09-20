@@ -24,14 +24,27 @@ import core.sys.posix.sys.time : timeval;
 import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : resultError, resultOK;
-import pham.io.io_socket_type : isSelectMode, PollFDSet, PollResult,
-    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, toSocketTimeMSecs;
+import pham.io.io_socket_type : PollFDSet, PollResult,
+    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems,
+    isSelectMode, toSocketTimeMSecs;
 
 alias FDSet = fd_set;
 alias Linger = linger;
 alias PollFD = pollfd;
 alias SocketHandle = int;
 alias TimeVal = timeval;
+
+enum : int
+{
+    SD_RECEIVE = SHUT_RD,
+    SD_SEND    = SHUT_WR,
+    SD_BOTH    = SHUT_RDWR,
+}
+
+enum : int
+{
+    SO_USELOOPBACK = 0x0040,
+}
 
 enum errorSocketResult = -1;
 enum invalidSocketHandle = -1;

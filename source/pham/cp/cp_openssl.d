@@ -17,7 +17,7 @@ debug(debug_pham_cp_cp_openssl) import std.stdio : writeln;
 import pham.io.io_socket_error;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason;
-public import pham.utl.utl_result : ResultStatus;
+public import pham.utl.utl_result : ResultCode, ResultStatus;
 import pham.cp.cp_cipher : calculateBufferLength, CipherRawKey;
 import pham.cp.cp_openssl_binding;
 
@@ -36,6 +36,24 @@ public:
         this.ct = ct;
         this.blockLength = blockLength;
         this.keyBitLength = keyBitLength;
+    }
+
+    ~this() pure
+    {
+        dispose(DisposingReason.destructor);
+    }
+
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @trusted
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        name = null;
+        keyBitLength = blockLength = 0;
+        ct = null;
+        return ResultCode.ok;
     }
 
     static OpenSSLKeyInfo bf_cbc()
@@ -203,7 +221,7 @@ public:
     ResultStatus close() @trusted
     {
         auto rs = ResultStatus.ok();
-        
+
         if (_connected && _ssl)
         {
             opensslApi.SSL_set_quiet_shutdown(_ssl, 1);
@@ -243,8 +261,8 @@ public:
         version(none)
         {
             auto cipher = opensslApi.SSL_get_current_cipher(_ssl);
-            
-            debug(debug_pham_cp_cp_openssl) if (cipher !is null) debug writeln(__FUNCTION__, "() - SSL_name=", fromStringz(opensslApi.SSL_CIPHER_get_name(cipher)), 
+
+            debug(debug_pham_cp_cp_openssl) if (cipher !is null) debug writeln(__FUNCTION__, "() - SSL_name=", fromStringz(opensslApi.SSL_CIPHER_get_name(cipher)),
                 ", version=", fromStringz(opensslApi.SSL_CIPHER_get_version(cipher)));
         }
 
@@ -252,19 +270,25 @@ public:
         return ResultStatus.ok();
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
+    in
     {
-        disposeSSLResources();
-        sslCa = null;
-        sslCaDir = null;
-        sslCert = null;
-        sslKey = null;
-        sslKeyPassword = null;
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        disposeSSLResources(); // _ctx & _ssl
+        
+        _connected = false;
+        sslCa = sslCaDir = sslCert = sslKey = sslKeyPassword = null;
+        sslCertType = sslKeyType = SSL_FILETYPE_PEM;
         verificationHost = null;
+        verificationDepth = 0;
+        verificationMode = -1;
         ciphers = null;
-        dhp = null;
-        dhg = null;
-        dhq = null;
+        dhp = dhg = dhq = null;
+        verificationCallback = null;
+        return ResultCode.ok;
     }
 
     ResultStatus initialize() @trusted
@@ -730,11 +754,20 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
+    in
     {
-        disposeSSLResources();
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        disposeSSLResources(); // _ctx
+        
+        _info.dispose(disposingReason);
         _iv.dispose(disposingReason);
         _key.dispose(disposingReason);
+        _isEncrypted = false;
+        return ResultCode.ok;
     }
 
     ResultStatus initialize(bool isEncrypted) @trusted
@@ -1137,12 +1170,18 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _pemData[] = 0;
-        _pemData = null;
         _pemFile[] = 0;
-        _pemFile = null;
+        _pemData = _pemFile = null;
+        _isPublic = false;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)
@@ -1216,10 +1255,18 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
+    in
     {
-        disposeSSLResources();
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        disposeSSLResources(); // _rsa
+        
         _pem.dispose(disposingReason);
+        paddingMode = RSA_PKCS1_OAEP_PADDING;
+        return ResultCode.ok;
     }
 
     ResultStatus decrypt(scope const(ubyte)[] input, ref ubyte[] output, out size_t outputLength) @trusted
@@ -1412,7 +1459,7 @@ private:
 Dictionary!(string, OpenSSLKeyInfo) defaultMappedKeyInfos() nothrow @safe
 {
     auto result = Dictionary!(string, OpenSSLKeyInfo)(70, 64);
-    
+
     result["bf_cbc"] = OpenSSLKeyInfo.bf_cbc();
     result["bf-cbc"] = OpenSSLKeyInfo.bf_cbc();
     result["bf_cfb"] = OpenSSLKeyInfo.bf_cfb();
@@ -1476,14 +1523,14 @@ Dictionary!(string, OpenSSLKeyInfo) defaultMappedKeyInfos() nothrow @safe
     result["aes-ofb-192"] = OpenSSLKeyInfo.aes_ofb(192 / 8);
     result["aes_ofb_256"] = OpenSSLKeyInfo.aes_ofb(256 / 8);
     result["aes-ofb-256"] = OpenSSLKeyInfo.aes_ofb(256 / 8);
-    
+
     return result;
 }
 
 shared static this() nothrow @trusted
 {
     if (opensslApi.status().isOK)
-        mappedKeyInfos = cast(immutable Dictionary!(string, OpenSSLKeyInfo))defaultMappedKeyInfos();        
+        mappedKeyInfos = cast(immutable Dictionary!(string, OpenSSLKeyInfo))defaultMappedKeyInfos();
 }
 
 ResultStatus currentError(string apiName) nothrow @trusted

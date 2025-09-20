@@ -11,9 +11,10 @@
 
 module pham.utl.utl_object;
 
-import std.format : FormatSpec;
 import std.math : isPowerOf2;
-import std.traits : isSomeChar, isSomeString, Unqual;
+import std.traits : fullyQualifiedName;
+
+static import pham.utl.utl_text;
 
 
 /**
@@ -63,15 +64,8 @@ size_t asSizeT(const(void*) pointer) @nogc nothrow pure @safe
     return cast(size_t)pointer;
 }
 
-/**
- * Returns the class-name of object. If it is null, returns "null"
- * Params:
- *   object = the object to get the class-name from
- */
-string className(const(Object) object) nothrow pure @safe
-{
-    return object is null ? "null" : typeid(object).name;
-}
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.className))
+alias className = pham.utl.utl_text.className;
 
 /**
  * Checks and returns `value` within `min` and `max` inclusive
@@ -95,111 +89,26 @@ T limitRangeValue(T)(T value, T min, T max) nothrow pure @safe
         static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
 }
 
-/**
- * Pads the string `value` with character `c` if `value.length` is shorter than `size`
- * Params:
- *   value = the string value to be checked and padded
- *   size = max length to be checked against value.length
- *          a positive value will do a left padding
- *          a negative value will do a right padding
- *   c = a character used for padding
- * Returns:
- *   a string with proper padded character(s)
- */
-S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
-if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
-{
-    import std.math : abs;
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.pad))
+alias pad = pham.utl.utl_text.pad;
 
-    const n = abs(size);
-    if (value.length >= n)
-        return value;
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.padRight))
+alias padRight = pham.utl.utl_text.padRight;
 
-    return size > 0
-        ? (stringOfChar!C(n - value.length, c) ~ value)
-        : (value ~ stringOfChar!C(n - value.length, c));
-}
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.shortClassName))
+alias shortClassName = pham.utl.utl_text.shortClassName;
 
-ref Writer padRight(C, Writer)(return ref Writer sink, const(size_t) length, const(size_t) size, C c) nothrow pure @safe
-if (isSomeChar!C)
-{
-    return length >= size
-        ? sink
-        : stringOfChar!(C, Writer)(sink, size - length, c);
-}
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.shortTypeName))
+alias shortTypeName = pham.utl.utl_text.shortTypeName;
 
-/**
- * Returns the complete class-name of 'object' without template type if any. If `object` is null, returns "null"
- * Params:
- *   object = the object to get the class-name from
- */
-string shortClassName(const(Object) object) nothrow pure @safe
-{
-    return object is null ? "null" : shortenTypeName(typeid(object).name);
-}
+//deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.shortenTypeNameTemplate))
+//alias shortenTypeName = pham.utl.utl_text.shortenTypeNameTemplate;
 
-string shortFunctionName(uint parts = 1, string fullName = __FUNCTION__) nothrow pure @safe
-{
-    import std.array : split;
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.simpleFloatFmt))
+alias simpleFloatFmt = pham.utl.utl_text.simpleFloatFmt;
 
-    string result;
-    auto nameParts = split(fullName, ".");
-    while (nameParts.length && parts--)
-    {
-        if (result.length)
-            result = nameParts[$-1] ~ "." ~ result;
-        else
-            result = nameParts[$-1];
-        nameParts = nameParts[0..$-1];
-    }
-    return result;
-}
-
-/**
- * Returns the complete aggregate-name of a class/struct without template type
- */
-string shortTypeName(T)() nothrow @safe
-if (is(T == class) || is(T == struct))
-{
-    return shortenTypeName(typeid(T).name);
-}
-
-/**
- * Strip out the template type if any and returns it
- * Params:
- *   fullName = the complete type name
- */
-string shortenTypeName(string fullName) nothrow pure @safe
-{
-    import std.algorithm.iteration : filter;
-    import std.array : join, split;
-    import std.string : indexOf;
-
-    return split(fullName, ".").filter!(e => e.indexOf('!') < 0).join(".");
-}
-
-/**
- * Returns FormatSpec!char with `f` format specifier
- */
-FormatSpec!char simpleFloatFmt() nothrow pure @safe
-{
-    FormatSpec!char result;
-    result.spec = 'f';
-    return result;
-}
-
-/**
- * Returns FormatSpec!char with `d` format specifier
- * Params:
- *   width = optional width of formated string
- */
-FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
-{
-    FormatSpec!char result;
-    result.spec = 'd';
-    result.width = width;
-    return result;
-}
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.simpleIntegerFmt))
+alias simpleIntegerFmt = pham.utl.utl_text.simpleIntegerFmt;
 
 /**
  * Initialize parameter `v` if `v` is null in thread safe manner using pass-in 'initiate' function
@@ -228,35 +137,8 @@ if (is(T == class))
     return v;
 }
 
-/**
- * Returns a string with length `count` with specified character `c`
- * Params:
- *   count = number of characters
- *   c = expected string of character
- */
-auto stringOfChar(C = char)(size_t count, C c) nothrow pure @trusted
-if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
-{
-    auto result = new Unqual!C[](count);
-    result[] = c;
-    static if (is(Unqual!C == char))
-        return cast(string)result;
-    else static if (is(Unqual!C == wchar))
-        return cast(wstring)result;
-    else
-        return cast(dstring)result;
-}
-
-ref Writer stringOfChar(C = char, Writer)(return ref Writer sink, size_t count, C c) nothrow pure @safe
-if (isSomeChar!C)
-{
-    while (count)
-    {
-        sink.put(c);
-        count--;
-    }
-    return sink;
-}
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.stringOfChar))
+alias stringOfChar = pham.utl.utl_text.stringOfChar;
 
 /**
  * Boxer type to have indicator that its' value has been set or not-set regardless of if the setting value
@@ -753,15 +635,6 @@ unittest // alignRoundup
     assert(alignRoundup(16, 16) == 16);
 }
 
-nothrow @safe unittest // className
-{
-    auto c1 = new TestClassName();
-    assert(className(c1) == "pham.utl.utl_object.TestClassName");
-
-    auto c2 = new TestClassTemplate!int();
-    assert(className(c2) == "pham.utl.utl_object.TestClassTemplate!int.TestClassTemplate");
-}
-
 nothrow @safe unittest // limitRangeValue
 {
     assert(limitRangeValue(0, 0, 101) == 0);
@@ -769,46 +642,6 @@ nothrow @safe unittest // limitRangeValue
     assert(limitRangeValue(1, 0, 101) == 1);
     assert(limitRangeValue(-1, 0, 101) == 0);
     assert(limitRangeValue(102, 0, 101) == 101);
-}
-
-nothrow @safe unittest // pad
-{
-    assert(pad("", 2, ' ') == "  ");
-    assert(pad("12", 2, ' ') == "12");
-    assert(pad("12", 3, ' ') == " 12");
-    assert(pad("12", -3, ' ') == "12 ");
-}
-
-nothrow @safe unittest // padRight
-{
-    import std.array : Appender;
-
-    Appender!(char[]) s;
-    assert(padRight(s, s.data.length, 2, ' ').data == "  ");
-
-    s.clear();
-    s.put("12");
-    assert(padRight(s, s.data.length, 2, ' ').data == "12");
-
-    s.clear();
-    s.put("12");
-    assert(padRight(s, s.data.length, 3, ' ').data == "12 ");
-}
-
-nothrow @safe unittest // shortClassName
-{
-    auto c1 = new TestClassName();
-    assert(shortClassName(c1) == "pham.utl.utl_object.TestClassName");
-
-    auto c2 = new TestClassTemplate!int();
-    assert(shortClassName(c2) == "pham.utl.utl_object.TestClassTemplate");
-}
-
-nothrow @safe unittest // shortTypeName
-{
-    assert(shortTypeName!TestClassName() == "pham.utl.utl_object.TestClassName", shortTypeName!TestClassName());
-    assert(shortTypeName!(TestClassTemplate!int)() == "pham.utl.utl_object.TestClassTemplate", shortTypeName!(TestClassTemplate!int)());
-    assert(shortTypeName!TestStructName() == "pham.utl.utl_object.TestStructName", shortTypeName!TestStructName());
 }
 
 unittest // singleton
@@ -823,23 +656,6 @@ unittest // singleton
     A a;
     assert(a is null);
     assert(singleton(a, &createA) !is null);
-}
-
-nothrow @safe unittest // stringOfChar (string)
-{
-    assert(stringOfChar(4, ' ') == "    ");
-    assert(stringOfChar(0, ' ').length == 0);
-}
-
-nothrow @safe unittest // stringOfChar (Writer)
-{
-    import std.array : Appender;
-
-    Appender!(char[]) s;
-    assert(stringOfChar(s, 4, ' ').data == "    ");
-
-    s.clear();
-    assert(stringOfChar(s, 0, ' ').data.length == 0);
 }
 
 unittest // InitializedValue
@@ -959,23 +775,4 @@ nothrow @safe unittest // asSizeT
 
     void* pointer = object.asPointer();
     assert(pointer.asSizeT() == object.asSizeT());
-}
-
-nothrow @safe unittest // shortFunctionName
-{
-    static void testSelf()
-    {
-        assert(shortFunctionName() == "testSelf");
-    }
-    
-    static immutable sample = "pham.db.db_fbdatabase.FbService.traceStart";
-    assert(shortFunctionName(0, sample).length == 0);
-    assert(shortFunctionName(1, sample) == "traceStart");
-    assert(shortFunctionName(2, sample) == "FbService.traceStart");
-    assert(shortFunctionName(3, sample) == "db_fbdatabase.FbService.traceStart");
-    assert(shortFunctionName(4, sample) == "db.db_fbdatabase.FbService.traceStart");
-    assert(shortFunctionName(5, sample) == sample);
-    assert(shortFunctionName(6, sample) == sample);
-    
-    testSelf();
 }

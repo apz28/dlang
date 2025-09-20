@@ -67,7 +67,7 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    final override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         if (_cipher !is null)
         {
@@ -75,7 +75,7 @@ protected:
             if (isDisposing(disposingReason))
                 _cipher = null;
         }
-        super.doDispose(disposingReason);
+        return super.doDispose(disposingReason);
     }
 
 private:

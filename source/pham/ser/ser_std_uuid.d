@@ -12,9 +12,10 @@
 module pham.ser.ser_std_uuid;
 
 import std.uuid : parseUUID, UUID;
-import pham.ser.ser_serialization : asciiCaseInplace, DataKind,
+
+import pham.ser.ser_serialization : DataKind,
     Deserializer, DSSerializer, Serializable, Serializer,
-    SerializerDataFormat;
+    SerializerDataFormat, asciiCaseInplace;
 
 @safe:
 
@@ -62,13 +63,13 @@ package(pham.ser):
             uuid1 = UUID("8AB3060E-2CBA-4F23-B74C-B52DB3DBFB46"); // [138, 179, 6, 14, 44, 186, 79, 35, 183, 76, 181, 45, 179, 189, 251, 70]
             return this;
         }
-        
+
         void assertValues()
         {
             assert(uuid1 == UUID("8AB3060E-2CBA-4F23-B74C-B52DB3DBFB46")); // [138, 179, 6, 14, 44, 186, 79, 35, 183, 76, 181, 45, 179, 189, 251, 70]
         }
     }
-    
+
     //import pham.ser.ser_serialization : SerializerMemberList;
     //pragma(msg, SerializerMemberList!UnitTestStdUuid);
 }

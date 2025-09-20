@@ -13,6 +13,8 @@ module pham.db.db_buffer_filter;
 
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_enum_set : toName;
+import pham.utl.utl_result : ResultStatus;
+public import pham.utl.utl_result : ResultCode;
 import pham.db.db_object;
 
 nothrow @safe:
@@ -74,7 +76,7 @@ public:
 
     @property bool hasError() const pure
     {
-        return errorCode != 0 || errorMessage.length != 0;
+        return errorStatus.isError;
     }
 
     @property abstract DbBufferFilterKind kind() const pure;
@@ -92,23 +94,21 @@ public:
     }
 
 public:
-    string errorMessage;
-    int errorCode;
+    ResultStatus errorStatus;
 
 protected:
     pragma(inline, true)
     final void clearError() pure
     {
-        errorMessage = null;
-        errorCode = 0;
+        errorStatus.reset();
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        errorStatus.reset();
         _next = null;
         _outputBuffer = null;
-        errorMessage = null;
-        errorCode = 0;
+        return ResultCode.ok;
     }
 
     ubyte[] increaseOutputBuffer(size_t nBytes) return

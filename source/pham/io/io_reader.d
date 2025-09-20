@@ -21,7 +21,7 @@ import pham.io.io_type;
 
 @safe:
 
-struct StreamReader(Endian EndianKind = Endian.littleEndian, KindType = ubyte)
+struct StreamReader(Endian endianKind = Endian.littleEndian, KindType = ubyte)
 {
 @safe:
 
@@ -122,8 +122,18 @@ public:
         if (len)
         {
             auto result = new char[](len);
-            readBuffer(&result[0], len);
-            return result;
+            return readChars(result);
+        }
+        else
+            return null;
+    }
+
+    char[] readChars(char[] chars)
+    {
+        if (const len = chars.length)
+        {
+            const rLen = readBuffer(&chars[0], len);
+            return chars[0..rLen];
         }
         else
             return null;
@@ -134,8 +144,18 @@ public:
         if (len)
         {
             auto result = new ubyte[](len);
-            readBuffer(&result[0], len);
-            return result;
+            return readUBytes(result);
+        }
+        else
+            return null;
+    }
+
+    ubyte[] readUBytes(ubyte[] bytes)
+    {
+        if (const len = bytes.length)
+        {
+            const rLen = readBuffer(&bytes[0], len);
+            return bytes[0..rLen];
         }
         else
             return null;
@@ -196,7 +216,7 @@ public:
         auto buffer = Appender!(char[])(1_000);
         while (const c = readBuffer())
             buffer.put(cast(char)c);
-        return buffer[];
+        return buffer.data;
     }
 
     char[] readWithLengthChars()
@@ -205,7 +225,7 @@ public:
         if (len)
         {
             auto result = new char[](len);
-            readBuffer(&result[0], len);
+            readBuffer(&result[0], len, len);
             return result;
         }
         else
@@ -218,7 +238,7 @@ public:
         if (len)
         {
             auto result = new ubyte[](len);
-            readBuffer(&result[0], len);
+            readBuffer(&result[0], len, len);
             return result;
         }
         else
@@ -267,39 +287,43 @@ package(pham.io):
         return result;
     }
 
-    void readBuffer(scope void* buffer, size_t size) @trusted
+    size_t readBuffer(scope void* buffer, size_t size, size_t minSize = 0) @trusted
     {
+        size_t result;
         ubyte* p = cast(ubyte*)buffer;
         while (size)
         {
             const wRead = _stream.read(p[0..size]);
             if (wRead <= 0)
                 break;
-            p += cast(size_t)wRead;
-            size -= cast(size_t)wRead;
+
+            p += wRead;
+            size -= wRead;
+            result += wRead;
         }
-        if (size != 0)
+        if (minSize && result < minSize)
             _stream.lastError.throwIt!StreamReadException();
+        return result;
     }
 
     T readEndianInteger(T)() @trusted
     {
-        static if (isSameRTEndian(EndianKind))
+        static if (isSameRTEndian(endianKind))
         {
             T result;
-            readBuffer(&result, T.sizeof);
+            readBuffer(&result, T.sizeof, T.sizeof);
             return result;
         }
-        else static if (EndianKind == Endian.bigEndian)
+        else static if (endianKind == Endian.bigEndian)
         {
             ubyte[T.sizeof] bytes;
-            readBuffer(&bytes[0], T.sizeof);
+            readBuffer(&bytes[0], T.sizeof, T.sizeof);
             return bigEndianToNative!T(bytes);
         }
         else
         {
             ubyte[T.sizeof] bytes;
-            readBuffer(&bytes[0], T.sizeof);
+            readBuffer(&bytes[0], T.sizeof, T.sizeof);
             return littleEndianToNative!T(bytes);
         }
     }

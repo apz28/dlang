@@ -18,6 +18,7 @@ import std.system : Endian;
 debug(debug_pham_db_db_pgbuffer) import pham.db.db_debug;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_result : ResultCode;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_message;
@@ -62,7 +63,12 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _reader.dispose(disposingReason);
 
@@ -82,12 +88,12 @@ public:
             }
         }
 
-        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
-        _messageType = 0;
+        _bufferOwner = DbBufferOwner.none;
+        _messageType = '\0';
         _messageLength = 0;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)
@@ -259,7 +265,7 @@ private:
     PgConnection _connection;
     DbValueReader!(Endian.bigEndian) _reader;
     int32 _messageLength;
-    char _messageType;
+    char _messageType = '\0';
     DbBufferOwner _bufferOwner;
 }
 
@@ -314,7 +320,12 @@ public:
         beginMessage('\0');
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _writer.dispose(disposingReason);
 
@@ -334,11 +345,11 @@ public:
             }
         }
 
-        _bufferOwner = DbBufferOwner.none;
         _buffer = null;
+        _bufferOwner = DbBufferOwner.none;
         _reserveLenghtOffset = -1;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)
@@ -483,13 +494,18 @@ public:
         this._reader = DbValueReader!(Endian.bigEndian)(buffer);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _reader.dispose(disposingReason);
 
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        return ResultCode.ok;
     }
 
     pragma(inline, true)
@@ -784,13 +800,18 @@ public:
         this._writer = DbValueWriter!(Endian.bigEndian)(buffer);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _writer.dispose(disposingReason);
 
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        return ResultCode.ok;
     }
 
     size_t writeArrayBegin() nothrow

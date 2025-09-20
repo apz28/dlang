@@ -22,7 +22,7 @@ import pham.cp.cp_cipher : CipherHelper;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_result : cmp;
+import pham.utl.utl_result : ResultCode, cmp;
 import pham.db.db_convert : toIntegerSafe;
 import pham.db.db_message;
 import pham.db.db_type;
@@ -669,10 +669,16 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         signature[] = 0;
         signature = null;
+        return ResultCode.ok;
     }
 
 public:
@@ -719,13 +725,18 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         nonce[] = 0;
-        nonce = null;
         salt[] = 0;
-        salt = null;
+        nonce = salt = null;
         _iteration = 0;
+        return ResultCode.ok;
     }
 
     const(char)[] getMessage() const pure

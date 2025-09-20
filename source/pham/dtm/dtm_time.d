@@ -21,8 +21,8 @@ import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.dtm.dtm_date : Date, DateTime, DayOfWeek, JulianDate;
 import pham.dtm.dtm_date_time_format;
 import pham.dtm.dtm_tick;
-public import pham.dtm.dtm_tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting,
-    dateTimeSetting, DateTimeZoneKind;
+public import pham.dtm.dtm_tick : CustomFormatSpecifier, DateTimeKind, DateTimeSetting, DateTimeZoneKind,
+    dateTimeSetting;
 public import pham.dtm.dtm_time_zone : ZoneOffset;
 
 @safe:

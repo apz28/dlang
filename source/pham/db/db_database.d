@@ -27,10 +27,12 @@ import pham.utl.utl_delegate_list;
 import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet, toEnum, toName;
 import pham.utl.utl_disposable;
-import pham.utl.utl_object : asSizeT, RAIIMutex, singleton;
+import pham.utl.utl_object : RAIIMutex, asSizeT, singleton;
+import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
+import pham.utl.utl_text : shortFunctionName;
 import pham.utl.utl_timer;
-import pham.utl.utl_utf8 : encodeUTF8, nextUTF8Char, UTF8Iterator;
+import pham.utl.utl_utf8 : UTF8Iterator, encodeUTF8, nextUTF8Char;
 import pham.db.db_convert;
 public import pham.db.db_exception;
 import pham.db.db_message;
@@ -227,7 +229,7 @@ public:
      * Implement IDisposable.dispose
      * Will do nothing if called more than one
      */
-    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    final int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -237,10 +239,10 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (!_lastDisposingReason.canDispose(disposingReason))
-            return;
+            return ResultCode.ok;
 
         _lastDisposingReason.value = disposingReason;
-        doDispose(disposingReason);
+        return doDispose(disposingReason);
     }
 
     @property final DbCommand command() nothrow pure @safe
@@ -268,14 +270,16 @@ protected:
     abstract DbColumn createColumn(DbIdentitier name) nothrow @safe;
     abstract DbColumnList createSelf(DbCommand command) nothrow @safe;
 
-    void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        _saveLongDataCount = 0;
         clear();
         if (isDisposing(disposingReason))
         {
             _command = null;
             _database = null;
         }
+        return ResultCode.ok;
     }
 
     final void resetStatement(const(ResetStatementKind) kind) nothrow @safe
@@ -367,7 +371,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.cancel()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkActive();
 
@@ -421,7 +425,7 @@ public:
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.executeNonQuery()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkCommand(-1);
         resetStatement(ResetStatementKind.executing);
@@ -451,7 +455,7 @@ public:
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.executeScalar()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkCommand(DbCommandType.ddl);
         resetStatement(ResetStatementKind.executing);
@@ -487,7 +491,7 @@ public:
         version(profile) debug auto p = PerfFunction.create();
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.fetch()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkActive();
 
@@ -538,7 +542,7 @@ public:
         assert(!prepared, "command already prepared");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.prepare()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         if (prepared)
             return this;
@@ -565,7 +569,7 @@ public:
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.command.prepare() - %s%s%s", forLogInfo(), e.msg, newline, _executeCommandText, e);
+                log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, _executeCommandText, e);
             throw e;
         }
 
@@ -612,7 +616,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.unprepare()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         if (_connection !is null && _connection.isFatalError)
         {
@@ -1039,7 +1043,7 @@ package(pham.db):
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.executeReader()%s%s", forLogInfo(), newline, commandText);
+            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkCommand(DbCommandType.ddl);
         resetStatement(ResetStatementKind.executing);
@@ -1174,7 +1178,7 @@ protected:
         if (auto log = canTraceLog())
         {
             if (result != commandText)
-                log.infof("%s.command.buildExecuteCommandText()%s%s", forLogInfo(), newline, result);
+                log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, result);
         }
 
         return result;
@@ -1286,7 +1290,7 @@ protected:
             columnCreatedEvents(this);
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
@@ -1299,35 +1303,18 @@ protected:
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.command.doDispose() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
-        }
-
-        if (_transaction !is null)
-        {
-            _transaction = null;
-        }
-
-        if (_columns !is null)
-        {
-            version(none) _columns.dispose(disposingReason);
-            _columns = null;
-        }
-
-        if (_parameters !is null)
-        {
-            version(none) _parameters.dispose(disposingReason);
-            _parameters = null;
+                log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
 
         if (_connection !is null)
-        {
             _connection.removeCommand(this);
-            if (isDisposing(disposingReason))
-                _connection = null;
-        }
 
+        _columns = null;
+        _parameters = null;
+        _transaction = null;
         _commandState = DbCommandState.closed;
-        _commandText = _executeCommandText = null;
+        _commandText = _executeCommandText = _name = null;
+        _commandType = DbCommandType.text;
         _baseCommandType = 0;
         _handle.reset();
         _flags.activeReader = false;
@@ -1335,10 +1322,21 @@ protected:
         _lastInsertedId.reset();
         _recordsAffected.reset();
         _fetchedRows.clear();
-        _executedCount = _fetchedCount = _fetchedRowCount = 0;
-        stateChangeEvents.clear();
-        notifyMessageEvents.clear();
+        _executedCount = _fetchedCount = _fetchedRowCount = _fetchRecordCount = 0;
         notificationMessages = null;
+
+        if (isDisposing(disposingReason))
+        {
+            customAttributes.values.clear();
+            columnCreatedEvents.clear();
+            notifyMessageEvents.clear();
+            stateChangeEvents.clear();
+            _commandTimeout = logTimmingWarningDur = Duration.zero;
+            _connection = null;
+            _database = null;
+        }
+
+        return ResultCode.ok;
     }
 
     bool doExecuteCommandNeedPrepare(const(DbCommandExecuteType) type) nothrow @safe
@@ -1371,7 +1369,7 @@ protected:
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
-                    log.errorf("%s.command.doNotifyMessage() - %s%s%s", forLogInfo(), e.msg, newline, _executeCommandText, e);
+                    log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, _executeCommandText, e);
             }
         }
     }
@@ -1451,7 +1449,7 @@ protected:
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
-                    log.errorf("%s.command.removeReaderCompleted() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+                    log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
             }
         }
     }
@@ -1721,7 +1719,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.connection.cancelCommand()", forLogInfo());
+            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         checkActive();
 
@@ -1764,7 +1762,7 @@ public:
             return this;
 
         if (auto log = canTraceLog())
-            log.infof("%s.connection.close()", forLogInfo());
+            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         _state = DbConnectionState.closing;
         scope (exit)
@@ -2050,7 +2048,7 @@ public:
         checkInactive();
 
         if (auto log = canTraceLog())
-            log.infof("%s.connection.open()", forLogInfo());
+            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         //if (_poolList !is null)
         //    return _poolList.release(this);
@@ -2080,7 +2078,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.connection.release()", forLogInfo());
+            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         if (_poolList !is null)
             return _poolList.release(this);
@@ -2319,7 +2317,7 @@ package(pham.db):
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.connection.doClose() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
 
         _handle.reset();
@@ -2401,7 +2399,7 @@ protected:
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
-                    log.errorf("%s.connection.doBeginStateChange() - %s", forLogInfo(), e.msg, e);
+                    log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
         }
     }
@@ -2418,37 +2416,45 @@ protected:
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
-                    log.errorf("%s.connection.doEndStateChange() - %s", forLogInfo(), e.msg, e);
+                    log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
         }
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (_state != DbConnectionState.closed && _state != DbConnectionState.failed)
             doClose(DbConnectionState.closing);
 
-        beginStateChangeEvents.clear();
-        endStateChangeEvents.clear();
-        notifyMessageEvents.clear();
-        disposeTransactions(disposingReason);
-        disposeCommands(disposingReason);
-        serverInfo.clear();
-        _handle.reset();
-        _type = DbConnectionType.connect;
-        _state = DbConnectionState.disposed;
-
         if (_poolList !is null)
             DbConnectionList.beforeDisposeConnection(this);
 
+        disposeTransactions(disposingReason);
+        disposeCommands(disposingReason);
+
+        notificationMessages = null;
+        serverInfo.clear();
+        _handle.reset();
+        _inactiveTime = DateTime.min;
+        _fatalError = DbFatalErrorReason.none;
+        _nextCounter = _readerCounter = _activeTransactionCounter = 0;
+        _state = isDisposing(disposingReason) ? DbConnectionState.disposed : DbConnectionState.closed;
+        _type = DbConnectionType.connect;
+
         if (isDisposing(disposingReason))
         {
+            beginStateChangeEvents.clear();
+            endStateChangeEvents.clear();
+            notifyMessageEvents.clear();
             _connectionStringBuilder = null;
             _database = null;
             _poolList = null;
+            logger = null;
         }
+
+        return ResultCode.ok;
     }
 
     abstract DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe;
@@ -2472,7 +2478,7 @@ protected:
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
-                    log.errorf("%s.connection.doNotifyMessage() - %s", forLogInfo(), e.msg, e);
+                    log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
         }
     }
@@ -2713,18 +2719,21 @@ protected:
         return null;
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         while (!_connections.empty)
             _connections.remove(_connections.last).dispose(disposingReason);
+
         _length = 0;
         if (isDisposing(disposingReason))
         {
+            _connectionString = null;
             _database = null;
             _pool = null;
         }
+        return ResultCode.ok;
     }
 
 protected:
@@ -2866,7 +2875,7 @@ protected:
         return new DbConnectionPool(._secondTimer);
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @trusted
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @trusted
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
@@ -2874,19 +2883,26 @@ protected:
 
         unregisterWithTimer();
         _secondTimer = null;
+        _timerAdded = false;
 
         foreach (_, lst; _schemeConnections)
             lst.dispose(disposingReason);
 
         _schemeConnections = null;
-        _acquiredLength = 0;
-        _unusedLength = 0;
+        _acquiredLength = _unusedLength = 0;
 
-        if (_mutex !is null)
+        if (isDisposing(disposingReason))
         {
-            _mutex.destroy();
-            _mutex = null;
+            _maxLength = 0;
+            _maxInactiveTime = Duration.zero;
+            if (_mutex !is null)
+            {
+                _mutex.destroy();
+                _mutex = null;
+            }
         }
+
+        return ResultCode.ok;
     }
 
     final void doTimer(TimerEvent event)
@@ -2960,7 +2976,6 @@ private:
     Timer _secondTimer;
     bool _timerAdded;
     __gshared static DbConnectionPool _instance;
-
 }
 
 abstract class DbConnectionStringBuilder : DbIdentitierValueList!string
@@ -5038,6 +5053,13 @@ public:
         return this;
     }
 
+    override typeof(this) clear() nothrow @safe
+    {
+        super.clear();
+        _saveLongDataCount = 0;
+        return this;
+    }
+
     final DbParameter create(DbIdentitier name) nothrow @safe
     {
         return database !is null
@@ -5057,7 +5079,7 @@ public:
      * Implement IDisposable.dispose
      * Will do nothing if called more than one
      */
-    final void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    final int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -5067,10 +5089,10 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (!_lastDisposingReason.canDispose(disposingReason))
-            return;
+            return ResultCode.ok;
 
         _lastDisposingReason.value = disposingReason;
-        doDispose(disposingReason);
+        return doDispose(disposingReason);
     }
 
     final string generateName() nothrow @safe
@@ -5242,7 +5264,7 @@ protected:
         return new DbParameter(null, command, name);
     }
 
-    void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
@@ -5252,6 +5274,7 @@ protected:
             _command = null;
             _database = null;
         }
+        return ResultCode.ok;
     }
 
     override void notify(DbParameter item, const(NotificationKind) kind) nothrow @safe
@@ -5413,18 +5436,25 @@ public:
         return this;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         if (_command !is null)
             doDetach(disposingReason);
 
+        _command = null;
         _columns = null;
         _fetchedRowCount = 0;
         _flags.allRowsFetched = true;
         _flags.checkRows = false;
         _currentRow.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
     /**
@@ -5917,7 +5947,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.commit(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         scope (failure)
             resetState(DbTransactionState.error);
@@ -5945,7 +5975,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.commit(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
+            log.infof("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         checkSavePointState();
         auto savePointStatement = createSavePointStatement(DbSavePoint.commit, savePointName);
@@ -5989,7 +6019,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.rollback(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         if (state != DbTransactionState.active)
             return this;
@@ -6020,7 +6050,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.rollback(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
+            log.infof("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         checkSavePointState();
         auto savePointStatement = createSavePointStatement(DbSavePoint.rollback, savePointName);
@@ -6035,7 +6065,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.start(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         checkState(DbTransactionState.inactive);
         scope (failure)
@@ -6062,7 +6092,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.start(isolationLevel=%s, savePointName=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel), savePointName);
+            log.infof("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         checkSavePointState();
         if (savePointName.length == 0)
@@ -6229,7 +6259,7 @@ package(pham.db):
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.transaction.rollbackError(isolationLevel=%s)", forLogInfo(), toName!DbIsolationLevel(isolationLevel));
+            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         if (state != DbTransactionState.active)
             return this;
@@ -6245,7 +6275,7 @@ package(pham.db):
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.transaction.rollbackError(isolationLevel=%s) - %s", forLogInfo(), toName!DbIsolationLevel(isolationLevel), e.msg, e);
+                log.errorf("%s.%s(isolationLevel=%s) - %s", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), e.msg, e);
 
             if (!canRetain())
                 resetState(DbTransactionState.error);
@@ -6341,7 +6371,7 @@ protected:
         }
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
@@ -6359,20 +6389,29 @@ protected:
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.transaction.doDispose() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
 
         if (_connection !is null)
             _connection.removeTransaction(this);
 
-        _state = DbTransactionState.disposed;
+        _state = isDisposing(disposingReason) ? DbTransactionState.disposed : DbTransactionState.inactive;
         _savePointNames = null;
-        _lockedTables = null;
         _handle.reset();
-        _connection = null;
-        _database = null;
-        _next = null;
-        _prev = null;
+        //_isolationLevel;
+        //_flags
+
+        if (isDisposing(disposingReason))
+        {
+            _lockTimeout = Duration.zero;
+            _lockedTables = null;
+            _connection = null;
+            _database = null;
+            _next = null;
+            _prev = null;
+        }
+
+        return ResultCode.ok;
     }
 
     void doSavePoint(const(DbSavePoint) mode, string savePointName, string savePointStatement) @safe

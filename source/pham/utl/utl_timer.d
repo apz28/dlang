@@ -27,8 +27,7 @@ else version(Windows)
 }
 else
 {
-    pragma(msg, "Unsupported system for " ~ __MODULE__);
-    static assert(0);
+    static assert(0, "Unsupported system for " ~ __MODULE__);
 }
 
 alias TimerDelegate = void delegate(TimerEvent event) @safe;

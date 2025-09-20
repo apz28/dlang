@@ -18,7 +18,6 @@ import std.typecons : Flag;
 public import std.typecons : No, Yes;
 
 debug(debug_pham_xml_xml_parser) import std.stdio : writeln;
-
 import pham.xml.xml_buffer;
 import pham.xml.xml_dom;
 import pham.xml.xml_exception;

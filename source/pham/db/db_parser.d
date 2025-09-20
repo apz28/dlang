@@ -13,11 +13,11 @@ module pham.db.db_parser;
 
 import std.uni : isAlphaNum, isSpace;
 
-debug(debug_pham_db_db_parser) import std.stdio : writeln;
+debug(debug_pham_db_db_parser) import pham.db.db_debug;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : toEnum;
 import pham.utl.utl_result : addLine;
-import pham.utl.utl_utf8 : nextUTF8Char, UTF8Iterator;
+import pham.utl.utl_utf8 : UTF8Iterator, nextUTF8Char;
 public import pham.utl.utl_result : ResultIf;
 import pham.utl.utl_text : NamedValue;
 import pham.db.db_message;

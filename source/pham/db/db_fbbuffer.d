@@ -23,6 +23,7 @@ version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.dec.dec_decimal : scaleFrom, scaleTo;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_result : ResultCode;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_type;
@@ -70,7 +71,12 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         writer.dispose(disposingReason);
 
@@ -93,6 +99,8 @@ public:
         buffer = null;
         bufferOwner = DbBufferOwner.none;
         connection = null;
+        versionId = 0;
+        return ResultCode.ok;
     }
 
     DbWriteBuffer buffer;
@@ -120,9 +128,14 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        storage.dispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return storage.dispose(disposingReason);
     }
 
     ubyte[] peekBytes() nothrow return
@@ -203,9 +216,14 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        storage.dispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return storage.dispose(disposingReason);
     }
 
     ubyte[] peekBytes() nothrow return
@@ -313,9 +331,14 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        storage.dispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return storage.dispose(disposingReason);
     }
 
     ubyte[] peekBytes() nothrow return
@@ -539,9 +562,14 @@ public:
         return storage.writer.asBytes(v);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        storage.dispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return storage.dispose(disposingReason);
     }
 
     ubyte[] peekBytes() nothrow return
@@ -684,9 +712,14 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        storage.dispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return storage.dispose(disposingReason);
     }
 
     auto asBytes(T)(T v) const @nogc nothrow pure
@@ -888,9 +921,14 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        storage.dispose(disposingReason);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        return storage.dispose(disposingReason);
     }
 
     ubyte[] peekBytes() nothrow return
@@ -985,7 +1023,12 @@ public:
         return result;
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _reader.dispose(disposingReason);
 
@@ -1007,6 +1050,7 @@ public:
         _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         _connection = null;
+        return ResultCode.ok;
     }
 
     bool readBool()
@@ -1389,7 +1433,12 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _writer.dispose(disposingReason);
 
@@ -1412,6 +1461,7 @@ public:
         _bufferOwner = DbBufferOwner.none;
         _buffer = null;
         _connection = null;
+        return ResultCode.ok;
     }
 
     void flush()

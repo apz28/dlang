@@ -13,7 +13,7 @@ module pham.utl.utl_result;
 
 import std.conv : to;
 import std.math.traits : isNaN;
-import std.traits : isFloatingPoint, isIntegral, isScalarType;
+import std.traits : fullyQualifiedName, isFloatingPoint, isIntegral, isScalarType;
 
 @safe:
 
@@ -320,6 +320,26 @@ uint lastSystemError() nothrow @trusted
         static assert(0, "Unsupport system for " ~ __FUNCTION__);
 }
 
+uint lastSystemError(uint lastError) nothrow @trusted
+{
+    version(Windows)
+    {
+        import core.sys.windows.winbase : SetLastError;
+
+        SetLastError(lastError);
+        return lastError;
+    }
+    else version(Posix)
+    {
+        import core.stdc.errno : errno;
+
+        errno = lastError;
+        return lastError;
+    }
+    else
+        static assert(0, "Unsupport system for " ~ __FUNCTION__);
+}
+
 ResultStatus lastSystemError(string apiName,
     string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
 {
@@ -569,14 +589,27 @@ public:
 
 public:
     T value;
+    ResultStatus status = ResultStatus(ResultCode.uninitialized, null, null, null, 0);
+
     alias this = value;
-    ResultStatus status = ResultStatus(resultUninitialized, null, null, null, 0);
 }
 
-enum resultOK = 0;
-enum resultError = -1;
-enum resultUnsupported = -2;
-enum resultUninitialized = -3;
+enum ResultCode : int
+{
+    ok = 0,
+    error = -1,
+    unsupported = -2,
+    uninitialized = -3,
+}
+
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.ok))
+enum resultOK = ResultCode.ok;
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.error))
+enum resultError = ResultCode.error;
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.unsupported))
+enum resultUnsupported = ResultCode.unsupported;
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.uninitialized))
+enum resultUninitialized = ResultCode.uninitialized;
 
 struct ResultStatus
 {
@@ -604,14 +637,14 @@ public:
         return this;
     }
 
-    int clone(ResultStatus source, const(int) result) @nogc nothrow pure
+    int clone(ResultStatus source, const(int) resultCode) @nogc nothrow pure
     {
         this.errorCode = source.errorCode;
         this.errorMessage = source.errorMessage;
         this.funcName = source.funcName;
         this.file = source.file;
         this.line = source.line;
-        return result;
+        return resultCode;
     }
 
     pragma(inline, true)
@@ -651,14 +684,14 @@ public:
     }
 
     pragma(inline, true)
-    int reset(const(int) result = resultOK) @nogc nothrow pure
+    int reset(const(int) resultCode = ResultCode.ok) @nogc nothrow pure
     {
         this.errorMessage = this.file = this.funcName = null;
         this.errorCode = this.line = 0;
-        return result;
+        return resultCode;
     }
 
-    int set(uint errorCode, string errorMessage, const(int) result = resultError,
+    int set(uint errorCode, string errorMessage, const(int) resultCode = ResultCode.error,
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
     {
         this.errorCode = errorCode;
@@ -666,7 +699,7 @@ public:
         this.funcName = funcName;
         this.file = file;
         this.line = line;
-        return result;
+        return resultCode;
     }
 
     int setError(uint errorCode, string postfixMessage = null,
@@ -678,7 +711,7 @@ public:
         this.file = file;
         this.line = line;
         this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
-        return resultError;
+        return ResultCode.error;
     }
 
     int setSystemError(string apiName, uint errorCode, string postfixMessage = null,
@@ -691,7 +724,7 @@ public:
         this.line = line;
         this.addMessageIf(errorCode != 0 ? getSystemErrorMessage(errorCode) : null);
         this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
-        return resultError;
+        return ResultCode.error;
     }
 
     int setUnsupportedError(uint errorCode, string postfixMessage = null,
@@ -702,7 +735,7 @@ public:
         this.funcName = funcName;
         this.file = file;
         this.line = line;
-        return resultUnsupported;
+        return ResultCode.unsupported;
     }
 
     pragma(inline, true)

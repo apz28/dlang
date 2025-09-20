@@ -14,7 +14,7 @@ module pham.utl.utl_enum_set;
 import std.conv : to;
 import std.meta : allSatisfy;
 import std.range.primitives : put;
-import std.traits : EnumMembers, isIntegral, Unqual;
+import std.traits : EnumMembers, Unqual, isIntegral;
 
 import pham.utl.utl_array_static : ShortStringBuffer;
 

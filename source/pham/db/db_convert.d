@@ -15,7 +15,7 @@ import core.time : convert, dur;
 import std.conv : to;
 import std.math : abs, pow;
 import std.system : Endian;
-import std.traits: isIntegral, isSomeChar, isUnsigned, Unqual;
+import std.traits: Unqual, isIntegral, isSomeChar, isUnsigned;
 import std.utf : isValidCodepoint;
 
 import pham.dtm.dtm_tick : Tick;

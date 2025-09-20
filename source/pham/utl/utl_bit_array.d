@@ -15,7 +15,7 @@ import core.bitop : bsf, popcnt;
 import std.algorithm.comparison : min;
 import std.format : FormatSpec;
 import std.range.primitives : isOutputRange, put;
-import std.traits : isNumeric, isSomeChar, isUnsigned, Unqual;
+import std.traits : Unqual, isNumeric, isSomeChar, isUnsigned;
 
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : bt, btr, bts, bitLengthToElement, flip;

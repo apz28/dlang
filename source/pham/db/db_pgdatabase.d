@@ -20,6 +20,8 @@ import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_object : VersionString;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : shortFunctionName;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -129,13 +131,19 @@ public:
         _id = pgConnection.blobManager.createPreferred(preferredId);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        doClose(disposingReason);
+        doClose(disposingReason); // _descriptorId, _id, _length, _offset
         if (isDisposing(disposingReason))
             _connection = null;
+        return ResultCode.ok;
     }
 
     string forLogInfo() nothrow @safe
@@ -384,7 +392,7 @@ package(pham.db):
         {
             debug(debug_pham_db_db_pgdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.blob.doClose() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
     }
 
@@ -447,11 +455,19 @@ public:
         doClose(DisposingReason.other);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
 
-        doClose(disposingReason);
+        doClose(disposingReason); // all commands
+        if (isDisposing(disposingReason))
+            _connection = null;
+        return ResultCode.ok;
     }
 
     int32 close(PgDescriptorId descriptorId) @safe
@@ -618,8 +634,6 @@ package(pham.db):
         disposeCommand(_seek, disposingReason);
         disposeCommand(_write, disposingReason);
         disposeCommand(_unlink, disposingReason);
-        if (isDisposing(disposingReason))
-            _connection = null;
     }
 
 private:
@@ -783,7 +797,7 @@ public:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
+            log.infof("%s.%s(vendorMode=%d)%s%s", forLogInfo(), shortFunctionName(2), vendorMode, newline, commandText);
 
         auto planCommandText = vendorMode == 0
             ? "EXPLAIN (ANALYZE, BUFFERS) " ~ buildExecuteCommandText(BuildCommandTextState.executingPlan)
@@ -921,7 +935,7 @@ protected:
         {
             debug(debug_pham_db_db_pgdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.connection.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+                log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
     }
 
@@ -931,7 +945,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
@@ -966,7 +980,7 @@ protected:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ", fetchAgain=", fetchAgain, ")");
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommandFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         const fetchRecordCount = type == DbCommandExecuteType.scalar ? 1 : fetchRecordCount;
@@ -998,7 +1012,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         PgReader reader; // Since it is package message, need reader to continue reading row values
@@ -1075,7 +1089,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
@@ -1325,19 +1339,20 @@ protected:
         {
             debug(debug_pham_db_db_pgdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.connection.doCloseImpl() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
 
         super.doCloseImpl(reasonState);
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         super.doDispose(disposingReason);
         disposeMessageReadBuffers(disposingReason);
         disposeProtocol(disposingReason);
+        return ResultCode.ok;
     }
 
     final override DbRoutineInfo doGetStoredProcedureInfo(string storedProcedureName, string schema) @safe
@@ -1384,7 +1399,8 @@ ORDER BY oid
                 if (i >= typeArgs.length || i >= modeArgs.length)
                 {
                     if (auto log = canErrorLog())
-                        log.errorf("%s.connection.getStoredProcedureInfo() - argument out of bound: %d %d %d", forLogInfo(), cast(int)nameArgs.length, cast(int)typeArgs.length, cast(int)modeArgs.length);
+                        log.errorf("%s.%s() - argument out of bound: %d %d %d", forLogInfo(), shortFunctionName(2),
+                            cast(int)nameArgs.length, cast(int)typeArgs.length, cast(int)modeArgs.length);
                     break;
                 }
 

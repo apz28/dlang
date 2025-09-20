@@ -12,7 +12,7 @@
 module pham.utl.utl_convert;
 
 public import std.ascii : LetterCase;
-import std.traits : isIntegral;
+import std.traits : fullyQualifiedName, isIntegral;
 
 /**
  * Converts string of base-64 characters into ubyte array
@@ -185,7 +185,7 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
     return sink;
 }
 
-deprecated("please use pham.utl.utl_convert.putNumber")
+deprecated("please use " ~ fullyQualifiedName!putNumber)
 alias toString = putNumber;
 
 

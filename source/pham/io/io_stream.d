@@ -14,8 +14,10 @@ module pham.io.io_stream;
 public import core.time : Duration;
 import core.time : msecs;
 
-import pham.utl.utl_result : lastSystemError, resultError, resultOK;
-public import pham.utl.utl_result : ResultIf, ResultStatus;
+import pham.utl.utl_disposable;
+import pham.utl.utl_result : lastSystemError;
+public import pham.utl.utl_result : ResultCode, ResultIf, ResultStatus;
+import pham.utl.utl_system : SafeHandle;
 import pham.io.io_error;
 public import pham.io.io_type;
 version(Posix)
@@ -27,21 +29,16 @@ else
 
 @safe:
 
-abstract class Stream
+abstract class Stream : DisposableObject
 {
 @safe:
 
 public:
-    ~this() nothrow
-    {
-        close(true);
-    }
-
     /**
      * Closes the current stream and releases any resources (such as sockets and file handles)
      * associated with the current stream
      */
-    abstract int close(const(bool) destroying = false) nothrow scope;
+    abstract int close() nothrow scope;
 
     /**
      * Reads the bytes from the current stream and writes them to another stream.
@@ -377,14 +374,13 @@ public:
     {
         _data = null;
         _position = 0;
+        lastError.reset();
         return this;
     }
 
-    final override int close(const(bool) destroying = false) nothrow scope
+    final override int close() nothrow scope
     {
-        _data = null;
-        _position = 0;
-        return resultOK;
+        return doDispose(DisposingReason.other);
     }
 
     /**
@@ -398,11 +394,11 @@ public:
 
     override int flush() nothrow
     {
-        return resultOK;
+        return ResultCode.ok;
     }
 
     alias read = typeof(super).read;
-    
+
     pragma(inline, true)
     final override int read(ref ubyte byte_) nothrow
     {
@@ -431,7 +427,7 @@ public:
     }
 
     alias write = typeof(super).write;
-    
+
     pragma(inline, true)
     final override int write(ubyte byte_) nothrow
     {
@@ -508,6 +504,14 @@ protected:
         else
             this.lastError = destination.lastError;
         return r;
+    }
+
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        _data = null;
+        _position = 0;
+        lastError.reset();
+        return ResultCode.ok;
     }
 
     final override long readImpl(scope ubyte[] bytes) nothrow
@@ -595,11 +599,9 @@ public:
         this._data = data;
     }
 
-    final override int close(const(bool) destroying = false) nothrow scope
+    final override int close() nothrow scope
     {
-        _data = null;
-        _position = 0;
-        return resultOK;
+        return doDispose(DisposingReason.other);
     }
 
     /**
@@ -613,7 +615,7 @@ public:
 
     override int flush() nothrow
     {
-        return resultOK;
+        return ResultCode.ok;
     }
 
     final ReadonlyStream open(ubyte[] data) nothrow pure
@@ -624,7 +626,7 @@ public:
     }
 
     alias read = typeof(super).read;
-    
+
     pragma(inline, true)
     final override int read(ref ubyte byte_) nothrow
     {
@@ -709,6 +711,14 @@ protected:
         return r;
     }
 
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        _data = null;
+        _position = 0;
+        lastError.reset();
+        return ResultCode.ok;
+    }
+
     final override long readImpl(scope ubyte[] bytes) nothrow
     {
         if (bytes.length == 0)
@@ -769,46 +779,36 @@ private:
     size_t _position;
 }
 
+alias SafeFileHandle = SafeHandle!(FileHandle, closeFile, invalidFileHandle);
+
 class FileHandleStream : Stream
 {
 @safe:
 
 public:
-    this(FileHandle handle, string name, StreamOpenMode openMode) nothrow pure
+    this(FileHandle handle, string name, StreamOpenMode openMode) nothrow
     {
-        this._handle = handle;
+        this._safeFileHandle = SafeFileHandle(handle);
         this._name = name;
         this._openMode = openMode;
         this._position = 0;
     }
 
-    final override int close(const(bool) destroying = false) nothrow scope
+    final override int close() nothrow scope
     {
-        if (_handle == invalidFileHandle)
-            return resultOK;
-
-        scope (exit)
-        {
-            _handle = invalidFileHandle;
-            _position = 0;
-        }
-
-        if (closeFile(_handle) == resultOK)
-            return resultOK;
-
-        return lastError.setSystemError(getIOAPIName("closeFile"), lastSystemError());
+        return doDispose(DisposingReason.other);
     }
 
     pragma(inline, true)
     @property final override bool active() const @nogc nothrow
     {
-        return _handle != invalidFileHandle;
+        return _safeFileHandle.isValid;
     }
 
     pragma(inline, true)
     @property final FileHandle handle() @nogc nothrow pure
     {
-        return _handle;
+        return _safeFileHandle.handle;
     }
 
     @property final string name() const nothrow pure
@@ -829,6 +829,19 @@ public:
     }
 
 protected:
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    {
+        lastError.reset();
+        _position = 0;
+        const result = _safeFileHandle.dispose(disposingReason);
+        if (result != ResultCode.ok && !isDisposing(disposingReason))
+        {
+            if (const errorCode = lastSystemError())
+                lastError.setSystemError(getIOAPIName("closeFile"), errorCode);
+        }
+        return result;
+    }
+
     final override long readImpl(scope ubyte[] bytes) nothrow
     {
         size_t offset = 0;
@@ -836,7 +849,7 @@ protected:
         {
             const remaining = bytes.length - offset;
             const rn = remaining >= int.max ? int.max : remaining;
-            const rr = readFile(_handle, bytes[offset..offset+rn]);
+            const rr = readFile(_safeFileHandle.handle, bytes[offset..offset+rn]);
             if (rr < 0)
                 return lastError.setSystemError(getIOAPIName("readFile"), lastSystemError());
             else if (rr == 0)
@@ -852,7 +865,7 @@ protected:
         if (offset == 0 && origin == SeekOrigin.current)
             return this._position;
 
-        const result = seekFile(_handle, offset, origin);
+        const result = seekFile(_safeFileHandle.handle, offset, origin);
         if (result < 0)
             return lastError.setSystemError(getIOAPIName("seekFile"), lastSystemError());
 
@@ -867,7 +880,7 @@ protected:
         {
             const remaining = bytes.length - offset;
             const wn = remaining >= int.max ? int.max : remaining;
-            const wr = writeFile(_handle, bytes[offset..offset+wn]);
+            const wr = writeFile(_safeFileHandle.handle, bytes[offset..offset+wn]);
             if (wr < 0)
                 return lastError.setSystemError(getIOAPIName("writeFile"), lastSystemError());
             else if (wr == 0)
@@ -878,9 +891,11 @@ protected:
         return cast(long)offset;
     }
 
+protected:
+    SafeFileHandle _safeFileHandle;
+
 private:
     string _name;
-    FileHandle _handle = invalidFileHandle;
     long _position;
     StreamOpenMode _openMode;
 }
@@ -890,7 +905,7 @@ class FileStream : FileHandleStream
 @safe:
 
 public:
-    this(FileHandle handle, string fileName, StreamOpenMode openMode) nothrow pure
+    this(FileHandle handle, string fileName, StreamOpenMode openMode) nothrow
     {
         super(handle, fileName, openMode);
     }
@@ -929,8 +944,8 @@ public:
         if (const r = checkActive())
             return r;
 
-        return flushFile(_handle) == resultOK
-            ? resultOK
+        return flushFile(_safeFileHandle.handle) == ResultCode.ok
+            ? ResultCode.ok
             : lastError.setSystemError(getIOAPIName("flushFile"), lastSystemError());
     }
 
@@ -939,16 +954,16 @@ public:
         if (const r = checkActive())
             return r;
 
-        const curPosition = seekFile(_handle, 0, SeekOrigin.current);
+        const curPosition = seekFile(_safeFileHandle.handle, 0, SeekOrigin.current);
         if (curPosition < 0)
             return lastError.setSystemError(getIOAPIName("seekFile"), lastSystemError());
 
-        if (seekFile(_handle, value, SeekOrigin.begin) < 0)
+        if (seekFile(_safeFileHandle.handle, value, SeekOrigin.begin) < 0)
             return lastError.setSystemError(getIOAPIName("seekFile"), lastSystemError());
         scope (success)
-            seekFile(handle, curPosition > value ? value : curPosition, SeekOrigin.begin);
+            seekFile(_safeFileHandle.handle, curPosition > value ? value : curPosition, SeekOrigin.begin);
 
-        if (setLengthFile(_handle, value) < 0)
+        if (setLengthFile(_safeFileHandle.handle, value) < 0)
             return lastError.setSystemError(getIOAPIName("setLengthFile"), lastSystemError());
 
         return value;
@@ -988,7 +1003,7 @@ public:
         if (const r = checkActive())
             return r;
 
-        const result = getLengthFile(_handle);
+        const result = getLengthFile(_safeFileHandle.handle);
         return result >= 0 ? result : lastError.setSystemError(getIOAPIName("getLengthFile"), lastSystemError());
     }
 }
@@ -998,7 +1013,7 @@ class InputPipeStream : FileHandleStream
 @safe:
 
 public:
-    this(FileHandle handle, string name) nothrow pure
+    this(FileHandle handle, string name) nothrow
     {
         super(handle, name, StreamOpenMode.readOnly);
     }
@@ -1053,7 +1068,7 @@ class OutputPipeStream : FileHandleStream
 @safe:
 
 public:
-    this(FileHandle handle, string name) nothrow pure
+    this(FileHandle handle, string name) nothrow
     {
         super(handle, name, StreamOpenMode.writeOnly);
     }
@@ -1063,8 +1078,8 @@ public:
         if (const r = checkActive())
             return r;
 
-        return flushFile(_handle) == resultOK
-            ? resultOK
+        return flushFile(_safeFileHandle.handle) == ResultCode.ok
+            ? ResultCode.ok
             : lastError.setSystemError(getIOAPIName("flushFile"), lastSystemError());
     }
 
@@ -1111,7 +1126,7 @@ ResultStatus createPipeStreams(const(bool) asInput, out InputPipeStream inputStr
 {
     FileHandle inputHandle, outputHandle;
     const r = createFilePipes(asInput, inputHandle, outputHandle, bufferSize);
-    if (r != resultOK)
+    if (r != ResultCode.ok)
     {
         inputStream = null;
         outputStream = null;
@@ -1236,6 +1251,9 @@ public:
    InputPipeStream childInputRead, childOutputRead;
    OutputPipeStream childInputWrite, childOutputWrite;
 }
+
+
+private:
 
 unittest // MemoryStream
 {

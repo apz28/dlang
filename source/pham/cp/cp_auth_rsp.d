@@ -71,6 +71,7 @@ import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_big_integer;
 import pham.utl.utl_disposable : DisposableObject, DisposingReason;
 import pham.utl.utl_numeric_parser : isHexDigit;
+import pham.utl.utl_result : ResultCode;
 public import pham.cp.cp_cipher : CipherBuffer, CipherKey, CipherRawKey;
 public import pham.cp.cp_cipher_digest;
 public import pham.cp.cp_random : CipherRandomGenerator;
@@ -131,11 +132,17 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _g.dispose(disposingReason);
         _N.dispose(disposingReason);
         _exponentSize = _paddingSize = 0;
+        return ResultCode.ok;
     }
 
     uint maxExponentSize() const @nogc nothrow pure
@@ -196,6 +203,21 @@ public:
         this._proofHasher = Digester(proofDigestId);
         this._group = group;
         this._separator = separator;
+    }
+    
+    // For security reason, need to clear the secrete information
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        //const(PrimeGroup) _group;
+        _hasher.dispose(disposingReason);
+        _proofHasher.dispose(disposingReason);
+        _separator = '\0';
+        return ResultCode.ok;
     }
 
     static CipherRawKey!ubyte generateSecret(const(uint) byteSize)
@@ -274,9 +296,9 @@ public:
 
 private:
     const(PrimeGroup) _group;
-    Digester _proofHasher;
     Digester _hasher;
-    char _separator;
+    Digester _proofHasher;
+    char _separator = '\0';
 }
 
 class Auth : DisposableObject
@@ -505,11 +527,12 @@ protected:
         return result;
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    final override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _ephemeralPrivate.dispose(disposingReason);
         _ephemeralPublic.dispose(disposingReason);
         _k.dispose(disposingReason);
+        return ResultCode.ok;
     }
 
 protected:

@@ -14,7 +14,7 @@ module pham.utl.utl_file_size;
 
 import std.conv : ConvException;
 import std.format : format;
-import std.traits : isFloatingPoint, isIntegral, Unqual;
+import std.traits : Unqual, isFloatingPoint, isIntegral;
 import std.uni : sicmp;
 
 debug(debug_pham_utl_utl_file_size) import std.stdio : writeln;

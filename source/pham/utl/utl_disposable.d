@@ -11,6 +11,8 @@
 
 module pham.utl.utl_disposable;
 
+public import pham.utl.utl_result : ResultCode;
+
 /**
  * Reason to call dispose
  */
@@ -39,28 +41,36 @@ interface IDisposable
      * Params:
      *   disposingReason = indicate a reason to dispose
      */
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe;
-    
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe;
+
     @property DisposingReason lastDisposingReason() const @nogc nothrow @safe;
 }
 
 struct LastDisposingReason
 {
+@nogc nothrow @safe:
+
 public:
-    ref typeof(this) opAssign(const(DisposingReason) disposingReason) @nogc nothrow return @safe
+    ref typeof(this) opAssign(const(DisposingReason) disposingReason) return
     {
         this.value = disposingReason;
         return this;
     }
-    
+
     pragma(inline, true)
-    bool canDispose(const(DisposingReason) disposingReason) const @nogc nothrow @safe
+    bool canDispose(const(DisposingReason) disposingReason) const
     {
-        return this.value < DisposingReason.dispose && disposingReason >= this.value;
+        return canDispose(disposingReason, this.value);
     }
 
+    pragma(inline, true)
+    static bool canDispose(const(DisposingReason) disposingReason, const(DisposingReason) lastDisposingReason) pure
+    {
+       return disposingReason != DisposingReason.none && disposingReason > lastDisposingReason;
+    }
+
+public:
     DisposingReason value;
-    alias this = value;
 }
 
 /**
@@ -73,18 +83,19 @@ public:
      * Implement IDisposable.dispose
      * Will do nothing if called more than one
      */
-    final override void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    final override int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
     }
     do
     {
+        // Check to avoid multiple dispose calls
         if (!_lastDisposingReason.canDispose(disposingReason))
-            return;
-
+            return ResultCode.ok;
+        
         _lastDisposingReason.value = disposingReason;
-        doDispose(disposingReason);
+        return doDispose(disposingReason);
     }
 
     pragma(inline, true)
@@ -97,7 +108,7 @@ protected:
     /**
      * Abstract function of this class to perform disposing logic
      */
-    abstract void doDispose(const(DisposingReason) disposingReason) nothrow @safe;
+    abstract int doDispose(const(DisposingReason) disposingReason) nothrow @safe;
 
 private:
     LastDisposingReason _lastDisposingReason;
@@ -114,16 +125,17 @@ unittest // DisposableObject
     static class TestDisposableObject : DisposableObject
     {
     public:
-        ~this()
+        ~this() nothrow
         {
-            dispose(DisposingReason.destructor);
+            doDispose(DisposingReason.destructor);
         }
 
     protected:
-        override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+        final override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
         {
             stateCounter++;
             stateReason = disposingReason;
+            return ResultCode.ok;
         }
     }
 

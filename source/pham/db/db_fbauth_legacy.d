@@ -11,8 +11,7 @@
 
 module pham.db.db_fbauth_legacy;
 
-debug(debug_pham_db_db_fbauth_legacy) import std.stdio : writeln;
-
+debug(debug_pham_db_db_fbauth_legacy) import pham.db.db_debug;
 import pham.cp.cp_auth_crypt3;
 import pham.db.db_auth;
 import pham.db.db_message;

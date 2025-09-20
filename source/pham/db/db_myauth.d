@@ -11,8 +11,7 @@
 
 module pham.db.db_myauth;
 
-debug(debug_pham_db_db_myauth) import std.stdio : writeln;
-
+debug(debug_pham_db_db_myauth) import pham.db.db_debug;
 public import pham.cp.cp_cipher : CipherBuffer;
 import pham.db.db_auth;
 import pham.db.db_type : DbScheme;

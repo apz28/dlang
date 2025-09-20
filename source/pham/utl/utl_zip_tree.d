@@ -13,9 +13,9 @@ module pham.utl.utl_zip_tree;
 
 import std.algorithm.comparison : max;
 
+import pham.utl.utl_zip;
 import pham.utl.utl_zip_constant;
 import pham.utl.utl_zip_deflate;
-import pham.utl.utl_zip;
 
 nothrow @safe:
 

@@ -12,6 +12,7 @@
 module pham.utl.utl_dlink_list;
 
 public import pham.utl.utl_disposable : DisposingReason;
+public import pham.utl.utl_result : ResultCode;
 
 nothrow @safe:
 
@@ -65,12 +66,18 @@ if (isDLink!T)
             dispose(DisposingReason.destructor);
         }
 
-        void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+        int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+        in
+        {
+            assert(disposingReason != DisposingReason.none);
+        }
+        do
         {
             _currentNode = null;
             _firstNode = null;
             _rootNode = null;
             _empty = true;
+            return ResultCode.ok;
         }
 
         void popFront()

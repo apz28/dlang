@@ -26,7 +26,9 @@ import pham.utl.utl_convert : bytesFromBase64s, bytesToBase64s;
 import pham.utl.utl_delegate_list;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_object : shortFunctionName, VersionString;
+import pham.utl.utl_object : VersionString;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : shortFunctionName;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -95,11 +97,18 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         _id = 0;
+        _descriptor = FbIscArrayDescriptor.init;
         if (isDisposing(disposingReason))
             _command = null;
+        return ResultCode.ok;
     }
 
     Variant readArray(DbNamedColumn arrayColumn) @safe
@@ -462,11 +471,19 @@ public:
         doClose(DisposingReason.other);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         doClose(disposingReason);
+        if (isDisposing(disposingReason))
+            _connection = null;
+        return ResultCode.ok;
     }
 
     FbIscArrayDescriptor getDescriptor(string tableName, string columnName)
@@ -521,8 +538,6 @@ package(pham.db):
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         disposeCommand(_arrayType, disposingReason);
-        if (isDisposing(disposingReason))
-            _connection = null;
     }
 
 private:
@@ -682,7 +697,12 @@ public:
         _sizes.reset();
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
@@ -692,6 +712,7 @@ public:
             _transaction = null;
             _connection = null;
         }
+        return ResultCode.ok;
     }
 
     final string forErrorInfo() const nothrow @safe
@@ -1001,7 +1022,7 @@ package(pham.db):
         {
             debug(debug_pham_db_db_fbdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.blob.doClose() - %s", forLogInfo(), e.msg, e);
+                log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
     }
 
@@ -1121,7 +1142,7 @@ public:
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.command.getExecutionPlan(vendorMode=%d)%s%s", forLogInfo(), vendorMode, newline, commandText);
+            log.infof("%s.%s(vendorMode=%d)%s%s", forLogInfo(), shortFunctionName(2), vendorMode, newline, commandText);
 
         const wasPrepared = prepared;
         if (!wasPrepared)
@@ -1334,7 +1355,7 @@ protected:
         {
             debug(debug_pham_db_db_fbdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.errorf("%s.command.deallocateHandle() - %s%s%s", forLogInfo(), e.msg, newline, commandText, e);
+                log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
     }
 
@@ -1344,7 +1365,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doExecuteCommand()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1426,7 +1447,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doFetch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1471,7 +1492,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".doPrepare()", newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), false, logTimmingWarningDur)
             : LogTimming.init;
 
         static if (fbDeferredProtocol)
@@ -1558,7 +1579,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".executeNonQueryBatch()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1895,7 +1916,12 @@ public:
         _parameters.assumeSafeAppend();
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
@@ -1914,7 +1940,7 @@ public:
             {
                 debug(debug_pham_db_db_fbdatabase) debug writeln("\t", e.msg);
                 if (auto log = canErrorLog())
-                    log.errorf("%s.batch.dispose() - %s", forLogInfo(), e.msg, e);
+                    log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
         }
 
@@ -1925,6 +1951,8 @@ public:
             _command = null;
             _commandOwned = false;
         }
+
+        return ResultCode.ok;
     }
 
     FbCommandBatchResult[] executeNonQuery()
@@ -2251,13 +2279,15 @@ protected:
         }
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
+        // Must call super first to close the connection with use protocol & parameter buffers
         super.doDispose(disposingReason);
         disposeParameterWriteBuffers(disposingReason);
         disposeProtocol(disposingReason);
+        return ResultCode.ok;
     }
 
     final override void doCancelCommandImpl(DbCancelCommandData data) @safe
@@ -2289,7 +2319,7 @@ protected:
         {
             debug(debug_pham_db_db_fbdatabase) debug writeln("\t", e.msg);
             if (auto log = canErrorLog())
-                log.error("%s.batch.doCloseImpl() - %s", forLogInfo(), e.msg, e);
+                log.error("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
 
         super.doCloseImpl(reasonState);
@@ -2415,7 +2445,7 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         checkInactive();
 
         if (auto log = canTraceLog())
-            log.infof("%s.connection.openService()", forLogInfo());
+            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         reset();
 
@@ -2853,11 +2883,22 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
 
         doClose(disposingReason);
+        if (isDisposing(disposingReason))
+        {
+            _connection = null;
+            _connectionStringBuilder = null;
+        }
+        return ResultCode.ok;
     }
 
     void activate(FbShutdownActivateMode mode,
@@ -3249,9 +3290,6 @@ package(pham.db):
 
         if (_connection !is null)
             _connection.close();
-
-        if (isDisposing(disposingReason))
-            _connectionStringBuilder = null;
     }
 
     void open()

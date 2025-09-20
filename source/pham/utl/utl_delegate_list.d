@@ -11,7 +11,7 @@
 
 module pham.utl.utl_delegate_list;
 
-import std.traits : isDelegate, ReturnType;
+import std.traits : ReturnType, isDelegate;
 
 import pham.utl.utl_array_static : StaticArray;
 
@@ -19,7 +19,7 @@ template DelegateList(Args...)
 {
     private alias DelegateHandler = void delegate(Args args);
     //pragma(msg, DelegateHandler.stringof);
-    
+
     alias DelegateList = DelegateListOf!(DelegateHandler, Args);
 }
 
@@ -27,7 +27,7 @@ template DelegateList(DelegateHandler, Args...)
 if (isDelegate!DelegateHandler)
 {
     //pragma(msg, DelegateHandler.stringof);
-    
+
     alias DelegateList = DelegateListOf!(DelegateHandler, Args);
 }
 
@@ -158,7 +158,7 @@ private:
             return result;
         }
     }
-    
+
 private:
     StaticArray!(DelegateHandler, 4) items;
 }

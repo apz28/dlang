@@ -14,6 +14,7 @@ module pham.external.std.windows.sspi_ex;
 version(Windows):
 
 import pham.utl.utl_disposable : DisposingReason;
+import pham.utl.utl_result : ResultCode;
 import pham.external.std.windows.sspi;
 
 nothrow @safe:
@@ -26,7 +27,12 @@ public
     enum secBufferSize = 16_000;
 
 public:
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) pure @trusted
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) pure @trusted
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         secBuffer.cbBuffer = 0;
         secBuffer.BufferType = 0;
@@ -38,6 +44,7 @@ public:
 
         secBufferData[] = 0;
         secBufferData = null;
+        return ResultCode.ok;
     }
 
     ubyte[] getSecBytes() pure @trusted
@@ -102,28 +109,31 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose)
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose)
+    in
+    {
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
     {
         disposeClientContext(disposingReason);
         disposeClientCredentials(disposingReason);
+        clientCredentialsTimestamp = clientContextTimestamp = TimeStamp.init;
+        return ResultCode.ok;
     }
 
     void disposeClientContext(const(DisposingReason) disposingReason) @trusted
     {
         if (clientContext.isValid())
-        {
             DeleteSecurityContext(&clientContext);
-            clientContext.reset();
-        }
+        clientContext.reset();
     }
 
     void disposeClientCredentials(const(DisposingReason) disposingReason) @trusted
     {
         if (clientCredentials.isValid())
-        {
             FreeCredentialsHandle(&clientCredentials);
-            clientCredentials.reset();
-        }
+        clientCredentials.reset();
     }
 
     bool authenticate(string remotePrincipal, scope const(ubyte)[] serverAuthData, ref RequestSecResult errorStatus, ref ubyte[] authData) @trusted

@@ -15,7 +15,7 @@ import core.time : Duration, dur;
 public import std.ascii : LetterCase;
 import std.range.primitives : ElementEncodingType, empty, put,
     isInfinite, isInputRange, isOutputRange;
-import std.traits : isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned, Unqual;
+import std.traits : Unqual, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned;
 
 debug(debug_pham_utl_utl_numeric_parser) import std.stdio : writeln;
 import pham.utl.utl_utf8;

@@ -14,8 +14,7 @@ module pham.db.db_pgauth_cleartext;
 import std.conv : to;
 import std.string : representation;
 
-debug(debug_pham_db_db_pgauth_cleartext) import std.stdio : writeln;
-
+debug(debug_pham_db_db_pgauth_cleartext) import pham.db.db_debug;
 import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;

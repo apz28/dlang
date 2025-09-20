@@ -145,12 +145,14 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    final override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _input.ints[] = 0;
         _kStream.ints[] = 0;
-        _kStreamLeft = 0;
-        super.doDispose(disposingReason);
+        _kStreamLeft = _rounds = 0;
+        _overflow = false;
+        // _counterSize
+        return super.doDispose(disposingReason);
     }
 
 private:

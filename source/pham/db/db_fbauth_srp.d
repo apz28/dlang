@@ -16,8 +16,7 @@ import std.conv : to;
 import std.string : representation;
 import std.typecons : Flag, No, Yes;
 
-debug(debug_pham_db_db_fbauth_srp) import std.stdio : writeln;
-
+debug(debug_pham_db_db_fbauth_srp) import pham.db.db_debug;
 import pham.utl.utl_big_integer;
 import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -186,17 +185,17 @@ protected:
         return M;
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         if (_authClient !is null)
-        {
             _authClient.dispose(disposingReason);
-            if (isDisposing(disposingReason))
-                _authClient = null;
-        }
         _premasterKey.dispose(disposingReason);
         _proof.dispose(disposingReason);
-        super.doDispose(disposingReason);
+        
+        if (isDisposing(disposingReason))
+            _authClient = null;
+            
+        return super.doDispose(disposingReason);
     }
 
 private:

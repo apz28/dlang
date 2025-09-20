@@ -12,9 +12,8 @@
 module pham.var.var_coerce;
 
 import std.math.traits : isNaN;
-import std.traits : fullyQualifiedName,
-    isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned,
-    Unqual;
+import std.traits : Unqual, fullyQualifiedName,
+    isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned;
 
 debug(debug_pham_var_var_coerce) import std.stdio : writeln;
 import pham.utl.utl_array_dictionary;

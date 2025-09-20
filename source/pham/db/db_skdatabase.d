@@ -34,6 +34,8 @@ debug(debug_pham_db_db_skdatabase) import pham.db.db_debug;
 import pham.cp.cp_openssl;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
+import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_text : shortFunctionName;
 import pham.db.db_buffer;
 import pham.db.db_buffer_filter;
 import pham.db.db_buffer_filter_cipher;
@@ -192,13 +194,13 @@ package(pham.db):
 
             if (readBytes == 0 || totalBytes >= mustSatisfiedBytes)
                return false;
-            
+
             enum oneMillisecond = 1;
 
             // Just delay a bit and let socket handle the wait
             sleep(oneMillisecond);
             return true;
-            
+
             /*
             // Try for maximum 1 second
             foreach (i; 0..1_000)
@@ -281,7 +283,7 @@ package(pham.db):
                 }
 
                 if (!nextFilter.process(filteredData, filteredData))
-                    throwReadDataError(nextFilter.errorCode, nextFilter.errorMessage);
+                    throwReadDataError(nextFilter.errorStatus.errorCode, nextFilter.errorStatus.errorMessage);
 
                 debug(debug_pham_db_db_skdatabase) debug
                 {
@@ -331,7 +333,7 @@ package(pham.db):
                 }
 
                 if (!nextFilter.process(firstFilter ? data : filteredData, filteredData))
-                    throwWriteDataError(nextFilter.errorCode, nextFilter.errorMessage);
+                    throwWriteDataError(nextFilter.errorStatus.errorCode, nextFilter.errorStatus.errorMessage);
 
                 debug(debug_pham_db_db_skdatabase) debug
                 {
@@ -392,7 +394,7 @@ package(pham.db):
             ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
 
         if (auto log = canErrorLog())
-            log.errorf("%s.%s() - %s", forLogInfo(), funcName, rawErrorMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2, funcName), rawErrorMessage);
 
         auto msg = DbMessage.eConnect.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
         throw createConnectError(rawErrorCode, msg, next, funcName, file, line);
@@ -405,7 +407,7 @@ package(pham.db):
             ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
 
         if (auto log = canErrorLog())
-            log.errorf("%s.%s() - %s", forLogInfo(), funcName, rawErrorMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2, funcName), rawErrorMessage);
 
         auto msg = DbMessage.eReadData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
 
@@ -422,7 +424,7 @@ package(pham.db):
             ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
 
         if (auto log = canErrorLog())
-            log.errorf("%s.%s() - %s", forLogInfo(), funcName, rawErrorMessage);
+            log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2, funcName), rawErrorMessage);
 
         auto msg = DbMessage.eWriteData.fmtMessage(connectionStringBuilder.forErrorInfo(), rawErrorMessage);
 
@@ -530,10 +532,13 @@ protected:
         disposeSocket(DisposingReason.other, !isFailing);
     }
 
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(disposingReason=", disposingReason, ")");
+
         super.doDispose(disposingReason);
         disposeSocket(disposingReason, false);
+        return ResultCode.ok;
     }
 
     final void doOpenSocket() @trusted
@@ -868,11 +873,12 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        super.doDispose(disposingReason);
         if (isDisposing(disposingReason))
             _connection = null;
-        super.doDispose(disposingReason);
+        return ResultCode.ok;
     }
 
     final override noreturn noReadingDataRemainingError(const(size_t) requiredBytes, const(size_t) availableBytes) @safe
@@ -924,11 +930,12 @@ public:
     }
 
 protected:
-    override void doDispose(const(DisposingReason) disposingReason) nothrow @safe
+    override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
+        super.doDispose(disposingReason);
         if (isDisposing(disposingReason))
             _connection = null;
-        super.doDispose(disposingReason);
+        return ResultCode.ok;
     }
 
 protected:
@@ -945,17 +952,17 @@ public:
 
     this(SkConnection connection) nothrow
     {
-        this._needBuffer = true;
         this._connection = connection;
         this._buffer = connection.acquireSocketWriteBuffer();
+        this._bufferOwner = DbBufferOwner.acquired;
     }
 
     this(SkConnection connection, SkWriteBuffer buffer) nothrow
     {
-        this._needBuffer = false;
+        buffer.reset();
         this._connection = connection;
         this._buffer = buffer;
-        buffer.reset();
+        this._bufferOwner = DbBufferOwner.none;
     }
 
     ~this()
@@ -963,13 +970,33 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    void dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
+    in
     {
-        if (_needBuffer && _buffer !is null && _connection !is null)
-            _connection.releaseSocketWriteBuffer(_buffer);
+        assert(disposingReason != DisposingReason.none);
+    }
+    do
+    {
+        if (_buffer !is null)
+        {
+            final switch (_bufferOwner)
+            {
+                case DbBufferOwner.acquired:
+                    if (_connection !is null)
+                        _connection.releaseSocketWriteBuffer(_buffer);
+                    break;
+                case DbBufferOwner.owned:
+                    _buffer.dispose(disposingReason);
+                    break;
+                case DbBufferOwner.none:
+                    break;
+            }
+        }
+
         _buffer = null;
-        if (isDisposing(disposingReason))
-            _connection = null;
+        _connection = null;
+        _bufferOwner = DbBufferOwner.none;
+        return ResultCode.ok;
     }
 
     @property DbWriteBuffer buffer() nothrow pure
@@ -987,7 +1014,7 @@ public:
 private:
     DbWriteBuffer _buffer;
     SkConnection _connection;
-    bool _needBuffer;
+    DbBufferOwner _bufferOwner;
 }
 
 version(UnitTestSocketFailure)
