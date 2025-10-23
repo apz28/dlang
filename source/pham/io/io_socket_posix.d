@@ -23,7 +23,7 @@ import core.sys.posix.sys.socket;
 import core.sys.posix.sys.time : timeval;
 import core.sys.posix.unistd : close, gethostname;
 
-import pham.utl.utl_result : resultError, resultOK;
+import pham.utl.utl_result : ResultCode;
 import pham.io.io_socket_type : PollFDSet, PollResult,
     SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems,
     isSelectMode, toSocketTimeMSecs;
@@ -319,10 +319,10 @@ do
     if (isSelectMode(resultModes, SelectMode.error))
     {
         lastSocketError(pollSets.pollResults[0].errorCode);
-        return resultError;
+        return ResultCode.error;
     }
     else
-        return resultOK;
+        return ResultCode.ok;
 }
 
 pragma(inline, true)
@@ -398,10 +398,10 @@ do
     if (isSelectMode(resultModes, SelectMode.error))
     {
         lastSocketError(selectSets.pollResults[0].errorCode);
-        return resultError;
+        return ResultCode.error;
     }
     else
-        return resultOK;
+        return ResultCode.ok;
 }
 
 pragma(inline, true)
@@ -507,5 +507,5 @@ do
 {
     SelectMode resultModes;
     selectSocket(handle, SelectMode.waitforConnect, timeout, resultModes);
-    return resultModes & SelectMode.error ? resultError : resultOK;
+    return resultModes & SelectMode.error ? ResultCode.error : ResultCode.ok;
 }

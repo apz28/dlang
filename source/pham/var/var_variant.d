@@ -1432,41 +1432,6 @@ public:
     }
 }
 
-/**
- * Gives the `alignof` the largest types given.
- * Default to size_t.alignof if no types given.
- */
-template maxAlignment(Ts...)
-{
-    enum maxAlignment =
-    {
-        size_t result = 0;
-        static foreach (t; Ts)
-        {
-            if (t.alignof > result)
-                result = t.alignof;
-        }
-        return result != 0 ? result : size_t.alignof;
-    }();
-}
-
-/**
- * Gives the `sizeof` the largest types given.
- */
-template maxSize(Ts...)
-{
-    enum maxSize =
-    {
-        size_t result = 0;
-        static foreach (t; Ts)
-        {
-            if (t.sizeof > result)
-                result = t.sizeof;
-        }
-        return result != 0 ? result : size_t.sizeof;
-    }();
-}
-
 
 // All implement after this point must be private
 private:
