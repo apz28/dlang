@@ -12,6 +12,7 @@
 module pham.xml.xml_xpath;
 
 import std.conv : to;
+version(unittest) import std.conv : text;
 import std.math : isInfinity, isNaN, signbit;
 import std.typecons : Flag, No, Yes;
 
