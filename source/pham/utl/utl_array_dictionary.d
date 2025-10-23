@@ -56,6 +56,22 @@ struct Dictionary(K, V)
         alias CustomHashOf = size_t function(ref const(K)) @nogc nothrow pure @safe;
     }
 
+    static struct Entry
+    {
+    private:
+        Index nextCollision; // Next Entry index of collision chain; -1 is end of chain
+        size_t hash; // Hash value of _key
+        UK _key;
+        
+    public:
+        @property const(K) key() const inout nothrow @safe
+        {
+            return _key;
+        }
+
+        V value;
+    }
+
 public:
     /**
      * Construct a Dictionary from a build-in associated array
@@ -412,24 +428,17 @@ public:
 
     /**
      * Returns the value at index.
-     * If the index is out of bound, defaultValue is returned
      * Params:
      *  index = the location of key-value pair
-     *  defaultValue = the default value being returned if the index is out of bound
      */
-    inout(V) getAt(size_t index, inout(V) defaultValue) inout
+    ref inout(V) getAt(size_t index) inout return
+    in
     {
-        return index < length
-            ? aa.entries[index].value
-            : defaultValue;
+        assert(index < length);
     }
-
-    inout(V) getAt(C)(size_t index, C defaultValue) inout
-    if (is(typeof(defaultValue()) : UV))
+    do
     {
-        return index < length
-            ? aa.entries[index].value
-            : cast(inout(V))defaultValue();
+        return aa.entries[index].value;
     }
 
     /**
@@ -440,6 +449,21 @@ public:
     ptrdiff_t indexOf(scope const(K) key) const nothrow
     {
         return length != 0 ? aa.indexOf(key) : -1;
+    }
+
+    /**
+     * Returns the key-value pair at index.
+     * Params:
+     *  index = the location of key-value pair
+     */
+    ref inout(Entry) pairAt(size_t index) inout return
+    in
+    {
+        assert(index < length);
+    }
+    do
+    {
+        return aa.entries[index];
     }
 
     /**
@@ -702,22 +726,6 @@ public:
 
 private:
     alias Index = ptrdiff_t;
-
-    static struct Entry
-    {
-    private:
-        Index nextCollision; // Next Entry index of collision chain; -1 is end of chain
-        size_t hash; // Hash value of _key
-        UK _key;
-
-    public:
-        @property const(K) key() const inout nothrow @safe
-        {
-            return _key;
-        }
-
-        V value;
-    }
 
     static struct Impl
     {

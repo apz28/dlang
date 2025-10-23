@@ -28,6 +28,8 @@ public import pham.json.json_type : JSONFloatLiteralType, JSONLiteral, JSONOptio
     defaultOptions, defaultPrettyOptions, defaultTab;
 
 
+enum jsonNoLengthMarker = -1;
+
 /**
  * JSON value node
  */
@@ -68,12 +70,13 @@ public:
 
     /// Implements the foreach `opApply` interface for json array & object.
     alias opApply = opApplyImpl!(int delegate(size_t index, ref JSONValue value));
-    alias opApply = opApplyImpl!(int delegate(string key, ref JSONValue value));
     alias opApply = opApplyImpl!(int delegate(size_t index, string key, ref JSONValue value));
+    alias opApply = opApplyImpl!(int delegate(string key, ref JSONValue value));
     int opApplyImpl(CallBack)(scope CallBack callBack)
     if (is(CallBack : int delegate(size_t, ref JSONValue))
+        || is(CallBack : int delegate(size_t, string, ref JSONValue))
         || is(CallBack : int delegate(string, ref JSONValue))
-        || is(CallBack : int delegate(size_t, string, ref JSONValue)))
+        )
     {
         static if (is(CallBack : int delegate(size_t, ref JSONValue)))
         {
@@ -131,20 +134,20 @@ public:
         }
         else
         {
-            static assert(false, "argument is not an array or a JSONValue array");
+            static assert(false, "Argument is not an array or a JSONValue array");
         }
     }
 
     /**
      * Provides support for the `in` operator.
-     *
      * Tests whether a key can be found in an object.
-     *
+     * Params:
+     *  key = A a key to look into
      * Returns:
-     *      When found, the `inout(JSONValue)*` that matches to the key,
-     *      otherwise `null`.
-     *
-     * Throws: `JSONException` if the right hand side argument `JSONType` is not `object`.
+     *  When found, the `inout(JSONValue)*` that matches to the key,
+     *  otherwise `null`.
+     * Throws:
+     *  `JSONException` if the right hand side argument `JSONType` is not `object`.
      */
     inout(JSONValue)* opBinaryRight(string op : "in")(scope const(char)[] key) inout return @safe
     {
@@ -153,19 +156,15 @@ public:
 
     /**
      * Compare two JSONValues for equality
-     *
      * JSON arrays and objects are compared deeply. The order of object keys does not matter.
-     *
      * Floating point numbers are compared for exact equality, not approximal equality.
-     *
      * Different number types (unsigned, signed, and floating) will be compared by converting
-     * them to a common type, in the same way that comparison of built-in D `int`, `uint` and
-     * `float` works.
-     *
+     * them to a common type, in the same way that comparison of built-in D `int`, `uint` and `float` works.
      * Other than that, types must match exactly.
      * Empty arrays are not equal to empty objects, and booleans are never equal to integers.
      *
-     * Returns: whether this `JSONValue` is equal to `rhs`
+     * Returns:
+     *  whether this `JSONValue` is equal to `rhs`
      */
     bool opEquals(const JSONValue rhs) const @nogc nothrow pure @safe
     {
@@ -183,9 +182,9 @@ public:
                 switch (rhs.type)
                 {
                     case JSONType.integer:
-                        return this._store.integer == rhs._store.integer;
+                        return this._store.int_ == rhs._store.int_;
                     case JSONType.float_:
-                        return this._store.integer == rhs._store.floating;
+                        return this._store.int_ == rhs._store.flt;
                     default:
                         return false;
                 }
@@ -194,9 +193,9 @@ public:
                 switch (rhs.type)
                 {
                     case JSONType.integer:
-                        return this._store.floating == rhs._store.integer;
+                        return this._store.flt == rhs._store.int_;
                     case JSONType.float_:
-                        return this._store.floating == rhs._store.floating;
+                        return this._store.flt == rhs._store.flt;
                     default:
                         return false;
                 }
@@ -205,10 +204,10 @@ public:
                 return rhs.type == JSONType.string && this._store.str == rhs._store.str;
 
             case JSONType.array:
-                return rhs.type == JSONType.array && this._store.array == rhs._store.array;
+                return rhs.type == JSONType.array && this._store.arr == rhs._store.arr;
 
             case JSONType.object:
-                return rhs.type == JSONType.object && this._store.object == rhs._store.object;
+                return rhs.type == JSONType.object && this._store.obj == rhs._store.obj;
 
             case JSONType.null_:
             case JSONType.true_:
@@ -219,18 +218,29 @@ public:
 
     /**
      * Array syntax for JSON arrays.
-     * Throws: `JSONException` if `type` is not `JSONType.array`.
+     * Throws:
+     *  `JSONException` if `type` is not `JSONType.array`.
      */
     ref inout(JSONValue) opIndex(size_t index) inout pure @safe
     {
-        auto arr = this.array;
-        enforce!JSONException(index < arr.length, "JSONValue array index is out of range: " ~ index.to!string);
-        return arr[index];
+        if (_type == JSONType.object)
+        {
+            auto obj = this.object;
+            enforce!JSONException(index < obj.length, "JSONValue object index is out of range: " ~ index.to!string);
+            return obj.getAt(index);
+        }
+        else
+        {
+            auto arr = this.array;
+            enforce!JSONException(index < arr.length, "JSONValue array index is out of range: " ~ index.to!string);
+            return arr[index];
+        }
     }
 
     /**
      * Hash syntax for JSON objects.
-     * Throws: `JSONException` if `type` is not `JSONType.object`.
+     * Throws:
+     *  `JSONException` if `type` is not `JSONType.object`.
      */
     ref inout(JSONValue) opIndex(return scope const(char)[] key) inout pure @safe
     {
@@ -246,37 +256,38 @@ public:
      * initializes it with a JSON object and then performs
      * the index assignment.
      *
-     * Throws: `JSONException` if `type` is not `JSONType.object` or `JSONType.null_`.
+     * Throws:
+     *  `JSONException` if `type` is not `JSONType.object` or `JSONType.null_`.
      */
     void opIndexAssign(T)(auto ref T arg, string key) @trusted
     {
         enforce!JSONException(type == JSONType.object || type == JSONType.null_, "JSONValue must be an object or null type");
 
-        if (type == JSONType.null_)
-            nullify(JSONType.object)._store = Store(object: Dictionary!(string, JSONValue)([key: asJSONValue(arg)]));
+        if (_type == JSONType.null_)
+            nullify(JSONType.object)._store = Store(obj: Dictionary!(string, JSONValue)([key: asJSONValue(arg)]));
         else
-            _store.object[key] = asJSONValue(arg);
+            _store.obj[key] = asJSONValue(arg);
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(key=", key, ", json=", toString(), ")");
     }
 
     /// ditto
     void opIndexAssign(T)(auto ref T arg, size_t index)
     {
-        enforce!JSONException(type == JSONType.array, "JSONValue is not an array");
-        enforce!JSONException(index < _store.array.length, "JSONValue array index is out of range: " ~ index.to!string);
+        enforce!JSONException(_type == JSONType.array, "JSONValue is not an array");
+        enforce!JSONException(index < _store.arr.length, "JSONValue array index is out of range: " ~ index.to!string);
 
-        _store.array[index] = asJSONValue(arg);
+        _store.arr[index] = asJSONValue(arg);
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(index=", index, ", json=", toString(), ")");
     }
 
     void opOpAssign(string op : "~", T)(auto ref T arg)
     {
-        enforce!JSONException(type == JSONType.array, "JSONValue is not an array type");
+        enforce!JSONException(_type == JSONType.array, "JSONValue is not an array type");
 
         static if (isArray!T)
-            _store.array ~= JSONValue(arg).array;
+            _store.arr ~= JSONValue(arg).array;
         else static if (is(T : JSONValue))
-            _store.array ~= arg.array;
+            _store.arr ~= arg.array;
         else
             static assert(false, "Argument is not an array or a JSONValue array: " ~ fullyQualifiedName!T);
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(json=", toString(), ")");
@@ -295,8 +306,9 @@ public:
     /**
      * A convenience getter that returns this `JSONValue` as the specified D type.
      * Note: Only numeric types, `bool`, `string`, `JSONValue[string]`, and `JSONValue[]` types are accepted
-     * Throws: `JSONException` if `T` cannot hold the contents of this `JSONValue`
-     *         or in case of integer overflow when converting to `T`
+     * Throws:
+     *  `JSONException` if `T` cannot hold the contents of this `JSONValue`
+     *  or in case of integer overflow when converting to `T`
      */
     inout(T) get(T)() const inout pure @safe
     if (!is(T : JSONValue[string]))
@@ -316,9 +328,9 @@ public:
             switch (type)
             {
                 case JSONType.integer:
-                    return cast(T)_store.integer;
+                    return cast(T)_store.int_;
                 case JSONType.float_:
-                    return cast(T)_store.floating;
+                    return cast(T)_store.flt;
                 default:
                     throw new JSONException("JSONValue is not a number type: " ~ fullyQualifiedName!T);
             }
@@ -328,10 +340,10 @@ public:
             switch (type)
             {
                 case JSONType.integer:
-                    long integerV = _store.integer;
+                    long integerV = _store.int_;
                     try { return integerV.to!UT; } catch (ConvException e) throw new JSONException(e.msg, e.file, e.line, e);
                 case JSONType.float_:
-                    long floatV = cast(long)_store.floating;
+                    long floatV = cast(long)_store.flt;
                     try { return floatV.to!UT; } catch (ConvException e) throw new JSONException(e.msg, e.file, e.line, e);
                 default:
                     throw new JSONException("JSONValue is not an integral type: " ~ fullyQualifiedName!T);
@@ -370,11 +382,11 @@ public:
                 break;
 
             case JSONType.array:
-                _store.array = [];
+                _store.arr = [];
                 break;
 
             case JSONType.object:
-                _store.object = Dictionary!(string, JSONValue).init;
+                _store.obj = Dictionary!(string, JSONValue).init;
                 break;
 
             case JSONType.null_:
@@ -409,23 +421,23 @@ public:
      */
     size_t toHash() const @nogc nothrow pure @trusted
     {
-        final switch (type)
+        final switch (_type)
         {
             case JSONType.integer:
-                return hashOf(_store.integer);
+                return hashOf(_store.int_);
 
             case JSONType.float_:
-                return hashOf(_store.floating);
+                return hashOf(_store.flt);
 
             case JSONType.string:
                 return hashOf(_store.str);
 
             case JSONType.object:
-                return _store.object.hashOf();
+                return _store.obj.hashOf();
 
             case JSONType.array:
                 size_t result;
-                foreach (ref v; _store.array)
+                foreach (ref v; _store.arr)
                     result = hashOf(v, result);
                 return result;
 
@@ -438,7 +450,6 @@ public:
 
     /**
      * Implicitly calls `toJSON` on this JSONValue.
-     *
      * $(I options) can be used to tweak the conversion behavior.
      */
     string toString(JSONOptions options = defaultOptions,
@@ -458,12 +469,13 @@ public:
 
     /**
      * Value getter/setter for `JSONType.array`.
-     * Throws: `JSONException` for read access if `type` is not `JSONType.array`.
+     * Throws:
+     *  `JSONException` for read access if `type` is not `JSONType.array`.
      */
     @property ref inout(JSONValue[]) array() inout pure return scope @trusted
     {
-        enforce!JSONException(type == JSONType.array, "JSONValue is not an array type");
-        return _store.array;
+        enforce!JSONException(_type == JSONType.array, "JSONValue is not an array type");
+        return _store.arr;
     }
 
     /// ditto
@@ -475,15 +487,16 @@ public:
 
     /**
      * Value getter/setter for boolean stored in JSON.
-     * Throws: `JSONException` for read access if `this.type` is not
-     * `JSONType.true_` or `JSONType.false_`.
+     * Throws:
+     *  `JSONException` for read access if `this.type` is not
+     *  `JSONType.true_` or `JSONType.false_`.
      */
     @property bool boolean() const pure @safe
     {
-        if (type == JSONType.true_)
+        if (_type == JSONType.true_)
             return true;
 
-        if (type == JSONType.false_)
+        if (_type == JSONType.false_)
             return false;
 
         throw new JSONException("JSONValue is not a boolean type");
@@ -498,14 +511,15 @@ public:
 
     /**
      * Value getter/setter for `JSONType.float_`.
-     * Throws: `JSONException` for read access if `type` is not `JSONType.float_`.
+     * Throws:
+     *  `JSONException` for read access if `type` is not `JSONType.float_`.
      * Note:
      *  Despite the name, this is a 64-bit `double`, not a 32-bit `float`.
      */
     @property double floating() const pure @safe
     {
-        enforce!JSONException(type == JSONType.float_, "JSONValue is not a floating type");
-        return _store.floating;
+        enforce!JSONException(_type == JSONType.float_, "JSONValue is not a floating type");
+        return _store.flt;
     }
 
     /// ditto
@@ -517,12 +531,13 @@ public:
 
     /**
      * Value getter/setter for `JSONType.integer`.
-     * Throws: `JSONException` for read access if `type` is not `JSONType.integer`.
+     * Throws:
+     *  `JSONException` for read access if `type` is not `JSONType.integer`.
      */
     @property long integer() const pure @safe
     {
-        enforce!JSONException(type == JSONType.integer, "JSONValue is not an integer type");
-        return _store.integer;
+        enforce!JSONException(_type == JSONType.integer, "JSONValue is not an integer type");
+        return _store.int_;
     }
 
     /// ditto
@@ -535,17 +550,25 @@ public:
     /// Test whether the type is `JSONType.null_`
     @property bool isNull() const @nogc nothrow pure @safe
     {
-        return type == JSONType.null_;
+        return _type == JSONType.null_;
+    }
+
+    @property ptrdiff_t length() const @nogc nothrow pure @trusted
+    {
+        return _type == JSONType.array
+            ? _store.arr.length
+            : (_type == JSONType.object ? _store.obj.length : jsonNoLengthMarker);
     }
 
     /**
      * Value getter/setter for unordered `JSONType.object`.
-     * Throws: `JSONException` for read access if `type` is not `JSONType.object`
+     * Throws:
+     *  `JSONException` for read access if `type` is not `JSONType.object`
      */
     @property ref inout(Dictionary!(string, JSONValue)) object() inout pure return @trusted
     {
-        enforce!JSONException(type == JSONType.object, "JSONValue is not an object type");
-        return _store.object;
+        enforce!JSONException(_type == JSONType.object, "JSONValue is not an object type");
+        return _store.obj;
     }
 
     /// ditto
@@ -565,11 +588,12 @@ public:
 
     /**
      * Value getter/setter for `JSONType.string`.
-     * Throws: `JSONException` for read access if `type` is not `JSONType.string`.
+     * Throws:
+     *  `JSONException` for read access if `type` is not `JSONType.string`.
      */
     @property string str() const pure return scope @trusted
     {
-        enforce!JSONException(type == JSONType.string, "JSONValue is not a string type");
+        enforce!JSONException(_type == JSONType.string, "JSONValue is not a string type");
         return _store.str;
     }
 
@@ -590,17 +614,18 @@ public:
     }
 
 public:
+    version(JSONCommentStore) string comment;
+
+package(pham.json):
     static union Store
     {
         size_t[2] dummy; // First member to be initialized to all zero
-        long integer;
-        double floating;
+        double flt;
+        long int_;
         string str;
-        JSONValue[] array;
-        Dictionary!(string, JSONValue) object;
+        JSONValue[] arr;
+        Dictionary!(string, JSONValue) obj;
     }
-
-    version(JSONCommentStore) string comment;
 
 private:
     auto ref JSONValue asJSONValue(T)(return auto ref T arg)
@@ -639,12 +664,12 @@ private:
         }
         else static if (isIntegral!T)
         {
-            _store = Store(integer: arg);
+            _store = Store(int_: arg);
             _type = JSONType.integer;
         }
         else static if (isFloatingPoint!T)
         {
-            _store = Store(floating: arg);
+            _store = Store(flt: arg);
             _type = JSONType.float_;
         }
         else static if (is(T : Dictionary!(Key, Value), Key, Value))
@@ -653,14 +678,14 @@ private:
 
             static if (is(Value : JSONValue))
             {
-                _store = Store(object: arg);
+                _store = Store(obj: arg);
             }
             else
             {
                 auto newArg = Dictionary!(string, JSONValue)(arg.length + 5, arg.length);
                 foreach (k, ref v; arg)
                     newArg[k] = JSONValue(v);
-                _store = Store(object: newArg);
+                _store = Store(obj: newArg);
             }
             _type = JSONType.object;
         }
@@ -678,21 +703,21 @@ private:
                 foreach (k, ref v; arg)
                     newArg[k] = JSONValue(v);
             }
-            _store = Store(object: newArg);
+            _store = Store(obj: newArg);
             _type = JSONType.object;
         }
         else static if (isArray!T)
         {
             static if (is(ElementEncodingType!T : JSONValue))
             {
-                _store = Store(array: arg);
+                _store = Store(arr: arg);
             }
             else
             {
                 JSONValue[] newArg = new JSONValue[arg.length];
                 foreach (i, ref v; arg)
                     newArg[i] = JSONValue(v);
-                _store = Store(array: newArg);
+                _store = Store(arr: newArg);
             }
             _type = JSONType.array;
         }
@@ -716,14 +741,14 @@ private:
 
         static if (is(ElementEncodingType!T : JSONValue))
         {
-            _store = Store(array: arg);
+            _store = Store(arr: arg);
         }
         else
         {
             JSONValue[] newArg = new JSONValue[arg.length];
             foreach (i, ref e; arg)
                 newArg[i] = JSONValue(e);
-            _store = Store(array: newArg);
+            _store = Store(arr: newArg);
         }
         _type = JSONType.array;
     }
@@ -731,6 +756,251 @@ private:
 package:
     Store _store;
     JSONType _type;
+}
+
+enum JSONNavigate : ubyte
+{
+    child = 0x00,
+    descendant = 0x01,
+    array = 0x02,
+    object = 0x04,
+}
+
+struct JSONChilds(ubyte navigate)
+{
+    private enum hasFilter = (navigate & (JSONNavigate.array | JSONNavigate.object)) != 0;
+    private enum SkipUntil : ubyte { empty, matched, descendant }
+
+public:
+    static struct JSONChild
+    {
+    public:
+        string name;
+        JSONValue value;
+        ptrdiff_t index;
+
+        @property bool isParent() const nothrow pure @safe
+        {
+            return value.length > 0;
+        }
+
+    private:
+        JSONChild front() pure @safe
+        {
+            if (value.type == JSONType.object)
+            {
+                auto pair = value.object.pairAt(iterIndex);
+                return JSONChild(pair.key, pair.value, iterIndex);
+            }
+
+            return JSONChild(null, value.array[iterIndex], iterIndex);
+        }
+
+        void popFront() pure @safe
+        {
+            iterIndex++;
+            static if (hasFilter)
+                skipUntil();
+        }
+
+        static if (hasFilter)
+        {
+
+            SkipUntil skipUntil() pure @safe
+            {
+                while (iterIndex < iterLength)
+                {
+                    const t = value[iterIndex].type;
+
+                    static if (navigate & JSONNavigate.array)
+                    {
+                        if (t == JSONType.array)
+                            return SkipUntil.matched;
+
+                        static if (navigate & JSONNavigate.descendant)
+                        {
+                            if (t == JSONType.object)
+                                return SkipUntil.descendant;
+                        }
+                    }
+
+                    static if (navigate & JSONNavigate.object)
+                    {
+                        if (t == JSONType.object)
+                            return SkipUntil.matched;
+
+                        static if (navigate & JSONNavigate.descendant)
+                        {
+                            if (t == JSONType.array)
+                                return SkipUntil.descendant;
+                        }
+                    }
+
+                    iterIndex++;
+                }
+
+                return SkipUntil.empty;
+            }
+        }
+
+        pragma(inline, true)
+        @property bool empty() const nothrow pure @safe
+        {
+            return iterIndex >= iterLength;
+        }
+
+    private:
+        ptrdiff_t iterIndex, iterLength;
+    }
+
+public:
+    this(JSONValue root) pure @safe
+    {
+        this(null, root, -1);
+    }
+
+    this(string name, JSONValue objectOrArray, ptrdiff_t index) pure @safe
+    {
+        //this._parents = null;
+        this._parent = JSONChild(name, objectOrArray, index, 0, objectOrArray.length);
+        static if (hasFilter)
+            skipUntil();
+    }
+
+    void popFront() pure @safe
+    {
+        // Check current has any children
+        static if (navigate & JSONNavigate.descendant)
+        {
+            if (pushCurrent())
+            {
+                static if (hasFilter)
+                {
+                    if (skipUntil())
+                        return;
+                }
+                else
+                {
+                    return;
+                }
+            }
+        }
+
+        _parent.popFront();
+
+        static if (navigate & JSONNavigate.descendant)
+        {
+            static if (hasFilter)
+            {
+                if (skipUntil())
+                    return;
+            }
+
+            while (_parent.empty && _parents.length)
+            {
+                popParent();
+                static if (hasFilter)
+                {
+                    if (skipUntil())
+                        return;
+                }
+            }
+        }
+    }
+
+    pragma(inline, true)
+    @property bool empty() const nothrow pure @safe
+    {
+        static if (navigate & JSONNavigate.descendant)
+            return _parents.length == 0 && _parent.empty;
+        else
+            return _parent.empty;
+    }
+
+    pragma(inline, true)
+    @property JSONChild front() pure @safe
+    {
+        return _parent.front;
+    }
+
+    pragma(inline, true)
+    @property JSONChild parent() pure @safe
+    {
+        return _parent;
+    }
+
+private:
+    static if (navigate & JSONNavigate.descendant)
+    {
+        bool popParent() pure @safe
+        {
+            if (_parents.length)
+            {
+                _parent = _parents[$ - 1];
+                _parents = _parents[0..$ - 1];
+                return true;
+            }
+            else
+                return false;
+        }
+
+        bool pushCurrent() pure @safe
+        {
+            auto c = _parent.front;
+            const cLen = c.value.length;
+            if (cLen > 0)
+            {
+                _parent.popFront(); // Skip current child
+                _parents ~= _parent;
+                _parent = JSONChild(c.name, c.value, c.index, 0, cLen);
+                return true;
+            }
+            else
+                return false;
+        }
+    }
+
+    static if (hasFilter)
+    {
+        bool skipUntil() pure @safe
+        {
+            while (!_parent.empty)
+            {
+                final switch (_parent.skipUntil())
+                {
+                    case SkipUntil.empty:
+                        static if (navigate & JSONNavigate.descendant)
+                        {
+                            if (!popParent())
+                                return false;
+                        }
+                        else
+                            return false;
+                        break;
+
+                    case SkipUntil.matched:
+                        return true;
+
+                    case SkipUntil.descendant:
+                        static if (navigate & JSONNavigate.descendant)
+                        {
+                            if (!pushCurrent())
+                                _parent.popFront();
+                        }
+                        else
+                            return false;
+                        break;
+                }
+            }
+
+            return !_parent.empty;
+        }
+    }
+
+private:
+    JSONChild _parent;
+    static if (navigate & JSONNavigate.descendant)
+        JSONChild[] _parents;
 }
 
 
@@ -1775,4 +2045,82 @@ unittest // comment + prettyString + objectName
     JSONValue json = parseJSON!(defaultOptions)(expectedPretty);
     auto prettyJSON = json.toString(optionsOf([JSONOptions.objectName], defaultPrettyOptions));
     assert(prettyJSON == expectedPretty, text('\n', prettyJSON, '\n', expectedPretty, '\n', diffLoc(prettyJSON, expectedPretty)));
+}
+
+unittest // JSONChilds
+{
+    import std.conv : text;
+
+    static immutable string s = q"JSON
+{
+"n":1,
+"a1":[1,2,3],
+"o1":{"a":"z","b":"Y"},
+"o2":{"a2":"zz","b2":"YY","oa":[3,2,1]},
+"b":true,
+"a2":["aa","bb","cc",{"a1":3,"a2":2,"a3":1}],
+"f":false,
+}
+JSON";
+
+    auto json = parseJSON(s);
+    string names;
+    int count;
+
+    names = null;
+    count = 0;
+    auto shallow = JSONChilds!(JSONNavigate.child)(json);
+    while (!shallow.empty)
+    {
+        count++;
+        auto f = shallow.front;
+        if (names.length)
+        {
+            names ~= ",";
+            names ~= f.name;
+        }
+        else
+            names = f.name;
+        shallow.popFront();
+    }
+    assert(count == 7, text(count, "::", names));
+    assert(names == "n,a1,o1,o2,b,a2,f", names);
+
+    names = null;
+    count = 0;
+    auto deep1 = JSONChilds!(JSONNavigate.descendant)(json);
+    while (!deep1.empty)
+    {
+        count++;
+        auto f = deep1.front;
+        if (names.length)
+        {
+            names ~= ",";
+            names ~= f.name;
+        }
+        else
+            names = f.name;
+        deep1.popFront();
+    }
+    assert(count == 25, text(count, "::", names));
+    assert(names == "n,a1,,,,o1,a,b,o2,a2,b2,oa,,,,b,a2,,,,,a1,a2,a3,f", names);
+
+    names = null;
+    count = 0;
+    auto deep2 = JSONChilds!(JSONNavigate.descendant | JSONNavigate.object)(json);
+    while (!deep2.empty)
+    {
+        count++;
+        auto f = deep2.front;
+        if (names.length)
+        {
+            names ~= ",";
+            names ~= f.name;
+        }
+        else
+            names = f.name;
+        deep2.popFront();
+    }
+    assert(count == 3, text(count, "::", names));
+    assert(names == "o1,o2,", names);
 }

@@ -21,7 +21,7 @@ import pham.utl.utl_dlink_list;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.utl.utl_object : singleton;
 import pham.utl.utl_result : ResultCode;
-import pham.utl.utl_text : shortClassName;
+import pham.utl.utl_text : shortClassName, shortTypeName;
 import pham.xml.xml_buffer;
 import pham.xml.xml_entity_table;
 import pham.xml.xml_exception;
@@ -1470,8 +1470,8 @@ public:
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         this._orgParent = null;
-        this._listType = XmlNodeListType.flat;
         this._onFilter = null;
+        this._listType = XmlNodeListType.flat;
         this._filterContext = cast(XmlNodeFilterContext!S)context;
         this._context = this._filterContext !is null ? this._filterContext.context : context;
 
@@ -1507,11 +1507,28 @@ public:
     }
 
     /**
+     * Insert a xml node, node, to the end
+     * Valid only if listType is XmlNodeListType.flat
+     * Params:
+     *   node = a xml node to be inserted
+     * Returns:
+     *   inserted node
+     */
+    XmlNode!S opOpAssign(string op)(XmlNode!S node)
+    if (op == "~")
+    in
+    {
+        assert(_listType == XmlNodeListType.flat);
+    }
+    do
+    {
+        return insertBack(node);
+    }
+    
+    /**
      * Notes:
      *   this slow, O(n), access, better use front & popFront
      */
-    // Not implement because it is obviously slow, use item() instead
-    version(none)
     XmlNode!S opIndex(size_t index)
     {
         return item(index);
@@ -1538,14 +1555,33 @@ public:
     }
 
     /**
+     * Returns the index of node in this node-list
+     * if node is not in the list, returns -1
+     * Based 1 value
+     * Params:
+     *   node = a xml node to be calculated
+     * Returns:
+     *   A index of node in the list if found, otherwise -1
+     */
+    ptrdiff_t indexOf(XmlNode!S node)
+    {
+        foreach (i; 0..length())
+        {
+            if (node is item(i))
+                return i;
+        }
+        return -1;
+    }
+
+    /**
      * Insert a xml node, node, to the end
      * Valid only if listType is XmlNodeListType.flat
      * Params:
      *   node = a xml node to be inserted
      * Returns:
-     *   node if allowed, otherwise null
+     *   inserted node
      */
-    XmlNode!S insertBack(XmlNode!S node) nothrow
+    XmlNode!S insertBack(XmlNode!S node)
     in
     {
         assert(_listType == XmlNodeListType.flat);
@@ -1554,13 +1590,11 @@ public:
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
-        if (_listType == XmlNodeListType.flat)
-        {
-            _flatList ~= node;
-            return node;
-        }
-
-        return null;
+        if (_listType != XmlNodeListType.flat)
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortTypeName!(XmlNodeList!S)(), "insertBack");
+            
+        _flatList ~= node;
+        return node;
     }
 
     /**
@@ -1658,25 +1692,6 @@ public:
         _doPopFront(this);
     }
 
-    /**
-     * Returns the index of node in this node-list
-     * if node is not in the list, returns -1
-     * Based 1 value
-     * Params:
-     *   node = a xml node to be calculated
-     * Returns:
-     *   A index of node in the list if found, otherwise -1
-     */
-    ptrdiff_t indexOf(XmlNode!S node)
-    {
-        foreach (i; 0..length())
-        {
-            if (node is item(i))
-                return i;
-        }
-        return -1;
-    }
-
     void removeAll()
     {
         final switch (_listType)
@@ -1706,7 +1721,7 @@ public:
 
         debug(PhamXml)
         {
-            if (_listType == XmlNodeListType.Attributes)
+            if (_listType == XmlNodeListType.attributes)
                 _parentVersion = getVersionAttrb();
             else
                 _parentVersion = getVersionChild();
@@ -1743,7 +1758,7 @@ public:
      * An input range operation to return current node if any
      */
     pragma(inline, true)
-    @property XmlNode!S front() nothrow pure
+    @property inout(XmlNode!S) front() inout nothrow pure
     in
     {
         assert(!empty);
@@ -1762,7 +1777,7 @@ public:
     }
 
     pragma(inline, true)
-    @property XmlNode!S parent() nothrow pure
+    @property inout(XmlNode!S) parent() inout nothrow pure
     {
         return _orgParent;
     }
@@ -2121,19 +2136,19 @@ private:
         void checkVersionChangedAttrb() const
         {
             if (_parentVersion != getVersionAttrb())
-                throw new XmlException(Message.EAttributeListChanged);
+                throw new XmlException(XmlMessage.eAttributeListChanged);
         }
 
         void checkVersionChangedChild() const
         {
             if (_parentVersion != getVersionChild())
-                throw new XmlException(Message.EChildListChanged);
+                throw new XmlException(XmlMessage.eChildListChanged);
         }
 
         pragma(inline, true)
         void checkVersionChanged() const
         {
-            if (_listType == XmlNodeListType.Attributes)
+            if (_listType == XmlNodeListType.attributes)
                 checkVersionChangedAttrb();
             else
                 checkVersionChangedChild();

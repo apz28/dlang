@@ -1062,18 +1062,6 @@ private:
     }
 
     pragma(inline, true)
-    static bool isAlpha(const(dchar) c) @nogc nothrow pure @safe
-    {
-        return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
-    }
-
-    pragma(inline, true)
-    static bool isDigit(const(dchar) c) @nogc nothrow pure @safe
-    {
-        return '0' <= c && c <= '9';
-    }
-
-    pragma(inline, true)
     static Char isEqualChar(const(Char) c, const(Char) c1) @nogc nothrow pure @safe
     {
         return c == c1 ? c : 0;
@@ -1089,30 +1077,6 @@ private:
     static Char isEqualChar(const(Char) c, const(Char)[2] c2) @nogc nothrow pure @safe
     {
         return c == c2[0] || c == c2[1] ? c : 0;
-    }
-
-    pragma(inline, true)
-    static bool isHexDigit(const(dchar) c) @nogc nothrow pure @safe
-    {
-        const hc = c | 0x20;
-        return ('0' <= c && c <= '9') || ('a' <= hc && hc <= 'f');
-    }
-
-    pragma(inline, true)
-    bool isNameStart(const(dchar) c)
-    {
-        return c == '_' || c == '$' || isAlpha(c);
-    }
-
-    pragma(inline, true)
-    bool isWhite(const(dchar) c) @nogc nothrow pure @safe
-    {
-        static if (options & JSONOptions.strictParsing)
-            // RFC 7159 has a stricter definition of whitespace than general ASCII.
-            return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-        else
-            // Accept ASCII NUL as whitespace in non-strict mode.
-            return c == 0 || c == ' ' || (c >= 0x09 && c <= 0x0D);
     }
 
     pragma(inline, true)
@@ -1236,7 +1200,7 @@ private:
         while (true)
         {
             auto c = peekCharNullable();
-            if (c.isNull || !isWhite(c.get))
+            if (c.isNull || !isWhite!(options)(c.get))
                 return;
 
             clearNextChar();
@@ -1369,7 +1333,7 @@ if (isSomeFiniteCharInputRange!T)
 
             case JSONTokenKind.integer:
                 const integerV = to!long(tokenizer.front.text);
-                value.nullify(JSONType.integer)._store = JSONValue.Store(integer: integerV);
+                value.nullify(JSONType.integer)._store = JSONValue.Store(int_: integerV);
                 break;
 
             case JSONTokenKind.integerHex:
@@ -1380,7 +1344,7 @@ if (isSomeFiniteCharInputRange!T)
                 if (hexText.length >= 2 && (hexText[0..2] == "0x" || hexText[0..2] == "0X"))
                     hexText = hexText[2..$];
                 const integerV = hexText.length > 8 ? to!long(hexText, 16) : to!int(hexText, 16);
-                value.nullify(JSONType.integer)._store = JSONValue.Store(integer: isNeg ? -integerV : integerV);
+                value.nullify(JSONType.integer)._store = JSONValue.Store(int_: isNeg ? -integerV : integerV);
                 break;
 
             case JSONTokenKind.float_:
@@ -1390,12 +1354,12 @@ if (isSomeFiniteCharInputRange!T)
                     if (tryGetSpecialFloat(tokenizer.front.text, floatingVS))
                     {
                         // found a special float, its value was placed in value.store.floating
-                        value.nullify(JSONType.float_)._store = JSONValue.Store(floating: floatingVS);
+                        value.nullify(JSONType.float_)._store = JSONValue.Store(flt: floatingVS);
                         break;
                     }
                 }
                 const floatingV = to!double(tokenizer.front.text);
-                value.nullify(JSONType.float_)._store = JSONValue.Store(floating: floatingV);
+                value.nullify(JSONType.float_)._store = JSONValue.Store(flt: floatingV);
                 break;
 
             case JSONTokenKind.string:
@@ -1406,7 +1370,7 @@ if (isSomeFiniteCharInputRange!T)
                     if (tryGetSpecialFloat(tokenizer.front.text, floatingV))
                     {
                         // found a special float, its value was placed in value.store.floating
-                        value.nullify(JSONType.float_)._store = JSONValue.Store(floating: floatingV);
+                        value.nullify(JSONType.float_)._store = JSONValue.Store(flt: floatingV);
                         break;
                     }
                 }
@@ -1442,7 +1406,7 @@ if (isSomeFiniteCharInputRange!T)
 
                     arrayV ~= elementValue;
                 }
-                value.nullify(JSONType.array)._store = JSONValue.Store(array: arrayV);
+                value.nullify(JSONType.array)._store = JSONValue.Store(arr: arrayV);
                 break;
 
             case JSONTokenKind.beginObject:
@@ -1490,7 +1454,7 @@ if (isSomeFiniteCharInputRange!T)
 
                     objectV[memberKey] = memberValue;
                 }
-                value.nullify(JSONType.object)._store = JSONValue.Store(object: objectV);
+                value.nullify(JSONType.object)._store = JSONValue.Store(obj: objectV);
                 break;
 
             case JSONTokenKind.commentLine:
@@ -1539,6 +1503,63 @@ JSONValue parseJSON(JSONOptions options, T)(T json, size_t maxDepth = 0)
 if (isSomeFiniteCharInputRange!T)
 {
     return parseJSON!(T, options)(json, maxDepth);
+}
+
+package
+{
+    pragma(inline, true)
+    static bool isAlpha(const(dchar) c) @nogc nothrow pure @safe
+    {
+        return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+    }
+
+    /** 
+     * Returns true if object parameter is class type of T
+     * Params:
+     *  object = A class object
+     */
+    bool isClassType(T)(Object object) nothrow pure @safe
+    {
+        return (cast(T)object) !is null;
+    }
+
+    pragma(inline, true)
+    static bool isDigit(const(dchar) c) @nogc nothrow pure @safe
+    {
+        return '0' <= c && c <= '9';
+    }
+    
+    pragma(inline, true)
+    static bool isHexDigit(const(dchar) c) @nogc nothrow pure @safe
+    {
+        const hc = c | 0x20;
+        return ('0' <= c && c <= '9') || ('a' <= hc && hc <= 'f');
+    }
+
+    pragma(inline, true)
+    bool isNameIn(const(dchar) c) @nogc nothrow pure @safe
+    {
+        return c == '_' || c == ':' || c == '-' || c == '.' || isAlpha(c) || isDigit(c);
+    }
+
+    pragma(inline, true)
+    bool isNameStart(const(dchar) c) @nogc nothrow pure @safe
+    {
+        return c == '_' || c == '$' || isAlpha(c);
+    }
+
+    pragma(inline, true)
+    bool isWhite(JSONOptions options = defaultOptions)(const(dchar) c) @nogc nothrow pure @safe
+    {
+        static if (options & JSONOptions.strictParsing)
+            // RFC 7159 has a stricter definition of whitespace than general ASCII.
+            return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+        else
+            // Accept ASCII NUL as whitespace in non-strict mode.
+            return c == 0 || c == ' ' || (c >= 0x09 && c <= 0x0D);
+    }
+    
+    alias isSpace = isWhite;
 }
 
 version(unittest)

@@ -11,9 +11,45 @@
 
 module pham.xml.xml_test;
 
+version(unittest):
 @safe:
 
-static immutable string xpathXml = q"XML
+import pham.xml.xml_dom : XmlDocument;
+
+XmlDocument!string loadUnittestXml(string unittestFileName) @trusted
+{
+    import std.file : exists;
+    import std.path : buildPath;
+    import std.stdio : writeln;
+
+    __gshared XmlDocument!string[string] loadXmls;
+
+    const fullFileName = buildPath("xpathTestData", unittestFileName);
+
+    if (auto doc = fullFileName in loadXmls)
+        return *doc;
+
+    if (exists(fullFileName))
+    {
+        auto doc = new XmlDocument!string().loadFromFile(fullFileName);
+        loadXmls[fullFileName] = doc;
+        return doc;
+    }
+    else
+    {
+        writeln("Invalid filename: ", fullFileName);
+        loadXmls[fullFileName] = null; // Only need to writeout one
+        return null;
+    }
+}
+
+static immutable string dummyXml = q"XML
+<elem>
+  <elem/>
+</elem>
+XML";
+
+static immutable string bookStoreXml = q"XML
 <?xml version="1.0"?>
 <!-- A fragment of a book store inventory database -->
 <bookstore xmlns:bk="urn:samples">
@@ -52,6 +88,7 @@ static immutable string xpathXml = q"XML
 </bookstore>
 XML";
 
+
 static immutable string parserXml = q"XML
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
@@ -73,6 +110,7 @@ static immutable string parserXml = q"XML
   <![CDATA[ dataSection! ]]>
 </root>
 XML";
+
 
 static immutable string parserSaxXml = q"XML
 <?xml version="1.0"?>

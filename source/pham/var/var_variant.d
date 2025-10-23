@@ -30,7 +30,7 @@ import std.typecons : ReplaceTypeUnless, Tuple;
 
 debug(debug_pham_var_var_variant) import std.stdio : writeln;
 import pham.utl.utl_result : cmp;
-import pham.utl.utl_trait : isDelegateWith, isTypeOf;
+import pham.utl.utl_trait : isDelegateWith, isTypeOf, maxAlignment, maxSize;
 import pham.var.var_coerce;
 
 struct AnonymousStruct;
@@ -2342,24 +2342,6 @@ if (isAlgebraic!VariantType && Handlers.length > 0)
 }
 
 alias This2Variant(V, T...) = AliasSeq!(ReplaceTypeUnless!(isAlgebraic, AnonymousStruct, V, T));
-
-nothrow @safe unittest // maxAlignment
-{
-    static assert(maxAlignment!(int, long) == long.alignof);
-    static assert(maxAlignment!(bool, byte) == 1);
-
-    struct S { int a, b, c; }
-    static assert(maxAlignment!(bool, long, S) == long.alignof);
-}
-
-nothrow @safe unittest // maxSize
-{
-    static assert(maxSize!(int, long) == long.sizeof);
-    static assert(maxSize!(bool, byte) == 1);
-
-    struct S { int a, b, c; }
-    static assert(maxSize!(bool, long, S) == S.sizeof);
-}
 
 nothrow @safe version(unittest)
 {

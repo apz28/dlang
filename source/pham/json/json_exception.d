@@ -9,24 +9,44 @@
  */
 module pham.json.json_exception;
 
-import std.conv : text;
+template JSONExceptionConstructors()
+{
+@safe:
+
+public:
+    this(string message,
+        string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure
+    {
+        super(message, file, line, next);
+    }
+
+    this(string message, size_t line, size_t column,
+        string file = __FILE__, Exception next = null) nothrow pure
+    {
+        import std.conv : text;
+
+        if (column)
+            super(text(message, " (", line, ":", column, ")"), file, line, next);
+        else
+            super(message, file, line, next);
+    }
+}
 
 /**
  * Exception thrown on JSON errors
  */
 class JSONException : Exception
 {
-public:
-    this(string msg, string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure @safe
-    {
-        super(msg, file, line, next);
-    }
+@safe:
 
-    this(string msg, size_t line, size_t column, string file = __FILE__, Exception next = null) nothrow pure @safe
-    {
-        if (column)
-            super(text(msg, " (", line, ":", column, ")"), file, 0, next);
-        else
-            super(msg, file, line, next);
-    }
+public:
+    mixin JSONExceptionConstructors;
+}
+
+class JSONParserException : JSONException
+{
+@safe:
+
+public:
+    mixin JSONExceptionConstructors;
 }

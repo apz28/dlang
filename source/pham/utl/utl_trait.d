@@ -215,6 +215,41 @@ template isTypeOf(T, checkingT)
     enum bool isTypeOf = is(T == checkingT) || is(Unqual!T == checkingT);
 }
 
+/**
+ * Gives the `alignof` the largest types given.
+ * Default to size_t.alignof if no types given.
+ */
+template maxAlignment(Ts...)
+{
+    enum maxAlignment =
+    {
+        size_t result = 0;
+        static foreach (t; Ts)
+        {
+            if (t.alignof > result)
+                result = t.alignof;
+        }
+        return result != 0 ? result : size_t.alignof;
+    }();
+}
+
+/**
+ * Gives the `sizeof` the largest types given.
+ */
+template maxSize(Ts...)
+{
+    enum maxSize =
+    {
+        size_t result = 0;
+        static foreach (t; Ts)
+        {
+            if (t.sizeof > result)
+                result = t.sizeof;
+        }
+        return result != 0 ? result : size_t.sizeof;
+    }();
+}
+
 
 // Any below codes are private
 private:
@@ -337,4 +372,22 @@ unittest // hasPostblit
     static assert(hasPostblit!D == HasPostblit.none);
     static assert(!hasPostblit!XD);
     static assert(hasPostblit!XD == HasPostblit.none);
+}
+
+nothrow @safe unittest // maxAlignment
+{
+    static assert(maxAlignment!(int, long) == long.alignof);
+    static assert(maxAlignment!(bool, byte) == 1);
+
+    struct S { int a, b, c; }
+    static assert(maxAlignment!(bool, long, S) == long.alignof);
+}
+
+nothrow @safe unittest // maxSize
+{
+    static assert(maxSize!(int, long) == long.sizeof);
+    static assert(maxSize!(bool, byte) == 1);
+
+    struct S { int a, b, c; }
+    static assert(maxSize!(bool, long, S) == S.sizeof);
 }

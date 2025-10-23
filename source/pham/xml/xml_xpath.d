@@ -12,14 +12,17 @@
 module pham.xml.xml_xpath;
 
 import std.conv : to;
-import std.math : isNaN;
+import std.math : isInfinity, isNaN, signbit;
 import std.typecons : Flag, No, Yes;
 
-debug(debug_pham_xml_xml_xpath) import std.stdio : writeln;
+debug(debug_pham_xml_xml_xpath) import std.stdio : stdout, writeln;
+debug(debug_pham_xml_xml_xpath) import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
-import pham.utl.utl_enum_set : EnumArray;
+import pham.utl.utl_enum_set : EnumArray, toName;
 import pham.utl.utl_object : singleton;
-import pham.utl.utl_text : className, shortClassName;
+import pham.utl.utl_text : shortClassName;
+import pham.utl.utl_trait : maxSize;
 import pham.xml.xml_buffer;
 import pham.xml.xml_dom;
 import pham.xml.xml_exception;
@@ -27,46 +30,132 @@ import pham.xml.xml_message;
 import pham.xml.xml_object;
 import pham.xml.xml_type;
 import pham.xml.xml_util;
-import pham.xml.xml_writer;
 
 @safe:
 
-/** Returns first node of matching xpath expression
-    Params:
-        source = a context node to search from
-        xpath = a xpath expression string
-    Returns:
-        a node, XmlNode, of matching xpath expression or null if no matching found
-*/
-XmlNode!S selectSingleNode(S = string)(XmlNode!S source, S xpath)
+//version = XPathXmlNodeList;
+
+//TODO DMD v2.111.0 Compiler bug when using XmlNodeList, compiler never stop
+version(XPathXmlNodeList)
+{
+    template XmlPathNodeList(S)
+    {
+        alias XmlPathNodeList = XmlNodeList!S;
+    }
+
+    pragma(inline, true)
+    private XmlPathNodeList!S nullList(S)() nothrow pure @safe
+    {
+        return XmlPathNodeList!S(null);
+    }
+}
+else
+{
+    template XmlPathNodeList(S)
+    {
+        alias XmlPathNodeList = XmlNode!S[];
+    }
+
+    pragma(inline, true)
+    private XmlNode!S[] nullList(S)() nothrow pure @safe
+    {
+        return null;
+    }
+
+    pragma(inline, true)
+    private bool empty(S)(scope const(XmlNode!S)[] nodes) nothrow pure @safe
+    {
+        return nodes.length == 0;
+    }
+
+    pragma(inline, true)
+    private inout(XmlNode!S) front(S)(inout(XmlNode!S)[] nodes) nothrow pure @safe
+    {
+        return nodes[0];
+    }
+
+    pragma(inline, true)
+    private ptrdiff_t indexOf(S)(scope const(XmlNode!S)[] nodes, scope const(XmlNode!S) node) nothrow pure @trusted
+    {
+        import pham.utl.utl_array : indexOf;
+
+        return (cast(const(void*)[])nodes).indexOf(cast(const(void*))node);
+    }
+
+    private inout(XmlNode!S) moveFront(S)(ref inout(XmlNode!S)[] nodes) nothrow pure @safe
+    {
+        auto result = nodes[0];
+        nodes = nodes[1..$];
+        return result;
+    }
+}
+
+/**
+ * Returns first node of matching xpath expression
+ * Params:
+ *  source = a context node to search from
+ *  xpath = a xpath expression string
+ * Returns:
+ *  a node, XmlNode, of matching xpath expression or null if no matching found
+ */
+XmlNode!S selectNode(S = string)(XmlNode!S source, S xpath)
 if (isXmlString!S)
 {
     auto resultList = selectNodes(source, xpath);
-    return resultList.empty ? null : resultList.front;
+    return !resultList.empty ? resultList.front : null;
 }
 
-/** Returns node-list of matching xpath expression
-    Params:
-        source = a context node to search from
-        xpath = a xpath expression string
-    Returns:
-        a node-list, XmlNodeList, of matching xpath expression
-*/
-XmlNodeList!S selectNodes(S = string)(XmlNode!S source, S xpath)
+/**
+ * Returns node-list of matching xpath expression
+ * Params:
+ *  source = a context node to search from
+ *  xpath = a xpath expression string
+ * Returns:
+ *  a node-list, XmlPathNodeList, of matching xpath expression
+ */
+XmlPathNodeList!S selectNodes(S = string)(XmlNode!S source, S xpath)
 if (isXmlString!S)
 {
     auto xpathParser = XPathParser!S(xpath);
     auto xpathExpression = xpathParser.parseExpression();
 
-    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(xpath=", xpath, ") - ", xpathExpression.outerXml());
-
     auto inputContext = XPathContext!S(source);
-    inputContext.resNodes.insertBack(source);
+    inputContext.putRes(source);
 
     auto outputContext = inputContext.createOutputContext();
     xpathExpression.evaluate(inputContext, outputContext);
 
     return outputContext.resNodes;
+}
+
+alias selectSingleNode = selectNode;
+
+XPathValue!S evaluate(S = string)(XmlNode!S source, S xpath)
+if (isXmlString!S)
+{
+    auto xpathParser = XPathParser!S(xpath);
+    auto xpathExpression = xpathParser.parseExpression();
+
+    auto inputContext = XPathContext!S(source);
+    inputContext.putRes(source);
+
+    auto outputContext = inputContext.createOutputContext();
+    xpathExpression.evaluate(inputContext, outputContext);
+
+    return outputContext.resValue;
+}
+
+enum XPathAstType : ubyte
+{
+    error,
+    axis,
+    constant,
+    filter,
+    function_,
+    group,
+    operator,
+    root,
+    variable,
 }
 
 enum XPathAxisType : ubyte
@@ -87,19 +176,6 @@ enum XPathAxisType : ubyte
     self,
 }
 
-enum XPathAstType : ubyte
-{
-    error,
-    axis,
-    constant,
-    filter,
-    function_,
-    group,
-    operator,
-    root,
-    variable,
-}
-
 enum XPathCaseOrder : ubyte
 {
     none,
@@ -113,6 +189,7 @@ enum XPathDataType : ubyte
     boolean,
     number,
     text,
+    nodeSet,
 }
 
 enum XPathFunctionType : ubyte
@@ -242,9 +319,9 @@ enum XPathResultType : ubyte
     error,
     any,
     boolean,
-    nodeSet,
     number,
     text,
+    nodeSet,
 }
 
 enum navigator = XPathResultType.text;
@@ -350,23 +427,23 @@ public:
 public:
     this(bool value) nothrow pure
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("value=", value));
 
         this._type = XPathDataType.boolean;
-        this.boolean = value;
+        this._boolean = value;
     }
 
     this(double value) nothrow pure
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("value=", toText!string(value)));
 
         this._type = XPathDataType.number;
-        this.number = value;
+        this._number = value;
     }
 
     this(S value) nothrow @trusted
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("value=", value));
 
         this._type = XPathDataType.text;
         this._text = value;
@@ -374,199 +451,386 @@ public:
 
     this(scope const(C)[] value) nothrow @trusted
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("value=", value));
 
         this._type = XPathDataType.text;
         this._text = value.idup;
     }
 
-    this(const typeof(this) source) nothrow @trusted
-	{
-        //debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+    this(XmlPathNodeList!S value) nothrow @trusted
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+        debug(debug_pham_xml_xml_xpath) traceFunction();
 
-        this._type = source.type;
-        final switch (source.type)
+        this._type = XPathDataType.nodeSet;
+        this._nodes = value;
+    }
+
+    version(none)
+    this(typeof(this) source) nothrow @trusted
+	{
+        this._type = source._type;
+        final switch (source._type)
         {
-            case XPathDataType.empty:
-                break;
             case XPathDataType.boolean:
-                this.boolean = source.boolean;
+                this._boolean = source._boolean;
                 break;
             case XPathDataType.number:
-                this.number = source.number;
+                this._number = source._number;
                 break;
             case XPathDataType.text:
-                this._text = source.text;
+                this._text = source._text;
+                break;
+            case XPathDataType.nodeSet:
+                this._nodes = source._nodes;
+                break;
+            case XPathDataType.empty:
                 break;
         }
     }
 
-    ~this()
+    ~this() nothrow
     {
         if (_type != XPathDataType.empty)
             doClear();
     }
 
-    void opAssign(bool value) nothrow @trusted
+    void opAssign(bool rhs) nothrow @trusted
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("rhs=", rhs));
 
         if (_type != XPathDataType.boolean)
             clear();
+
         this._type = XPathDataType.boolean;
-        this.boolean = value;
+        this._boolean = rhs;
     }
 
-    void opAssign(double value) nothrow
+    void opAssign(double rhs) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("rhs=", toText!string(rhs)));
 
         if (_type != XPathDataType.number)
             clear();
+
         this._type = XPathDataType.number;
-        this.number = value;
+        this._number = rhs;
     }
 
-    void opAssign(S value) nothrow @trusted
+    void opAssign(S rhs) nothrow @trusted
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("rhs=", rhs));
 
         if (_type != XPathDataType.text)
             clear();
+
         this._type = XPathDataType.text;
-        this._text = value;
+        this._text = rhs;
     }
 
-    void opAssign(scope const(C)[] value) nothrow @trusted
+    void opAssign(scope const(C)[] rhs) nothrow @trusted
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("rhs=", rhs));
 
         if (_type != XPathDataType.text)
             clear();
+
         this._type = XPathDataType.text;
-        this._text = value.idup;
+        this._text = rhs.idup;
     }
 
-    void opAssign(const typeof(this) source) nothrow @trusted
+    void opAssign(XmlPathNodeList!S rhs) nothrow @trusted
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+        debug(debug_pham_xml_xml_xpath) traceFunction();
+
+        if (_type != XPathDataType.nodeSet)
+            clear();
+
+        this._type = XPathDataType.nodeSet;
+        this._nodes = rhs;
+    }
+
+    void opAssign(typeof(this) rhs) nothrow @trusted
     {
         clear();
 
-        this._type = source.type;
-        final switch (source.type)
+        this._type = rhs._type;
+        final switch (rhs._type)
         {
-            case XPathDataType.empty:
-                break;
             case XPathDataType.boolean:
-                this.boolean = source.boolean;
+                this._boolean = rhs._boolean;
                 break;
             case XPathDataType.number:
-                this.number = source.number;
+                this._number = rhs._number;
                 break;
             case XPathDataType.text:
-                this._text = source.text;
+                this._text = rhs._text;
+                break;
+            case XPathDataType.nodeSet:
+                this._nodes = rhs._nodes;
+                break;
+            case XPathDataType.empty:
                 break;
         }
     }
 
-    bool opCast(B: bool)() const nothrow
+    bool opCast(B: bool)() const nothrow @trusted
     {
-        final switch (type)
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        final switch (_type)
         {
+            case XPathDataType.boolean:
+                return _boolean;
+            case XPathDataType.number:
+                return !isNaN(_number) && _number != 0;
+            case XPathDataType.text:
+                return _text.length != 0;
+            case XPathDataType.nodeSet:
+                return _nodes.length != 0;
             case XPathDataType.empty:
                 return false;
-            case XPathDataType.boolean:
-                return boolean;
-            case XPathDataType.number:
-                return number != 0;
-            case XPathDataType.text:
-                return text.length != 0;
         }
     }
 
-	bool opEquals(const ref typeof(this) other) const nothrow
+	bool opEquals(ref typeof(this) rhs)
 	{
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(this=", this, ", other=", other, ")");
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("this=", this.toString(), ", rhs=", rhs.toString()));
 
-        return opCmp(other) == 0;
+        return opCmp(rhs) == 0;
 	}
 
-	int opCmp(const ref typeof(this) other) const nothrow @trusted
+	int opCmp(ref typeof(this) rhs) @trusted
     {
-        import std.math : cmp;
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
         import std.uni : sicmp;
 
         int result;
-        if (this.type == other.type)
+        if (this.type == rhs.type)
         {
-            final switch (type)
+            final switch (this.type)
             {
+                case XPathDataType.boolean:
+                    result = cast(int)this._boolean - cast(int)(rhs._boolean);
+                    break;
+                case XPathDataType.number:
+                    import std.math : cmp;
+                    result = cmp(this._number, rhs._number);
+                    break;
+                case XPathDataType.text:
+                    result = sicmp(this._text, rhs._text);
+                    break;
+                case XPathDataType.nodeSet:
+                    const rhsLen = rhs._nodes.length;
+                    result = 0;
+                    foreach (i, e; this._nodes)
+                    {
+                        if (i >= rhsLen)
+                            break;
+                        result = sicmp(toText!S(e), toText!S(rhs._nodes[i]));
+                        if (result != 0)
+                            break;
+                    }
+                    if (result == 0)
+                    {
+                        const thisLen = this._nodes.length;
+                        if (thisLen > rhsLen)
+                            result = 1;
+                        else if (thisLen < rhsLen)
+                            result = -1;
+                    }
+                    break;
                 case XPathDataType.empty:
                     result = 0;
                     break;
-                case XPathDataType.boolean:
-                    result = cast(int)boolean - cast(int)(other.boolean);
-                    break;
-                case XPathDataType.number:
-                    result = cmp(number, other.number);
-                    break;
-                case XPathDataType.text:
-                    result = sicmp(text, other.text);
-                    break;
             }
         }
-        else if (this.type == XPathDataType.empty || other.type == XPathDataType.empty)
-            result = cast(int)XPathDataType.empty - cast(int)other.empty;
+        else if (this.type == XPathDataType.empty || rhs.type == XPathDataType.empty)
+            result = cast(int)XPathDataType.empty - cast(int)rhs.empty;
         else
-            result = sicmp(toString(), other.toString());
+            result = sicmp(this.toString(), rhs.toString());
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(this=", this, ", other=", other, ", result=", result, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(.text("this=", this.toString(), ", rhs=", rhs.toString(), ", result=", result));
 
         return result;
     }
 
     void clear() nothrow
     {
-        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParserF("XPathValue.clear(value[%d]: %s)", _type, toString());
-
         if (_type != XPathDataType.empty)
             doClear();
     }
 
-    private void doClear() nothrow @trusted
+    T get(T)() @trusted
+    if (is(T == S) || is(T == double) || is(T == ptrdiff_t) || is(T == bool))
     {
-        // Do not log or use any codes using string (GC data) since it can be called from destructor
-        final switch (_type)
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        static if (is(T == S))
         {
-            case XPathDataType.empty:
-            case XPathDataType.boolean:
-            case XPathDataType.number:
-                break;
-            case XPathDataType.text:
-                _text = null;
-                break;
+            version(XPathXmlNodeList) pragma(msg, __FUNCTION__ ~ "." ~ T.stringof);
+
+            final switch (_type)
+            {
+                case XPathDataType.text:
+                    return _text;
+                case XPathDataType.boolean:
+                    return toText!S(_boolean);
+                case XPathDataType.number:
+                    return toText!S(_number);
+                case XPathDataType.nodeSet:
+                    return _nodes.length == 1 ? firstNodeText() : null;
+                case XPathDataType.empty:
+                    return null;
+            }
         }
-        _type = XPathDataType.empty;
-        _dummy[] = 0;
+        else static if (is(T == double))
+        {
+            version(XPathXmlNodeList) pragma(msg, __FUNCTION__ ~ "." ~ T.stringof);
+
+            final switch (_type)
+            {
+                case XPathDataType.number:
+                    return _number;
+                case XPathDataType.boolean:
+                    return toNumber(_boolean);
+                case XPathDataType.text:
+                    return toNumber!S(_text);
+                case XPathDataType.nodeSet:
+                    return _nodes.length == 1 ? toNumber!S(firstNodeText()) : double.nan;
+                case XPathDataType.empty:
+                    return double.nan;
+            }
+        }
+        else static if (is(T == ptrdiff_t))
+        {
+            version(XPathXmlNodeList) pragma(msg, __FUNCTION__ ~ "." ~ T.stringof);
+
+            final switch (_type)
+            {
+                case XPathDataType.number:
+                    return toInteger(_number);
+                case XPathDataType.boolean:
+                    return toInteger(_boolean);
+                case XPathDataType.text:
+                    return toInteger(toNumber!S(_text));
+                case XPathDataType.nodeSet:
+                    return _nodes.length == 1 ? toInteger(toNumber!S(firstNodeText())) : -1;
+                case XPathDataType.empty:
+                    return -1;
+            }
+        }
+        else static if (is(T == bool))
+        {
+            version(XPathXmlNodeList) pragma(msg, __FUNCTION__ ~ "." ~ T.stringof);
+
+            final switch (_type)
+            {
+                case XPathDataType.boolean:
+                    return _boolean;
+                case XPathDataType.number:
+                    return toBoolean(_number);
+                case XPathDataType.text:
+                    return toBoolean!S(_text);
+                case XPathDataType.nodeSet:
+                    return _nodes.length == 1 ? toBoolean!S(firstNodeText()) : false;
+                case XPathDataType.empty:
+                    return false;
+            }
+        }
+        else
+            static assert(0, "Unsupported type " ~ T.stringof);
     }
 
-    S toString() const nothrow @trusted
+    void put(XmlNode!S node)
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        asNodes() ~= node;
+    }
+
+    S toString() @trusted
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        final switch (_type)
+        {
+            case XPathDataType.boolean:
+                return toText!S(_boolean);
+            case XPathDataType.number:
+                return toText!S(_number);
+            case XPathDataType.text:
+                return _text;
+            case XPathDataType.nodeSet:
+                return toStringNodeSet();
+            case XPathDataType.empty:
+                return null;
+        }
+    }
+
+    debug(debug_pham_xml_xml_xpath) ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context) @trusted
     {
         final switch (_type)
         {
-            case XPathDataType.empty:
-                return null;
             case XPathDataType.boolean:
-                return toText!S(boolean);
+                return sink.put(toText!string(_boolean));
             case XPathDataType.number:
-                return toText!S(number);
+                return sink.put(toText!string(_number));
             case XPathDataType.text:
-                return text;
+                return sink.put(_text);
+            case XPathDataType.nodeSet:
+                return sink.put(toStringNodeSet());
+            case XPathDataType.empty:
+                return sink;
         }
+    }
+
+    @property bool boolean() const nothrow @trusted
+    in
+    {
+        assert(_type == XPathDataType.empty || _type == XPathDataType.boolean);
+    }
+    do
+    {
+        return _type == XPathDataType.boolean ? _boolean : false;
     }
 
     @property bool empty() const nothrow
     {
         return _type == XPathDataType.empty;
+    }
+
+    @property ptrdiff_t length() @trusted
+    {
+        return _type == XPathDataType.nodeSet
+            ? _nodes.length
+            : (_type == XPathDataType.text ? _text.length : -1);
+    }
+
+    @property ref XmlPathNodeList!S nodes() nothrow return @trusted
+    in
+    {
+        assert(_type == XPathDataType.empty || _type == XPathDataType.nodeSet);
+    }
+    do
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        static XmlPathNodeList!S _emptyNodeSet = nullList!S();
+        return _type == XPathDataType.nodeSet ? _nodes : _emptyNodeSet;
+    }
+
+    @property double number() const nothrow @trusted
+    in
+    {
+        assert(_type == XPathDataType.empty || _type == XPathDataType.number);
+    }
+    do
+    {
+        return _type == XPathDataType.number ? _number : double.nan;
     }
 
     @property XPathResultType resultType() const nothrow
@@ -580,6 +844,8 @@ public:
             case XPathDataType.empty:
             case XPathDataType.text:
                 return XPathResultType.text;
+            case XPathDataType.nodeSet:
+                return XPathResultType.nodeSet;
         }
     }
 
@@ -599,15 +865,92 @@ public:
         return _type;
     }
 
-    union
+protected:
+    ref XmlPathNodeList!S asNodes() nothrow return @trusted
     {
-        size_t[2] _dummy; // First member to be initialized to all zero
-        double number;    // 8 bytes
-        S _text;          // 8 or 16 bytes depending on pointer
-        bool boolean;     // 1 byte
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        if (_type != XPathDataType.nodeSet)
+        {
+            clear();
+
+            _type = XPathDataType.nodeSet;
+            _nodes = nullList!S();
+        }
+        return _nodes;
     }
 
-private:
+    void doClear() nothrow @trusted
+    {
+        // Do not log or use any codes using string (GC data) since it can be called from destructor
+        final switch (_type)
+        {
+            case XPathDataType.text:
+                _text = null;
+                break;
+            case XPathDataType.nodeSet:
+                _nodes = nullList!S();
+                break;
+            case XPathDataType.empty:
+            case XPathDataType.boolean:
+            case XPathDataType.number:
+                break;
+        }
+
+        _type = XPathDataType.empty;
+        _dummy[] = 0;
+    }
+
+    S firstNodeText() @trusted
+    in
+    {
+        assert(_type == XPathDataType.nodeSet);
+        assert(_nodes.length == 1);
+    }
+    do
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        return toText!S(_nodes.front);
+    }
+
+    S toStringNodeSet() @trusted
+    in
+    {
+        assert(_type == XPathDataType.nodeSet);
+    }
+    do
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        const len = _nodes.length;
+        if (len == 0)
+            return null;
+
+        if (len == 1)
+            return toText!S(_nodes.front);
+
+        auto result = Appender!S(len * 8 + 2);
+        result.put("[");
+        foreach (i, e; _nodes)
+        {
+            if (i)
+                result.put(",");
+            result.put(toText!S(e));
+        }
+        return result.put("]").data;
+    }
+
+protected:
+    union
+    {
+        ubyte[maxSize!(XmlPathNodeList!S, S, double)] _dummy;  // First member to be initialized to all zero
+        XmlPathNodeList!S _nodes;
+        S _text;           // 8 or 16 bytes depending on pointer size
+        double _number;    // 8 bytes
+        bool _boolean;     // 1 byte
+    }
+
     XPathDataType _type;
 }
 
@@ -623,42 +966,77 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(XmlNode!S xpathNode) nothrow pure
+    this(XmlNode!S xpathNode) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) nodeIndent = &_nodeIndent;
-
         this._xpathNode = xpathNode;
-        this.resNodes = XmlNodeList!S(null);
+        this._xpathDocument = xpathNode.document;
+        this.equalName = xpathNode.document.equalName;
     }
 
-    void clear() nothrow
+    pragma(inline, true)
+    void clearRes() nothrow
     {
-        if (!resNodes.empty)
-            resNodes = XmlNodeList!S(null);
         resValue.clear();
     }
 
     XPathContext!S createOutputContext() nothrow
     {
-        auto result = XPathContext!S(_xpathNode);
-        result.variables = variables;
-        result.filterNodes = filterNodes;
+        XPathContext!S result;
+        result._xpathNode = this._xpathNode;
+        result._xpathDocument = this._xpathDocument;
+        result._xpathDocumentElement = this._xpathDocumentElement;
+        result.equalName = this.equalName;
+        result.filterNodes = this.filterNodes;
+        result.variables = this.variables;
         return result;
     }
 
-    XmlDocument!S xpathDocument() nothrow
+    pragma(inline, true)
+    void putRes(XmlNode!S node)
     {
-        return xpathNode.document();
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        resValue.put(node);
     }
 
-    @property bool hasResNodes() nothrow
+    void putRes(XmlPathNodeList!S nodes)
     {
-        return !resNodes.empty;
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        foreach (e; nodes)
+            resValue.put(e);
     }
 
+    pragma(inline, true)
+    ref XmlPathNodeList!S resNodes() nothrow
+    {
+        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+        return resValue.nodes;
+    }
+
+    pragma(inline, true)
+    @property size_t hasResNodes()
+    {
+        return resValue.type == XPathDataType.nodeSet ? resValue.length : 0;
+    }
+
+    pragma(inline, true)
     @property bool hasResValue() const nothrow
     {
         return !resValue.empty;
+    }
+
+    @property XmlDocument!S xpathDocument() nothrow
+    {
+        return _xpathDocument;
+    }
+
+    @property XmlElement!S xpathDocumentElement() nothrow
+    {
+        if (_xpathDocumentElement is null)
+            _xpathDocumentElement = xpathDocument.documentElement;
+        return _xpathDocumentElement;
     }
 
     @property XmlNode!S xpathNode() nothrow
@@ -666,49 +1044,18 @@ public:
         return _xpathNode;
     }
 
-    @property XmlElement!S xpathDocumentElement() nothrow
-    {
-        if (_xpathDocumentElement is null)
-            _xpathDocumentElement = xpathDocument().documentElement();
-        return _xpathDocumentElement;
-    }
-
-package:
-    debug(debug_pham_xml_xml_xpath)
-    {
-        void decNodeIndent()
-        {
-            *nodeIndent -= 1;
-        }
-
-        void incNodeIndent()
-        {
-            *nodeIndent += 1;
-        }
-
-        string indentString()
-        {
-            return stringOfChar!string(' ', (*nodeIndent) << 1);
-        }
-    }
-
 public:
-    XmlNodeList!S resNodes;
-    XPathValue!S resValue;
+    XmlDocument!S.EqualName equalName;
 
-    XmlNodeList!S filterNodes;
+    XmlPathNodeList!S filterNodes;
     Dictionary!(S, XPathValue!S) variables;
 
-package:
-    debug(debug_pham_xml_xml_xpath)
-    {
-        static size_t _nodeIndent;
-        size_t* nodeIndent;
-    }
+    XPathValue!S resValue;
 
 private:
-    XmlNode!S _xpathNode;
+    XmlDocument!S _xpathDocument;
     XmlElement!S _xpathDocumentElement;
+    XmlNode!S _xpathNode;
 }
 
 abstract class XPathNode(S = string) : XmlObject!S
@@ -717,62 +1064,37 @@ abstract class XPathNode(S = string) : XmlObject!S
 
 public:
     abstract void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext);
-    
-    T get(T)(ref XPathContext!S inputContext)
-    if (is(T == S) || is(T == double) || is(T == bool) || is(T == const(C)[]))
+
+    T evaluate(T)(ref XPathContext!S inputContext)
+    if (is(T == S) || is(T == double) || is(T == ptrdiff_t) || is(T == bool))
     {
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("T=", T.stringof));
+
+        T result;
+        debug(debug_pham_xml_xml_xpath) scope (exit) { incNodeIndent(); traceFunctionPar(text("result=", result)); decNodeIndent(); }
+
         auto tempOutputContext = inputContext.createOutputContext();
         evaluate(inputContext, tempOutputContext);
 
-        if (tempOutputContext.hasResValue)
+        static if (is(T == S) || is(T == double) || is(T == ptrdiff_t) || is(T == bool))
         {
-            static if (is(T == bool))
-                return normalizeValueToBoolean!S(tempOutputContext.resValue);
-            else static if (is(T == double))
-                return normalizeValueToNumber!S(tempOutputContext.resValue);
-            else
-                return normalizeValueToText!S(tempOutputContext.resValue);
+            result = tempOutputContext.resValue.get!T();
+            return result;
         }
         else
-        {
-            static if (is(T == bool))
-                return (!tempOutputContext.resNodes.empty);
-            else static if (is(T == double))
-            {
-                if (tempOutputContext.resNodes.empty)
-                    return double.nan;
-                else
-                    return toNumber!S(tempOutputContext.resNodes.front.toText());
-            }
-            else
-            {
-                if (tempOutputContext.resNodes.empty)
-                    return null;
-                else
-                    return tempOutputContext.resNodes.front.toText();
-            }
-        }
+            static assert(0, "Unsupported type " ~ T.stringof);
     }
 
-    final S outerXml(Flag!"prettyOutput" prettyOutput = No.prettyOutput)
-    {
-        auto buffer = new XmlBuffer!(S, No.CheckEncoded)();
-        write(new XmlStringWriter!S(prettyOutput, buffer));
-        return buffer.value();
-    }
-
-    final S qualifiedName() nothrow
-    {
-        if (_qualifiedName.ptr is null)
-            _qualifiedName = combineName!S(_prefix, _localName);
-        return _qualifiedName;
-    }
-
-    abstract XmlWriter!S write(XmlWriter!S writer);
+    debug(debug_pham_xml_xml_xpath) abstract ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context);
 
     @property final XPathNode!S parent() nothrow
     {
         return _parent;
+    }
+
+    @property final S qualifiedName() const nothrow
+    {
+        return _qualifiedName;
     }
 
     @property abstract XPathAstType astType() const nothrow;
@@ -784,6 +1106,8 @@ protected:
 protected:
     final void evaluateError(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
+        debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
         throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "evaluate()");
     }
 
@@ -802,8 +1126,8 @@ public:
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input,
          XPathNodeType nodetype, S prefix, S localName) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(axisType=", axisType,
-            ", nodetype=", nodetype, ", prefix=", prefix, ", localName=", localName);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("axisType=", axisType.toName(),
+            ", nodetype=", nodetype.toName(), ", prefix=", prefix, ", localName=", localName, ", input=", shortClassName(input)));
 
         this._parent = parent;
         this._input = input;
@@ -811,9 +1135,16 @@ public:
         this._axisNodeType = nodetype;
         this._prefix = prefix;
         this._localName = localName;
+        this._qualifiedName = combineName!S(prefix, localName);
+        this._xmlNodeType = toXmlNodeType(nodetype);
+        this._matchAnyName = localName == "*" && (prefix.length == 0 || prefix == "*")
+            ? MatchAnyName.both
+            : localName == "*"
+                ? MatchAnyName.localName
+                : prefix == "*"
+                    ? MatchAnyName.prefix
+                    : MatchAnyName.none;
 
-        _xmlMatchAnyName = localName == "*";
-        _xmlNodeType = toXmlNodeType(nodetype);
         final switch (axisType)
         {
             case XPathAxisType.error:
@@ -863,7 +1194,7 @@ public:
 
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input) nothrow
     {
-        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParserF("%s.this(axisType: %s, input: %s)", shortClassName(this), axisType, shortClassName(input));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("axisType=", axisType.toName(), ", input=", shortClassName(input)));
 
         this(parent, axisType, input, XPathNodeType.all, null, null);
         this._abbreviated = true;
@@ -871,10 +1202,12 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        debug(debug_pham_xml_xml_xpath) { debug writeln(__FUNCTION__, "()");
-            inputContext.incNodeIndent;
+        debug(debug_pham_xml_xml_xpath)
+        {
+            traceFunction();
+            incNodeIndent();
             scope (exit)
-                inputContext.decNodeIndent;
+                decNodeIndent();
         }
 
         if (input !is null)
@@ -888,25 +1221,31 @@ public:
             evaluateFct(inputContext, outputContext);
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        import std.format : format;
-
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
-
-        string n = format("::name(axisType=%s, nodeType=%s, abbreviated=%s)", axisType, nodeType, abbreviated);
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.putAttribute(toUTF!(string, S)(n), qualifiedName());
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("::")
+            .put(qualifiedName.to!string())
+            .put("(")
+            .put("axisType=")
+            .put(axisType.to!string())
+            .put(", nodeType=")
+            .put(nodeType.to!string())
+            .put(", abbreviated=")
+            .put(abbreviated.to!string())
+            .put(")")
+            .put("\n");
 
         if (input !is null)
         {
-            writer.incNodeLevel();
-            input.write(writer.putLF());
-            writer.decNodeLevel();
+            incNodeIndent();
+            scope (exit)
+                decNodeIndent();
+            input.toString(sink, context);
         }
 
-        return writer;
+        return sink;
     }
 
     @property final bool abbreviated() const nothrow
@@ -950,81 +1289,87 @@ public:
     }
 
 protected:
-    final bool accept(XmlNode!S node) nothrow
+    enum MatchAnyName : ubyte { none, prefix, localName, both }
+
+    final bool accept(ref XPathContext!S inputContext, XmlNode!S node) nothrow
     {
         // XmlNodeType.unknown = all
-        bool result = (_xmlNodeType == XmlNodeType.unknown || node.nodeType == _xmlNodeType);
+        bool result = _xmlNodeType == XmlNodeType.unknown || node.nodeType == _xmlNodeType;
 
-        if (!_xmlMatchAnyName)
+        if (result && _matchAnyName != MatchAnyName.both)
         {
-            const equalName = node.document.equalName;
-            if (result && prefix.length != 0)
-                result = equalName(node.prefix, prefix);
-            if (result && localName.length != 0)
-                result = equalName(node.localName, localName);
+            if (result && _matchAnyName != MatchAnyName.prefix && prefix.length != 0)
+                result = inputContext.equalName(prefix, node.prefix);
+
+            if (result && _matchAnyName != MatchAnyName.localName && localName.length != 0)
+                result = inputContext.equalName(localName, node.localName);
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(node.name=", node.name, ", result=", result, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("node.name=", node.name, ", result=", result));
 
         return result;
     }
 
     final void evaluateAncestor(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             auto p = e.parent;
             while (p !is null)
             {
-                if (accept(p))
-                    outputContext.resNodes.insertBack(p);
+                if (accept(inputContext, p))
+                    outputContext.putRes(p);
                 p = p.parent;
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateAncestorOrSelf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
-            if (accept(e))
-                outputContext.resNodes.insertBack(e);
+            if (accept(inputContext, e))
+                outputContext.putRes(e);
 
             auto p = e.parent;
             while (p !is null)
             {
-                if (accept(p))
-                    outputContext.resNodes.insertBack(p);
+                if (accept(inputContext, p))
+                    outputContext.putRes(p);
                 p = p.parent;
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateAttribute(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (e.nodeType == XmlNodeType.element && e.hasAttributes)
             {
                 auto attributes = e.attributes;
                 foreach (a; attributes)
                 {
-                    if (accept(a))
-                        outputContext.resNodes.insertBack(a);
+                    if (accept(inputContext, a))
+                        outputContext.putRes(a);
                 }
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateChild(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (!e.hasChildNodes)
                 continue;
@@ -1032,65 +1377,69 @@ protected:
             auto childNodes = e.childNodes;
             foreach (e2; childNodes)
             {
-                if (accept(e2))
-                    outputContext.resNodes.insertBack(e2);
+                if (accept(inputContext, e2))
+                    outputContext.putRes(e2);
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateDescendant(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             auto childNodes = e.getChildNodes(null, Yes.deep);
             foreach (e2; childNodes)
             {
-                if (accept(e2))
-                    outputContext.resNodes.insertBack(e2);
+                if (accept(inputContext, e2))
+                    outputContext.putRes(e2);
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateDescendantOrSelf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
-            if (e.nodeType != XmlNodeType.attribute && accept(e))
-                outputContext.resNodes.insertBack(e);
+            if (e.nodeType != XmlNodeType.attribute && accept(inputContext, e))
+                outputContext.putRes(e);
 
             auto childNodes = e.getChildNodes(null, Yes.deep);
             foreach (e2; childNodes)
             {
-                if (accept(e2))
-                    outputContext.resNodes.insertBack(e2);
+                if (accept(inputContext, e2))
+                    outputContext.putRes(e2);
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateFollowing(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (e.nodeType == XmlNodeType.attribute)
                 continue;
 
             auto n = e.nextSibling;
-            if (n !is null && accept(n))
-                outputContext.resNodes.insertBack(n);
+            if (n !is null && accept(inputContext, n))
+                outputContext.putRes(n);
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateFollowingSibling(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (e.nodeType == XmlNodeType.attribute)
                 continue;
@@ -1098,63 +1447,67 @@ protected:
             auto n = e.nextSibling;
             while (n !is null)
             {
-                if (accept(n))
-                    outputContext.resNodes.insertBack(n);
+                if (accept(inputContext, n))
+                    outputContext.putRes(n);
                 n = n.nextSibling;
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateNamespace(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (e.nodeType != XmlNodeType.element || !e.hasAttributes)
                 continue;
 
-            XmlNodeList!S attributes = e.attributes;
+            auto attributes = e.attributes;
             foreach (a; attributes)
             {
-                if (accept(a))
-                    outputContext.resNodes.insertBack(a);
+                if (accept(inputContext, a))
+                    outputContext.putRes(a);
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateParent(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             auto p = e.parent;
-            if (p !is null && accept(p))
-                outputContext.resNodes.insertBack(p);
+            if (p !is null && accept(inputContext, p))
+                outputContext.putRes(p);
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluatePreceding(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (e.nodeType == XmlNodeType.attribute)
                 continue;
 
             auto n = e.previousSibling;
-            if (n !is null && accept(n))
-                outputContext.resNodes.insertBack(n);
+            if (n !is null && accept(inputContext, n))
+                outputContext.putRes(n);
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluatePrecedingSibling(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
             if (e.nodeType == XmlNodeType.attribute)
                 continue;
@@ -1162,24 +1515,25 @@ protected:
             auto n = e.previousSibling;
             while (n !is null)
             {
-                if (accept(n))
-                    outputContext.resNodes.insertBack(n);
+                if (accept(inputContext, n))
+                    outputContext.putRes(n);
                 n = n.previousSibling;
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
     final void evaluateSelf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        foreach (e; inputContext.resNodes)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
-            if (accept(e))
-                outputContext.resNodes.insertBack(e);
+            if (accept(inputContext, e))
+                outputContext.putRes(e);
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - inputContext=", inputContext.indentString, ", outputContext.resNodes.length=", outputContext.resNodes.length);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
 protected:
@@ -1188,7 +1542,8 @@ protected:
     XPathAxisType _axisType;
     XPathNodeType _axisNodeType;
     XmlNodeType _xmlNodeType;
-    bool _abbreviated, _xmlMatchAnyName;
+    MatchAnyName _matchAnyName;
+    bool _abbreviated;
 }
 
 class XPathFilter(S = string) : XPathNode!S
@@ -1198,7 +1553,7 @@ class XPathFilter(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, XPathNode!S input, XPathNode!S condition) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_xml_xml_xpath) traceFunction();
 
         this._parent = parent;
         this._input = input;
@@ -1209,53 +1564,73 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
-            inputContext.incNodeIndent;
+            traceFunction();
+            incNodeIndent();
             scope (exit)
-                inputContext.decNodeIndent;
+                decNodeIndent();
         }
 
-        auto inputContextEval = inputContext.createOutputContext();
-        input.evaluate(inputContext, inputContextEval);
+        auto outputContextEval = inputContext.createOutputContext();
+        input.evaluate(inputContext, outputContextEval);
 
-        if (!inputContextEval.resNodes.empty)
+        if (!outputContextEval.hasResNodes)
+            return;
+
+        auto outputContextCond = outputContextEval.createOutputContext();
+        auto inputContextCond = outputContextEval.createOutputContext();
+        inputContextCond.filterNodes = outputContextEval.resNodes;
+
+        auto inputNodes = outputContextEval.resNodes;
+        foreach (i, e; inputNodes)
         {
-            auto outputContextCond = inputContextEval.createOutputContext();
-            auto inputContextCond = inputContextEval.createOutputContext();
-            inputContextCond.filterNodes = inputContextEval.resNodes;
+            inputContextCond.clearRes();
+            inputContextCond.putRes(e);
 
-            for (size_t i = 0; i < inputContextEval.resNodes.length; ++i)
+            outputContextCond.clearRes();
+            condition.evaluate(inputContextCond, outputContextCond);
+
+            if (outputContextCond.resValue.empty)
+                continue;
+
+            auto v = outputContextCond.resValue;
+            bool vB = false;
+            final switch (v.type)
             {
-                auto e = inputContextEval.resNodes.item(i);
-
-                inputContextCond.clear();
-                inputContextCond.resNodes.insertBack(e);
-
-                outputContextCond.clear();
-                condition.evaluate(inputContextCond, outputContextCond);
-
-                if (!outputContextCond.resValue.empty)
-                {
-                    auto v = outputContextCond.resValue;
-                    if (normalizeValueToBoolean!S(v))
-                        outputContext.resNodes.insertBack(e);
-                }
+                case XPathDataType.number:
+                    vB = v.get!ptrdiff_t() == (i + 1); // +1=Based 1 index
+                    break;
+                case XPathDataType.text:
+                    vB = v.get!S().length != 0;
+                    break;
+                case XPathDataType.boolean:
+                    vB = v.get!bool();
+                    break;
+                case XPathDataType.nodeSet:
+                    vB = true; // Save all from input
+                    break;
+                case XPathDataType.empty:
+                    assert(false); // Already checked above
             }
+            if (vB)
+                outputContext.putRes(e);
+
+            debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("e.name=", e.name, ", vB=", vB));
         }
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("\n");
 
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.incNodeLevel();
-        input.write(writer.putLF());
-        condition.write(writer.putLF());
-        writer.decNodeLevel();
+        incNodeIndent();
+        scope (exit)
+            decNodeIndent();
+        _input.toString(sink, context);
+        _condition.toString(sink, context);
 
-        return writer;
+        return sink;
     }
 
     @property final override XPathAstType astType() const nothrow
@@ -1282,169 +1657,6 @@ protected:
     XPathNode!S _input, _condition;
 }
 
-class XPathUserDefinedFunctionEntry(S = string) : XmlObject!S
-{
-@safe:
-
-public:
-    this(S prefix, S localName, XPathResultType resultType,
-        XPathFunctionTable!S.XPathFunctionEvaluate evaluate) nothrow
-    {
-        this._prefix = prefix;
-        this._localName = localName;
-        this._resultType = resultType;
-        this._evaluate = evaluate;
-
-        _qualifiedName = combineName!S(_prefix, _localName);
-    }
-
-    @property final XPathFunctionTable!S.XPathFunctionEvaluate evaluate() const nothrow
-    {
-        return _evaluate;
-    }
-
-    @property final S localName() const nothrow
-    {
-        return _localName;
-    }
-
-    @property final S prefix() const nothrow
-    {
-        return _prefix;
-    }
-
-    @property final S qualifiedName() const nothrow
-    {
-        return _qualifiedName;
-    }
-
-    @property final XPathResultType returnType() const nothrow
-    {
-        return _resultType;
-    }
-
-private:
-    S _localName;
-    S _prefix;
-    S _qualifiedName;
-    XPathFunctionTable!S.XPathFunctionEvaluate _evaluate;
-    XPathResultType _resultType;
-}
-
-class XPathFunctionTable(S = string) : XmlObject!S
-{
-@safe:
-
-public:
-    alias XPathFunctionEvaluate = void function(XPathFunction!S context,
-        ref XPathContext!S inputContext, ref XPathContext!S outputContext);
-
-public:
-    this() nothrow pure
-    {
-        initDefault();
-    }
-
-    static XPathFunctionTable!S defaultFunctionTable() nothrow @trusted
-    {
-        return singleton!(XPathFunctionTable!S)(_defaultFunctionTable, &createDefaultFunctionTable);
-    }
-
-    final bool find(scope const(C)[] name, ref XPathUserDefinedFunctionEntry!S fct) const nothrow @trusted
-    {
-        const(XPathUserDefinedFunctionEntry!S)* r = name in userDefinedFunctions;
-
-        if (r is null)
-            return false;
-        else
-        {
-            fct = cast(XPathUserDefinedFunctionEntry!S)* r;
-            return true;
-        }
-    }
-
-    final bool find(scope const(C)[] name, ref XPathFunctionEvaluate fct) const nothrow
-    {
-        const(XPathFunctionEvaluate)* r = name in defaultFunctions;
-
-        if (r is null)
-        {
-            XPathUserDefinedFunctionEntry!S u;
-            if (find(name, u))
-            {
-                fct = u.evaluate;
-                return true;
-            }
-            else
-                return false;
-        }
-        else
-        {
-            fct = *r;
-            return true;
-        }
-    }
-
-public:
-    Dictionary!(S, XPathUserDefinedFunctionEntry!S) userDefinedFunctions;
-
-protected:
-    static XPathFunctionTable!S createDefaultFunctionTable() nothrow pure
-    {
-        return new XPathFunctionTable!S();
-    }
-
-    final void initDefault() nothrow pure
-    {
-        defaultFunctions.reserve(35, 30);
-        defaultFunctions[functionTypeName(XPathFunctionType.boolean)] = &fctBoolean!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.ceiling)] = &fctCeiling!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.choose)] = &fctChoose!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.concat)] = &fctConcat!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.contains)] = &fctContains!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.count)] = &fctCount!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.current)] = &fctCurrent!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.document)] = &fctDocument!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.element-available)] = &fctElementAvailable!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.false_)] = &fctFalse!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.floor)] = &fctFloor!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.formatNumber)] = &fctFormatNumber!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.functionAvailable)] = &fctFunctionAvailable!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.generateId)] = &fctGenerateId!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.id)] = &fctId!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.key)] = &fctKey!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.lang)] = &fctLang!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.last)] = &fctLast!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.localName)] = &fctLocalName!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.name)] = &fctName!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.namespaceUri)] = &fctNamespaceUri!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.normalizeSpace)] = &fctNormalizeSpace!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.not)] = &fctNot!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.number)] = &fctNumber!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.position)] = &fctPosition!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.round)] = &fctRound!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.startsWith)] = &fctStartsWith!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.string)] = &fctString!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.stringLength)] = &fctStringLength!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.substring)] = &fctSubstring!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.substringAfter)] = &fctSubstringAfter!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.substringBefore)] = &fctSubstringBefore!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.sum)] = &fctSum!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.systemProperty)] = &fctSystemProperty!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.text)] = &fctText!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.translate)] = &fctTranslate!S;
-        defaultFunctions[functionTypeName(XPathFunctionType.true_)] = &fctTrue!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.unparsedEntityUrl)] = &fctUnparsedEntityUrl!S;
-        //defaultFunctions[functionTypeName(XPathFunctionType.)] = &fct!S;
-    }
-
-protected:
-    Dictionary!(S, XPathFunctionEvaluate) defaultFunctions;
-
-private:
-    __gshared static XPathFunctionTable!S _defaultFunctionTable;
-}
-
 class XPathFunction(S = string) : XPathNode!S
 {
 @safe:
@@ -1457,7 +1669,7 @@ public:
     }
     do
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(functionType=", functionType, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("functionType=", functionType));
 
         this._parent = parent;
         this._functionType = functionType;
@@ -1468,12 +1680,13 @@ public:
 
     this(XPathNode!S parent, S prefix, S localName, XPathNode!S[] argumentList)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(prefix=", prefix, ", localName=", localName, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("prefix=", prefix, ", localName=", localName));
 
         this._parent = parent;
         this._functionType = XPathFunctionType.userDefined;
         this._prefix = prefix;
         this._localName = localName;
+        this._qualifiedName = combineName!S(prefix, localName);
         this._argumentList = argumentList; //argumentList.dup;
 
         setEvaluateFct();
@@ -1486,7 +1699,7 @@ public:
     }
     do
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(functionType=", functionType, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("functionType=", functionType));
 
         this._parent = parent;
         this._functionType = functionType;
@@ -1501,7 +1714,7 @@ public:
     }
     do
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(functionType=", functionType, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("functionType=", functionType));
 
         this._parent = parent;
         this._functionType = functionType;
@@ -1514,35 +1727,37 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "()");
-            inputContext.incNodeIndent;
+            traceFunctionPar(text("functionType=", functionType, ", localName=", _localName));
+            incNodeIndent();
             scope (exit)
-                inputContext.decNodeIndent;
+                decNodeIndent();
         }
 
         return evaluateFct(this, inputContext, outputContext);
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        import std.format : format;
-
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
-
-        string n = format("::name(%s:%s)", functionType, returnType);
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.putAttribute(toUTF!(string, S)(n), qualifiedName());
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("::")
+            .put(qualifiedName.to!string())
+            .put("(")
+            .put(")")
+            .put(": ")
+            .put(returnType.to!string())
+            .put("\n");
 
         if (argumentList.length != 0)
         {
-            writer.incNodeLevel();
-            foreach (e; argumentList)
-                e.write(writer.putLF());
-            writer.decNodeLevel();
+            incNodeIndent();
+            scope (exit)
+                decNodeIndent();
+            foreach (ref e; argumentList)
+                e.toString(sink, context);
         }
 
-        return writer;
+        return sink;
     }
 
     @property final XPathNode!S[] argumentList() nothrow
@@ -1573,7 +1788,7 @@ public:
     @property final override XPathResultType returnType() const nothrow
     {
         if (functionType == XPathFunctionType.userDefined)
-            return userDefinedevaluateFct.returnType;
+            return userDefinedEvaluateFct.returnType;
         else
             return functionResultType(functionType);
     }
@@ -1581,29 +1796,31 @@ public:
 protected:
     final void setEvaluateFct()
     {
+        auto defaultFunctionTable = XPathFunctionTable!S.defaultFunctionTable();
         if (functionType != XPathFunctionType.userDefined)
         {
             const functionName = functionTypeName(functionType);
-            XPathFunctionTable!S.defaultFunctionTable().find(functionName, evaluateFct);
-
-            if (evaluateFct is null)
+            if (!defaultFunctionTable.find(functionName, evaluateFct))
                 throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), functionName);
+
+            _prefix = "fn";
+            _localName = functionName;
+            _qualifiedName = combineName!S(_prefix, _localName);
         }
         else
         {
-            XPathFunctionTable!S.defaultFunctionTable().find(qualifiedName(), userDefinedevaluateFct);
-            if (userDefinedevaluateFct is null && prefix.length != 0)
-                XPathFunctionTable!S.defaultFunctionTable().find(localName, userDefinedevaluateFct);
+            auto found = defaultFunctionTable.find(qualifiedName, userDefinedEvaluateFct);
+            if (!found && prefix.length != 0)
+                found = defaultFunctionTable.find(localName, userDefinedEvaluateFct);
+            if (!found)
+                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), qualifiedName);
 
-            if (userDefinedevaluateFct is null)
-                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), qualifiedName());
-
-            evaluateFct = userDefinedevaluateFct.evaluate;
+            evaluateFct = userDefinedEvaluateFct.evaluate;
         }
     }
 
 protected:
-    XPathUserDefinedFunctionEntry!S userDefinedevaluateFct;
+    XPathUserDefinedFunctionEntry!S userDefinedEvaluateFct;
     XPathFunctionTable!S.XPathFunctionEvaluate evaluateFct;
     XPathNode!S[] _argumentList;
     XPathFunctionType _functionType;
@@ -1616,7 +1833,7 @@ class XPathGroup(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, XPathNode!S groupNode) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_xml_xml_xpath) traceFunction();
 
         this._parent = parent;
         this._groupNode = groupNode;
@@ -1626,28 +1843,30 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "()");
-            inputContext.incNodeIndent;
+            traceFunction();
+            incNodeIndent();
             scope (exit)
-                inputContext.decNodeIndent;
+                decNodeIndent();
         }
 
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "evaluate()");
-
-        // TODO Implementation
+        auto outputContextEval = inputContext.createOutputContext();
+        groupNode.evaluate(inputContext, outputContextEval);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContextEval.hasResNodes=", outputContextEval.hasResNodes));
+        outputContext.resValue = outputContextEval.resValue;
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("\n");
 
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.incNodeLevel();
-        groupNode.write(writer.putLF());
-        writer.decNodeLevel();
+        incNodeIndent();
+        scope (exit)
+            decNodeIndent();
+        groupNode.toString(sink, context);
 
-        return writer;
+        return sink;
     }
 
     @property final override XPathAstType astType() const nothrow
@@ -1676,7 +1895,7 @@ class XPathOperand(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, bool value) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("value=", value));
 
         this._parent = parent;
         this._value = value;
@@ -1684,7 +1903,7 @@ public:
 
     this(XPathNode!S parent, double value) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("value=", value.toText!string()));
 
         this._parent = parent;
         this._value = value;
@@ -1692,72 +1911,36 @@ public:
 
     this(XPathNode!S parent, S value) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("value=", value));
 
         this._parent = parent;
         this._value = value;
     }
 
-    T get(T)(ref XPathContext!S inputContext)
+    final T evaluate(T)(ref XPathContext!S inputContext)
     if (is(T == S) || is(T == double) || is(T == bool))
     {
-        static if (is(T == bool))
-        {
-            final switch (_value.dataType)
-            {
-                case XPathDataType.boolean:
-                    return _value.boolean;
-                case XPathDataType.number:
-                    return toBoolean(_value.number);
-                case XPathDataType.text:
-                    return _value.text.length != 0;
-            }
-        }
-        else static if (is(T == double))
-        {
-            final switch (_value.dataType)
-            {
-                case XPathDataType.boolean:
-                    return toNumber(_value.boolean);
-                case XPathDataType.number:
-                    return _value.number;
-                case XPathDataType.text:
-                    return toNumber!S(_value.text);
-            }
-        }
-        else
-        {
-            final switch (_value.dataType)
-            {
-                case XPathDataType.boolean:
-                    return toText!S(_value.boolean);
-                case XPathDataType.number:
-                    return toText!S(_value.number);
-                case XPathDataType.text:
-                    return _value.text;
-            }
-        }
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("value=", value.toString()));
+
+        return _value.get!T();
     }
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("value=", value.toString()));
 
         outputContext.resValue = value;
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        import std.format : format;
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("=");
+        _value.toString(sink, context)
+            .put("\n");
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
-
-        string n = format("::value(%s)", returnType);
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.putAttribute(toUTF!(string, S)(n), toUTF!(string, S)(value.toString()));
-
-        return writer;
+        return sink;
     }
 
     @property final override XPathAstType astType() const nothrow
@@ -1786,7 +1969,7 @@ class XPathOperator(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, XPathOp opType, XPathNode!S operand1, XPathNode!S operand2) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(opType=", opType, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("opType=", toName(opType)));
 
         this._parent = parent;
         this._opType = opType;
@@ -1800,28 +1983,34 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
-            inputContext.incNodeIndent;
+            traceFunctionPar(text("opType=", toName(_opType)));
+            incNodeIndent();
             scope (exit)
-                inputContext.decNodeIndent;
+                decNodeIndent();
         }
 
         return evaluateFct(inputContext, outputContext);
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("::")
+            .put(qualifiedName.to!string())
+            .put("(")
+            .put(")")
+            .put(": ")
+            .put(returnType.to!string())
+            .put("\n");
 
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.putAttribute("::opType", opType.to!S());
-        writer.incNodeLevel();
-        operand1.write(writer.putLF());
-        operand2.write(writer.putLF());
-        writer.decNodeLevel();
+        incNodeIndent();
+        scope (exit)
+            decNodeIndent();
+        operand1.toString(sink, context);
+        operand2.toString(sink, context);
 
-        return writer;
+        return sink;
     }
 
     @property final override XPathAstType astType() const nothrow
@@ -1859,9 +2048,9 @@ public:
 protected:
     final void evaluateAnd(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        bool result = operand1.get!bool(inputContext);
+        auto result = operand1.evaluate!bool(inputContext);
         if (result)
-            result = operand2.get!bool(inputContext);
+            result = operand2.evaluate!bool(inputContext);
 
         outputContext.resValue = result;
     }
@@ -1918,9 +2107,9 @@ protected:
 
     final void evaluateOr(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        bool result = operand1.get!bool(inputContext);
+        auto result = operand1.evaluate!bool(inputContext);
         if (!result)
-            result = operand2.get!bool(inputContext);
+            result = operand2.evaluate!bool(inputContext);
 
         outputContext.resValue = result;
     }
@@ -1934,19 +2123,15 @@ protected:
     {
         auto tempOutputContext1 = inputContext.createOutputContext();
         operand1.evaluate(inputContext, tempOutputContext1);
-        for (size_t i = 0; i < tempOutputContext1.resNodes.length; ++i)
-        {
-            auto e = tempOutputContext1.resNodes.item(i);
-            outputContext.resNodes.insertBack(e);
-        }
+        auto inputNodes = tempOutputContext1.resNodes;
+        foreach (e; inputNodes)
+            outputContext.putRes(e);
 
         auto tempOutputContext2 = inputContext.createOutputContext();
         operand2.evaluate(inputContext, tempOutputContext2);
-        for (size_t i = 0; i < tempOutputContext2.resNodes.length; ++i)
-        {
-            auto e = tempOutputContext2.resNodes.item(i);
-            outputContext.resNodes.insertBack(e);
-        }
+        auto inputNodes2 = tempOutputContext2.resNodes;
+        foreach (e; inputNodes2)
+            outputContext.putRes(e);
     }
 
     final void setEvaluateFct() nothrow
@@ -1999,6 +2184,10 @@ protected:
                 evaluateFct = &evaluateUnion;
                 break;
         }
+
+        _prefix = "op";
+        _localName = toName(opType);
+        _qualifiedName = combineName!S(_prefix, _localName);
     }
 
 protected:
@@ -2014,26 +2203,25 @@ class XPathRoot(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent) nothrow
     {
-        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParser(shortClassName(this), ".this()");
+        debug(debug_pham_xml_xml_xpath) traceFunction();
 
         this._parent = parent;
     }
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
+        debug(debug_pham_xml_xml_xpath) traceFunction();
 
-        outputContext.resNodes.insertBack(inputContext.xpathDocumentElement());
+        outputContext.putRes(inputContext.xpathDocumentElement);
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("\n");
 
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-
-        return writer;
+        return sink;
     }
 
     @property final override XPathAstType astType() const nothrow
@@ -2054,36 +2242,41 @@ class XPathVariable(S = string) : XPathNode!S
 public:
     this(XPathNode!S parent, S prefix, S localName) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(prefix=", prefix, ", localName=", localName, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("prefix=", prefix, ", localName=", localName));
 
         this._parent = parent;
         this._prefix = prefix;
         this._localName = localName;
+        this._qualifiedName = combineName!S(prefix, localName);
     }
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
+        debug(debug_pham_xml_xml_xpath) traceFunction();
 
-        XPathValue!S* result = qualifiedName() in inputContext.variables;
+        auto result = qualifiedName in inputContext.variables;
         if (result is null && prefix.length != 0)
             result = localName in inputContext.variables;
 
         if (result is null)
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidVariableName, qualifiedName());
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidVariableName, qualifiedName);
+        }
 
         outputContext.resValue = *result;
     }
 
-    final override XmlWriter!S write(XmlWriter!S writer)
+    debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "()");
+        putIndent(sink)
+            .put(shortClassName(this))
+            .put("::")
+            .put(qualifiedName.to!string)
+            .put("\n");
 
-        writer.putIndent();
-        writer.put(toUTF!(string, S)(className(this)));
-        writer.putAttribute("::name", qualifiedName);
-
-        return writer;
+        return sink;
     }
 
     @property final override XPathAstType astType() const nothrow
@@ -2161,51 +2354,6 @@ protected:
 
 private:
     __gshared static XPathAxisTypeTable!S _defaultAxisTypeTable;
-}
-
-class XPathParamInfo(S = string) : XmlObject!S
-{
-@safe:
-
-public:
-    this(XPathFunctionType functionType, size_t minArgs, size_t maxArgs,
-        const(XPathResultType[]) argTypes) nothrow
-    {
-        this._functionType = functionType;
-        this._minArgs = minArgs;
-        this._maxArgs = maxArgs;
-        this._argTypes = argTypes;
-    }
-
-    @property final const(XPathResultType[]) argTypes() const nothrow
-    {
-        return _argTypes;
-    }
-
-    @property final XPathFunctionType functionType() const nothrow
-    {
-        return _functionType;
-    }
-
-    @property final size_t maxArgs() const nothrow
-    {
-        return _maxArgs;
-    }
-
-    @property final size_t minArgs() const nothrow
-    {
-        return _minArgs;
-    }
-
-    @property final XPathResultType returnType() const nothrow
-    {
-        return functionResultType(_functionType);
-    }
-
-private:
-    const(XPathResultType[]) _argTypes;
-    size_t _minArgs, _maxArgs;
-    XPathFunctionType _functionType;
 }
 
 class XPathFunctionParamInfoTable(S = string) : XmlObject!S
@@ -2292,7 +2440,215 @@ private:
     __gshared static XPathFunctionParamInfoTable!S _defaultFunctionParamInfoTable;
 }
 
-enum XPathScannerLexKind
+class XPathFunctionTable(S = string) : XmlObject!S
+{
+@safe:
+
+public:
+    alias XPathFunctionEvaluate = void function(XPathFunction!S context,
+        ref XPathContext!S inputContext, ref XPathContext!S outputContext);
+
+public:
+    this() nothrow pure
+    {
+        initDefault();
+    }
+
+    static XPathFunctionTable!S defaultFunctionTable() nothrow @trusted
+    {
+        return singleton!(XPathFunctionTable!S)(_defaultFunctionTable, &createDefaultFunctionTable);
+    }
+
+    final bool find(scope const(C)[] name, ref XPathUserDefinedFunctionEntry!S fct) const nothrow @trusted
+    {
+        const(XPathUserDefinedFunctionEntry!S)* r = name in userDefinedFunctions;
+
+        if (r is null)
+            return false;
+        else
+        {
+            fct = cast(XPathUserDefinedFunctionEntry!S)* r;
+            return true;
+        }
+    }
+
+    final bool find(scope const(C)[] name, ref XPathFunctionEvaluate fct) const nothrow
+    {
+        const(XPathFunctionEvaluate)* r = name in defaultFunctions;
+
+        if (r is null)
+        {
+            XPathUserDefinedFunctionEntry!S u;
+            if (find(name, u))
+            {
+                fct = u.evaluate;
+                return true;
+            }
+            else
+                return false;
+        }
+        else
+        {
+            fct = *r;
+            return true;
+        }
+    }
+
+public:
+    Dictionary!(S, XPathUserDefinedFunctionEntry!S) userDefinedFunctions;
+
+protected:
+    static XPathFunctionTable!S createDefaultFunctionTable() nothrow pure
+    {
+        return new XPathFunctionTable!S();
+    }
+
+    final void initDefault() nothrow pure
+    {
+        defaultFunctions.reserve(35, 30);
+
+        defaultFunctions[functionTypeName(XPathFunctionType.boolean)] = &fctBoolean!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.ceiling)] = &fctCeiling!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.choose)] = &fctChoose!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.concat)] = &fctConcat!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.contains)] = &fctContains!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.count)] = &fctCount!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.current)] = &fctCurrent!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.document)] = &fctDocument!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.element-available)] = &fctElementAvailable!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.false_)] = &fctFalse!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.floor)] = &fctFloor!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.formatNumber)] = &fctFormatNumber!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.functionAvailable)] = &fctFunctionAvailable!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.generateId)] = &fctGenerateId!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.id)] = &fctId!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.key)] = &fctKey!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.lang)] = &fctLang!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.last)] = &fctLast!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.localName)] = &fctLocalName!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.name)] = &fctName!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.namespaceUri)] = &fctNamespaceUri!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.normalizeSpace)] = &fctNormalizeSpace!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.not)] = &fctNot!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.number)] = &fctNumber!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.position)] = &fctPosition!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.round)] = &fctRound!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.startsWith)] = &fctStartsWith!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.string)] = &fctString!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.stringLength)] = &fctStringLength!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.substring)] = &fctSubstring!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.substringAfter)] = &fctSubstringAfter!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.substringBefore)] = &fctSubstringBefore!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.sum)] = &fctSum!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.systemProperty)] = &fctSystemProperty!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.text)] = &fctText!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.translate)] = &fctTranslate!S;
+        defaultFunctions[functionTypeName(XPathFunctionType.true_)] = &fctTrue!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.unparsedEntityUrl)] = &fctUnparsedEntityUrl!S;
+        //defaultFunctions[functionTypeName(XPathFunctionType.)] = &fct!S;
+    }
+
+protected:
+    Dictionary!(S, XPathFunctionEvaluate) defaultFunctions;
+
+private:
+    __gshared static XPathFunctionTable!S _defaultFunctionTable;
+}
+
+class XPathParamInfo(S = string) : XmlObject!S
+{
+@safe:
+
+public:
+    this(XPathFunctionType functionType, size_t minArgs, size_t maxArgs,
+        const(XPathResultType[]) argTypes) nothrow
+    {
+        this._functionType = functionType;
+        this._minArgs = minArgs;
+        this._maxArgs = maxArgs;
+        this._argTypes = argTypes;
+    }
+
+    @property final const(XPathResultType[]) argTypes() const nothrow
+    {
+        return _argTypes;
+    }
+
+    @property final XPathFunctionType functionType() const nothrow
+    {
+        return _functionType;
+    }
+
+    @property final size_t maxArgs() const nothrow
+    {
+        return _maxArgs;
+    }
+
+    @property final size_t minArgs() const nothrow
+    {
+        return _minArgs;
+    }
+
+    @property final XPathResultType returnType() const nothrow
+    {
+        return functionResultType(_functionType);
+    }
+
+private:
+    const(XPathResultType[]) _argTypes;
+    size_t _minArgs, _maxArgs;
+    XPathFunctionType _functionType;
+}
+
+class XPathUserDefinedFunctionEntry(S = string) : XmlObject!S
+{
+@safe:
+
+public:
+    this(S prefix, S localName, XPathResultType resultType,
+        XPathFunctionTable!S.XPathFunctionEvaluate evaluate) nothrow
+    {
+        this._prefix = prefix;
+        this._localName = localName;
+        this._qualifiedName = combineName!S(prefix, localName);
+        this._resultType = resultType;
+        this._evaluate = evaluate;
+    }
+
+    @property final XPathFunctionTable!S.XPathFunctionEvaluate evaluate() const nothrow
+    {
+        return _evaluate;
+    }
+
+    @property final S localName() const nothrow
+    {
+        return _localName;
+    }
+
+    @property final S prefix() const nothrow
+    {
+        return _prefix;
+    }
+
+    @property final S qualifiedName() const nothrow
+    {
+        return _qualifiedName;
+    }
+
+    @property final XPathResultType returnType() const nothrow
+    {
+        return _resultType;
+    }
+
+private:
+    S _localName;
+    S _prefix;
+    S _qualifiedName;
+    XPathFunctionTable!S.XPathFunctionEvaluate _evaluate;
+    XPathResultType _resultType;
+}
+
+enum XPathScannerLexKind : char
 {
     comma = ',',
     slash = '/',
@@ -2343,7 +2699,7 @@ public:
     }
     do
     {
-        _axisTypeTable = XPathAxisTypeTable!S.defaultAxisTypeTable();
+        this._axisTypeTable = XPathAxisTypeTable!S.defaultAxisTypeTable();
         this._xPathExpression = xpathExpression;
         this._xPathExpressionLength = xpathExpression.length;
         nextChar();
@@ -2357,6 +2713,8 @@ public:
     }
     do
     {
+        debug(debug_pham_xml_xml_xpath) scope (exit) traceFunctionPar(text("_kind=", _kind, ", _currentChar=", _currentChar));
+
         if (_xPathExpressionNextIndex < _xPathExpressionLength)
         {
             _currentChar = _xPathExpression[_xPathExpressionNextIndex++];
@@ -2371,6 +2729,17 @@ public:
 
     bool nextLex()
     {
+        debug(debug_pham_xml_xml_xpath)
+        {
+            traceFunctionPar(text("beg.", toString()));
+            incNodeIndent();
+            scope (exit)
+            {
+                decNodeIndent();
+                traceFunctionPar(text("end.", toString()));
+            }
+        }
+
         skipSpace();
         switch (currentChar)
         {
@@ -2483,7 +2852,11 @@ public:
                             else if (isNameStartC(currentChar))
                                 _name = scanName();
                             else
+                            {
+                                debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
                                 throw new XmlParserException(XmlMessage.eInvalidNameAtOf, currentIndex + 1, sourceText);
+                            }
                         }
                     }
                     else
@@ -2499,14 +2872,22 @@ public:
                                 _kind = XPathScannerLexKind.axe;
                             }
                             else
+                            {
+                                debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
                                 throw new XmlParserException(XmlMessage.eInvalidNameAtOf, currentIndex + 1, sourceText);
+                            }
                         }
                     }
                     skipSpace();
-                    _canBeFunction = (currentChar == '(');
+                    _canBeFunction = currentChar == '(';
                 }
                 else
+                {
+                    debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
                     throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, currentChar, currentIndex + 1, sourceText);
+                }
                 break;
         }
 
@@ -2529,7 +2910,7 @@ public:
             nextChar();
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
 
         return _xPathExpression[start..end];
     }
@@ -2554,7 +2935,7 @@ public:
             nextChar();
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
 
         return _xPathExpression[start..end].to!double();
     }
@@ -2587,7 +2968,7 @@ public:
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
 
         return _xPathExpression[start..end].to!double();
     }
@@ -2598,22 +2979,30 @@ public:
         nextChar();
         assert(_xPathExpressionNextIndex >= 1);
 
-        size_t start = _xPathExpressionNextIndex - 1;
+        const start = _xPathExpressionNextIndex - 1;
         size_t end = _xPathExpressionNextIndex - 1;
 
         while (currentChar != quoteChar)
         {
             if (!nextChar())
+            {
+                debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
                 throw new XmlParserException(XmlMessage.eExpectedCharButEos, quoteChar);
+            }
             ++end;
         }
 
         if (currentChar != quoteChar)
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
             throw new XmlParserException(XmlMessage.eExpectedCharButChar, quoteChar, currentChar);
+        }
 
         nextChar();
 
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - _xPathExpression=", _xPathExpression[start..end]);
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
 
         return _xPathExpression[start..end];
     }
@@ -2622,6 +3011,11 @@ public:
     {
         while (isSpace(currentChar) && nextChar())
         {}
+    }
+
+    debug(debug_pham_xml_xml_xpath) string toString() const nothrow
+    {
+        return text("name=", _name, ", kind=", _kind, ", currentChar=", _currentChar);
     }
 
     @property bool canBeFunction() const nothrow
@@ -2749,7 +3143,8 @@ public:
 
 private:
     XPathAxisTypeTable!S _axisTypeTable;
-    S _prefix, _name, _textValue;
+    S _prefix, _name;
+    S _textValue;
     S _xPathExpression;
     size_t _xPathExpressionNextIndex, _xPathExpressionLength;
     double _numberValue;
@@ -2766,23 +3161,26 @@ public:
 public:
     this(S xpathExpressionOrPattern)
     {
-        scanner = XPathScanner!S(xpathExpressionOrPattern);
+        this.scanner = XPathScanner!S(xpathExpressionOrPattern);
     }
 
     XPathNode!S parseExpression()
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", indentString(), ", sourceText=", sourceText);
-            ++nodeIndent;
+            traceFunctionPar(text("sourceText=", sourceText));
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result = parseExpression(null);
         if (scanner.kind != XPathScannerLexKind.eof)
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
-                scanner.currentIndex + 1, sourceText);
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+        }
         return result;
     }
 
@@ -2790,15 +3188,19 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", indentString(), ", sourceText=", sourceText);
-            ++nodeIndent;
+            traceFunctionPar(text("sourceText=", sourceText));
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result = parsePattern(null);
         if (scanner.kind != XPathScannerLexKind.eof)
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
             throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+        }
         return result;
     }
 
@@ -2816,28 +3218,10 @@ private:
     size_t parseDepth;
     enum maxParseDepth = 200;
 
-    debug(debug_pham_xml_xml_xpath)
-    {
-        size_t nodeIndent;
-
-        final string indentString()
-        {
-            return stringOfChar!string(' ', nodeIndent << 1);
-        }
-
-        final string traceString(string aMethod, XPathNode!S aInput)
-        {
-            import std.format : format;
-
-            return format("%s%s(input: %s, scannerName: %s)", indentString(), aMethod,
-                shortClassName(aInput), scanner.name);
-        }
-    }
-
     pragma(inline, true)
     void checkAndSkipToken(C t)
     {
-        //debug(debug_pham_xml_xml_xpath) outputXmlTraceXPathParserF("%spassToken('%c') ? '%c'", indentString(), t, scanner.kind);
+        //debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("t=", t));
 
         checkToken(t);
         nextLex();
@@ -2846,37 +3230,47 @@ private:
     pragma(inline, true)
     void checkNodeSet(XPathResultType t)
     {
-        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", indentString());
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, text(", t=", t));
 
         if (t != XPathResultType.nodeSet && t != XPathResultType.any)
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
             throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf, scanner.currentIndex + 1, sourceText);
+        }
     }
 
     pragma(inline, true)
     void checkToken(C t)
     {
-        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(t=", t, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, text(", t=", t));
 
         if (scanner.kind != t)
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
-                scanner.currentIndex + 1, sourceText);
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+        }
     }
 
     XPathAxisType getAxisType()
     {
-        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner);
 
         const axis = scanner.nameAxisType();
         if (axis == XPathAxisType.error)
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
-                scanner.currentIndex + 1, sourceText);
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+        }
         return axis;
     }
 
     pragma(inline, true)
     bool isOp(scope const(C)[] opName)
     {
-        debug(debug_pham_xml_xml_xpath)debug writeln(__FUNCTION__, "(opName=", opName, ")");
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, text(", opName=", opName));
 
         return scanner.kind == XPathScannerLexKind.name &&
             scanner.prefix.length == 0 &&
@@ -2884,23 +3278,27 @@ private:
     }
 
     pragma(inline, true)
-    void nextLex()
+    bool nextLex()
     {
-        scanner.nextLex();
+        return scanner.nextLex();
     }
 
     XPathNode!S parseExpression(XPathNode!S aInput)
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         if (++parseDepth > maxParseDepth)
+        {
+            debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
             throw new XmlParserException(XmlMessage.eExpressionTooComplex, sourceText);
+        }
 
         XPathNode!S result = parseOrExpr(aInput);
         --parseDepth;
@@ -2912,10 +3310,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result = parseAndExpr(aInput);
@@ -2936,10 +3334,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseEqualityExpr(aInput);
@@ -2961,10 +3359,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseRelationalExpr(aInput);
@@ -2989,10 +3387,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseAdditiveExpr(aInput);
@@ -3019,10 +3417,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseMultiplicativeExpr(aInput);
@@ -3047,10 +3445,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseUnaryExpr(aInput);
@@ -3070,15 +3468,15 @@ private:
         while (true);
     }
 
-    // UnaryExpr ::= UnionExpr | '-' UnaryExpr
+    // UnaryExpr ::= UnionExpr | '-' UnaryExpr | '+' UnaryExpr
     XPathNode!S parseUnaryExpr(XPathNode!S aInput)
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         bool minus;
@@ -3087,12 +3485,12 @@ private:
             nextLex();
             minus = !minus;
         }
+        while (scanner.kind == XPathScannerLexKind.plus)
+            nextLex();
 
-        if (minus)
-            return new XPathOperator!S(aInput, XPathOp.multiply,
-                parseUnionExpr(aInput), new XPathOperand!S(aInput, -1.0));
-        else
-            return parseUnionExpr(aInput);
+        return minus
+            ? new XPathOperator!S(aInput, XPathOp.multiply, parseUnionExpr(aInput), new XPathOperand!S(aInput, -1.0))
+            : parseUnionExpr(aInput);
     }
 
     // UnionExpr ::= ( UnionExpr '|' )? PathExpr
@@ -3100,10 +3498,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parsePathExpr(aInput);
@@ -3129,10 +3527,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result;
@@ -3149,8 +3547,8 @@ private:
             else if (scanner.kind == XPathScannerLexKind.slashSlash)
             {
                 nextLex();
-                result = parseRelativeLocationPath(
-                    new XPathAxis!S(result, XPathAxisType.descendantOrSelf, result));
+                auto descendantOrSelf = new XPathAxis!S(result, XPathAxisType.descendantOrSelf, result);
+                result = parseRelativeLocationPath(descendantOrSelf);
             }
         }
         else
@@ -3164,10 +3562,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parsePrimaryExpr(aInput);
@@ -3182,10 +3580,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         // we have predicates. Check that input type is NodeSet
@@ -3203,10 +3601,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         if (scanner.kind == XPathScannerLexKind.slash)
@@ -3222,8 +3620,8 @@ private:
         else if (scanner.kind == XPathScannerLexKind.slashSlash)
         {
             nextLex();
-            return parseRelativeLocationPath(new XPathAxis!S(aInput,
-                    XPathAxisType.descendantOrSelf, new XPathRoot!S(aInput)));
+            auto descendantOrSelf = new XPathAxis!S(aInput, XPathAxisType.descendantOrSelf, new XPathRoot!S(aInput));
+            return parseRelativeLocationPath(descendantOrSelf);
         }
         else
             return parseRelativeLocationPath(aInput);
@@ -3234,10 +3632,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseLocationPathPattern(aInput);
@@ -3248,8 +3646,7 @@ private:
                 return result;
 
             nextLex();
-            result = new XPathOperator!S(result, XPathOp.union_, result,
-                    parseLocationPathPattern(result));
+            result = new XPathOperator!S(result, XPathOp.union_, result, parseLocationPathPattern(result));
         }
         while (true);
     }
@@ -3260,10 +3657,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = aInput;
@@ -3290,10 +3687,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result;
@@ -3328,11 +3725,8 @@ private:
             }
 
             // Need to check for axisType == XPathAxisType.namespace?
-            auto nodeType = axisType == XPathAxisType.attribute ?
-                XPathNodeType.attribute : XPathNodeType.element;
-
+            const nodeType = axisType == XPathAxisType.attribute ? XPathNodeType.attribute : XPathNodeType.element;
             result = parseNodeTest(aInput, axisType, nodeType);
-
             while (XPathScannerLexKind.lBracket == scanner.kind)
                 result = new XPathFilter!S(result, result, parsePredicate(result));
         }
@@ -3344,10 +3738,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         S nodeName, nodePrefix;
@@ -3373,6 +3767,7 @@ private:
                             // 'processing-instruction (' Literal ')'
                             checkToken(XPathScannerLexKind.text);
                             nodeName = scanner.textValue;
+                            debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ?name1?");
                             nextLex();
                         }
                     }
@@ -3383,15 +3778,27 @@ private:
                 {
                     nodePrefix = scanner.prefix;
                     nodeName = scanner.name;
+                    debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ?name2?");
                     nextLex();
                 }
                 break;
             case XPathScannerLexKind.star:
-                nodePrefix = null;
-                nodeName = "*";
                 nextLex();
+                if (scanner.kind == XPathScannerLexKind.name)
+                {
+                    nodePrefix = "*";
+                    nodeName = scanner.name;
+                    nextLex();
+                }
+                else
+                {
+                    nodePrefix = null;
+                    nodeName = "*";
+                }
+                debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ?star?");
                 break;
             default:
+                debug(debug_pham_xml_xml_xpath) debug stdout.flush();
                 throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf, scanner.currentIndex + 1, sourceText);
         }
 
@@ -3408,10 +3815,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result;
@@ -3455,10 +3862,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         S name = scanner.name;
@@ -3486,7 +3893,11 @@ private:
             if (pi !is null)
             {
                 if (argList.length < pi.minArgs)
+                {
+                    debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
                     throw new XmlParserException(XmlMessage.eInvalidNumberArgsOf, argList.length, pi.minArgs, name, sourceText);
+                }
 
                 if (pi.functionType == XPathFunctionType.concat)
                 {
@@ -3500,7 +3911,11 @@ private:
                 {
                     auto argCount = argList.length;
                     if (argCount > pi.maxArgs)
+                    {
+                        debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
                         throw new XmlParserException(XmlMessage.eInvalidNumberArgsOf, argCount, pi.maxArgs, name, sourceText);
+                    }
 
                     // argument we have the type specified (can be < pi.minArgs)
                     if (argCount > pi.argTypes.length)
@@ -3519,7 +3934,11 @@ private:
                                 case XPathResultType.nodeSet:
                                     if (!isClassType!(XPathVariable!S)(a) &&
                                         !(isClassType!(XPathFunction!S)(a) && a.returnType == XPathResultType.any))
-                                        throw new XmlParserException(XmlMessage.eInvalidArgTypeOf, i, name, sourceText);
+                                    {
+                                        debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
+                                        throw new XmlParserException(XmlMessage.eInvalidArgTypeOf, i + 1, name, sourceText);
+                                    }
                                     break;
                                 case XPathResultType.number:
                                     argList[i] = new XPathFunction!S(aInput, XPathFunctionType.number, a);
@@ -3548,10 +3967,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S result;
@@ -3606,10 +4025,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         XPathNode!S[] argList;
@@ -3654,10 +4073,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto result = parseStepPattern(aInput);
@@ -3680,10 +4099,10 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln(__FUNCTION__, "() - ", traceString(null, aInput));
-            ++nodeIndent;
+            traceFunctionPar(scanner, aInput);
+            incNodeIndent();
             scope (exit)
-                --nodeIndent;
+                decNodeIndent();
         }
 
         auto axisType = XPathAxisType.child;
@@ -3696,8 +4115,11 @@ private:
             case XPathScannerLexKind.axe: // AxisName '::'
                 axisType = getAxisType();
                 if (axisType != XPathAxisType.child && axisType != XPathAxisType.attribute)
-                    throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar,
-                        scanner.currentIndex + 1, sourceText);
+                {
+                    debug(debug_pham_xml_xml_xpath) debug stdout.flush();
+
+                    throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+                }
                 nextLex();
                 break;
             default:
@@ -3715,79 +4137,81 @@ private:
     }
 }
 
+debug(debug_pham_xml_xml_xpath)
+{
+    import std.conv : text;
+    import pham.utl.utl_text : shortFunctionName, stringOfChar;
+
+    package void decNodeIndent()
+    {
+        nodeIndent--;
+    }
+
+    package void incNodeIndent()
+    {
+        nodeIndent++;
+    }
+
+    package ref Appender!string putIndent(return ref Appender!string sink)
+    {
+        return stringOfChar(sink, nodeIndent * 2, ' ');
+    }
+
+    package void traceFunction(string fullName = __FUNCTION__)
+    {
+        debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
+            "()");
+    }
+
+    package void traceFunctionPar(string inputs,
+        string fullName = __FUNCTION__)
+    {
+        debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
+            "(", inputs, ")");
+    }
+
+    package void traceFunctionPar(ref XPathScanner!string scanner, XPathNode!string input,
+        string fullName = __FUNCTION__)
+    {
+        debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
+            "(scanner=", scanner.toString(), ", input=", shortClassName(input), ")");
+    }
+
+    package void traceFunctionPar(ref XPathScanner!string scanner, string inputs = null,
+        string fullName = __FUNCTION__)
+    {
+        if (inputs.length == 0)
+        {
+            debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
+                "(scanner=", scanner.toString(), ")");
+        }
+        else
+        {
+            debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
+                "(scanner=", scanner.toString(), inputs, ")");
+        }
+    }
+
+    package size_t nodeIndent;
+}
+
 
 // Any below codes are private
 private:
 
-void opCompare(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
-{
-    auto outputContext1 = inputContext.createOutputContext();
-    opNode.operand1.evaluate(inputContext, outputContext1);
-
-    auto outputContext2 = inputContext.createOutputContext();
-    opNode.operand2.evaluate(inputContext, outputContext2);
-
-    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "() - ", inputContext.indentString);
-
-    bool result;
-    if (!outputContext1.resValue.empty && !outputContext2.resValue.empty)
-    {
-        auto v1 = outputContext1.resValue;
-        auto v2 = outputContext2.resValue;
-        normalizeValues!S(v1, v2);
-
-        result = mixin("v1 " ~ Op ~ " v2");
-    }
-    else if (!outputContext1.resValue.empty && !outputContext2.resValue.empty)
-    {
-        for (size_t i = 0; i < outputContext1.resNodes.length; ++i)
-        {
-            auto e1 = outputContext1.resNodes.item(i);
-            S s1 = e1.toText();
-            for (size_t j = 0; j < outputContext2.resNodes.length; ++j)
-            {
-                auto e2 = outputContext2.resNodes.item(j);
-                if (mixin("s1 " ~ Op ~ " e2.toText()"))
-                {
-                    outputContext.resNodes.insertBack(e1);
-                    result = true;
-                    break;
-                }
-            }
-        }
-    }
-    else
-    {
-        auto v1 = !outputContext1.resValue.empty ? outputContext1.resValue : outputContext2.resValue;
-
-        const resultNodeSet = !outputContext1.resNodes.empty;
-        XmlNodeList!S nodeList2 = !outputContext1.resNodes.empty ? outputContext1.resNodes : outputContext2.resNodes;
-        for (size_t i = 0; i < nodeList2.length; ++i)
-        {
-            auto e2 = nodeList2.item(i);
-            XPathValue!S v2 = e2.toText();
-            normalizeValueTo!S(v2, v1.type);
-
-            version(none) debug(debug_pham_xml_xml_xpath) debug writeln("\t", "Op=", Op, ", e2.name=", e2.name, ", e2=", e2.toText(), ", v1=", v1.toString());
-
-            if (mixin("v1 " ~ Op ~ " v2"))
-            {
-                result = true;
-                if (resultNodeSet)
-                    outputContext.resNodes.insertBack(e2);
-                else
-                    break;
-            }
-        }
-    }
-
-    outputContext.resValue = result;
-}
-
 void opBinary(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    double v1 = opNode.operand1.get!double(inputContext);
-    double v2 = opNode.operand2.get!double(inputContext);
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+    static isZero(double v) nothrow pure @safe
+    {
+        pragma(inline, true)
+        return v == 0.0 || v == -0.0;
+    }
+
+    const v1 = opNode.operand1.evaluate!double(inputContext);
+    const v2 = opNode.operand2.evaluate!double(inputContext);
+
     double result;
     if (isNaN(v1) || isNaN(v2))
         result = double.nan;
@@ -3800,7 +4224,75 @@ void opBinary(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputCont
             result = fmod(v1, v2);
         }
         else
+        {
             result = mixin("v1 " ~ Op ~ " v2");
+        }
+    }
+
+    outputContext.resValue = isZero(result) ? 0.0 : result;
+}
+
+void opCompare(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+{
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+    debug(debug_pham_xml_xml_xpath) traceFunction();
+
+    auto outputContext1 = inputContext.createOutputContext();
+    opNode.operand1.evaluate(inputContext, outputContext1);
+
+    auto outputContext2 = inputContext.createOutputContext();
+    opNode.operand2.evaluate(inputContext, outputContext2);
+
+    bool result = false;
+    const hasResNodes1 = outputContext1.hasResNodes;
+    const hasResNodes2 = outputContext2.hasResNodes;
+    if (hasResNodes1 || hasResNodes2)
+    {
+        if (hasResNodes1 && hasResNodes2)
+        {
+            auto inputNodes1 = outputContext1.resNodes;
+            auto inputNodes2 = outputContext2.resNodes;
+            foreach (e1; inputNodes1)
+            {
+                const s1 = e1.toText!S();
+                foreach (e2; inputNodes2)
+                {
+                    if (mixin("s1 " ~ Op ~ " e2.toText!S()"))
+                    {
+                        outputContext.putRes(e1);
+                        result = true;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            const resultNodeSet = hasResNodes1 != 0;
+            auto v1 = hasResNodes2 ? outputContext1.resValue : outputContext2.resValue;
+            auto inputNodes2 = hasResNodes2 ? outputContext2.resNodes : outputContext1.resNodes;
+            foreach (e2; inputNodes2)
+            {
+                XPathValue!S v2 = e2.toText!S();
+                normalizeValueTo!S(v2, v1.type);
+                if (mixin("v1 " ~ Op ~ " v2"))
+                {
+                    result = true;
+                    if (resultNodeSet)
+                        outputContext.putRes(e2);
+                    else
+                        break;
+                }
+            }
+        }
+    }
+    else
+    {
+        auto v1 = outputContext1.resValue;
+        auto v2 = outputContext2.resValue;
+        normalizeValues!S(v1, v2);
+
+        result = mixin("v1 " ~ Op ~ " v2");
     }
 
     outputContext.resValue = result;
@@ -3816,7 +4308,7 @@ void opBinary(string Op, S)(XPathOperator!S opNode, ref XPathContext!S inputCont
  */
 void fctBoolean(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    bool result = context.argumentList[0].get!bool(inputContext);
+    auto result = context.argumentList[0].evaluate!bool(inputContext);
 
     outputContext.resValue = result;
 }
@@ -3833,7 +4325,7 @@ void fctCeiling(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref
 {
     import std.math : ceil;
 
-    double result = ceil(context.argumentList[0].get!double(inputContext));
+    auto result = ceil(context.argumentList[0].evaluate!double(inputContext));
 
     outputContext.resValue = result;
 }
@@ -3853,7 +4345,7 @@ void fctConcat(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref 
 {
     S s;
     foreach (e; context.argumentList)
-        s ~= e.get!S(inputContext);
+        s ~= e.evaluate!S(inputContext);
 
     outputContext.resValue = s;
 }
@@ -3871,8 +4363,8 @@ void fctContains(S)(XPathFunction!S context, ref XPathContext!S inputContext, re
 {
     import std.string : indexOf;
 
-    const s1 = context.argumentList[0].get!S(inputContext);
-    const s2 = context.argumentList[1].get!S(inputContext);
+    const s1 = context.argumentList[0].evaluate!S(inputContext);
+    const s2 = context.argumentList[1].evaluate!S(inputContext);
     bool result = s1.indexOf(s2) >= 0;
 
     outputContext.resValue = result;
@@ -3908,7 +4400,7 @@ void fctFloor(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref X
 {
     import std.math : floor;
 
-    double result = floor(context.argumentList[0].get!double(inputContext));
+    auto result = floor(context.argumentList[0].evaluate!double(inputContext));
 
     outputContext.resValue = result;
 }
@@ -3928,7 +4420,7 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
     import std.algorithm.searching : find;
     import std.array : empty, split;
 
-    S[] idTokens = context.argumentList[0].get!S(inputContext).split();
+    S[] idTokens = context.argumentList[0].evaluate!S(inputContext).split();
 
     bool hasId(XmlNode!S e)
     {
@@ -3947,19 +4439,19 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
         foreach (e; nodes)
         {
             if (hasId(e))
-                outputContext.resNodes.insertBack(e);
+                outputContext.putRes(e);
         }
     }
     else
     {
-        for (size_t i = 0; i < inputContext.resNodes.length; ++i)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
-            auto e = inputContext.resNodes.item(i);
             auto nodes = e.getElements(null, Yes.deep);
             foreach (e2; nodes)
             {
                 if (hasId(e2))
-                    outputContext.resNodes.insertBack(e2);
+                    outputContext.putRes(e2);
             }
         }
     }
@@ -3973,7 +4465,7 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 {
     import std.algorithm.searching : startsWith;
 
-    S lan = context.argumentList[0].get!S(inputContext);
+    S lan = context.argumentList[0].evaluate!S(inputContext);
 
     bool hasLan(XmlNode!S e)
     {
@@ -3994,9 +4486,9 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
     bool result;
     if (lan.length != 0)
     {
-        for (size_t i = 0; i < inputContext.resNodes.length; ++i)
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
         {
-            auto e = inputContext.resNodes.item(i);
             result = hasLan(e);
             if (result)
                 break;
@@ -4023,13 +4515,19 @@ void fctLocalName(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
     {
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
-        if (tempOutputContext.resNodes.empty)
+        auto inputNodes = tempOutputContext.resNodes;
+        if (inputNodes.empty)
             useDefault = true;
         else
-            result = inputContext.resNodes.front.localName;
+            result = inputNodes.front.localName;
     }
-    if (useDefault && !inputContext.resNodes.empty)
-        result = inputContext.resNodes.front.localName;
+
+    if (useDefault)
+    {
+        auto inputNodes = inputContext.resNodes;
+        if (!inputNodes.empty)
+            result = inputNodes.front.localName;
+    }
 
     outputContext.resValue = result;
 }
@@ -4043,13 +4541,19 @@ void fctName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
     {
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
-        if (tempOutputContext.resNodes.empty)
+        auto inputNodes = tempOutputContext.resNodes;
+        if (inputNodes.empty)
             useDefault = true;
         else
-            result = inputContext.resNodes.front.name;
+            result = inputNodes.front.name;
     }
-    if (useDefault && !inputContext.resNodes.empty)
-        result = inputContext.resNodes.front.name;
+
+    if (useDefault)
+    {
+        auto inputNodes = inputContext.resNodes;
+        if (!inputNodes.empty)
+            result = inputNodes.front.name;
+    }
 
     outputContext.resValue = result;
 }
@@ -4063,13 +4567,19 @@ void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext
     {
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
-        if (tempOutputContext.resNodes.empty)
+        auto inputNodes = tempOutputContext.resNodes;
+        if (inputNodes.empty)
             useDefault = true;
         else
-            result = inputContext.resNodes.front.namespaceUri;
+            result = inputNodes.front.namespaceUri;
     }
-    if (useDefault && !inputContext.resNodes.empty)
-        result = inputContext.resNodes.front.namespaceUri;
+
+    if (useDefault)
+    {
+        auto inputNodes = inputContext.resNodes;
+        if (!inputNodes.empty)
+            result = inputNodes.front.namespaceUri;
+    }
 
     outputContext.resValue = result;
 }
@@ -4082,10 +4592,8 @@ void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext
 void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     const s = context.argumentList.length != 0
-        ? context.argumentList[0].get!S(inputContext)
-        : (!inputContext.resNodes.empty
-            ? inputContext.resNodes.front.toText()
-            : null);
+        ? context.argumentList[0].evaluate!S(inputContext)
+        : inputContext.resValue.get!S();
 
     if (s.length == 0)
     {
@@ -4093,22 +4601,67 @@ void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputConte
         return;
     }
 
+    // Trim begin & end spaces
     size_t b = 0, e = s.length;
-    while (b + 1 < e && isSpace(s[b]) && isSpace(s[b + 1]))
+    while (b < e && isSpace(s[b]))
         b++;
-    while (e > b + 1 && isSpace(s[e - 1]) && isSpace(s[e - 2]))
+    while (e > b && isSpace(s[e - 1]))
         e--;
+    if (e <= b)
+    {
+        outputContext.resValue = "";
+        return;
+    }
 
-    outputContext.resValue = e > b
-        // Need to check for all spaces
-        ? (e - b != 1 || s[b..e] != " " ? s[b..e] : "")
-        : "";
+    const count = e - b;
+    if (count <= 3)
+    {
+        outputContext.resValue = s[b..e];
+        return;
+    }
+
+    // Check for inner spaces
+    Appender!string buffer;
+    const iE = e - 1;
+    size_t i = b;
+    while (i < iE)
+    {
+        if (isSpace(s[i]))
+        {
+            const iB = i;
+            // No need to check for out of bound because the ending
+            // char is not space in this while loop
+            while (isSpace(s[i + 1]))
+                i++;
+            // Has consecutive spaces?
+            if (i > iB)
+            {
+                // We did not append to buffer until now
+                if (buffer.length == 0)
+                    buffer.put(s[b..iB]);
+
+                buffer.put(' ');
+            }
+            else
+                i++;
+        }
+        else
+        {
+            if (buffer.length)
+                buffer.put(s[i]);
+            i++;
+        }
+    }
+    // Last char
+    if (buffer.length)
+        buffer.put(s[e - 1]);
+    outputContext.resValue = buffer.length ? buffer.data : s[b..e];
 }
 
 // not( expression )
 void fctNot(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    bool result = !context.argumentList[0].get!bool(inputContext);
+    auto result = !context.argumentList[0].evaluate!bool(inputContext);
 
     outputContext.resValue = result;
 }
@@ -4116,34 +4669,46 @@ void fctNot(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
 // number( [object] )
 void fctNumber(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    double result = context.argumentList[0].get!double(inputContext);
+    auto result = context.argumentList.length != 0
+        ? context.argumentList[0].evaluate!double(inputContext)
+        : inputContext.resValue.get!double();
 
     outputContext.resValue = result;
 }
 
 // position()
-void fctPosition(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+void fctPosition(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext) @trusted
 {
-    double result;
-    if (!inputContext.resNodes.empty)
+    double result = 0;
+    auto inputNodes = inputContext.resNodes;
+    if (!inputNodes.empty)
     {
-        result = inputContext.filterNodes.indexOf(inputContext.resNodes.front);
+        const i = inputContext.filterNodes.indexOf(inputNodes.front);
         // Convert to based 1 if found
-        if (result >= 0)
-            result += 1;
+        if (i >= 0)
+            result = i + 1;
     }
 
     outputContext.resValue = result;
 }
 
-// round( decimal )
-void fctRound(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+double fctRound(double value) nothrow @safe
 {
     import std.math : round;
 
-    double result = round(context.argumentList[0].get!double(inputContext));
+    if (isNaN(value))
+        return value;
 
-    outputContext.resValue = result;
+    const result = round(value);
+    return (value - result == 0.5) ? result + 1 : result;
+}
+
+// round( decimal )
+void fctRound(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+{
+    const value = context.argumentList[0].evaluate!double(inputContext);
+
+    outputContext.resValue = fctRound(value);
 }
 
 // starts-with( haystack, needle )
@@ -4151,8 +4716,8 @@ void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, 
 {
     import std.algorithm.searching : startsWith;
 
-    const s1 = context.argumentList[0].get!S(inputContext);
-    const s2 = context.argumentList[1].get!S(inputContext);
+    const s1 = context.argumentList[0].evaluate!S(inputContext);
+    const s2 = context.argumentList[1].evaluate!S(inputContext);
     bool result = s1.startsWith(s2);
 
     outputContext.resValue = result;
@@ -4168,7 +4733,11 @@ void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, 
  */
 void fctString(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    outputContext.resValue = context.get!S(inputContext);
+    auto result = context.argumentList.length != 0
+        ? context.argumentList[0].evaluate!S(inputContext)
+        : inputContext.resValue.get!S();
+
+    outputContext.resValue = result;
 }
 
 // string-length( [string] )
@@ -4177,10 +4746,8 @@ void fctStringLength(S)(XPathFunction!S context, ref XPathContext!S inputContext
     import std.uni : byCodePoint;
 
     const s = context.argumentList.length != 0
-        ? context.argumentList[0].get!S(inputContext)
-        : (!inputContext.resNodes.empty
-            ? inputContext.resNodes.front.toText()
-            : null);
+        ? context.argumentList[0].evaluate!S(inputContext)
+        : inputContext.resValue.get!S();
 
     double result = 0.0;
     foreach (e; s.byCodePoint)
@@ -4194,19 +4761,54 @@ void fctSubstring(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
 {
     import std.algorithm.comparison : min;
 
-    S result;
-    S s = context.argumentList[0].get!S(inputContext);
-    int pos = cast(int)context.argumentList[1].get!double(inputContext);
-    const cnt = cast(int)context.argumentList[2].get!double(inputContext);
+    const s = context.argumentList[0].evaluate!S(inputContext).to!dstring();
+    if (s.length == 0)
+    {
+        outputContext.resValue = "";
+        return;
+    }
 
-    // Based 1 in xpath, so convert to based 0
-    --pos;
-    if (cnt > 0 && pos >= 0 && pos < s.length)
-        result = rightString!S(s, min(cnt, s.length - pos));
-    else
-        result = "";
+    // -1=Position is based 1 in xpath, so convert to based 0
+    auto indexTemp = fctRound(context.argumentList[1].evaluate!double(inputContext)) - 1;
+    if (isNaN(indexTemp) || s.length <= indexTemp)
+    {
+        outputContext.resValue = "";
+        return;
+    }
 
-    outputContext.resValue = result;
+    // Has count paremter?
+    if (context.argumentList.length >= 3)
+    {
+        auto countTemp = context.argumentList[2].evaluate!double(inputContext);
+        if (isNaN(countTemp))
+        {
+            outputContext.resValue = "";
+            return;
+        }
+
+        if (indexTemp < 0 || countTemp < 0)
+        {
+            countTemp = indexTemp + countTemp;
+            // NOTE: condition is true for NaN
+            if (!(countTemp > 0))
+            {
+                outputContext.resValue = "";
+                return;
+            }
+            indexTemp = 0;
+        }
+
+        const double maxLength = s.length - indexTemp;
+        if (countTemp > maxLength)
+            countTemp = maxLength;
+
+        const index = toInteger(indexTemp);
+        outputContext.resValue = s[index..index + toInteger(countTemp)].to!string;
+        return;
+    }
+
+    const index = indexTemp < 0 ? 0 : toInteger(indexTemp);
+    outputContext.resValue = s[index..$].to!string;
 }
 
 // substring-after( haystack, needle )
@@ -4214,11 +4816,11 @@ void fctSubstringAfter(S)(XPathFunction!S context, ref XPathContext!S inputConte
 {
     import std.algorithm.searching : findSplit;
 
-    const s = context.argumentList[0].get!S(inputContext);
-    const sub = context.argumentList[1].get!S(inputContext);
+    const s = context.argumentList[0].evaluate!S(inputContext);
+    const sub = context.argumentList[1].evaluate!S(inputContext);
     auto searchResult = s.findSplit(sub);
 
-    outputContext.resValue = searchResult[2];
+    outputContext.resValue = searchResult.length >= 3 ? searchResult[2] : "";
 }
 
 // substring-before( haystack, needle )
@@ -4226,12 +4828,12 @@ void fctSubstringBefore(S)(XPathFunction!S context, ref XPathContext!S inputCont
 {
     import std.algorithm.searching : findSplit;
 
-    const s = context.argumentList[0].get!S(inputContext);
-    const sub = context.argumentList[1].get!S(inputContext);
+    const s = context.argumentList[0].evaluate!S(inputContext);
+    const sub = context.argumentList[1].evaluate!S(inputContext);
     auto searchResult = s.findSplit(sub);
 
-    if (searchResult[1] == sub)
-        outputContext.resValue = searchResult[1];
+    if (searchResult.length >= 2 && searchResult[1] == sub)
+        outputContext.resValue = searchResult[0];
     else
         outputContext.resValue = "";
 }
@@ -4243,10 +4845,10 @@ void fctSum(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
     context.argumentList[0].evaluate(inputContext, tempOutputContext);
 
     double result = 0.0;
-    for (size_t i = 0; i < tempOutputContext.resNodes.length; ++i)
+    auto inputNodes = tempOutputContext.resNodes;
+    foreach (e; inputNodes)
     {
-        auto e = inputContext.resNodes.item(i);
-        double ev = toNumber!S(e.toText());
+        const ev = toNumber!S(e.toText!S());
         if (!isNaN(ev))
             result += ev;
     }
@@ -4265,15 +4867,15 @@ void fctTranslate(S)(XPathFunction!S context, ref XPathContext!S inputContext, r
     import std.uni : byCodePoint;
     import pham.utl.utl_array_append;
 
-    const s = context.argumentList[0].get!S(inputContext);
+    const s = context.argumentList[0].evaluate!S(inputContext);
     if (s.length == 0)
     {
         outputContext.resValue = "";
         return;
     }
 
-    const fromS = context.argumentList[1].get!S(inputContext).byCodePoint.array;
-    const toS = context.argumentList[2].get!S(inputContext).byCodePoint.array;
+    const fromS = context.argumentList[1].evaluate!S(inputContext).byCodePoint.array;
+    const toS = context.argumentList[2].evaluate!S(inputContext).byCodePoint.array;
 
     Appender!S result;
     foreach (e; s.byCodePoint)
@@ -4300,94 +4902,65 @@ void fctTrue(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 // unparsed-entity-url( string )
 //void fctUnparsedEntityUrl(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 
-bool normalizeValueToBoolean(S)(ref XPathValue!S v) nothrow @trusted
+ref XPathValue!S normalizeValueToBoolean(S)(return ref XPathValue!S v) @safe
 if (isXmlString!S)
 {
-    switch (v.type)
-    {
-        case XPathDataType.empty:
-            v = false;
-            break;
-        case XPathDataType.number:
-            v = toBoolean(v.number);
-            break;
-        case XPathDataType.text:
-            v = toBoolean!S(v.text);
-            break;
-        default:
-            break;
-    }
-    return v.boolean;
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+    if (v.type != XPathDataType.boolean)
+        v = v.get!bool();
+    return v;
 }
 
-double normalizeValueToNumber(S)(ref XPathValue!S v) @trusted
+ref XPathValue!S normalizeValueToNumber(S)(return ref XPathValue!S v) @safe
 if (isXmlString!S)
 {
-    switch (v.type)
-    {
-        case XPathDataType.empty:
-            v = 0.0;
-            break;
-        case XPathDataType.boolean:
-            v = toNumber(v.boolean);
-            break;
-        case XPathDataType.text:
-            v = toNumber!S(v.text);
-            break;
-        default:
-            break;
-    }
-    return v.number;
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+    if (v.type != XPathDataType.number)
+        v = v.get!double();
+    return v;
 }
 
-S normalizeValueToText(S)(ref XPathValue!S v) nothrow @trusted
+ref XPathValue!S normalizeValueToText(S)(return ref XPathValue!S v) @safe
 if (isXmlString!S)
 {
-    switch (v.type)
-    {
-        case XPathDataType.empty:
-            v = "";
-            break;
-        case XPathDataType.boolean:
-            v = toText!S(v.boolean);
-            break;
-        case XPathDataType.number:
-            v = toText!S(v.number);
-            break;
-        default:
-            break;
-    }
-    return v.text;
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
+    if (v.type != XPathDataType.text)
+        v = v.get!S();
+    return v;
 }
 
-void normalizeValueTo(S)(ref XPathValue!S v, const XPathDataType toT)
+ref XPathValue!S normalizeValueTo(S)(return ref XPathValue!S v, const XPathDataType toT)
 if (isXmlString!S)
 {
-    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(v=", v, ", toT=", toT, ")");
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+    debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("v=", v, ", toT=", toT.toName()));
 
     const fromT = v.type;
     if (fromT != toT)
     {
         final switch (toT)
         {
-            case XPathDataType.boolean:
-                normalizeValueToBoolean!S(v);
-                break;
-            case XPathDataType.number:
-                normalizeValueToNumber!S(v);
-                break;
-            case XPathDataType.empty:
             case XPathDataType.text:
-                normalizeValueToText!S(v);
-                break;
+            case XPathDataType.empty:
+            case XPathDataType.nodeSet:
+                return normalizeValueToText!S(v);
+            case XPathDataType.number:
+                return normalizeValueToNumber!S(v);
+            case XPathDataType.boolean:
+                return normalizeValueToBoolean!S(v);
         }
     }
+    return v;
 }
 
 void normalizeValues(S)(ref XPathValue!S value1, ref XPathValue!S value2)
 if (isXmlString!S)
 {
-    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value1=", value1, ", value2=", value2, ")");
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+    debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("value1=", value1, ", value2=", value2));
 
     const t1 = value1.type;
     const t2 = value2.type;
@@ -4411,33 +4984,61 @@ if (isXmlString!S)
     }
 }
 
+pragma(inline, true)
 bool toBoolean(double value) nothrow pure
 {
     return !isNaN(value) && value != 0;
 }
 
-bool toBoolean(S)(scope const(XmlChar!S)[] value) nothrow pure
+pragma(inline, true)
+bool toBoolean(S)(S value) nothrow pure
 if (isXmlString!S)
 {
-    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
-
-    return value == "1" || value == XmlConst!S.boolTrue || value == XmlConst!S.yes;
+    return value.length != 0;
 }
 
+pragma(inline, true)
+ptrdiff_t toInteger(bool value) nothrow pure
+{
+    return value ? 1 : 0;
+}
+
+pragma(inline, true)
+ptrdiff_t toInteger(double value) nothrow
+{
+    return isNaN(value) ? -1 : cast(ptrdiff_t)cast(long)fctRound(value);
+}
+
+pragma(inline, true)
 double toNumber(bool value) nothrow pure
 {
     return value ? 1.0 : 0.0;
 }
 
-double toNumber(S)(scope const(XmlChar!S)[] value) pure
+double toNumber(S)(S value) nothrow pure
 if (isXmlString!S)
 {
     import std.string : strip;
 
-    debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(value=", value, ")");
-
     value = strip(value);
-    return value.length == 0 ? double.nan : value.to!double();
+
+    if (value.length == 0)
+        return double.nan;
+    else if (value == XmlConst!S.floatNNaN)
+        return -double.nan;
+    else if (value == XmlConst!S.floatPNaN)
+        return double.nan;
+    else if (value == XmlConst!S.floatNInf)
+        return -double.infinity;
+    else if (value == XmlConst!S.floatPNaN)
+        return double.infinity;
+
+    try
+    {
+        return value.to!double();
+    }
+    catch (Exception)
+        return double.nan;
 }
 
 S toText(S)(bool value) nothrow pure
@@ -4449,8 +5050,6 @@ if (isXmlString!S)
 S toText(S)(double value) nothrow
 if (isXmlString!S)
 {
-    import std.math : isInfinity, signbit;
-
     scope (failure) assert(0, "Assume nothrow failed");
 
     if (isNaN(value))
@@ -4464,30 +5063,51 @@ if (isXmlString!S)
 S toText(S)(XmlNode!S node)
 if (isXmlString!S)
 {
+    version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
+
     return node.hasValue(No.checkContent) ? node.value : node.innerText;
 }
 
+debug(debug_pham_xml_xml_xpath) ref Appender!string put(return ref Appender!string sink, bool value)
+{
+    return sink.put(value ? XmlConst!string.boolTrue : XmlConst!string.boolFalse);
+}
 
+debug(debug_pham_xml_xml_xpath) ref Appender!string put(return ref Appender!string sink, double value)
+{
+    if (isNaN(value))
+        return sink.put(signbit(value) ? XmlConst!string.floatNNaN : XmlConst!string.floatPNaN);
+    else if (isInfinity(value))
+        return sink.put(signbit(value) ? XmlConst!string.floatNInf : XmlConst!string.floatPInf);
+    else
+        return sink.put(value.to!string());
+}
+
+debug(debug_pham_xml_xml_xpath) ref Appender!string put(return ref Appender!string sink, scope const(char)[] value)
+{
+    return sink.put(value);
+}
+
+version(unittest) import pham.xml.xml_test;
+
+debug(debug_pham_xml_xml_xpath)
 unittest  // XPathParser
 {
     import std.file : write; // write parser tracer info to file
+    import pham.utl.utl_array_append : Appender;
 
-    string[] output;
+    Appender!string output;
+    XPathContext!string xpathContext;
     XPathParser!string xpathParser;
-
-    string getOutput()
-    {
-        string s = output[0];
-        foreach (e; output[1..$])
-            s ~= "\n" ~ e;
-        return s;
-    }
 
     void toOutput(XPathNode!string r)
     {
-        output ~= xpathParser.sourceText.idup;
-        output ~= r.outerXml();
-        output ~= "\n";
+        nodeIndent = 0;
+
+        output.put(xpathParser.sourceText)
+            .put("\n");
+        r.toString(output, xpathContext)
+            .put("\n");
     }
 
     xpathParser = XPathParser!string("count(/restaurant/tables/table)");
@@ -4560,14 +5180,14 @@ unittest  // XPathParser
     xpathParser = XPathParser!string("id('foo')/child::para[position()=5]");
     toOutput(xpathParser.parseExpression());
 
-    write("xpath_parser_ast.log", getOutput);
+    write("xml_xpath_parser_ast.log", output.data);
 }
 
 unittest  // XPathParser.selectNodes
 {
-    import pham.xml.xml_test;
+    debug(debug_pham_xml_xml_xpath) nodeIndent = 0;
 
-    auto doc = new XmlDocument!string().load(xpathXml);
+    auto doc = new XmlDocument!string().load(bookStoreXml);
     auto nodeList = doc.documentElement.selectNodes("descendant::book[author/last-name='Austen']");
 
     assert(nodeList.length == 3);
@@ -4583,68 +5203,296 @@ unittest  // XPathParser.selectNodes
     //    writeln("nodeName: ", e.name, ", position: ", e.position);
 }
 
-unittest // fctNormalizeSpace
+unittest // fctBoolean - Simple
 {
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, ""));
-        XPathContext!string inputContext, outputContext;
-        fctNormalizeSpace(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "");
-    }
+    auto doc = new XmlDocument!string().load(dummyXml);
 
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, "     "));
-        XPathContext!string inputContext, outputContext;
-        fctNormalizeSpace(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "", "<" ~ outputContext.resValue.toString() ~ ">");
-    }
+    auto r = evaluate(doc.documentElement, "boolean(1)");
+    assert(r.get!bool(), r.get!string());
 
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, " abc     "));
-        XPathContext!string inputContext, outputContext;
-        fctNormalizeSpace(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == " abc ");
-    }
+    r = evaluate(doc.documentElement, "boolean(0)");
+    assert(!r.get!bool(), r.get!string());
 
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, "XYz "));
-        XPathContext!string inputContext, outputContext;
-        fctNormalizeSpace(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "XYz ");
-    }
+    r = evaluate(doc.documentElement, "boolean(-0)");
+    assert(!r.get!bool(), r.get!string());
 
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, new XPathOperand!string(null, "AbC"));
-        XPathContext!string inputContext, outputContext;
-        fctNormalizeSpace(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "AbC");
-    }
+    r = evaluate(doc.documentElement, "boolean(2.5)");
+    assert(r.get!bool(), r.get!string());
+
+    r = evaluate(doc.documentElement, "boolean('test')");
+    assert(r.get!bool(), r.get!string());
+
+    r = evaluate(doc.documentElement, "boolean('')");
+    assert(!r.get!bool(), r.get!string());
+
+    r = evaluate(doc.documentElement, "false()");
+    assert(!r.get!bool(), r.get!string());
+
+    r = evaluate(doc.documentElement, "not(false())");
+    assert(r.get!bool(), r.get!string());
+
+    r = evaluate(doc.documentElement, "true()");
+    assert(r.get!bool(), r.get!string());
+
+    r = evaluate(doc.documentElement, "not(true())");
+    assert(!r.get!bool(), r.get!string());
 }
 
-unittest // fctTranslate
+unittest // fctNumber - Simple
 {
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, [new XPathOperand!string(null, ""),
-            new XPathOperand!string(null, "abcdefghijklmnopqrstuvwxyz"), new XPathOperand!string(null, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")]);
-        XPathContext!string inputContext, outputContext;
-        fctTranslate(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "", outputContext.resValue.toString());
-    }
+    auto doc = new XmlDocument!string().load(dummyXml);
 
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, [new XPathOperand!string(null, "The quick brown fox."),
-            new XPathOperand!string(null, "abcdefghijklmnopqrstuvwxyz"), new XPathOperand!string(null, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")]);
-        XPathContext!string inputContext, outputContext;
-        fctTranslate(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "THE QUICK BROWN FOX.", outputContext.resValue.toString());
-    }
+    auto r = evaluate(doc.documentElement, "number(1)");
+    assert(r.get!double() == 1, r.get!string());
 
-    {
-        auto context = new XPathFunction!string(null, XPathFunctionType.normalizeSpace, [new XPathOperand!string(null, "The quick brown fox."),
-            new XPathOperand!string(null, "brown"), new XPathOperand!string(null, "red")]);
-        XPathContext!string inputContext, outputContext;
-        fctTranslate(context, inputContext, outputContext);
-        assert(outputContext.resValue.toString() == "The quick red fdx.", outputContext.resValue.toString());
-    }
+    r = evaluate(doc.documentElement, "number(0.11)");
+    assert(r.get!double() == 0.11, r.get!string());
+
+    r = evaluate(doc.documentElement, "number(-0)");
+    assert(r.get!double() == 0, r.get!string());
+
+    r = evaluate(doc.documentElement, "number(-1.11)");
+    assert(r.get!double() == -1.11, r.get!string());
+
+    r = evaluate(doc.documentElement, "number(+0)");
+    assert(r.get!double() == 0, r.get!string());
+
+    r = evaluate(doc.documentElement, "number('NotANumber')");
+    assert(r.get!double().isNaN, r.get!string());
 }
 
+unittest // fctCeiling - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "ceiling(2.9)");
+    assert(cast(long)r.get!double() == 3, r.get!string());
+
+    r = evaluate(doc.documentElement, "ceiling(2.1)");
+    assert(cast(long)r.get!double() == 3, r.get!string());
+
+    r = evaluate(doc.documentElement, "ceiling(0.1)");
+    assert(cast(long)r.get!double() == 1, r.get!string());
+
+    r = evaluate(doc.documentElement, "ceiling(-2.9)");
+    assert(cast(long)r.get!double() == -2, r.get!string());
+}
+
+unittest // fctRound - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "round(2.9)");
+    assert(cast(long)r.get!double() == 3, r.get!string());
+
+    r = evaluate(doc.documentElement, "round(2.1)");
+    assert(cast(long)r.get!double() == 2, r.get!string());
+
+    r = evaluate(doc.documentElement, "round(2.5)");
+    assert(cast(long)r.get!double() == 3, r.get!string());
+
+    r = evaluate(doc.documentElement, "round(-2.5)");
+    assert(cast(long)r.get!double() == -2, r.get!string());
+}
+
+unittest // fctFloor - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "floor(2.9)");
+    assert(cast(long)r.get!double() == 2, r.get!string());
+
+    r = evaluate(doc.documentElement, "floor(2.1)");
+    assert(cast(long)r.get!double() == 2, r.get!string());
+
+    r = evaluate(doc.documentElement, "floor(0.9)");
+    assert(cast(long)r.get!double() == 0, r.get!string());
+
+    r = evaluate(doc.documentElement, "floor(-2.9)");
+    assert(cast(long)r.get!double() == -3, r.get!string());
+}
+
+unittest // fctString - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "string(1)");
+    assert(r.get!string() == "1", r.get!string());
+
+    r = evaluate(doc.documentElement, "string(-0)");
+    assert(r.get!string() == "0", r.get!string());
+
+    r = evaluate(doc.documentElement, "string(+0)");
+    assert(r.get!string() == "0", r.get!string());
+
+    r = evaluate(doc.documentElement, "string(+0)");
+    assert(r.get!string() == "0", r.get!string());
+
+    r = evaluate(doc.documentElement, "string(false())");
+    assert(r.get!string() == "false", r.get!string());
+
+    r = evaluate(doc.documentElement, "string(true())");
+    assert(r.get!string() == "true", r.get!string());
+}
+
+unittest // fctConcate - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "concat('Ab', 'Ab')");
+    assert(r.get!string() == "AbAb", r.get!string());
+
+    r = evaluate(doc.documentElement, "concat('Ab', 'CC', 'Ab')");
+    assert(r.get!string() == "AbCCAb", r.get!string());
+}
+
+unittest // fctStartWith - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "starts-with('AABB', 'AA')");
+    assert(r.get!bool() == true, r.get!string());
+
+    r = evaluate(doc.documentElement, "starts-with('AABB', 'BB')");
+    assert(r.get!bool() == false, r.get!string());
+}
+
+unittest // fctContains - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "contains('AABBCC', 'BB')");
+    assert(r.get!bool() == true, r.get!string());
+
+    r = evaluate(doc.documentElement, "contains('AABBCC', 'DD')");
+    assert(r.get!bool() == false, r.get!string());
+}
+
+unittest // fctSubstringBefore - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "substring-before('AA/BB', '/')");
+    assert(r.get!string() == "AA", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring-before('AA/BB', 'D')");
+    assert(r.get!string() == "", r.get!string());
+}
+
+unittest // fctSubstringAfter - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "substring-after('AA/BB', '/')");
+    assert(r.get!string() == "BB", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring-after('AA/BB', 'D')");
+    assert(r.get!string() == "", r.get!string());
+}
+
+unittest // fctSubstring - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "substring('ABC', 2)");
+    assert(r.get!string() == "BC", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCD', 2, 2)");
+    assert(r.get!string() == "BC", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCDE', 1.5, 2.6)");
+    assert(r.get!string() == "BCD", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCDE', 0, 3)");
+    assert(r.get!string() == "AB", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCDE', 0 div 0, 3)");
+    assert(r.get!string() == "", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCDE', 0, 0 div 0)");
+    assert(r.get!string() == "", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCDE', -42, 1 div 0)");
+    assert(r.get!string() == "ABCDE", r.get!string());
+
+    r = evaluate(doc.documentElement, "substring('ABCDE', -1 div 0, 1 div 0)");
+    assert(r.get!string() == "", r.get!string());
+
+    r = evaluate(doc.documentElement, "string-length('ABCDE')");
+    assert(r.get!double() == 5, r.get!string());
+
+    r = evaluate(doc.documentElement, "string-length('')");
+    assert(r.get!double() == 0, r.get!string());
+}
+
+unittest // fctNormalizeSpace - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "normalize-space('')");
+    assert(r.get!string() == "", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space(' \t\n\r')");
+    assert(r.get!string() == "", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space(' \t\n\r')");
+    assert(r.get!string() == "", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('A ')");
+    assert(r.get!string() == "A", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('A    ')");
+    assert(r.get!string() == "A", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space(' A')");
+    assert(r.get!string() == "A", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('    A')");
+    assert(r.get!string() == "A", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space(' A ')");
+    assert(r.get!string() == "A", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('   A   ')");
+    assert(r.get!string() == "A", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('A B')");
+    assert(r.get!string() == "A B", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('A    B')");
+    assert(r.get!string() == "A B", text('"', r.get!string(), '"'));
+
+    r = evaluate(doc.documentElement, "normalize-space('   AB    CD   ')");
+    assert(r.get!string() == "AB CD", text('"', r.get!string(), '"'));
+}
+
+unittest // fctTranslate - Simple
+{
+    auto doc = new XmlDocument!string().load(dummyXml);
+
+    auto r = evaluate(doc.documentElement, "translate('', 'abc', 'ABC')");
+    assert(r.get!string() == "", r.get!string());
+
+    r = evaluate(doc.documentElement, "translate('abc', 'abc', 'ABC')");
+    assert(r.get!string() == "ABC", r.get!string());
+
+    r = evaluate(doc.documentElement, "translate('abc', '', 'XYZ')");
+    assert(r.get!string() == "abc", r.get!string());
+
+    r = evaluate(doc.documentElement, "translate('abc', 'abca', 'ABCZ')");
+    assert(r.get!string() == "ABC", r.get!string());
+
+    r = evaluate(doc.documentElement, "translate('aba', 'b', 'B')");
+    assert(r.get!string() == "aBa", r.get!string());
+
+}
+
+unittest // fctString - Complex
+{
+    auto doc = loadUnittestXml("auction.xml");
+    if (doc is null)
+        return;
+
+    auto r = evaluate(doc.documentElement, "string((//*:Open)[1])");
+    assert(r.get!string() == "2000-03-21:07:41:34-05:00", r.get!string());
+}

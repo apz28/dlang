@@ -21,38 +21,42 @@ template XmlExceptionConstructors()
 @safe:
 
 public:
-    this(string message, Exception next)
+    this(string message,
+        string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure
     {
-        super(message, next);
+        super(message, file, line, next);
     }
 
-    this(XmlLoc loc, string message, Exception next)
+    this(XmlLoc loc, string message,
+        string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure
     {
         if (loc.isSpecified())
             message = message ~ loc.lineMessage();
 
         this.loc = loc;
-        super(message, next);
+        super(message, file, line, next);
     }
 
-    this(Args...)(const(char)[] fmt, Args args) @trusted
+    this(Args...)(const(char)[] fmt, Args args,
+        string file = __FILE__, size_t line = __LINE__, Exception next = null) @trusted
     {
         import std.format : format;
 
-        auto msg = format(fmt, args);
-        super(msg);
+        auto message = format(fmt, args);
+        super(message, file, line, next);
     }
 
-    this(Args...)(XmlLoc loc, const(char)[] fmt, Args args) @trusted
+    this(Args...)(XmlLoc loc, const(char)[] fmt, Args args,
+        string file = __FILE__, size_t line = __LINE__, Exception next = null) @trusted
     {
         import std.format : format;
 
-        auto msg = format(fmt, args);
+        auto message = format(fmt, args);
         if (loc.isSpecified())
-            msg = msg ~ loc.lineMessage();
+            message = message ~ loc.lineMessage();
 
         this.loc = loc;
-        super(msg);
+        super(message, file, line, next);
     }
 }
 

@@ -51,11 +51,11 @@ public:
         final switch (value.type)
         {
             case JSONType.integer:
-                encoder.toString(json, value._store.integer);
+                encoder.toString(json, value._store.int_);
                 break;
 
             case JSONType.float_:
-                encoder.toString(json, value._store.floating);
+                encoder.toString(json, value._store.flt);
                 break;
 
             case JSONType.string:
@@ -63,7 +63,7 @@ public:
                 break;
 
             case JSONType.array:
-                auto arr = value._store.array;
+                auto arr = value._store.arr;
                 if (arr.empty)
                 {
                     json.put("[]");
@@ -87,7 +87,7 @@ public:
                 break;
 
             case JSONType.object:
-                auto obj = cast()value._store.object; // Cast away const for foreach
+                auto obj = cast()value._store.obj; // Cast away const for foreach
                 if (obj.empty)
                 {
                     json.put("{}");

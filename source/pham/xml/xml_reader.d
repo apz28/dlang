@@ -65,7 +65,7 @@ public:
     do
     {
         updateLoc();
-        sPos += currentCount;
+        _sPos += _currentCount;
         decode();
     }
 
@@ -79,10 +79,10 @@ public:
         }
         else
         {
-            const pStart = sPos;
+            const pStart = _sPos;
             while (isSpace(front))
                 popFront();
-            return s[pStart..sPos];
+            return _s[pStart.._sPos];
         }
     }
 
@@ -99,12 +99,12 @@ public:
                 {
                     if (front == c)
                     {
-                        readCurrent(nameBuffer);
+                        readCurrent(_nameBuffer);
                         popFront();
                         return true;
                     }
 
-                    readCurrent(nameBuffer);
+                    readCurrent(_nameBuffer);
                     popFront();
                 }
 
@@ -113,14 +113,14 @@ public:
 
             while (readUntilChar())
             {
-                if (nameBuffer.rightEqual(untilMarker))
+                if (_nameBuffer.rightEqual(untilMarker))
                 {
-                    data = nameBuffer.dropBack(untilMarker.length).valueAndClear();
+                    data = _nameBuffer.dropBack(untilMarker.length).valueAndClear();
                     return true;
                 }
             }
 
-            nameBuffer.clear();
+            _nameBuffer.clear();
         }
         else
         {
@@ -140,12 +140,12 @@ public:
                 return false;
             }
 
-            const pStart = sPos;
+            const pStart = _sPos;
             while (readUntilChar())
             {
-                if (equalRight!S(s[pStart..sPos], untilMarker))
+                if (equalRight!S(_s[pStart.._sPos], untilMarker))
                 {
-                    data = s[pStart..sPos - untilMarker.length];
+                    data = _s[pStart.._sPos - untilMarker.length];
                     return true;
                 }
             }
@@ -167,7 +167,7 @@ public:
                 {
                     if (front == c)
                     {
-                        readCurrent(textBuffer);
+                        readCurrent(_textBuffer);
                         popFront();
                         return true;
                     }
@@ -178,7 +178,7 @@ public:
                             return false;
                     }
 
-                    readCurrent(textBuffer);
+                    readCurrent(_textBuffer);
                     popFront();
                 }
 
@@ -187,7 +187,7 @@ public:
 
             while (readUntilChar())
             {
-                if (textBuffer.rightEqual(untilMarker))
+                if (_textBuffer.rightEqual(untilMarker))
                 {
                     data = textBuffer.dropBack(untilMarker.length).toXmlStringAndClear();
                     return true;
@@ -197,13 +197,13 @@ public:
                 {
                     if (front == '<' || front == '>')
                     {
-                        textBuffer.clear();
+                        _textBuffer.clear();
                         return false;
                     }
                 }
             }
 
-            textBuffer.clear();
+            _textBuffer.clear();
         }
         else
         {
@@ -233,12 +233,12 @@ public:
                 return false;
             }
 
-            const pStart = sPos;
+            const pStart = _sPos;
             while (readUntilChar())
             {
-                if (equalRight!S(s[pStart..sPos], untilMarker))
+                if (equalRight!S(_s[pStart.._sPos], untilMarker))
                 {
-                    data = XmlString!S(s[pStart..sPos - untilMarker.length], encodedMode);
+                    data = XmlString!S(_s[pStart.._sPos - untilMarker.length], encodedMode);
                     return true;
                 }
 
@@ -276,7 +276,7 @@ public:
     pragma(inline, true)
     @property final dchar front() const @nogc nothrow pure
     {
-        return currentChar;
+        return _currentChar;
     }
 
     /*
@@ -285,7 +285,7 @@ public:
     pragma(inline, true)
     @property final XmlLoc sourceLoc() const @nogc nothrow pure
     {
-        return loc;
+        return _loc;
     }
 
 package:
@@ -327,7 +327,7 @@ package:
 
     final S readNameImpl(alias stopChar)(out ParseContext!S name)
     {
-        name.loc = loc;
+        name.loc = _loc;
         static if (isBlockReader)
         {
             while (!stopChar(front))
@@ -335,21 +335,21 @@ package:
                 readCurrent(nameBuffer);
                 popFrontColumn();
             }
-            name.s = nameBuffer.valueAndClear();
+            name.s = _nameBuffer.valueAndClear();
         }
         else
         {
-            const pStart = sPos;
+            const pStart = _sPos;
             while (!stopChar(front))
                 popFrontColumn();
-            name.s = s[pStart..sPos];
+            name.s = _s[pStart.._sPos];
         }
 
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
         debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s, ", line=", name.loc.sourceLine,
-            ", column=", name.loc.sourceColumn, ", nline=", loc.sourceLine, ", ncolumn=", loc.sourceColumn);
+            ", column=", name.loc.sourceColumn, ", nline=", _loc.sourceLine, ", ncolumn=", _loc.sourceColumn);
 
         return name.s;
     }
@@ -360,13 +360,15 @@ package:
     }
 
     static if (!isBlockReader)
-    pragma(inline, true)
-    final void readCurrent(Buffer)(Buffer buffer)
     {
-        static if (is(C == dchar))
-            buffer.put(front);
-        else
-            buffer.put(currentCodes());
+        pragma(inline, true)
+        final void readCurrent(Buffer)(Buffer buffer)
+        {
+            static if (is(C == dchar))
+                buffer.put(front);
+            else
+                buffer.put(currentCodes());
+        }
     }
 
     final S readDeclarationAttributeName(out ParseContext!S name)
@@ -386,43 +388,43 @@ package:
 
     final S readElementEName(out ParseContext!S name)
     {
-        name.loc = loc;
+        name.loc = _loc;
         const first = front;
         static if (isBlockReader)
         {
             // Potential comment or cdata section
             if (first == '-' || first == '[')
             {
-                readCurrent(nameBuffer);
+                readCurrent(_nameBuffer);
                 popFrontColumn();
             }
 
             if (front == '-')
             {
-                readCurrent(nameBuffer);
+                readCurrent(_nameBuffer);
                 popFrontColumn();
             }
             else
             {
                 while (!isElementENameSeparator(front))
                 {
-                    readCurrent(nameBuffer);
+                    readCurrent(_nameBuffer);
                     popFrontColumn();
                 }
 
                 // Potential cdata section?
                 if (first == '[' && front == '[')
                 {
-                    readCurrent(nameBuffer);
+                    readCurrent(_nameBuffer);
                     popFrontColumn();
                 }
             }
 
-            name.s = nameBuffer.valueAndClear();
+            name.s = _nameBuffer.valueAndClear();
         }
         else
         {
-            auto pStart = sPos;
+            auto pStart = _sPos;
 
             // Potential comment or cdata section
             if (first == '-' || first == '[')
@@ -440,14 +442,14 @@ package:
                     popFrontColumn();
             }
 
-            name.s = s[pStart..sPos];
+            name.s = _s[pStart.._sPos];
         }
 
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
         debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s, 
-            ", line=", name.loc.sourceLine, ", column=", name.loc.sourceColumn, ", nline=", loc.sourceLine, ", ncolumn=", loc.sourceColumn);
+            ", line=", name.loc.sourceLine, ", column=", name.loc.sourceColumn, ", nline=", _loc.sourceLine, ", ncolumn=", _loc.sourceColumn);
 
         return name.s;
     }
@@ -478,16 +480,16 @@ package:
                 if (allWhitespaces && !isSpace(front))
                     allWhitespaces = false;
                 // encodedMode is checked when put char into buffer
-                readCurrent(textBuffer);
+                readCurrent(_textBuffer);
                 popFront();
             }
 
-            text = textBuffer.toXmlStringAndClear();
+            text = _textBuffer.toXmlStringAndClear();
         }
         else
         {
             auto encodedMode = XmlEncodeMode.checked;
-            const pStart = sPos;
+            const pStart = _sPos;
             while (!isElementTextSeparator(front))
             {
                 if (allWhitespaces && !isSpace(front))
@@ -496,7 +498,7 @@ package:
                     encodedMode = XmlEncodeMode.encoded;
                 popFront();
             }
-            text = XmlString!S(s[pStart..sPos], encodedMode);
+            text = XmlString!S(_s[pStart.._sPos], encodedMode);
         }
     }
 
@@ -508,16 +510,17 @@ protected:
     }
     do
     {
-        return s[sPos..sPos + currentCount];
+        return _s[_sPos.._sPos + _currentCount];
     }
 
     final void decode()
     {
         void emptyDecode()
         {
-            currentChar = 0;
-            currentCount = 0;
+            _currentChar = 0;
+            _currentCount = 0;
             _empty = true;
+            
             /*
             static if (is(C == dchar))
                 throw new XmlConvertException(XmlMessage.eInvalidUtf32SequenceEos);
@@ -534,31 +537,33 @@ protected:
                 return emptyDecode();
         }
 
-        if (sPos >= sLen)
+        if (_sPos >= _sLen)
             return emptyDecode();
 
         static if (is(C == dchar))
         {
-            currentChar = s[sPos];
-            currentCount = 1;
+            _currentChar = _s[_sPos];
+            _currentCount = 1;
         }
         else static if (is(C == wchar))
         {
-            if (!nextUTF16Char(s, sPos, currentChar, currentCount))
-                throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceCode);
+            if (!nextUTF16Char(_s, _sPos, _currentChar, _currentCount))
+                throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceCodeAt, _loc.sourceLine, _loc.sourceColumn);
         }
         else
         {
-            if (!nextUTF8Char(s, sPos, currentChar, currentCount))
-                throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceCode);
+            if (!nextUTF8Char(_s, _sPos, _currentChar, _currentCount))
+                throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceCodeAt, _loc.sourceLine, _loc.sourceColumn);
         }
     }
 
     static if (isBlockReader)
-    final void initBuffers()
     {
-        nameBuffer = new XmlBuffer!(S, No.CheckEncoded);
-        textBuffer = new XmlBuffer!(S, Yes.CheckEncoded);
+        final void initBuffers()
+        {
+            _nameBuffer = new XmlBuffer!(S, No.CheckEncoded);
+            _textBuffer = new XmlBuffer!(S, Yes.CheckEncoded);
+        }
     }
 
     final void popFrontColumn()
@@ -568,8 +573,8 @@ protected:
     }
     do
     {
-        loc.column += 1;
-        sPos += currentCount;
+        _loc.column += 1;
+        _sPos += _currentCount;
         decode();
     }
 
@@ -578,25 +583,23 @@ protected:
         const f = front;
         if (f == 0xD) // '\n'
         {
-            loc.column = 0;
-            loc.line += 1;
+            _loc.column = 0;
+            _loc.line += 1;
         }
         else if (f != 0xA)
-            loc.column += 1;
+            _loc.column += 1;
     }
 
     pragma(inline, true)
     static bool isDocumentTypeAttributeListChoice(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>' || c == '|' || c == '(' || c == ')'
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || c == '|' || c == '(' || c == ')' || isSpace(c);
     }
 
     pragma(inline, true)
     static bool isDeclarationAttributeNameSeparator(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>' || c == '?' || c == '='
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || c == '?' || c == '=' || isSpace(c);
     }
 
     pragma(inline, true)
@@ -610,29 +613,25 @@ protected:
     pragma(inline, true)
     static bool isElementAttributeNameSeparator(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>' || c == '/' || c == '='
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || c == '/' || c == '=' || isSpace(c);
     }
 
     pragma(inline, true)
     static bool isElementENameSeparator(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>' || c == '!' || c == '['
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || c == '!' || c == '[' || isSpace(c);
     }
 
     pragma(inline, true)
     static bool isElementPNameSeparator(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>' || c == '?'
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || c == '?' || isSpace(c);
     }
 
     pragma(inline, true)
     static bool isElementXNameSeparator(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>' || c == '/'
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || c == '/' || isSpace(c);
     }
 
     pragma(inline, true)
@@ -650,21 +649,20 @@ protected:
     pragma(inline, true)
     static bool isNameSeparator(const(dchar) c) nothrow pure
     {
-        return c == 0 || c == '<' || c == '>'
-            || isSpace(c);
+        return c == 0 || c == '<' || c == '>' || isSpace(c);
     }
 
 protected:
-    S s;
-    size_t sLen, sPos;
-    XmlLoc loc;
+    S _s;
+    size_t _sLen, _sPos;
+    XmlLoc _loc;
     static if (isBlockReader)
     {
-        XmlBuffer!(S, No.CheckEncoded) nameBuffer;
-        XmlBuffer!(S, Yes.CheckEncoded) textBuffer;
+        XmlBuffer!(S, No.CheckEncoded) _nameBuffer;
+        XmlBuffer!(S, Yes.CheckEncoded) _textBuffer;
     }
-    dchar currentChar = 0;
-    ubyte currentCount;
+    dchar _currentChar = 0;
+    ubyte _currentCount;
     bool _empty;
 }
 
@@ -673,11 +671,11 @@ class XmlStringReader(S = string) : XmlReader!S
 @safe:
 
 public:
-    this(S str)
+    this(S xml)
     {
-        this.s = str;
-        this.sLen = str.length;
-        this._empty = str.length == 0;
+        this._s = xml;
+        this._sLen = xml.length;
+        this._empty = xml.length == 0;
 
         if (!this._empty)
             decode();
@@ -688,16 +686,16 @@ class XmlFileReader(S = string) : XmlReader!S
 {
 @safe:
 
+import std.algorithm.comparison : max;
 import std.file;
 import std.stdio;
-import std.algorithm.comparison : max;
 
 public:
     this(string fileName, ushort bufferKSize = 64)
     {
         this._fileName = fileName;
-        fileHandle.open(fileName);
-        this.sBuffer.length = 1_024 * max(bufferKSize, 8);
+        this._fileHandle.open(fileName);
+        this._sBuffer.length = 1_024 * max(bufferKSize, 8);
         static if (isBlockReader)
             initBuffers();
 
@@ -712,11 +710,11 @@ public:
 
     final void close()
     {
-        if (fileHandle.isOpen())
-            fileHandle.close();
+        if (_fileHandle.isOpen())
+            _fileHandle.close();
 
-        sLen = sPos = currentCount = 0;
-        currentChar = 0;
+        _sLen = _sPos = _currentCount = 0;
+        _currentChar = 0;
         _empty = true;
     }
 
@@ -729,36 +727,36 @@ protected:
     pragma(inline, true)
     final bool needNextBlock() const @nogc nothrow pure
     {
-        return sPos + 6 >= sLen;
+        return _sPos + 6 >= _sLen;
     }
 
-    final bool nextBlock()
+    final bool nextBlock() @trusted
     {
         // Full buffer read?
-        if (sLen == 0 || sPos >= sLen)
+        if (_sLen == 0 || _sPos >= _sLen)
         {
-            s = (() @trusted => fileHandle.rawRead(sBuffer))();
-            sPos = 0;
-            sLen = s.length;
+            _s = cast(S)(() @trusted => _fileHandle.rawRead(_sBuffer))();
+            _sPos = 0;
+            _sLen = _s.length;
         }
         // Partial buffer read?
         else
         {
-            const left = sLen - sPos;
-            sBuffer[0..left] = sBuffer[sPos..sLen];
-            auto s2 = (() @trusted => fileHandle.rawRead(sBuffer[left..$]))();
-            sPos = 0;
-            sLen = left + s2.length;
+            const left = _sLen - _sPos;
+            _sBuffer[0..left] = _sBuffer[_sPos.._sLen];
+            _s = cast(S)(() @trusted => _fileHandle.rawRead(_sBuffer[left..$]))();
+            _sPos = 0;
+            _sLen = left + _s.length;
         }
 
-        _empty = sLen == 0;
+        _empty = _sLen == 0;
         return !_empty;
     }
 
 protected:
-    File fileHandle;
+    File _fileHandle;
     string _fileName;
-    C[] sBuffer;
+    C[] _sBuffer;
 }
 
 package(pham.xml) struct ParseContext(S)

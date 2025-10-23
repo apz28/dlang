@@ -32,7 +32,7 @@ import pham.xml.xml_type;
         XmlEncodedMarker.utf32be if s starts with 0x00 0x00 0xFE 0xFF
         XmlEncodedMarker.utf32le if s starts with 0xFF 0xFE 0x00 0x00
 */
-XmlEncodedMarker getEncodedMarker(scope const(ubyte)[] s) nothrow pure
+XmlEncodedMarker getEncodedMarker(scope const(ubyte)[] s) @nogc nothrow pure
 {
     if (s.length >= 2)
     {
@@ -258,7 +258,7 @@ if (isIntegral!N)
         c = the character to be tested
 */
 pragma(inline, true)
-bool isBaseChar(const(dchar) c) nothrow pure
+bool isBaseChar(const(dchar) c) @nogc nothrow pure
 {
     return lookup(baseCharTable, c);
 }
@@ -271,7 +271,7 @@ bool isBaseChar(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isChar(const(dchar) c) nothrow pure
+bool isChar(const(dchar) c) @nogc nothrow pure
 {
     return (c >= 0x20 && c <= 0xD7FF)
         || (c >= 0xE000 && c <= 0x10FFFF && (c & 0x1FFFFE) != 0xFFFE) // U+FFFE and U+FFFF
@@ -286,7 +286,7 @@ bool isChar(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isCombiningChar(const(dchar) c) nothrow pure
+bool isCombiningChar(const(dchar) c) @nogc nothrow pure
 {
     return lookup(combiningCharTable, c);
 }
@@ -299,7 +299,7 @@ bool isCombiningChar(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isDigit(const(dchar) c) nothrow pure
+bool isDigit(const(dchar) c) @nogc nothrow pure
 {
     return (c >= 0x30 && c <= 0x39) || lookup(digitTable, c);
 }
@@ -307,7 +307,7 @@ bool isDigit(const(dchar) c) nothrow pure
 /** A overloaded isDigit
 */
 pragma(inline, true)
-bool isDigit(const(char) c) nothrow pure
+bool isDigit(const(char) c) @nogc nothrow pure
 {
     return c >= 0x30 && c <= 0x39;
 }
@@ -320,7 +320,7 @@ bool isDigit(const(char) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isExtender(const(dchar) c) nothrow pure
+bool isExtender(const(dchar) c) @nogc nothrow pure
 {
     return lookup(extenderTable, c);
 }
@@ -333,7 +333,7 @@ bool isExtender(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isIdeographic(const(dchar) c) nothrow pure
+bool isIdeographic(const(dchar) c) @nogc nothrow pure
 {
     return (c == 0x3007) || (c >= 0x3021 && c <= 0x3029) || (c >= 0x4E00 && c <= 0x9FA5);
 }
@@ -346,7 +346,7 @@ bool isIdeographic(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isLetter(const(dchar) c) nothrow pure
+bool isLetter(const(dchar) c) @nogc nothrow pure
 {
     return isIdeographic(c) || isBaseChar(c);
 }
@@ -359,7 +359,7 @@ bool isLetter(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isNameStartC(const(dchar) c) nothrow pure
+bool isNameStartC(const(dchar) c) @nogc nothrow pure
 {
     return c == '_' || c == ':' || isLetter(c);
 }
@@ -372,7 +372,7 @@ bool isNameStartC(const(dchar) c) nothrow pure
         c = the character to be tested
 */
 pragma(inline, true)
-bool isNameInC(const(dchar) c) nothrow pure
+bool isNameInC(const(dchar) c) @nogc nothrow pure
 {
     return c == '_' || c == ':' || c == '-' || c == '.' ||
         isLetter(c) || isDigit(c) || isCombiningChar(c) || isExtender(c);
@@ -417,7 +417,7 @@ if (isXmlStringEx!S)
         c = the character to be tested
 */
 pragma(inline, true)
-bool isSpace(const(dchar) c) nothrow pure
+bool isSpace(const(dchar) c) @nogc nothrow pure
 {
     return c == 0x09 || c == 0x0A || c == 0x0D || c == 0x20;
 }
@@ -440,7 +440,7 @@ if (isXmlStringEx!S)
 
 /** Returns true if object parameter is class type of T
     Params:
-        aObj = A class object.
+        object = A class object.
 */
 bool isClassType(T)(Object object) nothrow pure
 {
@@ -859,7 +859,7 @@ string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.in
     return result;
 }
 
-bool lookup(scope const(int[][]) pairTable, int c) nothrow pure
+bool lookup(scope const(int[][]) pairTable, int c) @nogc nothrow pure
 in
 {
     assert(pairTable.length != 0);

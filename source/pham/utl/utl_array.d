@@ -365,6 +365,16 @@ void arrayZeroInit(T)(T[] array) @nogc nothrow pure @trusted
 
 enum bool arrayZeroNeeded(T) = hasElaborateDestructor!T || hasIndirections!T;
 
+ptrdiff_t indexOf(scope const(void*)[] items, scope const(void*) item) @nogc nothrow pure
+{
+    foreach (i, e; items)
+    {
+        if (e is item)
+            return i;
+    }
+    return -1;
+}
+
 ptrdiff_t indexOf(T)(scope const(T)[] items, const(T) item) nothrow @trusted
 {
     //scope (failure) assert(0, "Assume nothrow failed");
@@ -465,10 +475,8 @@ nothrow @safe unittest // arrayOfChar
     assert(arrayOfChar!char('0', 10) == "0000000000");
 }
 
-unittest // indexOf
+unittest // indexOf.sub
 {
-    //debug(debug_pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - begin");
-
     assert("abcxyz".indexOf('c') == 2);
     assert("abcxyz".indexOf('C') == -1);
 
@@ -481,6 +489,14 @@ unittest // indexOf
     assert("abcxyz".indexOf("") == -1);
 
     //debug(debug_pham_utl_utl_array) debug writeln(__MODULE__ ~ ".indexOf - end");
+}
+
+unittest // indexOf.pointer
+{
+    auto item = cast(void*)(new Object());
+    auto items = [item];
+    assert(items.indexOf(item) == 0);
+    assert(items.indexOf(null) == -1);
 }
 
 nothrow @safe unittest // inplaceMoveToLeft

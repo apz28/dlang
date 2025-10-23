@@ -55,13 +55,13 @@ public:
         this.reserve(capacity);
     }
 
+    alias opDollar = length;
+
     /**
      * Appends to the managed array.
      * See_Also: $(LREF Appender.put)
      */
     alias opOpAssign(string op : "~") = put;
-
-    alias opDollar = length;
 
     /**
      * Returns: The managed array item at index.
@@ -422,7 +422,7 @@ private:
         }
 
         pragma(inline, true)
-        @property size_t capacity() const nothrow @safe
+        @property size_t capacity() const nothrow pure @safe
         {
             return values.length;
         }

@@ -83,30 +83,30 @@ struct XmlLoc
 nothrow @safe:
 
 public:
-    this(size_t line, size_t column)
+    this(size_t line, size_t column) pure
     {
         this.line = line;
         this.column = column;
     }
 
-    bool isSpecified() const
+    bool isSpecified() const pure
     {
         return line != 0 || column != 0;
     }
 
-    string lineMessage() const
+    string lineMessage() const pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
         return format(XmlMessage.atLineInfo, sourceLine, sourceColumn);
     }
 
-    @property size_t sourceColumn() const
+    @property size_t sourceColumn() const pure
     {
         return column + 1;
     }
 
-    @property size_t sourceLine() const
+    @property size_t sourceLine() const pure
     {
         return line + 1;
     }

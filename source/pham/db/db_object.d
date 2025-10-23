@@ -731,7 +731,7 @@ public:
     }
     do
     {
-        return items.getAt(index, inout(T).init);
+        return items.getAt(index);
     }
 
     /**
@@ -1083,7 +1083,7 @@ public:
     }
     do
     {
-        return items.getAt(index, inout(DbIdentitierValuePair).init);
+        return items.getAt(index);
     }
 
     /**
@@ -1180,7 +1180,7 @@ public:
 
     final inout(T) getAt(size_t index) inout nothrow
     {
-        return items.getAt(index, inout(DbIdentitierValuePair).init).value;
+        return items.getAt(index).value;
     }
 
     final ptrdiff_t indexOf(scope const(DbIdentitier) name) const nothrow
