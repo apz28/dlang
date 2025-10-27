@@ -682,7 +682,7 @@ private:
             }
             else
             {
-                auto newArg = Dictionary!(string, JSONValue)(arg.length + 5, arg.length);
+                auto newArg = Dictionary!(string, JSONValue)(arg.length);
                 foreach (k, ref v; arg)
                     newArg[k] = JSONValue(v);
                 _store = Store(obj: newArg);
@@ -699,7 +699,7 @@ private:
             }
             else
             {
-                auto newArg = Dictionary!(string, JSONValue)(arg.length + 5, arg.length);
+                auto newArg = Dictionary!(string, JSONValue)(arg.length);
                 foreach (k, ref v; arg)
                     newArg[k] = JSONValue(v);
             }

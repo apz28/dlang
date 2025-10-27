@@ -202,7 +202,7 @@ shared static this() nothrow @trusted
 
     floatLiteralTypes = () nothrow
     {
-        auto result = Dictionary!(string, JSONFloatLiteralType)(25, 16);
+        auto result = Dictionary!(string, JSONFloatLiteralType)(16);
 
         // Standard texts
         result["NaN"] = JSONFloatLiteralType.pnan;

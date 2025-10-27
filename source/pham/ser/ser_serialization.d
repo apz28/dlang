@@ -2723,7 +2723,7 @@ shared static this() nothrow @trusted
 {
     floatLiterals = () nothrow
     {
-        auto result = Dictionary!(string, IsFloatLiteral)(25, 15);
+        auto result = Dictionary!(string, IsFloatLiteral)(15);
 
         // Standard texts
         result["NaN"] = IsFloatLiteral.nan;

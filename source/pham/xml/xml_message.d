@@ -100,10 +100,10 @@ public:
     static immutable S public_ = "PUBLIC";
     static immutable S system = "SYSTEM";
 
-    static immutable S xml = "xml";
-    static immutable S xmlNS = "http://www.w3.org/XML/1998/namespace";
-    static immutable S xmlns = "xmlns";
-    static immutable S xmlnsNS = "http://www.w3.org/2000/xmlns/";
+    static immutable S xmlName = "xml";
+    static immutable S xmlUri = "http://www.w3.org/XML/1998/namespace";
+    static immutable S xmlnsName = "xmlns";
+    static immutable S xmlnsUri = "http://www.w3.org/2000/xmlns/";
     
     static immutable S boolTrue = "true";
     static immutable S boolFalse = "false";

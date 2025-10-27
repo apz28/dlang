@@ -113,7 +113,7 @@ shared static this() nothrow @trusted
 {
     version(Posix)
     {
-        auto names = Dictionary!(string, string)(15, 10);
+        auto names = Dictionary!(string, string)(10);
 
         names["openFile"] = "open";
         names["readFile"] = "read";
@@ -130,7 +130,7 @@ shared static this() nothrow @trusted
     }
     else version(Windows)
     {
-        auto names = Dictionary!(string, string)(15, 10);
+        auto names = Dictionary!(string, string)(10);
 
         names["openFile"] = "CreateFileW";
         names["readFile"] = "ReadFile";

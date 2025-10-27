@@ -244,6 +244,20 @@ abstract class XmlNode(S = string) : XmlObject!S
 @safe:
 
 public:
+    /** Implement opIndex operator based on matched name
+    */
+    final XmlElement!S opIndex(scope const(C)[] name)
+    {
+        return findElement(name);
+    }
+
+    /** Implement opIndex operator based on matched localName + namespaceUri
+    */
+    final XmlElement!S opIndex(scope const(C)[] localName, scope const(C)[] namespaceUri)
+    {
+        return findElement(localName, namespaceUri);
+    }
+
     /**
      * Returns attributes of this node
      * If node does not have any attributes, returns an empty node list
@@ -647,20 +661,6 @@ public:
         return null;
     }
 
-    /** Implement opIndex operator based on matched name
-    */
-    final XmlElement!S opIndex(scope const(C)[] name)
-    {
-        return findElement(name);
-    }
-
-    /** Implement opIndex operator based on matched localName + namespaceUri
-    */
-    final XmlElement!S opIndex(scope const(C)[] localName, scope const(C)[] namespaceUri)
-    {
-        return findElement(localName, namespaceUri);
-    }
-
     /** Insert a child node, newChild, after anchor node, refChild and returns refChild
         If newChild is belong to a different parent node, it will be removed from that parent node before being inserted
         If allowChild() or allowChildType() returns false, it will throw XmlInvalidOperationException exception
@@ -741,6 +741,112 @@ public:
 
         newChild._parent = this;
         return _children.insertAfter(refChild._prev, newChild);
+    }
+
+    final XmlNamespace!S namespace() nothrow
+    {
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
+
+        if (!(nodeType == XmlNodeType.element || nodeType == XmlNodeType.attribute))
+            return XmlNamespace!S.emptyNamespace();
+
+        auto doc = ownerDocument;
+        const equalName = doc !is null ? doc.equalName : equalCaseName!S;
+        const equalText = doc !is null ? doc.equalText : equalCaseText!S;
+
+        auto uri = namespaceUri;
+        const iNS = isNamespaceNode;
+        if (iNS == 2)
+            return new XmlNamespace!S(localName, uri, level);
+
+        auto p = iNS == 0 ? prefix : null;
+        if (p.length != 0 && uri.length != 0)
+            return new XmlNamespace!S(p, uri, level);
+
+        auto par = nodeType == XmlNodeType.element
+            ? parent
+            : (parent ? parent.parent : null);
+
+        debug(debug_pham_xml_xml_dom) debug writeln("enter.p=", p, ", uri=", uri, ", name=", name, ", par=", par ? par.name : "null");
+
+        while (par !is null && par.nodeType == XmlNodeType.element)
+        {
+            // case #1: xmlns="http://default.htm"
+            // case #2: xmlns:NSbook="http://book.htm"
+            if (auto a = par.hasNamespaceAttribute)
+            {
+                const ap = a.prefix;
+                const an = a.localName;
+                const av = a.value;
+                const aiNS = a.isNamespaceNode;
+
+                if (p.length != 0 && aiNS == 2 && equalName(an, p))
+                    return new XmlNamespace!S(an, av, par.level);
+
+                if (uri.length != 0 && aiNS == 2 && equalText(av, uri))
+                    return new XmlNamespace!S(an, av, par.level);
+
+                debug(debug_pham_xml_xml_dom) debug writeln("loop1.p=", p, ", uri=", uri, ", name=", name, ", par=", par.name);
+
+                if (uri.length == 0)
+                    uri = av;
+
+                if (p.length == 0 && aiNS == 2)
+                    p = an;
+
+                debug(debug_pham_xml_xml_dom) debug writeln("loop2.p=", p, ", uri=", uri, ", name=", name, ", par=", par.name);
+            }
+            par = par.parent;
+        }
+
+        if (p.length == 0 && uri.length == 0)
+        {
+            if (auto a = this.hasNamespaceAttribute)
+                uri = a.value;
+        }
+
+        if (doc)
+        {
+            debug(debug_pham_xml_xml_dom) debug writeln("find.p=", p, ", uri=", uri, ", name=", name);
+
+            auto rp = doc.namespaces.findByName(p);
+            if (rp.isValid)
+                return rp;
+
+            auto ruri = doc.namespaces.findByUri(uri);
+            if (ruri.isValid)
+                return ruri;
+        }
+
+        return new XmlNamespace!S(p, uri, level);
+    }
+
+    final XmlNamespaceList!S namespaces() nothrow @trusted
+    {
+        import pham.utl.utl_array_dictionary : Dictionary;
+
+        debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
+
+        if (!(nodeType == XmlNodeType.element || nodeType == XmlNodeType.attribute))
+            return XmlNamespaceList!S.init;
+
+        auto doc = ownerDocument;
+        auto par = nodeType == XmlNodeType.element ? this : parent;
+        auto sourceList = Dictionary!(XmlNamespace!S, bool)(par.level);
+        while (par !is null && par.nodeType == XmlNodeType.element)
+        {
+            if (auto a = par.hasNamespaceAttribute)
+            {
+                auto ns = a.isNamespaceNode == 2
+                    ? new XmlNamespace!S(a.localName, a.value, par.level)
+                    : (doc ? doc.namespaces.findByUri(a.value) : new XmlNamespace!S(null, a.value, par.level));
+                if (!sourceList.containKey(ns))
+                    sourceList[ns] = true;
+            }
+            par = par.parent;
+        }
+
+        return sourceList.length ? XmlNamespaceList!S(cast(XmlNamespace!S[])sourceList.keys) : XmlNamespaceList!S.init;
     }
 
     /** Returns string of xml structure of this node
@@ -978,10 +1084,26 @@ public:
         return !_children.empty;
     }
 
-    /** Returns true if a node has any value, false otherwise
-        Params:
-            checkContent = further check if value is empty or not
-    */
+    /**
+     * Returns an namespace attribute of this element if existed, otherwise null
+     */
+    @property final XmlAttribute!S hasNamespaceAttribute() nothrow
+    {
+        auto a = firstAttribute;
+        while (a !is null)
+        {
+            if (a.isNamespaceNode)
+                return a;
+            a = cast(XmlAttribute!S)a.nextSibling;
+        }
+        return null;
+    }
+
+    /**
+     * Returns true if a node has any value, false otherwise
+     * Params:
+     *  checkContent = further check if value is empty or not
+     */
     @property final bool hasValue(Flag!"checkContent" checkContent) const nothrow
     {
         switch (nodeType)
@@ -1032,14 +1154,27 @@ public:
         return this;
     }
 
-    /** Return true if node is a namespace one, false otherwise
-    */
-    @property final bool isNamespaceNode() nothrow
+    /**
+     * Returns an namespace indicator
+     *  1 = namespace attribute without name
+     *  2 = namespace attribute with defined name (localName)
+     *  0 = not a namespace attribute
+     * Ex:
+     *  case #1: xmlns="http://default.htm"
+     *  case #2: xmlns:NSbook="http://book.htm"
+     */
+    @property final int isNamespaceNode() nothrow
     {
-        return nodeType == XmlNodeType.attribute &&
-            localName.length != 0 &&
-            hasValueImpl() &&
-            document.equalName(prefix, XmlConst!S.xmlns);
+        if (nodeType != XmlNodeType.attribute)
+            return 0;
+
+        if (localName.length != 0 && prefix == XmlConst!S.xmlnsName)
+            return 2;
+
+        if (prefix.length == 0 && localName == XmlConst!S.xmlnsName)
+            return 1;
+
+        return 0;
     }
 
     /** Returns true if aNode is the only child/attribute node (no sibling node),
@@ -1071,14 +1206,14 @@ public:
     */
     @property size_t level() nothrow
     {
-        return parent is null ? 0 : parent.level + 1;
+        return parent ? parent.level + 1 : 0;
     }
 
     /** Return node's localname if any, null otherwise
     */
     @property final S localName() nothrow
     {
-        return _qualifiedName.localName;
+        return _qualifiedName ? _qualifiedName.localName : null;
     }
 
     /** Setter of localName
@@ -1092,7 +1227,7 @@ public:
     */
     @property final S name() nothrow
     {
-        return _qualifiedName.name;
+        return _qualifiedName ? _qualifiedName.name : null;
     }
 
     /** Setter of name
@@ -1102,11 +1237,11 @@ public:
         return this;
     }
 
-    /** Return node's namespceUri if any, null otherwise
+    /** Return node's namespaceUri if any, null otherwise
     */
-    @property final S namespaceUri() nothrow
+    @property final S namespaceUri() const nothrow
     {
-        return _qualifiedName.namespaceUri;
+        return _qualifiedName ? _qualifiedName.namespaceUri : null;
     }
 
     /** Setter of namespaceUri
@@ -1182,7 +1317,7 @@ public:
     */
     @property final S prefix() nothrow
     {
-        return _qualifiedName.prefix;
+        return _qualifiedName ? _qualifiedName.prefix : null;
     }
 
     /** Setter of prefix
@@ -1329,7 +1464,7 @@ protected:
         return null;
     }
 
-    bool hasValueImpl() const nothrow pure
+    bool hasValueImpl() const nothrow
     {
         return false;
     }
@@ -1524,7 +1659,7 @@ public:
     {
         return insertBack(node);
     }
-    
+
     /**
      * Notes:
      *   this slow, O(n), access, better use front & popFront
@@ -1592,7 +1727,7 @@ public:
 
         if (_listType != XmlNodeListType.flat)
             throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortTypeName!(XmlNodeList!S)(), "insertBack");
-            
+
         _flatList ~= node;
         return node;
     }
@@ -2309,7 +2444,7 @@ package:
     }
 
 protected:
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
     }
@@ -2605,7 +2740,7 @@ protected:
         return new XmlName!S(XmlConst!S.declarationTagName);
     }
 
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _innerText.length != 0;
     }
@@ -2632,24 +2767,30 @@ public:
     alias EqualName = bool function(scope const(C)[] s1, scope const(C)[] s2) nothrow pure @safe;
 
 public:
-    /** A function pointer that is used for name comparision. This is allowed to be used
-    to compare name without case-sensitive.
-    Default is case-sensitive comparision
-    */
+    /**
+     * A function pointer that is used for name comparision. This is allowed to be used
+     * to compare name without case-sensitive.
+     * Default is case-sensitive comparision
+     */
     EqualName equalName;
+    EqualName equalText;
 
-    /** Default namespace value of this document
-    */
-    S defaultUri;
+    /**
+     * Default namespace values of this document.
+     * The first one is the primary one
+     */
+    XmlNamespaceList!S namespaces;
 
-    /** Controls whether to use symbol table for node name to conserve memory usage
-    */
+    /**
+     * Controls whether to use symbol table for node name to conserve memory usage
+     */
     bool useSymbolTable;
 
 public:
     this() @trusted
     {
-        this.equalName = &equalCase!S;
+        this.equalName = equalCaseName!S;
+        this.equalText = equalCaseText!S;
         this._ownerDocument = null;
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
         this._buffers = new XmlBufferList!(S, No.CheckEncoded)();
@@ -2874,6 +3015,11 @@ public:
         return writer;
     }
 
+    @property final XmlNamespace!S defaultNS() nothrow
+    {
+        return namespaces.defaultNS();
+    }
+
     @property final override XmlDocument!S document() nothrow pure
     {
         return this;
@@ -2929,20 +3075,21 @@ package:
     pragma(inline, true)
     final S addSymbolIf(S symbol) nothrow
     {
-        if (symbol.length == 0 || !useSymbolTable)
-            return symbol;
-        else
-            return addSymbol(symbol);
+        return symbol.length == 0 || !useSymbolTable
+            ? symbol
+            : addSymbol(symbol);
     }
 
     pragma(inline, true)
-    final XmlName!S createName(S qualifiedName)
+    final XmlName!S createName(S qualifiedName,
+        S namespaceUri = null)
     {
-        return new XmlName!S(this, qualifiedName);
+        return new XmlName!S(this, qualifiedName, namespaceUri);
     }
 
     pragma(inline, true)
-    final XmlName!S createName(S prefix, S localName, S namespaceUri)
+    final XmlName!S createName(S prefix, S localName,
+        S namespaceUri = null)
     {
         return new XmlName!S(this, prefix, localName, namespaceUri);
     }
@@ -3262,7 +3409,7 @@ public:
     }
 
 protected:
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
     }
@@ -3826,7 +3973,7 @@ protected:
         this._qualifiedName = new XmlName!S(name);
     }
 
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
     }
@@ -3902,7 +4049,7 @@ protected:
         this._qualifiedName = new XmlName!S(target);
     }
 
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
     }
@@ -4059,7 +4206,7 @@ protected:
         this._text = text;
     }
 
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
     }
@@ -4200,7 +4347,7 @@ protected:
         this._notationName = notationName;
     }
 
-    final override bool hasValueImpl() const nothrow pure
+    final override bool hasValueImpl() const nothrow
     {
         return _text.length != 0;
     }
@@ -4227,15 +4374,22 @@ public:
     do
     {
         this.ownerDocument = ownerDocument;
-        this._prefix = ownerDocument.addSymbolIf(prefix);
-        this._localName = ownerDocument.addSymbolIf(localName);
-        this._namespaceUri = ownerDocument.addSymbolIf(namespaceUri);
-
-        if (prefix.length == 0)
-            this._name = localName;
+        if (ownerDocument !is null)
+        {
+            this._prefix = ownerDocument.addSymbolIf(prefix);
+            this._localName = ownerDocument.addSymbolIf(localName);
+            this._namespaceUri = ownerDocument.addSymbolIf(namespaceUri);
+        }
+        else
+        {
+            this._prefix = prefix;
+            this._localName = localName;
+            this._namespaceUri = namespaceUri;
+        }
+        this._name = prefix.length == 0 ? localName : null;
     }
 
-    this(XmlDocument!S ownerDocument, S qualifiedName)
+    this(XmlDocument!S ownerDocument, S qualifiedName, S namespaceUri)
     in
     {
         assert(qualifiedName.length != 0);
@@ -4243,13 +4397,28 @@ public:
     do
     {
         this.ownerDocument = ownerDocument;
-        this._name = ownerDocument.addSymbolIf(qualifiedName);
+        this._prefix = this._localName = null;
+        this._name = ownerDocument
+            ? ownerDocument.addSymbolIf(qualifiedName)
+            : qualifiedName;
+        this._namespaceUri = namespaceUri;
+    }
+
+    final bool opEqual(const typeof(this) rhs) const
+    {
+        return this._namespaceUri == rhs._namespaceUri
+            && this.calcName() == rhs.calcName();
+    }
+
+    final override size_t toHash() const
+    {
+        return hashOf(calcName(), hashOf(_namespaceUri));
     }
 
     @property final S localName()
     {
-        if (_localName.length == 0)
-            doSplitName();
+        if (_localName.length == 0 && _prefix.length == 0 && _name.length != 0)
+            splitName!S(_name, _prefix, _localName);
 
         return _localName;
     }
@@ -4257,38 +4426,22 @@ public:
     @property final S name()
     {
         if (_name.length == 0)
-        {
-            if (ownerDocument is null)
-                _name = combineName!S(_prefix, _localName);
-            else
-                _name = ownerDocument.addSymbolIf(combineName!S(_prefix, _localName));
-        }
+            _name = ownerDocument
+                ? ownerDocument.addSymbolIf(calcName())
+                : calcName();
 
         return _name;
     }
 
-    @property final S namespaceUri()
+    @property final S namespaceUri() const
     {
-        if (_namespaceUri.ptr is null)
-        {
-            if ((XmlConst!S.xmlns == prefix) || (prefix.length == 0 && XmlConst!S.xmlns == localName))
-                _namespaceUri = XmlConst!S.xmlnsNS;
-            else if (XmlConst!S.xml == prefix)
-                _namespaceUri = XmlConst!S.xmlNS;
-            else if (ownerDocument !is null)
-                _namespaceUri = ownerDocument.defaultUri;
-
-            if (_namespaceUri.ptr is null)
-                _namespaceUri = "";
-        }
-
         return _namespaceUri;
     }
 
     @property final S prefix()
     {
-        if (_prefix.ptr is null)
-            doSplitName();
+        if (_localName.length == 0 && _prefix.length == 0 && _name.length != 0)
+            splitName!S(_name, _prefix, _localName);
 
         return _prefix;
     }
@@ -4296,20 +4449,24 @@ public:
 package:
     this(S staticName)
     {
-        this._localName = staticName;
-        this._name = staticName;
-        this._namespaceUri = "";
-        this._prefix = "";
+        this.ownerDocument = null;
+        this._name = this._localName = staticName;
+        this._namespaceUri = null;
+        this._prefix = null;
+    }
+
+    this(S namespaceName, S namespaceUri)
+    {
+        this.ownerDocument = null;
+        this._name = this._prefix = this._localName = namespaceName;
+        this._namespaceUri = namespaceUri;
     }
 
 protected:
-    final void doSplitName()
+    pragma(inline, true)
+    final S calcName() const
     {
-        if (_name.length != 0)
-            splitName!S(_name, _prefix, _localName);
-
-        if (_prefix.ptr is null)
-            _prefix = "";
+        return _name.length ? _name : combineName!S(_prefix, _localName);
     }
 
 protected:
@@ -4319,6 +4476,329 @@ protected:
     S _namespaceUri;
     S _prefix;
 }
+
+class XmlNamespace(S = string) : XmlNode!S
+{
+@safe:
+
+public:
+    this() nothrow
+    {
+        this._ownerDocument = null;
+        this._qualifiedName = new XmlName!S("");
+        this._level = 0;
+    }
+
+    this(S namespaceName, S namespaceUri,
+        size_t level = 0) nothrow
+    {
+        this._ownerDocument = null;
+        this._qualifiedName = new XmlName!S(namespaceName, namespaceUri);
+        this._level = level;
+    }
+
+    final bool opEqual(const typeof(this) rhs) const nothrow
+    {
+        return this._level == rhs._level && this.namespaceName == rhs.namespaceName;
+    }
+
+    private static typeof(this) _emptyNamespace;
+    static typeof(this) emptyNamespace() nothrow
+    {
+        if (_emptyNamespace is null)
+            _emptyNamespace = new XmlNamespace!S();
+        return _emptyNamespace;
+    }
+
+    final override size_t toHash() const nothrow
+    {
+        return hashOf(namespaceName, _level);
+    }
+
+    override S toString() const nothrow
+    {
+        return namespaceName ~ "=\"" ~ namespaceUri ~ "\"";
+    }
+
+    final override XmlWriter!S write(XmlWriter!S writer)
+    {
+        writer.putAttribute(combineName!S(XmlConst!S.xmlnsName, namespaceName), namespaceUri);
+        return writer;
+    }
+
+    @property final override S innerText()
+    {
+        return namespaceUri;
+    }
+
+    @property final override XmlNode!S innerText(S newValue)
+    {
+        return namespaceUri(newValue);
+    }
+
+    pragma(inline, true)
+    @property final bool isReserved() const nothrow
+    {
+        const n = namespaceName;
+        return n == XmlConst!S.xmlnsName || n == XmlConst!S.xmlName;
+    }
+
+    pragma(inline, true)
+    @property final bool isValid() const nothrow
+    {
+        return namespaceName.length != 0 && namespaceUri.length != 0;
+    }
+
+    @property final override size_t level() nothrow
+    {
+        return _level;
+    }
+
+    alias localName = typeof(super).localName;
+
+    @property final override XmlNode!S localName(S newValue) nothrow
+    {
+        return namespaceName(newValue);
+    }
+
+    @property final S namespaceName() const nothrow
+    {
+        return _qualifiedName._prefix;
+    }
+
+    @property final XmlNode!S namespaceName(S newValue) nothrow
+    {
+        _qualifiedName = new XmlName!S(newValue, namespaceUri);
+        return this;
+    }
+
+    alias namespaceUri = typeof(super).namespaceUri;
+
+    @property final override XmlNode!S namespaceUri(S newValue) nothrow
+    {
+        _qualifiedName = new XmlName!S(namespaceName, newValue);
+        return this;
+    }
+
+    @property final override XmlNodeType nodeType() const nothrow pure
+    {
+        return XmlNodeType.attribute;
+    }
+
+    alias prefix = typeof(super).prefix;
+
+    @property final override XmlNode!S prefix(S newValue) nothrow
+    {
+        return namespaceName(newValue);
+    }
+
+    @property final override S value() nothrow
+    {
+        return namespaceUri;
+    }
+
+    @property final override XmlNode!S value(S newValue) nothrow
+    {
+        return namespaceUri(newValue);
+    }
+
+protected:
+    final override bool hasValueImpl() const nothrow
+    {
+        return namespaceUri.length != 0;
+    }
+
+protected:
+    size_t _level;
+}
+
+struct XmlNamespaceList(S = string)
+{
+nothrow @safe:
+
+public:
+    this(XmlNamespace!S[] nsItems)
+    {
+        put(nsItems);
+    }
+
+    /**
+     * Supports build-in foreach operator
+     */
+    alias opApply = opApplyImpl!(int delegate(XmlNamespace!S value));
+    alias opApply = opApplyImpl!(int delegate(size_t index, XmlNamespace!S value));
+    int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(XmlNamespace!S))
+        || is(CallBack : int delegate(size_t, XmlNamespace!S)))
+    {
+        static if (is(CallBack : int delegate(size_t, XmlNamespace!S)))
+        {
+            foreach (i, e; _items)
+            {
+                if (const r = callBack(i, e))
+                    return r;
+            }
+        }
+        else
+        {
+            foreach (e; _items)
+            {
+                if (const r = callBack(e))
+                    return r;
+            }
+        }
+
+        return 0;
+    }
+
+    ref typeof(this) opOpAssign(string op : "~")(XmlNamespace!S rhs) return
+    {
+        return put(rhs);
+    }
+
+    ref typeof(this) opOpAssign(string op : "~")(XmlNamespace!S[] rhs) return
+    {
+        return put(rhs);
+    }
+
+    XmlNamespace!S opIndex(size_t index)
+    {
+        return index < _items.length ? _items[index] : XmlNamespace!S.emptyNamespace();
+    }
+
+    XmlNamespace!S defaultNS()
+    {
+        foreach (e; _items)
+        {
+            if (e.isValid)
+                return e;
+        }
+
+        return _items.length ? _items[0] : XmlNamespace!S.emptyNamespace();
+    }
+
+    XmlNamespace!S findByName(scope S namespaceName)
+    {
+        if (namespaceName.length == 0)
+            return XmlNamespace!S.emptyNamespace();
+
+        foreach (e; _items)
+        {
+            if (e.isValid && equalName(e.namespaceName, namespaceName))
+                return e;
+        }
+
+        return new XmlNamespace!S(namespaceName, null);
+    }
+
+    XmlNamespace!S findByUri(scope S namespaceUri)
+    {
+        if (namespaceUri.length == 0)
+            return XmlNamespace!S.emptyNamespace();
+
+        foreach (e; _items)
+        {
+            if (e.isValid && equalText(e.namespaceUri, namespaceUri))
+                return e;
+        }
+
+        return new XmlNamespace!S(null, namespaceUri);
+    }
+
+    ref typeof(this) put(S namespaceName, S namespaceUri,
+        size_t level = 0) return
+    {
+        return put(new XmlNamespace!S(namespaceName, namespaceUri, level));
+    }
+
+    ref typeof(this) put(XmlNamespace!S nsItem) return
+    {
+        return put([nsItem]);
+    }
+
+    ref typeof(this) put(XmlNamespace!S[] nsItems) return
+    {
+        if (nsItems.length == 0)
+            return this;
+
+        // First item to empty list
+        if (_items.length == 0)
+        {
+            _items.reserve(nsItems.length + 2);
+
+            uint addedCount = 0;
+            foreach (e; nsItems)
+            {
+                // Reserved?
+                if (e.isReserved)
+                    continue;
+
+                _items ~= e;
+                addedCount++;
+            }
+
+            // Added reserved ones if
+            if (addedCount)
+            {
+                _items ~= new XmlNamespace!S(XmlConst!S.xmlnsName, XmlConst!S.xmlnsUri);
+                _items ~= new XmlNamespace!S(XmlConst!S.xmlName, XmlConst!S.xmlUri);
+            }
+
+            return this;
+        }
+
+
+        // Add items to existing list
+
+        XmlNamespace!S[] newItems;
+        newItems.reserve(nsItems.length + _items.length);
+
+        // Copy existing ones but not reserved ones
+        foreach (e; _items)
+        {
+            // Reserved?
+            if (e.isReserved)
+                break;
+
+            newItems ~= e;
+        }
+
+        // Adding new ones
+        uint addedCount = 0;
+        foreach (e; nsItems)
+        {
+            // Reserved?
+            if (e.isReserved)
+                continue;
+
+            newItems ~= e;
+            addedCount++;
+        }
+
+        // Added reserved ones back if
+        if (addedCount)
+        {
+            newItems ~= new XmlNamespace!S(XmlConst!S.xmlnsName, XmlConst!S.xmlnsUri);
+            newItems ~= new XmlNamespace!S(XmlConst!S.xmlName, XmlConst!S.xmlUri);
+            _items = newItems;
+        }
+
+        return this;
+    }
+
+    @property size_t length() const
+    {
+        return _items.length;
+    }
+
+public:
+    XmlDocument!S.EqualName equalName = equalCaseName!S;
+    XmlDocument!S.EqualName equalText = equalCaseText!S;
+
+private:
+    XmlNamespace!S[] _items;
+}
+
 
 debug(PhamXml)
 unittest  // Display object sizeof

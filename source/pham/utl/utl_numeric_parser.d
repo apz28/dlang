@@ -1332,6 +1332,7 @@ if (isSomeString!String)
 
         if (d > 0 && d > durationUnitMaxs[u])
             return NumericParsedKind.overflow;
+            
         if (d < 0 && d < -durationUnitMaxs[u])
             return NumericParsedKind.underflow;
 
@@ -1387,17 +1388,17 @@ if (isNumericLexerRange!Range && isIntegral!Target)
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
-    uint count;
+    uint hexesCount = 0;
     ubyte b;
     while (!lexer.empty)
     {
         if (cvtHexDigit(lexer.front, b))
         {
-            if (count == Target.sizeof*2)
+            if (hexesCount == Target.sizeof*2)
                 return NumericParsedKind.overflow;
 
             target = cast(Target)((target << 4) | b);
-            count++;
+            hexesCount++;
 
             lexer.popFront();
         }
@@ -1455,12 +1456,13 @@ if (isIntegral!Target)
         return NumericParsedKind.invalid;
 
     static if (isUnsigned!Target)
-    if (lexer.neg)
-        return NumericParsedKind.invalid;
+    {
+        if (lexer.neg)
+            return NumericParsedKind.invalid;
+    }
 
     if (lexer.hasHexDigitPrefix)
     {
-
         ubyte b;
         while (!lexer.empty)
         {
@@ -1485,6 +1487,7 @@ if (isIntegral!Target)
     }
     else
     {
+        enum maxDiv10 = Target.max / 10;
         const maxLastDigit = (Target.min < 0 ? 7 : 5) + lexer.neg;
 
         static if (Target.sizeof <= int.sizeof)
@@ -1495,8 +1498,10 @@ if (isIntegral!Target)
         NumericParsedKind returnAs(const(NumericParsedKind) r) nothrow @safe
         {
             static if (isSigned!Target)
-            if (lexer.neg)
-                vTemp = -vTemp;
+            {
+                if (lexer.neg)
+                    vTemp = -vTemp;
+            }
 
             target = cast(Target)vTemp;
             return r;
@@ -1507,7 +1512,6 @@ if (isIntegral!Target)
         {
             if (cvtDigit(lexer.front, b))
             {
-                enum maxDiv10 = Target.max/10;
                 if (vTemp >= 0 && (vTemp < maxDiv10 || (vTemp == maxDiv10 && b <= maxLastDigit)))
                 {
                     vTemp = (vTemp * 10) + b;

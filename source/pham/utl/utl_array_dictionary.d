@@ -62,7 +62,7 @@ struct Dictionary(K, V)
         Index nextCollision; // Next Entry index of collision chain; -1 is end of chain
         size_t hash; // Hash value of _key
         UK _key;
-        
+
     public:
         @property const(K) key() const inout nothrow @safe
         {
@@ -128,6 +128,13 @@ public:
     do
     {
         this.aa = createAA(bucketCapacity, entryCapacity, hashMix, customHashOf);
+    }
+
+    this(size_t entryCapacity,
+        DictionaryHashMix hashMix = DictionaryHashMix.none,
+        CustomHashOf customHashOf = null) nothrow @safe
+    {
+        this.aa = createAA(entryCapacity ? entryCapacity + bucketInflated : 0, entryCapacity, hashMix, customHashOf);
     }
 
     /**
@@ -810,7 +817,10 @@ private:
                 return customHashOf(key);
             else
             {
-                const size_t hash = hashOf(key);
+                static if (__traits(compiles, { size_t _ = K.init.toHash(); }))
+                    const size_t hash = key.toHash();
+                else
+                    const size_t hash = hashOf(key);
                 return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
             }
         }
@@ -883,7 +893,7 @@ private:
         }
 
         // lookup a key
-        inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out uint keyCollision) inout @nogc nothrow @safe
+        inout(Entry)* findSlotLookup(const(size_t) hash, ref const(K) key, out Index index, out Index bucket, out uint keyCollision) inout nothrow @safe
         {
             keyCollision = 0;
             bucket = calcBucket(hash);
@@ -939,13 +949,21 @@ private:
         }
 
         //pragma(inline, true)
-        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref uint keyCollision) const @nogc nothrow @safe
+        bool isIndexedKey(ref Index index, const(size_t) hash, ref const(K) key, ref uint keyCollision) const nothrow @safe
         {
             do
             {
                 auto e = &entries[index];
-                if (e.hash == hash && e._key == key)
-                    return true;
+                static if (__traits(compiles, { bool _ = K.init.opEqual(key); }))
+                {
+                    if (e.hash == hash && e._key.opEqual(key))
+                        return true;
+                }
+                else
+                {
+                    if (e.hash == hash && e._key == key)
+                        return true;
+                }
 
                 keyCollision++;
                 index = e.nextCollision;

@@ -25,7 +25,7 @@ import std.traits : fullyQualifiedName, isIntegral;
 ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
 {
     import pham.utl.utl_array_append : Appender;
-    import pham.utl.utl_numeric_parser : parseBase64, NumericParsedKind;
+    import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase64;
     import pham.utl.utl_utf8 : NoDecodeInputRange;
 
     if (validBase64Text.length == 0)
@@ -48,7 +48,7 @@ ubyte[] bytesFromBase64s(scope const(char)[] validBase64Text) nothrow pure @safe
  */
 char[] bytesToBase64s(scope const(ubyte)[] bytes) nothrow pure @safe
 {
-    import pham.utl.utl_numeric_parser : Base64MappingChar, cvtBytesBase64, NumericParsedKind;
+    import pham.utl.utl_numeric_parser : Base64MappingChar, NumericParsedKind, cvtBytesBase64;
 
     if (bytes.length == 0)
         return null;
@@ -116,7 +116,7 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
 {
     import std.ascii : lowerHexDigits, upperHexDigits=hexDigits, decimalDigits=digits;
     import std.range.primitives : put;
-    import std.traits : isUnsigned, Unqual;
+    import std.traits : Unqual, isUnsigned;
 
     alias UN = Unqual!N;
     enum bufSize = N.sizeof * 8;

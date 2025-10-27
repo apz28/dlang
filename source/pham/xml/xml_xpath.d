@@ -11,8 +11,7 @@
 
 module pham.xml.xml_xpath;
 
-import std.conv : to;
-version(unittest) import std.conv : text;
+import std.conv : text, to;
 import std.math : isInfinity, isNaN, signbit;
 import std.typecons : Flag, No, Yes;
 
@@ -102,6 +101,8 @@ else
 XmlNode!S selectNode(S = string)(XmlNode!S source, S xpath)
 if (isXmlString!S)
 {
+    debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("source.name=", source !is null ? source.name : ""));
+
     auto resultList = selectNodes(source, xpath);
     return !resultList.empty ? resultList.front : null;
 }
@@ -117,11 +118,14 @@ if (isXmlString!S)
 XmlPathNodeList!S selectNodes(S = string)(XmlNode!S source, S xpath)
 if (isXmlString!S)
 {
+    debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("source.name=", source !is null ? source.name : ""));
+
     auto xpathParser = XPathParser!S(xpath);
     auto xpathExpression = xpathParser.parseExpression();
 
     auto inputContext = XPathContext!S(source);
-    inputContext.putRes(source);
+    if (source !is null)
+        inputContext.putRes(source);
 
     auto outputContext = inputContext.createOutputContext();
     xpathExpression.evaluate(inputContext, outputContext);
@@ -134,11 +138,31 @@ alias selectSingleNode = selectNode;
 XPathValue!S evaluate(S = string)(XmlNode!S source, S xpath)
 if (isXmlString!S)
 {
+    debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("source.name=", source !is null ? source.name : ""));
+
     auto xpathParser = XPathParser!S(xpath);
     auto xpathExpression = xpathParser.parseExpression();
 
     auto inputContext = XPathContext!S(source);
-    inputContext.putRes(source);
+    if (source !is null)
+        inputContext.putRes(source);
+
+    auto outputContext = inputContext.createOutputContext();
+    xpathExpression.evaluate(inputContext, outputContext);
+
+    return outputContext.resValue;
+}
+
+XPathValue!S evaluate(S = string)(XPathValue!S source, S xpath)
+if (isXmlString!S)
+{
+    debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("source=", source.toString()));
+
+    auto xpathParser = XPathParser!S(xpath);
+    auto xpathExpression = xpathParser.parseExpression();
+
+    auto inputContext = XPathContext!S(source.type == XPathDataType.nodeSet ? source.firstNode : null);
+    inputContext.resValue = source;
 
     auto outputContext = inputContext.createOutputContext();
     xpathExpression.evaluate(inputContext, outputContext);
@@ -458,6 +482,14 @@ public:
         this._text = value.idup;
     }
 
+    this(XmlNode!S value) nothrow @trusted
+    {
+        debug(debug_pham_xml_xml_xpath) traceFunction();
+
+        this._type = XPathDataType.nodeSet;
+        this._nodes ~= value;
+    }
+
     this(XmlPathNodeList!S value) nothrow @trusted
     {
         version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
@@ -683,7 +715,7 @@ public:
                 case XPathDataType.number:
                     return toText!S(_number);
                 case XPathDataType.nodeSet:
-                    return _nodes.length == 1 ? firstNodeText() : null;
+                    return _nodes.length != 0 ? firstNodeText() : null;
                 case XPathDataType.empty:
                     return null;
             }
@@ -701,7 +733,7 @@ public:
                 case XPathDataType.text:
                     return toNumber!S(_text);
                 case XPathDataType.nodeSet:
-                    return _nodes.length == 1 ? toNumber!S(firstNodeText()) : double.nan;
+                    return _nodes.length != 0 ? toNumber!S(firstNodeText()) : double.nan;
                 case XPathDataType.empty:
                     return double.nan;
             }
@@ -719,7 +751,7 @@ public:
                 case XPathDataType.text:
                     return toInteger(toNumber!S(_text));
                 case XPathDataType.nodeSet:
-                    return _nodes.length == 1 ? toInteger(toNumber!S(firstNodeText())) : -1;
+                    return _nodes.length != 0 ? toInteger(toNumber!S(firstNodeText())) : -1;
                 case XPathDataType.empty:
                     return -1;
             }
@@ -737,7 +769,7 @@ public:
                 case XPathDataType.text:
                     return toBoolean!S(_text);
                 case XPathDataType.nodeSet:
-                    return _nodes.length == 1 ? toBoolean!S(firstNodeText()) : false;
+                    return _nodes.length != 0 ? toBoolean!S(firstNodeText()) : false;
                 case XPathDataType.empty:
                     return false;
             }
@@ -799,16 +831,31 @@ public:
         return _type == XPathDataType.boolean ? _boolean : false;
     }
 
+    pragma(inline, true)
     @property bool empty() const nothrow
     {
         return _type == XPathDataType.empty;
     }
 
+    @property XmlNode!S firstNode() nothrow @trusted
+    in
+    {
+        assert(_type == XPathDataType.empty || _type == XPathDataType.nodeSet);
+    }
+    do
+    {
+        return _type == XPathDataType.nodeSet && _nodes.length ? _nodes.front : null;
+    }
+
+    alias frontNode = firstNode;
+
     @property ptrdiff_t length() @trusted
     {
         return _type == XPathDataType.nodeSet
             ? _nodes.length
-            : (_type == XPathDataType.text ? _text.length : -1);
+            : (_type == XPathDataType.text
+                ? _text.length
+                : (_type == XPathDataType.empty ? 0 : -1));
     }
 
     @property ref XmlPathNodeList!S nodes() nothrow return @trusted
@@ -886,7 +933,7 @@ protected:
         // Do not log or use any codes using string (GC data) since it can be called from destructor
         final switch (_type)
         {
-            case XPathDataType.text:
+            case XPathDataType.text:            
                 _text = null;
                 break;
             case XPathDataType.nodeSet:
@@ -894,7 +941,7 @@ protected:
                 break;
             case XPathDataType.empty:
             case XPathDataType.boolean:
-            case XPathDataType.number:
+            case XPathDataType.number:                
                 break;
         }
 
@@ -906,12 +953,10 @@ protected:
     in
     {
         assert(_type == XPathDataType.nodeSet);
-        assert(_nodes.length == 1);
+        assert(_nodes.length != 0);
     }
     do
     {
-        version(XPathXmlNodeList) pragma(msg, __FUNCTION__);
-
         return toText!S(_nodes.front);
     }
 
@@ -967,11 +1012,12 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(XmlNode!S xpathNode) nothrow
+    this(XmlNode!S source) nothrow
     {
-        this._xpathNode = xpathNode;
-        this._xpathDocument = xpathNode.document;
-        this.equalName = xpathNode.document.equalName;
+        auto doc = source !is null ? source.document : null;
+        this._source = source;
+        this._document = doc;
+        this.equalName = doc !is null ? doc.equalName : equalCaseName!S;
     }
 
     pragma(inline, true)
@@ -983,9 +1029,8 @@ public:
     XPathContext!S createOutputContext() nothrow
     {
         XPathContext!S result;
-        result._xpathNode = this._xpathNode;
-        result._xpathDocument = this._xpathDocument;
-        result._xpathDocumentElement = this._xpathDocumentElement;
+        result._source = this._source;
+        result._document = this._document;
         result.equalName = this.equalName;
         result.filterNodes = this.filterNodes;
         result.variables = this.variables;
@@ -1028,21 +1073,16 @@ public:
         return !resValue.empty;
     }
 
-    @property XmlDocument!S xpathDocument() nothrow
+    pragma(inline, true)
+    @property XmlDocument!S document() nothrow
     {
-        return _xpathDocument;
+        return _document;
     }
 
-    @property XmlElement!S xpathDocumentElement() nothrow
+    pragma(inline, true)
+    @property XmlNode!S source() nothrow
     {
-        if (_xpathDocumentElement is null)
-            _xpathDocumentElement = xpathDocument.documentElement;
-        return _xpathDocumentElement;
-    }
-
-    @property XmlNode!S xpathNode() nothrow
-    {
-        return _xpathNode;
+        return _source;
     }
 
 public:
@@ -1054,9 +1094,8 @@ public:
     XPathValue!S resValue;
 
 private:
-    XmlDocument!S _xpathDocument;
-    XmlElement!S _xpathDocumentElement;
-    XmlNode!S _xpathNode;
+    XmlDocument!S _document;
+    XmlNode!S _source;
 }
 
 abstract class XPathNode(S = string) : XmlObject!S
@@ -1125,19 +1164,19 @@ class XPathAxis(S = string) : XPathNode!S
 
 public:
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input,
-         XPathNodeType nodetype, S prefix, S localName) nothrow
+         XPathNodeType nodeType, S prefix, S localName) nothrow
     {
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("axisType=", axisType.toName(),
-            ", nodetype=", nodetype.toName(), ", prefix=", prefix, ", localName=", localName, ", input=", shortClassName(input)));
+            ", nodeType=", nodeType.toName(), ", prefix=", prefix, ", localName=", localName, ", inputClass=", shortClassName(input)));
 
         this._parent = parent;
         this._input = input;
         this._axisType = axisType;
-        this._axisNodeType = nodetype;
+        this._axisNodeType = nodeType;
         this._prefix = prefix;
         this._localName = localName;
         this._qualifiedName = combineName!S(prefix, localName);
-        this._xmlNodeType = toXmlNodeType(nodetype);
+        this._xmlNodeType = toXmlNodeType(nodeType);
         this._matchAnyName = localName == "*" && (prefix.length == 0 || prefix == "*")
             ? MatchAnyName.both
             : localName == "*"
@@ -1195,7 +1234,7 @@ public:
 
     this(XPathNode!S parent, XPathAxisType axisType, XPathNode!S input) nothrow
     {
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("axisType=", axisType.toName(), ", input=", shortClassName(input)));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("axisType=", axisType.toName(), ", inputClass=", shortClassName(input)));
 
         this(parent, axisType, input, XPathNodeType.all, null, null);
         this._abbreviated = true;
@@ -1205,7 +1244,10 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            traceFunction();
+            Appender!string inputText;
+            if (auto inputAxis = cast(XPathAxis!S)input)
+                inputText.put(inputAxis.toString());
+            traceFunctionPar(text(this.toString(), ", input=", inputText.data));
             incNodeIndent();
             scope (exit)
                 decNodeIndent();
@@ -1215,11 +1257,17 @@ public:
         {
             XPathContext!S inputContextCond = inputContext.createOutputContext();
             input.evaluate(inputContext, inputContextCond);
+            debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("inputContextCond.resNodes.length=", inputContextCond.resNodes.length));
 
             evaluateFct(inputContextCond, outputContext);
         }
         else
             evaluateFct(inputContext, outputContext);
+    }
+
+    debug(debug_pham_xml_xml_xpath) final override string toString()
+    {
+        return text("axisType=", axisType.toName(), ", nodeType=", nodeType.toName(), ", localName=", _localName, ", prefix=", _prefix, ", inputClass=", shortClassName(input));
     }
 
     debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
@@ -1295,18 +1343,22 @@ protected:
     final bool accept(ref XPathContext!S inputContext, XmlNode!S node) nothrow
     {
         // XmlNodeType.unknown = all
-        bool result = _xmlNodeType == XmlNodeType.unknown || node.nodeType == _xmlNodeType;
+        bool result = _xmlNodeType == XmlNodeType.unknown || _xmlNodeType == node.nodeType;
 
         if (result && _matchAnyName != MatchAnyName.both)
         {
-            if (result && _matchAnyName != MatchAnyName.prefix && prefix.length != 0)
-                result = inputContext.equalName(prefix, node.prefix);
+            if (result && _matchAnyName != MatchAnyName.prefix && _prefix.length != 0)
+                result = inputContext.equalName(_prefix, node.namespace().prefix);
 
-            if (result && _matchAnyName != MatchAnyName.localName && localName.length != 0)
-                result = inputContext.equalName(localName, node.localName);
+            if (result && _matchAnyName != MatchAnyName.localName && _localName.length != 0)
+                result = inputContext.equalName(_localName, node.localName);
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("node.name=", node.name, ", result=", result));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("result=", result,
+            ", node.localName=", node.localName, "?==", _localName,
+            ", node.namespace().prefix=", node.namespace().prefix, "?==", _prefix,
+            ", node.nodeType=", node.nodeType.toName, "?==", _xmlNodeType.toName,
+            ", node.namespace().namespaceUri=", node.namespace().namespaceUri));
 
         return result;
     }
@@ -1462,14 +1514,14 @@ protected:
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (e.nodeType != XmlNodeType.element || !e.hasAttributes)
+            if (e.nodeType != XmlNodeType.element)
                 continue;
 
-            auto attributes = e.attributes;
-            foreach (a; attributes)
+            auto namespaces = e.namespaces();
+            foreach (ns; namespaces)
             {
-                if (accept(inputContext, a))
-                    outputContext.putRes(a);
+                if (accept(inputContext, ns))
+                    outputContext.putRes(ns);
             }
         }
 
@@ -2211,9 +2263,10 @@ public:
 
     final override void evaluate(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
-        debug(debug_pham_xml_xml_xpath) traceFunction();
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("inputContext.document.isNull=", inputContext.document is null));
 
-        outputContext.putRes(inputContext.xpathDocumentElement);
+        if (auto e = inputContext.document)
+            outputContext.putRes(e);
     }
 
     debug(debug_pham_xml_xml_xpath) final override ref Appender!string toString(return ref Appender!string sink, ref XPathContext!S context)
@@ -3169,6 +3222,7 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
+            debug writeln();
             traceFunctionPar(text("sourceText=", sourceText));
             incNodeIndent();
             scope (exit)
@@ -3725,8 +3779,10 @@ private:
                     break;
             }
 
-            // Need to check for axisType == XPathAxisType.namespace?
-            const nodeType = axisType == XPathAxisType.attribute ? XPathNodeType.attribute : XPathNodeType.element;
+            // Need to check for axisType == XPathAxisType.namespace
+            const nodeType = axisType == XPathAxisType.attribute || axisType == XPathAxisType.namespace
+                ? XPathNodeType.attribute
+                : XPathNodeType.element;
             result = parseNodeTest(aInput, axisType, nodeType);
             while (XPathScannerLexKind.lBracket == scanner.kind)
                 result = new XPathFilter!S(result, result, parsePredicate(result));
@@ -4436,7 +4492,7 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
 
     if (inputContext.resNodes.empty)
     {
-        auto nodes = inputContext.xpathDocumentElement.getElements(null, Yes.deep);
+        auto nodes = inputContext.document.documentElement.getElements(null, Yes.deep);
         foreach (e; nodes)
         {
             if (hasId(e))
@@ -4502,7 +4558,9 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 // last()
 void fctLast(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    double result = inputContext.resNodes.length;
+    //import std.stdio : writeln; debug writeln("resNodes.length=", inputContext.resNodes.length, ", filterNodes.length=", inputContext.filterNodes.length);
+    
+    double result = inputContext.filterNodes.length;
 
     outputContext.resValue = result;
 }
@@ -4510,79 +4568,61 @@ void fctLast(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 // local-name( [node-set] )
 void fctLocalName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    S result;
-    bool useDefault;
     if (context.argumentList.length != 0)
     {
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
         auto inputNodes = tempOutputContext.resNodes;
-        if (inputNodes.empty)
-            useDefault = true;
-        else
-            result = inputNodes.front.localName;
-    }
-
-    if (useDefault)
-    {
-        auto inputNodes = inputContext.resNodes;
         if (!inputNodes.empty)
-            result = inputNodes.front.localName;
+        {
+            outputContext.resValue = inputNodes.front.localName;
+            return;
+        }
     }
 
-    outputContext.resValue = result;
+    auto inputNodes = inputContext.resNodes;
+    if (!inputNodes.empty)
+        outputContext.resValue = inputNodes.front.localName;
 }
 
 // name( [node-set] )
 void fctName(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    S result;
-    bool useDefault;
     if (context.argumentList.length != 0)
     {
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
         auto inputNodes = tempOutputContext.resNodes;
-        if (inputNodes.empty)
-            useDefault = true;
-        else
-            result = inputNodes.front.name;
-    }
-
-    if (useDefault)
-    {
-        auto inputNodes = inputContext.resNodes;
         if (!inputNodes.empty)
-            result = inputNodes.front.name;
+        {
+            outputContext.resValue = inputNodes.front.name;
+            return;
+        }
     }
 
-    outputContext.resValue = result;
+    auto inputNodes = inputContext.resNodes;
+    if (!inputNodes.empty)
+        outputContext.resValue = inputNodes.front.name;
 }
 
 // namespace-uri( [node-set] )
 void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    S result;
-    bool useDefault;
     if (context.argumentList.length != 0)
     {
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
         auto inputNodes = tempOutputContext.resNodes;
-        if (inputNodes.empty)
-            useDefault = true;
-        else
-            result = inputNodes.front.namespaceUri;
-    }
-
-    if (useDefault)
-    {
-        auto inputNodes = inputContext.resNodes;
         if (!inputNodes.empty)
-            result = inputNodes.front.namespaceUri;
+        {
+            outputContext.resValue = inputNodes.front.namespace().namespaceUri;
+            return;
+        }
     }
 
-    outputContext.resValue = result;
+    auto inputNodes = inputContext.resNodes;
+    if (!inputNodes.empty)
+        outputContext.resValue = inputNodes.front.namespace().namespaceUri;
 }
 
 /**
@@ -4592,21 +4632,30 @@ void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext
 // normalize-space( [string] )
 void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    const s = context.argumentList.length != 0
-        ? context.argumentList[0].evaluate!S(inputContext)
-        : inputContext.resValue.get!S();
+    S result;
 
-    if (s.length == 0)
+    if (context.argumentList.length != 0)
+    {
+        auto tempOutputContext = inputContext.createOutputContext();
+        context.argumentList[0].evaluate(inputContext, tempOutputContext);
+        result = tempOutputContext.hasResValue
+            ? tempOutputContext.resValue.get!S()
+            : inputContext.resValue.get!S();
+    }
+    else
+        result = inputContext.resValue.get!S();
+
+    if (result.length == 0)
     {
         outputContext.resValue = "";
         return;
     }
 
     // Trim begin & end spaces
-    size_t b = 0, e = s.length;
-    while (b < e && isSpace(s[b]))
+    size_t b = 0, e = result.length;
+    while (b < e && isSpace(result[b]))
         b++;
-    while (e > b && isSpace(s[e - 1]))
+    while (e > b && isSpace(result[e - 1]))
         e--;
     if (e <= b)
     {
@@ -4617,29 +4666,29 @@ void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputConte
     const count = e - b;
     if (count <= 3)
     {
-        outputContext.resValue = s[b..e];
+        outputContext.resValue = result[b..e];
         return;
     }
 
     // Check for inner spaces
-    Appender!string buffer;
+    Appender!S buffer;
     const iE = e - 1;
     size_t i = b;
     while (i < iE)
     {
-        if (isSpace(s[i]))
+        if (isSpace(result[i]))
         {
             const iB = i;
             // No need to check for out of bound because the ending
             // char is not space in this while loop
-            while (isSpace(s[i + 1]))
+            while (isSpace(result[i + 1]))
                 i++;
             // Has consecutive spaces?
             if (i > iB)
             {
                 // We did not append to buffer until now
                 if (buffer.length == 0)
-                    buffer.put(s[b..iB]);
+                    buffer.put(result[b..iB]);
 
                 buffer.put(' ');
             }
@@ -4649,14 +4698,14 @@ void fctNormalizeSpace(S)(XPathFunction!S context, ref XPathContext!S inputConte
         else
         {
             if (buffer.length)
-                buffer.put(s[i]);
+                buffer.put(result[i]);
             i++;
         }
     }
     // Last char
     if (buffer.length)
-        buffer.put(s[e - 1]);
-    outputContext.resValue = buffer.length ? buffer.data : s[b..e];
+        buffer.put(result[e - 1]);
+    outputContext.resValue = buffer.length ? buffer.data : result[b..e];
 }
 
 // not( expression )
@@ -4670,9 +4719,18 @@ void fctNot(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
 // number( [object] )
 void fctNumber(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    auto result = context.argumentList.length != 0
-        ? context.argumentList[0].evaluate!double(inputContext)
-        : inputContext.resValue.get!double();
+    double result;
+
+    if (context.argumentList.length != 0)
+    {
+        auto tempOutputContext = inputContext.createOutputContext();
+        context.argumentList[0].evaluate(inputContext, tempOutputContext);
+        result = tempOutputContext.hasResValue
+            ? tempOutputContext.resValue.get!double()
+            : inputContext.resValue.get!double();
+    }
+    else
+        result = inputContext.resValue.get!double();
 
     outputContext.resValue = result;
 }
@@ -4734,9 +4792,18 @@ void fctStartsWith(S)(XPathFunction!S context, ref XPathContext!S inputContext, 
  */
 void fctString(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    auto result = context.argumentList.length != 0
-        ? context.argumentList[0].evaluate!S(inputContext)
-        : inputContext.resValue.get!S();
+    S result;
+
+    if (context.argumentList.length != 0)
+    {
+        auto tempOutputContext = inputContext.createOutputContext();
+        context.argumentList[0].evaluate(inputContext, tempOutputContext);
+        result = tempOutputContext.hasResValue
+            ? tempOutputContext.resValue.get!S()
+            : inputContext.resValue.get!S();
+    }
+    else
+        result = inputContext.resValue.get!S();
 
     outputContext.resValue = result;
 }
@@ -4746,15 +4813,24 @@ void fctStringLength(S)(XPathFunction!S context, ref XPathContext!S inputContext
 {
     import std.uni : byCodePoint;
 
-    const s = context.argumentList.length != 0
-        ? context.argumentList[0].evaluate!S(inputContext)
-        : inputContext.resValue.get!S();
+    S s;
 
-    double result = 0.0;
+    if (context.argumentList.length != 0)
+    {
+        auto tempOutputContext = inputContext.createOutputContext();
+        context.argumentList[0].evaluate(inputContext, tempOutputContext);
+        s = tempOutputContext.hasResValue
+            ? tempOutputContext.resValue.get!S()
+            : inputContext.resValue.get!S();
+    }
+    else
+        s = inputContext.resValue.get!S();
+
+    ptrdiff_t result = 0;
     foreach (e; s.byCodePoint)
         result += 1;
 
-    outputContext.resValue = result;
+    outputContext.resValue = cast(double)result;
 }
 
 // substring( string, start ) | substring( string, start, length )
@@ -5260,6 +5336,15 @@ unittest // fctNumber - Simple
 
     r = evaluate(doc.documentElement, "number('NotANumber')");
     assert(r.get!double().isNaN, r.get!string());
+
+    r = evaluate(doc.documentElement, "number(0 div 0)");
+    assert(r.get!double().isNaN, r.get!string());
+
+    r = evaluate(doc.documentElement, "number(1 div 0)");
+    assert(r.get!double() == double.infinity, r.get!string());
+
+    r = evaluate(doc.documentElement, "number(-1 div 0)");
+    assert(r.get!double() == -double.infinity, r.get!string());
 }
 
 unittest // fctCeiling - Simple
@@ -5428,6 +5513,8 @@ unittest // fctSubstring - Simple
 
 unittest // fctNormalizeSpace - Simple
 {
+    import std.conv : text;
+
     auto doc = new XmlDocument!string().load(dummyXml);
 
     auto r = evaluate(doc.documentElement, "normalize-space('')");
@@ -5485,15 +5572,87 @@ unittest // fctTranslate - Simple
 
     r = evaluate(doc.documentElement, "translate('aba', 'b', 'B')");
     assert(r.get!string() == "aBa", r.get!string());
-
 }
 
 unittest // fctString - Complex
 {
-    auto doc = loadUnittestXml("auction.xml");
-    if (doc is null)
-        return;
+    if (auto doc = loadUnittestXml("auction.xml"))
+    {
+        auto r = evaluate(doc.documentElement, "string((//*:Open)[1])");
+        assert(r.get!string() == "2000-03-21:07:41:34-05:00", r.get!string());
+    }
 
-    auto r = evaluate(doc.documentElement, "string((//*:Open)[1])");
-    assert(r.get!string() == "2000-03-21:07:41:34-05:00", r.get!string());
+    if (auto doc = loadUnittestXml("xp004.xml"))
+    {
+        auto r = evaluate(doc.documentElement, "string(/Doc/Test1/Para[1])");
+        assert(r.get!string() == "Test", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "string(child::Para)");
+        assert(r.get!string() == "Test", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "concat(string(child::*), 'BB')");
+        assert(r.get!string() == "TestBB", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "starts-with('TestBB', string(child::*))");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "contains('AATestBB', string(child::*))");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "substring-before(string(child::*), 't')");
+        assert(r.get!string() == "Tes", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "substring-after(string(child::*), 'T')");
+        assert(r.get!string() == "est", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "substring(string(child::*), 2)");
+        assert(r.get!string() == "est", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1/Para[1]"), "string-length()");
+        assert(r.get!ptrdiff_t() == 4, r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "string-length(string(child::*))");
+        assert(r.get!ptrdiff_t() == 4, r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test4/Para[1]"), "normalize-space()");
+        assert(r.get!string() == "A B", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test4"), "normalize-space(string(child::*))");
+        assert(r.get!string() == "A B", r.get!string());
+
+        r = evaluate(selectNode(doc.documentElement, "/Doc/Test1"), "translate(string(child::*), 'est', 'EST')");
+        assert(r.get!string() == "TEST", r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("books.xml"))
+    {
+        auto r = evaluate(doc, "child::*[substring(name(),0,1)='b']");
+        assert(r.length == 0, r.get!string());
+
+        r = evaluate(doc, "child::*[substring-after(name(),'b')='ook']");
+        assert(r.length == 0, r.get!string());
+
+        r = evaluate(doc, "child::*[normalize-space(' book')=name()]");
+        assert(r.length == 0, r.get!string());
+
+        r = evaluate(doc.documentElement, "string(/bookstore/book/title)");
+        assert(r.get!string() == "Seven Years in Trenton", r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("name2.xml"))
+    {
+        doc.namespaces.put("ns", "http://default.htm");
+
+        auto r = evaluate(evaluate(doc.documentElement, "/ns:store/ns:booksection/namespace::NSbook"), "string()");
+        assert(r.get!string() == "http://book.htm", r.get!string());
+
+        r = evaluate(evaluate(doc.documentElement, "/ns:store/namespace::*[1]"), "string()");
+        assert(r.get!string() == "http://default.htm", r.get!string());
+
+        r = evaluate(doc, "string(ns:store/ns:booksection/namespace::*)");
+        assert(r.get!string() == "http://book.htm", r.get!string());
+
+        r = evaluate(evaluate(doc.documentElement, "/ns:store/namespace::*[last()]"), "string()");
+        assert(r.get!string() == "http://www.w3.org/XML/1998/namespace", r.get!string());
+    }
 }

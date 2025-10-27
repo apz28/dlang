@@ -94,10 +94,9 @@ pragma(inline, true)
 S combineName(S)(S prefix, S localName) nothrow pure
 if (isXmlString!S)
 {
-    if (prefix.length == 0)
-        return localName;
-    else
-        return prefix ~ ":" ~ localName;
+    return prefix.length == 0
+        ? localName
+        : prefix ~ ":" ~ localName;
 }
 
 /** Returns true if the characters can be converted to a base character according to the XML standard
@@ -151,12 +150,22 @@ if (isXmlStringEx!S)
     return isChar(c);
 }
 
+auto equalCaseName(S)() nothrow pure
+{
+    return &equalCaseSensitive!S;
+}
+
+auto equalCaseText(S)() nothrow pure
+{
+    return &equalCaseInsensitive!S;
+}
+
 /** Returns true if both strings are the same (case-sensitive)
     Params:
         s1 = one of D string type
         s2 = one of D string type
 */
-bool equalCase(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)[] s2) nothrow pure
+bool equalCaseSensitive(S)(scope const(XmlChar!S)[] s1, scope const(XmlChar!S)[] s2) nothrow pure
 if (isXmlStringEx!S)
 {
     return s1 == s2;
@@ -595,7 +604,7 @@ if (isXmlStringEx!S)
         value = null;
         return 0;
     }
-    
+
     return splitNameValueI!S(s, s.indexOf(delimiter), name, value);
 }
 
@@ -889,17 +898,17 @@ unittest  // combineName
     assert(combineName!string("prefix", "name") == "prefix:name");
 }
 
-unittest  // equalCase
+unittest  // equalCaseSensitive
 {
-    assert(equalCase!string("", ""));
-    assert(equalCase!string(" ", " "));
-    assert(equalCase!string("a", "a"));
-    assert(equalCase!string("za", "za"));
-    assert(equalCase!string("1", "1"));
+    assert(equalCaseSensitive!string("", ""));
+    assert(equalCaseSensitive!string(" ", " "));
+    assert(equalCaseSensitive!string("a", "a"));
+    assert(equalCaseSensitive!string("za", "za"));
+    assert(equalCaseSensitive!string("1", "1"));
 
-    assert(!equalCase!string("a", "A"));
-    assert(!equalCase!string("za", "ZA"));
-    assert(!equalCase!string("1", "9"));
+    assert(!equalCaseSensitive!string("a", "A"));
+    assert(!equalCaseSensitive!string("za", "ZA"));
+    assert(!equalCaseSensitive!string("1", "9"));
 }
 
 unittest  // equalCaseInsensitive

@@ -121,7 +121,7 @@ shared static this() nothrow @trusted
 {
     version(Posix)
     {
-        auto names = Dictionary!(string, string)(30, 25);
+        auto names = Dictionary!(string, string)(25);
 
         names["acceptSocket"] = "accept";
         names["bindSocket"] = "bind";
@@ -152,7 +152,7 @@ shared static this() nothrow @trusted
     }
     else version(Windows)
     {
-        auto names = Dictionary!(string, string)(30, 25);
+        auto names = Dictionary!(string, string)(25);
 
         names["acceptSocket"] = "accept";
         names["bindSocket"] = "bind";

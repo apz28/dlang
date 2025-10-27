@@ -1458,7 +1458,7 @@ private:
 
 Dictionary!(string, OpenSSLKeyInfo) defaultMappedKeyInfos() nothrow @safe
 {
-    auto result = Dictionary!(string, OpenSSLKeyInfo)(70, 64);
+    auto result = Dictionary!(string, OpenSSLKeyInfo)(64);
 
     result["bf_cbc"] = OpenSSLKeyInfo.bf_cbc();
     result["bf-cbc"] = OpenSSLKeyInfo.bf_cbc();
