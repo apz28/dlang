@@ -164,7 +164,7 @@ public:
         this._localName = null;
         this._namespaceUri = null;
         this.context = context;
-        this.equalName = document.equalName;
+        this.equal = document.equal;
         this._wildMatches.name = name == wildMatchText;
     }
 
@@ -176,7 +176,7 @@ public:
         this._localName = localName;
         this._namespaceUri = namespaceUri;
         this.context = context;
-        this.equalName = document.equalName;
+        this.equal = document.equal;
         this._wildMatches.localName = localName == wildMatchText;
         this._wildMatches.namespaceUri = namespaceUri == wildMatchText;
     }
@@ -184,14 +184,14 @@ public:
     final bool matchByLocalNameUri(Object context, XmlNode!S node) const
     {
         return (_nodeType == node.nodeType) &&
-            (_wildMatches.localName || equalName(_localName, node.localName)) &&
-            (_wildMatches.namespaceUri || equalName(_namespaceUri, node.namespaceUri));
+            (_wildMatches.localName || equal.name(_localName, node.localName)) &&
+            (_wildMatches.namespaceUri || equal.text(_namespaceUri, node.namespaceUri));
     }
 
     final bool matchByName(Object context, XmlNode!S node) const
     {
         return (_nodeType == node.nodeType) &&
-            (_wildMatches.name || equalName(_name, node.name));
+            (_wildMatches.name || equal.name(_name, node.name));
     }
 
     @property final XmlDocument!S document() pure
@@ -226,7 +226,7 @@ public:
 
 public:
     Object context;
-    XmlDocument!S.EqualName equalName;
+    XmlEqualFct!S equal;
 
 protected:
     XmlDocument!S _document;
@@ -472,10 +472,11 @@ public:
     */
     final XmlAttribute!S findAttribute(scope const(C)[] name) nothrow
     {
-        const equalName = document.equalName;
+        const equal = document.equal;
+        
         foreach (a; _attributes[])
         {
-            if (equalName(a.name, name))
+            if (equal.name(a.name, name))
                 return a;
         }
         return null;
@@ -492,12 +493,15 @@ public:
     */
     final XmlAttribute!S findAttribute(scope const(C)[] localName, scope const(C)[] namespaceUri) nothrow
     {
-        const equalName = document.equalName;
+        const equal = document.equal;
+
         foreach (a; _attributes[])
         {
-            if (equalName(a.localName, localName) && equalName(a.namespaceUri, namespaceUri))
+            if (equal.name(a.localName, localName)
+                && equal.sameText(a.namespaceUri, namespaceUri))
                 return a;
         }
+
         return null;
     }
 
@@ -529,12 +533,12 @@ public:
     final XmlElement!S findElement(scope const(C)[] name,
         Flag!"deep" deep = No.deep) nothrow
     {
-        const equalName = document.equalName;
+        const equal = document.equal;
 
         // Prefer shallow level node before sub-nodes
         for (auto i = firstChild; i !is null; i = i.nextSibling)
         {
-            if (i.nodeType == XmlNodeType.element && equalName(i.name, name))
+            if (i.nodeType == XmlNodeType.element && equal.name(i.name, name))
                 return cast(XmlElement!S)i;
         }
 
@@ -566,14 +570,14 @@ public:
     final XmlElement!S findElement(scope const(C)[] localName, scope const(C)[] namespaceUri,
         Flag!"deep" deep = No.deep) nothrow
     {
-        const equalName = document.equalName;
+        const equal = document.equal;
 
         // Prefer shallow level node before sub-nodes
         for (auto i = firstChild; i !is null; i = i.nextSibling)
         {
             if (i.nodeType == XmlNodeType.element &&
-                equalName(i.localName, localName) &&
-                equalName(i.namespaceUri, namespaceUri))
+                equal.name(i.localName, localName) &&
+                equal.sameText(i.namespaceUri, namespaceUri))
                 return cast(XmlElement!S)i;
         }
 
@@ -603,7 +607,7 @@ public:
     final S getAttribute(scope const(C)[] name)
     {
         auto a = findAttribute(name);
-        return a is null ? null : a.value;
+        return a ? a.value : null;
     }
 
     /** Finds an attribute matched localName + namespaceUri with localName + namespaceUri and returns its' value;
@@ -618,7 +622,7 @@ public:
     final S getAttribute(scope const(C)[] localName, scope const(C)[] namespaceUri)
     {
         auto a = findAttribute(localName, namespaceUri);
-        return a is null ? null : a.value;
+        return a ? a.value : null;
     }
 
     /** Finds an attribute matched name with caseinsensitive "ID" and returns its' value;
@@ -627,7 +631,7 @@ public:
     final S getAttributeById()
     {
         auto a = findAttributeById();
-        return a is null ? null : a.value;
+        return a ? a.value : null;
     }
 
     /** Finds an element that have the mached attribute name id and returns it;
@@ -640,12 +644,12 @@ public:
     */
     final XmlElement!S findElementById(scope const(C)[] id) nothrow
     {
-        const equalName = document.equalName;
+        const equal = document.equal;
 
         // Prefer shallow level node before sub-nodes
         for (auto i = firstChild; i !is null; i = i.nextSibling)
         {
-            if (i.nodeType == XmlNodeType.element && equalName(i.getAttributeById(), id))
+            if (i.nodeType == XmlNodeType.element && equal.name(i.getAttributeById(), id))
                 return cast(XmlElement!S)i;
         }
 
@@ -743,6 +747,9 @@ public:
         return _children.insertAfter(refChild._prev, newChild);
     }
 
+    /**
+     * Returns an actual namespace of this node
+     */
     final XmlNamespace!S namespace() nothrow
     {
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
@@ -751,18 +758,40 @@ public:
             return XmlNamespace!S.emptyNamespace();
 
         auto doc = ownerDocument;
-        const equalName = doc !is null ? doc.equalName : equalCaseName!S;
-        const equalText = doc !is null ? doc.equalText : equalCaseText!S;
+
+        // namespace of this attribute?
+        if (const iNS = isNamespaceNode)
+        {
+            const v = value;
+
+            if (iNS == 2)
+            {
+                const n = localName;
+                if (v.length == 0 && doc !is null)
+                {
+                    auto ns = doc.namespaces.findByName(n);
+                    if (ns.isValid)
+                        return new XmlNamespace!S(n, ns.namespaceUri, level);
+                }
+                return new XmlNamespace!S(n, v, level);
+            }
+
+            if (v.length != 0)
+            {
+                auto ns = doc ? doc.namespaces.findByUri(v) : null;
+                if (ns !is null && ns.isValid)
+                    return ns.level == level ? ns : new XmlNamespace!S(ns.namespaceName, v, level);
+                else
+                    return new XmlNamespace!S(null, v, level);
+            }
+        }
 
         auto uri = namespaceUri;
-        const iNS = isNamespaceNode;
-        if (iNS == 2)
-            return new XmlNamespace!S(localName, uri, level);
-
-        auto p = iNS == 0 ? prefix : null;
+        auto p = prefix;
         if (p.length != 0 && uri.length != 0)
             return new XmlNamespace!S(p, uri, level);
 
+        const equalText = doc ? doc.equal.text : equalCaseText!S;
         auto par = nodeType == XmlNodeType.element
             ? parent
             : (parent ? parent.parent : null);
@@ -775,26 +804,19 @@ public:
             // case #2: xmlns:NSbook="http://book.htm"
             if (auto a = par.hasNamespaceAttribute)
             {
-                const ap = a.prefix;
                 const an = a.localName;
                 const av = a.value;
                 const aiNS = a.isNamespaceNode;
 
-                if (p.length != 0 && aiNS == 2 && equalName(an, p))
+                if (aiNS == 2 && (p.length == 0 || an == p))
                     return new XmlNamespace!S(an, av, par.level);
 
-                if (uri.length != 0 && aiNS == 2 && equalText(av, uri))
-                    return new XmlNamespace!S(an, av, par.level);
-
-                debug(debug_pham_xml_xml_dom) debug writeln("loop1.p=", p, ", uri=", uri, ", name=", name, ", par=", par.name);
-
-                if (uri.length == 0)
-                    uri = av;
-
-                if (p.length == 0 && aiNS == 2)
-                    p = an;
-
-                debug(debug_pham_xml_xml_dom) debug writeln("loop2.p=", p, ", uri=", uri, ", name=", name, ", par=", par.name);
+                if (p.length == 0 && av.length != 0 && (uri.length == 0 || equalText(av, uri)))
+                {
+                    auto ns = doc ? doc.namespaces.findByUri(av) : null;
+                    const nsn = aiNS == 2 ? an : (ns !is null && ns.isValid ? ns.namespaceName : null);
+                    return new XmlNamespace!S(nsn, av, par.level);
+                }
             }
             par = par.parent;
         }
@@ -821,6 +843,9 @@ public:
         return new XmlNamespace!S(p, uri, level);
     }
 
+    /**
+     * Returns a list of namespaces defined from this node
+     */
     final XmlNamespaceList!S namespaces() nothrow @trusted
     {
         import pham.utl.utl_array_dictionary : Dictionary;
@@ -833,13 +858,15 @@ public:
         auto doc = ownerDocument;
         auto par = nodeType == XmlNodeType.element ? this : parent;
         auto sourceList = Dictionary!(XmlNamespace!S, bool)(par.level);
+
         while (par !is null && par.nodeType == XmlNodeType.element)
         {
             if (auto a = par.hasNamespaceAttribute)
             {
+                const av = a.value;
                 auto ns = a.isNamespaceNode == 2
-                    ? new XmlNamespace!S(a.localName, a.value, par.level)
-                    : (doc ? doc.namespaces.findByUri(a.value) : new XmlNamespace!S(null, a.value, par.level));
+                    ? new XmlNamespace!S(a.localName, av, par.level)
+                    : (doc ? doc.namespaces.findByUri(av) : new XmlNamespace!S(null, av, par.level));
                 if (!sourceList.containKey(ns))
                     sourceList[ns] = true;
             }
@@ -1058,8 +1085,9 @@ public:
     /** Returns its' first attribute node
         A null if node has no attribute
     */
-    @property final XmlAttribute!S firstAttribute() nothrow
+    @property final XmlNode!S firstAttribute() nothrow
     {
+        // Returns as XmlNode!S for same iteration with nextSibling
         return _attributes.first;
     }
 
@@ -1093,8 +1121,8 @@ public:
         while (a !is null)
         {
             if (a.isNamespaceNode)
-                return a;
-            a = cast(XmlAttribute!S)a.nextSibling;
+                return cast(XmlAttribute!S)a;
+            a = a.nextSibling;
         }
         return null;
     }
@@ -1168,7 +1196,7 @@ public:
         if (nodeType != XmlNodeType.attribute)
             return 0;
 
-        if (localName.length != 0 && prefix == XmlConst!S.xmlnsName)
+        if (prefix == XmlConst!S.xmlnsName && localName.length != 0)
             return 2;
 
         if (prefix.length == 0 && localName == XmlConst!S.xmlnsName)
@@ -1190,8 +1218,9 @@ public:
 
     /** Returns its' last attribute node. A null if node has no attribute
     */
-    @property final XmlAttribute!S lastAttribute() nothrow
+    @property final XmlNode!S lastAttribute() nothrow
     {
+        // Returns as XmlNode!S for same iteration with previousSibling
         return _attributes.last;
     }
 
@@ -2041,8 +2070,8 @@ private:
             list = restore;
 
         const equalName = list._filterContext !is null
-            ? list._filterContext.equalName
-            : list._current.document.equalName;
+            ? list._filterContext.equal.name
+            : list._current.document.equal.name;
         while (list._current !is null)
         {
             auto nodeName = list._current.name;
@@ -2067,8 +2096,8 @@ private:
             return null;
 
         const equalName = list._filterContext !is null
-            ? list._filterContext.equalName
-            : list._flatList[list._currentOffset].document.equalName;
+            ? list._filterContext.equal.name
+            : list._flatList[list._currentOffset].document.equal.name;
         foreach (i; list._currentOffset..list._flatList.length)
         {
             auto nodeName = list._flatList[i].name;
@@ -2097,8 +2126,8 @@ private:
             list = restore;
 
         const equalName = list._filterContext !is null
-            ? list._filterContext.equalName
-            : list._current.document.equalName;
+            ? list._filterContext.equal.name
+            : list._current.document.equal.name;
         while (list._current !is null)
         {
             auto nodeName = list._current.name;
@@ -2661,7 +2690,7 @@ protected:
             S name, value;
             splitNameValueD!S(e, '=', name, value);
 
-            const equalName = document.equalName;
+            const equalName = document.equal.name;
             if (equalCaseInsensitive!S(name, XmlConst!S.declarationVersionName))
                 versionStr = value;
             else if (equalCaseInsensitive!S(name, XmlConst!S.declarationEncodingName))
@@ -2757,6 +2786,34 @@ private:
     __gshared static XmlName!S _defaultQualifiedName;
 }
 
+struct XmlEqualFct(S = string)
+if (isXmlStringEx!S)
+{
+nothrow @safe:
+
+public:
+    alias C = XmlChar!S;
+    alias EqualFct = bool function(scope const(C)[] s1, scope const(C)[] s2) nothrow pure @safe;
+
+public:
+    this(XmlDocument!S document) @nogc pure
+    {
+        this.name = document.equal.name;
+        this.name = document.equal.text;
+    }
+
+    pragma(inline, true)
+    bool sameText(scope const(C)[] lhs, scope const(C)[] optionalRhs) const pure
+    {
+        // Use is null to allow checking for empty
+        return optionalRhs.ptr is null || text(lhs, optionalRhs);
+    }
+
+public:
+    EqualFct name = equalCaseName!S;
+    EqualFct text = equalCaseText!S;
+}
+
 /** A xml document node object
 */
 class XmlDocument(S = string) : XmlNode!S
@@ -2764,16 +2821,12 @@ class XmlDocument(S = string) : XmlNode!S
 @safe:
 
 public:
-    alias EqualName = bool function(scope const(C)[] s1, scope const(C)[] s2) nothrow pure @safe;
-
-public:
     /**
      * A function pointer that is used for name comparision. This is allowed to be used
-     * to compare name without case-sensitive.
-     * Default is case-sensitive comparision
+     * to compare name/text without case-sensitive.
+     * Default is case-sensitive name & case-insensitive text comparision
      */
-    EqualName equalName;
-    EqualName equalText;
+    XmlEqualFct!S equal;
 
     /**
      * Default namespace values of this document.
@@ -2789,8 +2842,6 @@ public:
 public:
     this() @trusted
     {
-        this.equalName = equalCaseName!S;
-        this.equalText = equalCaseText!S;
         this._ownerDocument = null;
         this._qualifiedName = singleton!(XmlName!S)(_defaultQualifiedName, &createDefaultQualifiedName);
         this._buffers = new XmlBufferList!(S, No.CheckEncoded)();
@@ -3388,7 +3439,7 @@ public:
 
     @property final S publicOrSystem(S newValue) nothrow
     {
-        const equalName = document.equalName;
+        const equalName = document.equal.name;
         if (newValue.length == 0 ||
             newValue == XmlConst!S.public_ ||
             newValue == XmlConst!S.system)
@@ -4440,7 +4491,7 @@ public:
 
     @property final S prefix()
     {
-        if (_localName.length == 0 && _prefix.length == 0 && _name.length != 0)
+        if (_prefix.length == 0 && _localName.length == 0 && _name.length != 0)
             splitName!S(_name, _prefix, _localName);
 
         return _prefix;
@@ -4614,6 +4665,8 @@ protected:
 
 struct XmlNamespaceList(S = string)
 {
+    import pham.utl.utl_delegate_list : ApplyValue;
+
 nothrow @safe:
 
 public:
@@ -4623,33 +4676,11 @@ public:
     }
 
     /**
-     * Supports build-in foreach operator
+     * Supports build-in foreach operator opApply
+     * int delegate(XmlNamespace!S value)
+     * int delegate(size_t index, XmlNamespace!S value)
      */
-    alias opApply = opApplyImpl!(int delegate(XmlNamespace!S value));
-    alias opApply = opApplyImpl!(int delegate(size_t index, XmlNamespace!S value));
-    int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(XmlNamespace!S))
-        || is(CallBack : int delegate(size_t, XmlNamespace!S)))
-    {
-        static if (is(CallBack : int delegate(size_t, XmlNamespace!S)))
-        {
-            foreach (i, e; _items)
-            {
-                if (const r = callBack(i, e))
-                    return r;
-            }
-        }
-        else
-        {
-            foreach (e; _items)
-            {
-                if (const r = callBack(e))
-                    return r;
-            }
-        }
-
-        return 0;
-    }
+    mixin ApplyValue!(XmlNamespace!S, _items);
 
     ref typeof(this) opOpAssign(string op : "~")(XmlNamespace!S rhs) return
     {
@@ -4684,7 +4715,7 @@ public:
 
         foreach (e; _items)
         {
-            if (e.isValid && equalName(e.namespaceName, namespaceName))
+            if (e.isValid && e.namespaceName == namespaceName)
                 return e;
         }
 
@@ -4698,7 +4729,7 @@ public:
 
         foreach (e; _items)
         {
-            if (e.isValid && equalText(e.namespaceUri, namespaceUri))
+            if (e.isValid && equal.text(e.namespaceUri, namespaceUri))
                 return e;
         }
 
@@ -4792,8 +4823,7 @@ public:
     }
 
 public:
-    XmlDocument!S.EqualName equalName = equalCaseName!S;
-    XmlDocument!S.EqualName equalText = equalCaseText!S;
+    XmlEqualFct!S equal;
 
 private:
     XmlNamespace!S[] _items;

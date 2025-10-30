@@ -13,7 +13,63 @@ module pham.utl.utl_delegate_list;
 
 import std.traits : ReturnType, isDelegate;
 
-import pham.utl.utl_array_static : StaticArray;
+mixin template ApplyReference(T, alias items)
+{
+    public alias opApply = opApplyImpl!(int delegate(ref T value));
+    public alias opApply = opApplyImpl!(int delegate(size_t index, ref T value));
+
+    public final int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(ref T)) || is(CallBack : int delegate(size_t, ref T)))
+    {
+        static if (is(CallBack : int delegate(size_t, ref T)))
+        {
+            foreach (i, ref e; items)
+            {
+                if (const r = callBack(i, e))
+                    return r;
+            }
+        }
+        else
+        {
+            foreach (ref e; items)
+            {
+                if (const r = callBack(e))
+                    return r;
+            }
+        }
+
+        return 0;
+    }
+}
+
+mixin template ApplyValue(T, alias items)
+{
+    public alias opApply = opApplyImpl!(int delegate(T value));
+    public alias opApply = opApplyImpl!(int delegate(size_t index, T value));
+
+    public final int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(size_t, T)))
+    {
+        static if (is(CallBack : int delegate(size_t, T)))
+        {
+            foreach (i, e; items)
+            {
+                if (const r = callBack(i, e))
+                    return r;
+            }
+        }
+        else
+        {
+            foreach (e; items)
+            {
+                if (const r = callBack(e))
+                    return r;
+            }
+        }
+
+        return 0;
+    }
+}
 
 template DelegateList(Args...)
 {
@@ -34,6 +90,8 @@ if (isDelegate!DelegateHandler)
 struct DelegateListOf(DelegateHandler, Args...)
 if (isDelegate!DelegateHandler)
 {
+    import pham.utl.utl_array_static : StaticArray;
+
 public:
     alias Return = ReturnType!DelegateHandler;
     //pragma(msg, Return.stringof);
@@ -203,4 +261,64 @@ unittest // DelegateList
     list("2", 2);
     assert(eName == "2" && eValue == 2);
     assert(s1.a == 101);
+}
+
+unittest // ApplyValue
+{
+    static struct Foo
+    {
+        mixin ApplyValue!(int, values);
+
+        int[3] values = [1, 2, 3];
+    }
+
+    int sum = 0;
+    Foo foo;
+    foreach (e; foo)
+        sum += e;
+    assert(sum == 6);
+
+    int j = 0;
+    sum = 0;
+    foreach (i, e; foo)
+    {
+        assert(j == i);
+        sum += e;
+        j++;
+    }
+    assert(sum == 6);
+    assert(j == foo.values.length);
+}
+
+unittest // ApplyReference
+{
+    static struct Foo
+    {
+        mixin ApplyReference!(int, values);
+
+        int[3] values = [1, 2, 3];
+    }
+
+    int sum = 0;
+    Foo foo;
+    foreach (ref e; foo)
+    {
+        sum += e;
+        e += 1;
+    }
+    assert(sum == 6);
+    assert(foo.values == [2, 3, 4]);
+
+    int j = 0;
+    sum = 0;
+    foreach (i, ref e; foo)
+    {
+        assert(j == i);
+        sum += e;
+        j++;
+        e += 1;
+    }
+    assert(sum == 9);
+    assert(j == foo.values.length);
+    assert(foo.values == [3, 4, 5]);
 }

@@ -151,11 +151,13 @@ if (isXmlStringEx!S)
 }
 
 auto equalCaseName(S)() nothrow pure
+if (isXmlStringEx!S)
 {
     return &equalCaseSensitive!S;
 }
 
 auto equalCaseText(S)() nothrow pure
+if (isXmlStringEx!S)
 {
     return &equalCaseInsensitive!S;
 }

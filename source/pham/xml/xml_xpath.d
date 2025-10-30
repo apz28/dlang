@@ -933,7 +933,7 @@ protected:
         // Do not log or use any codes using string (GC data) since it can be called from destructor
         final switch (_type)
         {
-            case XPathDataType.text:            
+            case XPathDataType.text:
                 _text = null;
                 break;
             case XPathDataType.nodeSet:
@@ -941,7 +941,7 @@ protected:
                 break;
             case XPathDataType.empty:
             case XPathDataType.boolean:
-            case XPathDataType.number:                
+            case XPathDataType.number:
                 break;
         }
 
@@ -1017,7 +1017,8 @@ public:
         auto doc = source !is null ? source.document : null;
         this._source = source;
         this._document = doc;
-        this.equalName = doc !is null ? doc.equalName : equalCaseName!S;
+        if (doc)
+            this.equal = doc.equal;
     }
 
     pragma(inline, true)
@@ -1031,7 +1032,7 @@ public:
         XPathContext!S result;
         result._source = this._source;
         result._document = this._document;
-        result.equalName = this.equalName;
+        result.equal = this.equal;
         result.filterNodes = this.filterNodes;
         result.variables = this.variables;
         return result;
@@ -1086,7 +1087,7 @@ public:
     }
 
 public:
-    XmlDocument!S.EqualName equalName;
+    XmlEqualFct!S equal;
 
     XmlPathNodeList!S filterNodes;
     Dictionary!(S, XPathValue!S) variables;
@@ -1348,10 +1349,10 @@ protected:
         if (result && _matchAnyName != MatchAnyName.both)
         {
             if (result && _matchAnyName != MatchAnyName.prefix && _prefix.length != 0)
-                result = inputContext.equalName(_prefix, node.namespace().prefix);
+                result = inputContext.equal.name(_prefix, node.namespace().prefix);
 
             if (result && _matchAnyName != MatchAnyName.localName && _localName.length != 0)
-                result = inputContext.equalName(_localName, node.localName);
+                result = inputContext.equal.name(_localName, node.localName);
         }
 
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("result=", result,
@@ -4520,33 +4521,35 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
 // lang( string )
 void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
-    import std.algorithm.searching : startsWith;
-
-    S lan = context.argumentList[0].evaluate!S(inputContext);
-
-    bool hasLan(XmlNode!S e)
+    import std.uni : toLower;
+    
+    static bool hasLan(XmlNode!S e, S lanQuery) @safe
     {
-        bool r;
+        import std.algorithm.searching : startsWith;
+        
+        bool result;
         do
         {
             if (auto a = e.findAttribute("xml:lang"))
             {
-                S av = a.value;
-                r = av.startsWith(lan);
+                const lanXml = toLower(a.value);
+                result = lanXml.startsWith(lanQuery)
+                    && (lanXml.length == lanQuery.length || lanXml[lanQuery.length] == '-');
             }
             e = e.parent;
         }
-        while (e !is null && !r);
-        return r;
+        while (!result && e !is null);
+        return result;
     }
-
+    
+    const lanQuery = toLower(context.argumentList[0].evaluate!S(inputContext));
     bool result;
-    if (lan.length != 0)
+    if (lanQuery.length != 0)
     {
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            result = hasLan(e);
+            result = hasLan(e, lanQuery);
             if (result)
                 break;
         }
@@ -4559,7 +4562,7 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
 void fctLast(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     //import std.stdio : writeln; debug writeln("resNodes.length=", inputContext.resNodes.length, ", filterNodes.length=", inputContext.filterNodes.length);
-    
+
     double result = inputContext.filterNodes.length;
 
     outputContext.resValue = result;
@@ -5654,5 +5657,49 @@ unittest // fctString - Complex
 
         r = evaluate(evaluate(doc.documentElement, "/ns:store/namespace::*[last()]"), "string()");
         assert(r.get!string() == "http://www.w3.org/XML/1998/namespace", r.get!string());
+    }
+}
+
+unittest // fctBoolean - Complex
+{
+    if (auto doc = loadUnittestXml("xp004.xml"))
+    {
+        auto r = evaluate(selectNode(doc, "/Doc/Test2"), "boolean(child::*)");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(selectNode(doc, "/Doc/Test2"), "boolean(child::DoesNotExist)");
+        assert(r.get!bool() == false, r.get!string());
+
+        r = evaluate(selectNode(doc, "/Doc/Test2"), "not(boolean(child::*))");
+        assert(r.get!bool() == false, r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("lang.xml"))
+    {
+        auto r = evaluate(selectNode(doc, "/bookstore"), "lang('en')");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(selectNode(doc, "/bookstore/book[2]"), "lang('en')");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(selectNode(doc, "/bookstore"), "lang('en-us')");
+        assert(r.get!bool() == false, r.get!string());
+
+        r = evaluate(selectNode(doc, "/bookstore/book[3]"), "lang('en')");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(selectNode(doc, "/bookstore"), "lang('EN')");
+        assert(r.get!bool() == true, r.get!string());
+
+        r = evaluate(doc, "child::*[lang('en')]");
+        assert(r.length == 1);
+        auto n = r.firstNode();
+        assert(n.localName == "bookstore");
+        assert(n.name == "bookstore");
+        assert(n.hasChildNodes);
+        assert(n.hasAttributes);
+        auto a = n.findAttribute("lang", null);
+        assert(a !is null);
+        assert(a.value == "en");
     }
 }

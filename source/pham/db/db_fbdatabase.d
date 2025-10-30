@@ -26,9 +26,9 @@ import pham.utl.utl_convert : bytesFromBase64s, bytesToBase64s;
 import pham.utl.utl_delegate_list;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
-import pham.utl.utl_object : VersionString;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortFunctionName;
+import pham.utl.utl_version : VersionString;
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -4998,7 +4998,7 @@ version(UnitTestFBDatabase)
 unittest // FbCommandBatch
 {
     import pham.dtm.dtm_date;
-    import pham.utl.utl_object : VersionString;
+    import pham.utl.utl_version : VersionString;
 
     auto connection = createUnitTestConnection();
     scope (exit)
