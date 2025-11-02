@@ -21,24 +21,40 @@ import pham.json.json_exception;
 import pham.json.json_type;
 import pham.json.json_value;
 
-struct JSONToken(T)
+template JSONTokenType(T)
 {
     // Avoid UTF decoding when possible, as it is unnecessary when processing JSON.
-    static if (is(T : const(char)[]))
+    static if (is(T : string))
     {
         alias Char = char;
+        alias Text = string;
+        private enum useISlice = true;
+        private enum useTSlice = true;
+    }
+    else static if (is(T : const(char)[]))
+    {
+        alias Char = char;
+        alias Text = const(char)[];
+        private enum useISlice = false;
         private enum useTSlice = true;
     }
     else
     {
         alias Char = Unqual!(ElementType!T);
+        alias Text = const(char)[];
+        private enum useISlice = false;
         private enum useTSlice = false;
     }
+}
+
+struct JSONToken(T)
+{
+    mixin JSONTokenType!T;
 
 nothrow @safe:
 
 public:
-    this(const(char)[] token, JSONTokenKind kind, size_t line, size_t column,
+    this(Text token, JSONTokenKind kind, size_t line, size_t column,
         string errorMessage = null)
     {
         static if (useTSlice)
@@ -106,6 +122,17 @@ public:
     }
 
     pragma(inline, true)
+    @property string itext() const return
+    {
+        static if (useISlice)
+            return _token;
+        else static if (useTSlice)
+            return _token.idup;
+        else
+            return _token.data.idup;
+    }
+
+    pragma(inline, true)
     @property JSONTokenKind kind() const
     {
         return _kind;
@@ -116,7 +143,8 @@ public:
         return _line;
     }
 
-    @property const(char)[] text() const return
+    pragma(inline, true)
+    @property Text text() const return
     {
         static if (useTSlice)
             return _token;
@@ -146,7 +174,7 @@ private:
     }
 
     pragma(inline, true)
-    void put(const(char)[] token)
+    void put(Text token)
     {
         static if (useTSlice)
             _token = token;
@@ -156,7 +184,7 @@ private:
 
 private:
     static if (useTSlice)
-        const(char)[] _token;
+        Text _token;
     else
         Appender!(char[]) _token;
     size_t _line, _column;
@@ -172,17 +200,7 @@ struct JSONTextTokenizer(T, JSONOptions options = defaultOptions)
 
     static immutable string eofErrorMessage = "JSON - Unexpected end of data";
 
-    // Avoid UTF decoding when possible, as it is unnecessary when processing JSON.
-    static if (is(T : const(char)[]))
-    {
-        alias Char = char;
-        private enum useTSlice = true;
-    }
-    else
-    {
-        alias Char = Unqual!(ElementType!T);
-        private enum useTSlice = false;
-    }
+    mixin JSONTokenType!T;
 
 nothrow:
 
@@ -345,7 +363,7 @@ public:
 
                 static if (!useTSlice)
                     _token.put(c);
-    
+
                 setTokenError(text("JSON - Unexpected character '", JSONTextEncoder.encodeUtf8(c), "'"), _line, _column);
                 return;
         }
@@ -780,7 +798,7 @@ private:
                 }
             }
             // Check for special float symbol NaN or Infinity
-            else if (c == 'N' || c == 'n' || c == 'I' || c == 'i')
+            else if (isStartFloatLiteral2(c))
                 return getFloatSymbol(bp, c);
         }
 
@@ -985,7 +1003,7 @@ private:
                 {
                     _token.put(c);
                 }
-                
+
                 goto Next;
         }
 
@@ -1118,7 +1136,7 @@ private:
         else
         {
             import std.range : front, popFront;
-            
+
             debug(debug_pham_utl_utl_json) _p++;
             const Char c = json.front;
             json.popFront();
@@ -1257,7 +1275,8 @@ if (isSomeFiniteCharInputRange!T)
 {
     JSONValue root;
 
-    auto tokenizer = JSONTextTokenizer!(T, options)(json);
+    alias Tokenizer = JSONTextTokenizer!(T, options);
+    auto tokenizer = Tokenizer(json);
 
     if (tokenizer.empty)
     {
@@ -1283,7 +1302,9 @@ if (isSomeFiniteCharInputRange!T)
         version(JSONCommentStore)
         {
             if (lastComment.length == 0)
-                lastComment = tokenizer.front.text.idup;
+            {
+                lastComment = tokenizer.front.itext;
+            }
             else
             {
                 lastComment ~= "\n";
@@ -1374,7 +1395,8 @@ if (isSomeFiniteCharInputRange!T)
                         break;
                     }
                 }
-                value.nullify(JSONType.string)._store = JSONValue.Store(str: tokenizer.front.text.idup);
+
+                value.nullify(JSONType.string)._store = JSONValue.Store(str: tokenizer.front.itext);
                 break;
 
             case JSONTokenKind.beginArray:
@@ -1436,7 +1458,7 @@ if (isSomeFiniteCharInputRange!T)
                         error(text("Expected field name but found '", tokenizer.front.text, "'"));
 
                     // Get member name
-                    string memberKey = tokenizer.front.text.idup;
+                    const memberKey = tokenizer.front.itext;
                     tokenizer.popFront();
                     kind = popFrontCheck();
                     if (kind != JSONTokenKind.colon)
@@ -1513,7 +1535,7 @@ package
         return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
     }
 
-    /** 
+    /**
      * Returns true if object parameter is class type of T
      * Params:
      *  object = A class object
@@ -1528,7 +1550,7 @@ package
     {
         return '0' <= c && c <= '9';
     }
-    
+
     pragma(inline, true)
     static bool isHexDigit(const(dchar) c) @nogc nothrow pure @safe
     {
@@ -1558,7 +1580,7 @@ package
             // Accept ASCII NUL as whitespace in non-strict mode.
             return c == 0 || c == ' ' || (c >= 0x09 && c <= 0x0D);
     }
-    
+
     alias isSpace = isWhite;
 }
 
@@ -1821,10 +1843,10 @@ unittest
 {
     alias Tokenizer = JSONTextTokenizer!(dstring, optionsOf([JSONOptions.specialFloatLiterals, JSONOptions.json5]));
     Tokenizer tokens;
-    
+
     tokens = Tokenizer(`" "`d);
     checkTokens(tokens, [JSONToken!dstring("", JSONTokenKind.string, 1, 1)]);
-    
+
     tokens = Tokenizer(`[" "]`d);
     checkTokens(tokens, [
         JSONToken!dstring(null, JSONTokenKind.beginArray, 1, 1),

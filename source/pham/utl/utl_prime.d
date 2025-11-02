@@ -50,7 +50,7 @@ size_t expandPrimeLength(const(size_t) oldLength) @nogc nothrow pure
         return maxPrimeLength4B;
     }
 
-    return getPrime(newLength);
+    return getPrimeLength(newLength);
 }
 
 /**
@@ -92,10 +92,14 @@ size_t getPrime(const(size_t) min) @nogc nothrow pure
  */
 size_t getPrimeLength(const(size_t) min) @nogc nothrow pure
 {
-    foreach (prime; primeLengths)
+    enum maxTablePrime = primeLengths[$ - 1];
+    if (min < maxTablePrime)
     {
-        if (prime >= min)
-            return prime;
+        foreach (prime; primeLengths)
+        {
+            if (prime >= min)
+                return prime;
+        }
     }
 
     // Outside of our predefined table. Compute the hard way.

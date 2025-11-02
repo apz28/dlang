@@ -23,6 +23,7 @@ struct StaticArray(T, ushort StaticSize)
 if (StaticSize != 0)
 {
     import std.traits : hasElaborateDestructor;
+    import pham.utl.utl_delegate_list : ApplyAutoRef;
 
 public:
     /**
@@ -63,42 +64,7 @@ public:
     /**
      * Supports build-in foreach operator
      */
-    static if (T.sizeof <= size_t.sizeof)
-    {
-        alias opApply = opApplyImpl!(int delegate(T));
-        alias opApply = opApplyImpl!(int delegate(size_t, T));
-    }
-    else
-    {
-        alias opApply = opApplyImpl!(int delegate(ref T));
-        alias opApply = opApplyImpl!(int delegate(size_t, ref T));
-    }
-
-    int opApplyImpl(CallBack)(scope CallBack callBack)
-    if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(ref T))
-        || is(CallBack : int delegate(size_t, T)) || is(CallBack : int delegate(size_t, ref T)))
-    {
-        debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "()");
-
-        static if (is(CallBack : int delegate(T)) || is(CallBack : int delegate(ref T)))
-        {
-            foreach (ref e; _items[0.._length])
-            {
-                if (const r = callBack(e))
-                    return r;
-            }
-        }
-		else
-        {
-            foreach (i; 0.._length)
-            {
-                if (const r = callBack(i, _items[i]))
-                    return r;
-            }
-        }
-
-        return 0;
-    }
+    mixin ApplyAutoRef!(T, opIndex);
 
     /**
      * Reset this StaticArray instant from an other StaticArray

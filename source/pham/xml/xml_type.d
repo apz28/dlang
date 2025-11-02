@@ -61,6 +61,7 @@ if (isXmlStringEx!S)
         static assert(0);
 }
 
+
 private:
 
 unittest // isXmlString

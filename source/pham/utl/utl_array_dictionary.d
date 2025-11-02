@@ -206,7 +206,7 @@ public:
         const ol = rhs.length;
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
-            this.aa = createAA(ol != 0 ? (ol + bucketInflated) : 0, ol, hashMix, customHashOf);
+            this.aa = createAA(ol ? (ol + bucketInflated) : 0, ol, hashMix, customHashOf);
             if (ol)
             {
                 foreach (k, ref v; rhs)
@@ -248,7 +248,7 @@ public:
         const ol = rhs.length;
         if (ol || hashMix != DictionaryHashMix.none || customHashOf !is null)
         {
-            this.aa = createAA(ol != 0 ? (ol + rhs.collisionCount + bucketInflated) : 0, ol, hashMix, customHashOf);
+            this.aa = createAA(ol ? (ol + rhs.collisionCount + bucketInflated) : 0, ol, hashMix, customHashOf);
             if (ol)
             {
                 foreach (ref e; rhs.aa.entries)
@@ -268,14 +268,14 @@ public:
     inout(V)* opBinaryRight(string op)(scope const(K) key) inout nothrow return
     if (op == "in")
     {
-        return length != 0 ? aa.find(key) : null;
+        return length ? aa.find(key) : null;
     }
 
     static if (is(K == string) || is(K == wstring) || is(K == dstring))
     inout(V)* opBinaryRight(string op)(scope const(KE)[] key) inout nothrow return
     if (op == "in")
     {
-        return length != 0 ? aa.find(key) : null;
+        return length ? aa.find(key) : null;
     }
 
     /**
@@ -374,7 +374,7 @@ public:
     static if (isAssignable!V)
     bool containKey(scope const(K) key, ref V value) nothrow
     {
-        if (length != 0)
+        if (length)
         {
             if (auto f = aa.find(key))
             {
@@ -410,7 +410,7 @@ public:
      */
     inout(V) get(scope const(K) key, inout(V) defaultValue) inout
     {
-        if (length != 0)
+        if (length)
         {
             if (auto f = aa.find(key))
                 return *f;
@@ -424,7 +424,7 @@ public:
     {
         //pragma(msg, C.stringof);
 
-        if (length != 0)
+        if (length)
         {
             if (auto f = aa.find(key))
                 return *f;
@@ -455,7 +455,7 @@ public:
      */
     ptrdiff_t indexOf(scope const(K) key) const nothrow
     {
-        return length != 0 ? aa.indexOf(key) : -1;
+        return length ? aa.indexOf(key) : -1;
     }
 
     /**
@@ -495,7 +495,7 @@ public:
     static if (isAssignableKV)
     bool remove(scope const(K) key)
     {
-        return length != 0 ? aa.remove(key) : false;
+        return length ? aa.remove(key) : false;
     }
 
     /**
@@ -508,7 +508,7 @@ public:
     static if (isAssignableKV)
     bool remove(scope const(K) key, ref V value)
     {
-        return length != 0 ? aa.remove(key, value) : false;
+        return length ? aa.remove(key, value) : false;
     }
 
     /**
@@ -592,7 +592,7 @@ public:
      */
     size_t toHash() const nothrow scope
     {
-        return length != 0 ? aa.toHash() : 0u;
+        return length ? aa.toHash() : 0u;
     }
 
     /**
@@ -642,6 +642,7 @@ public:
     /**
      * The current capacity that the Dictionary can hold entries
      */
+    pragma(inline, true)
     @property size_t capacity() const @nogc nothrow pure @safe
     {
         return aa ? aa.capacity : 0;
@@ -658,6 +659,7 @@ public:
     /**
      * Returns true if Dictionary has no elements, otherwise false
      */
+    pragma(inline, true)
     @property bool empty() const @nogc nothrow pure @safe
     {
         return aa is null || aa.length == 0;
@@ -758,11 +760,9 @@ private:
         {
             assert(hash != 0);
 
+            grow();
             uint keyCollision;
-            auto bucket = findSlotInsert(hash, keyCollision);
-            if (grow())
-                bucket = findSlotInsert(hash, keyCollision);
-
+            const bucket = findSlotInsert(hash, keyCollision);
             const entryPos = addEntry(hash, key, value);
             attachEntryToBucket(bucket, entryPos, keyCollision);
 
@@ -821,7 +821,7 @@ private:
                     const size_t hash = key.toHash();
                 else
                     const size_t hash = hashOf(key);
-                return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
+                return hash ? calcHashFinal(hash) : calcHashFinal(1u);
             }
         }
 
@@ -835,7 +835,7 @@ private:
                 else
                 {
                     const size_t hash = hashOf(key);
-                    return hash != 0 ? calcHashFinal(hash) : calcHashFinal(1u);
+                    return hash ? calcHashFinal(hash) : calcHashFinal(1u);
                 }
             }
         }
@@ -930,13 +930,9 @@ private:
         bool grow()
         {
             const newDim = calcDim(entries.length + collisionCount + bucketInflated, buckets.length);
-            if (newDim > buckets.length)
-            {
-                resize(newDim);
-                return true;
-            }
-            else
-                return false;
+            return newDim > buckets.length
+                ? resize(newDim)
+                : false;
         }
 
         ptrdiff_t indexOf(ref const(K) key) const nothrow
@@ -1212,11 +1208,12 @@ private:
             bucketCapacity = calcDim(bucketCapacity, 0);
             if (buckets.length < bucketCapacity)
                 resize(bucketCapacity);
+
             if (entries.capacity < entryCapacity)
                 entries.reserve(entryCapacity);
         }
 
-        void resize(const(size_t) newDim) nothrow @safe
+        bool resize(const(size_t) newDim) nothrow @safe
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe) debug writeln(__FUNCTION__, "(buckets.length=",
                 buckets.length, ", newDim=", newDim, ")");
@@ -1228,6 +1225,8 @@ private:
 
             // safe to free b/c impossible to reference
             arrayFree!Index(oldBuckets);
+
+            return true;
         }
 
         void shrink()
@@ -1435,12 +1434,13 @@ private:
         }
     }
 
+    pragma(inline, true)
     static size_t calcDim(const(size_t) requiredLength, const(size_t) bucketLength) @nogc nothrow pure @safe
     {
         return bucketLength > requiredLength
             ? bucketLength
             : bucketLength == 0
-                ? getPrimeLength(requiredLength != 0 ? requiredLength : 8)
+                ? getPrimeLength(requiredLength)
                 : expandPrimeLength(bucketLength);
     }
 

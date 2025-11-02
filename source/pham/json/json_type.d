@@ -106,6 +106,10 @@ static immutable Dictionary!(string, JSONFloatLiteralType) floatLiteralTypes;
 
 JSONFloatLiteralType floatLiteralType(scope const(char)[] text) @nogc pure
 {
+    enum maxFloatLiteralLength = 9;
+    if (text.length == 0 || text.length > maxFloatLiteralLength || !isStartFloatLiteral(text[0]))
+        return JSONFloatLiteralType.none;
+
     if (auto f = text in floatLiteralTypes)
         return *f;
     else
@@ -118,20 +122,32 @@ bool isCommentTokenKind(JSONTokenKind kind) @nogc pure
     return kind == JSONTokenKind.commentLine || kind == JSONTokenKind.commentLines;
 }
 
+pragma(inline, true)
+bool isStartFloatLiteral(const(dchar) c) @nogc pure
+{
+    return isStartFloatLiteral2(c) || c == '-' || c == '+';
+}
+
+pragma(inline, true)
+bool isStartFloatLiteral2(const(dchar) c) @nogc pure
+{
+    return c == 'N' || c == 'n' || c == 'I' || c == 'i';
+}
+
 bool tryGetSpecialFloat(scope const(char)[] str, ref double val) @nogc pure
 {
     static immutable double[JSONFloatLiteralType.max + 1] floats = [double.nan, -double.nan, double.nan, -double.infinity, double.infinity];
-    
+
     const ft = floatLiteralType(str);
-    
+
     bool trueFloat() @nogc nothrow pure @safe
     {
         pragma(inline, true)
-        
+
         val = floats[ft];
         return true;
     }
-    
+
     return ft == JSONFloatLiteralType.none
         ? false
         : trueFloat();

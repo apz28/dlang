@@ -4522,11 +4522,11 @@ void fctId(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPat
 void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext)
 {
     import std.uni : toLower;
-    
+
     static bool hasLan(XmlNode!S e, S lanQuery) @safe
     {
         import std.algorithm.searching : startsWith;
-        
+
         bool result;
         do
         {
@@ -4541,7 +4541,7 @@ void fctLang(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XP
         while (!result && e !is null);
         return result;
     }
-    
+
     const lanQuery = toLower(context.argumentList[0].evaluate!S(inputContext));
     bool result;
     if (lanQuery.length != 0)
@@ -4924,13 +4924,13 @@ void fctSum(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPa
     auto tempOutputContext = inputContext.createOutputContext();
     context.argumentList[0].evaluate(inputContext, tempOutputContext);
 
-    double result = 0.0;
+    double result = double.nan;
     auto inputNodes = tempOutputContext.resNodes;
-    foreach (e; inputNodes)
+    if (inputNodes.length)
     {
-        const ev = toNumber!S(e.toText!S());
-        if (!isNaN(ev))
-            result += ev;
+        result = 0.0;
+        foreach (e; inputNodes)
+            result += toNumber!S(e.toText!S());
     }
 
     outputContext.resValue = result;
@@ -5701,5 +5701,29 @@ unittest // fctBoolean - Complex
         auto a = n.findAttribute("lang", null);
         assert(a !is null);
         assert(a.value == "en");
+    }
+}
+
+unittest // fctNumber - Complex
+{
+    if (auto doc = loadUnittestXml("xp004.xml"))
+    {
+        auto r = evaluate(selectNode(doc, "/Doc/Test2"), "number(child::*)");
+        assert(r.get!double() == 10, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test2"), "sum(child::*)");
+        assert(r.get!double() == 60, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test1"), "sum(child::*)");
+        assert(r.get!double().isNaN, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test5"), "floor(number(child::Para[1]))");
+        assert(r.get!double() == 2, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test5"), "ceiling(number(child::Para[2]))");
+        assert(r.get!double() == 3, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test5"), "round(number(child::Para[3]))");
+        assert(r.get!double() == 3, r.get!string());
     }
 }

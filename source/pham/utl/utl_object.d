@@ -15,6 +15,7 @@ import std.math : isPowerOf2;
 import std.traits : fullyQualifiedName;
 
 static import pham.utl.utl_text;
+static import pham.utl.utl_version;
 
 
 /**
@@ -100,9 +101,6 @@ alias shortClassName = pham.utl.utl_text.shortClassName;
 
 deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.shortTypeName))
 alias shortTypeName = pham.utl.utl_text.shortTypeName;
-
-//deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.shortenTypeNameTemplate))
-//alias shortenTypeName = pham.utl.utl_text.shortenTypeNameTemplate;
 
 deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_text.simpleFloatFmt))
 alias simpleFloatFmt = pham.utl.utl_text.simpleFloatFmt;
@@ -304,6 +302,9 @@ private:
     Mutex _mutex;
     int _lockedCounter;
 }
+
+deprecated("please use " ~ fullyQualifiedName!(pham.utl.utl_version.VersionString))
+alias VersionString = pham.utl.utl_version.VersionString;
 
 
 // Any below codes are private

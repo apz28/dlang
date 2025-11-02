@@ -13,11 +13,11 @@ module pham.utl.utl_numeric_parser;
 
 import core.time : Duration, dur;
 public import std.ascii : LetterCase;
-import std.range.primitives : ElementEncodingType, empty, put,
-    isInfinite, isInputRange, isOutputRange;
+import std.range.primitives : isInfinite, isInputRange, isOutputRange, put;
 import std.traits : Unqual, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned;
 
 debug(debug_pham_utl_utl_numeric_parser) import std.stdio : writeln;
+import pham.utl.utl_range;
 import pham.utl.utl_utf8;
 
 nothrow @safe:
@@ -395,34 +395,7 @@ if (isSomeChar!Char)
     }
 }
 
-@property ref inout(T) front(T)(return scope inout(T)[] a) pure @nogc
-if (!is(T[] == void[]))
-in
-{
-    assert(a.length, "Attempting to fetch the front of an empty array of " ~ T.stringof);
-}
-do
-{
-    return a[0];
-}
-
-void popFront(T)(scope ref inout(T)[] a) pure @nogc
-if (!is(T[] == void[]))
-in
-{
-    assert(a.length, "Attempting to popFront() past the end of an array of " ~ T.stringof);
-}
-do
-{
-    a = a[1 .. $];
-}
-
-version(none)
-enum isConstCharArray(T) =
-    (is(immutable(T) == immutable(C)[], C) && (is(C == char) || is(C == wchar) || is(C == dchar)))
-    || (is(const(T) == const(C)[], C) && (is(C == char) || is(C == wchar) || is(C == dchar)));
-
-enum isNumericLexerRange(Range) = isInputRange!Range && !isInfinite!Range && isSomeChar!(ElementEncodingType!Range);
+enum isNumericLexerRange(Range) = isInputRange!Range && !isInfinite!Range && isSomeChar!(ElementType!Range);
 
 struct Base64Lexer(Range, char map62th = Base64MappingChar.map62th, char map63th = Base64MappingChar.map63th)
 if (isNumericLexerRange!Range)
@@ -430,13 +403,13 @@ if (isNumericLexerRange!Range)
 nothrow @safe:
 
 public:
-    alias RangeElement = Unqual!(ElementEncodingType!Range);
+    alias RangeElement = UElementType!Range;
 
 public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(Range value, NumericLexerOptions!(const(ElementEncodingType!Range)) options) pure
+    this(Range value, NumericLexerOptions!(const(ElementType!Range)) options) pure
     {
         this.value = value;
         this.options = options;
@@ -500,8 +473,6 @@ public:
 
     void popFront() pure
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         value.popFront();
         _count++;
 
@@ -539,11 +510,13 @@ public:
         return _count;
     }
 
+    //pragma(inline, true)
     @property bool empty() const @nogc pure
     {
         return value.empty;
     }
 
+    //pragma(inline, true)
     @property RangeElement front() const pure
     in
     {
@@ -551,8 +524,6 @@ public:
     }
     do
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         return value.front;
     }
 
@@ -563,13 +534,11 @@ public:
 
 public:
     Range value;
-    NumericLexerOptions!(const(ElementEncodingType!Range)) options;
+    NumericLexerOptions!(const(ElementType!Range)) options;
 
 private:
     void checkHasBase64Char() pure
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         if (options.canSkippingLeadingBlank)
             skipSpaces();
 
@@ -608,7 +577,7 @@ if (isNumericLexerRange!Range)
 nothrow @safe:
 
 public:
-    alias RangeElement = Unqual!(ElementEncodingType!Range);
+    alias RangeElement = UElementType!Range;
 
 public:
     @disable this(this);
@@ -670,8 +639,6 @@ public:
 
     void popFront() pure
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         if (_hasSavedFront)
             _hasSavedFront = false;
         else
@@ -719,11 +686,13 @@ public:
         return _count;
     }
 
+    //pragma(inline, true)
     @property bool empty() const @nogc pure
     {
         return value.empty && !_hasSavedFront;
     }
 
+    //pragma(inline, true)
     @property RangeElement front() const pure
     in
     {
@@ -731,8 +700,6 @@ public:
     }
     do
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         return _hasSavedFront ? _savedFront : value.front;
     }
 
@@ -776,8 +743,6 @@ public:
 private:
     void checkHasNumericChar() pure
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         _isHex = (options.flags & NumericLexerFlag.hexDigit) != 0;
         cvtNumericFrontFct = _isHex ? &(cvtHexDigit!RangeElement) : &(cvtDigit!RangeElement);
 
@@ -975,7 +940,7 @@ NumericLexerOptions!(const(Char)) defaultParseIntegralOptions(Char)() pure
 NumericParsedKind parseBase16(Range, Writer)(ref Writer sink, scope ref Range hexDigitText) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
-    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementEncodingType!Range)());
+    auto lexer = NumericLexer!Range(hexDigitText, defaultParseHexDigitOptions!(ElementType!Range)());
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
@@ -1014,7 +979,7 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 NumericParsedKind parseBase16(String, Writer)(ref Writer sink, scope String hexDigitText) pure
 if (isSomeString!String && isOutputRange!(Writer, ubyte))
 {
-    auto inputRange = NumericStringRange!(Unqual!(ElementEncodingType!String))(hexDigitText);
+    auto inputRange = NumericStringRange!(ElementType!String)(hexDigitText);
     return parseBase16(sink, inputRange);
 }
 
@@ -1035,7 +1000,7 @@ size_t parseBase16Length(const(size_t) chars) @nogc pure
 NumericParsedKind parseBase64(Range, Writer)(ref Writer sink, scope ref Range base64Text) pure
 if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 {
-    auto lexer = Base64Lexer!(Range)(base64Text, defaultParseBase64Options!(ElementEncodingType!Range)());
+    auto lexer = Base64Lexer!(Range)(base64Text, defaultParseBase64Options!(ElementType!Range)());
     if (!lexer.hasBase64Char)
         return NumericParsedKind.invalid;
 
@@ -1096,7 +1061,7 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
 NumericParsedKind parseBase64(String, Writer)(ref Writer sink, scope String base64Text) pure
 if (isSomeString!String && isOutputRange!(Writer, ubyte))
 {
-    auto inputRange = NumericStringRange!(Unqual!(ElementEncodingType!String))(base64Text);
+    auto inputRange = NumericStringRange!(ElementType!String)(base64Text);
     return parseBase64(sink, inputRange);
 }
 
@@ -1190,7 +1155,7 @@ if (isSomeString!String && isNumericLexerRange!Range)
     import std.conv : to;
     import std.uni : sicmp;
 
-    alias RangeElement = Unqual!(ElementEncodingType!Range);
+    alias RangeElement = UElementType!Range;
 
     target = 0.0;
     suffixIndex = -1;
@@ -1264,7 +1229,7 @@ if (isSomeString!String && isNumericLexerRange!Range)
 NumericParsedKind parseDecimalSuffix(String)(scope String decimalText, scope const(String)[] expectedSuffixNames, out double target, out int suffixIndex) pure
 if (isSomeString!String)
 {
-    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(decimalText);
+    auto range = NumericStringRange!(UElementType!String)(decimalText);
     return parseDecimalSuffix(range, expectedSuffixNames, target, suffixIndex);
 }
 
@@ -1384,7 +1349,7 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 {
     target = 0;
 
-    auto lexer = NumericLexer!Range(hexText, defaultParseHexDigitOptions!(ElementEncodingType!Range)());
+    auto lexer = NumericLexer!Range(hexText, defaultParseHexDigitOptions!(ElementType!Range)());
     if (!lexer.hasNumericChar)
         return NumericParsedKind.invalid;
 
@@ -1418,7 +1383,7 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 NumericParsedKind parseHexDigits(String, Target)(scope String hexText, out Target target) pure
 if (isSomeString!String && isIntegral!Target)
 {
-    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(hexText);
+    auto range = NumericStringRange!(UElementType!String)(hexText);
     return parseHexDigits(range, target);
 }
 
@@ -1434,7 +1399,7 @@ NumericParsedKind parseIntegral(Range, Target)(scope ref Range integralText, out
 if (isNumericLexerRange!Range && isIntegral!Target)
 {
     uint digitsCount;
-    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(Unqual!(ElementEncodingType!Range))());
+    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(UElementType!Range)());
     return parseIntegralImpl(lexer, target, digitsCount);
 }
 
@@ -1442,8 +1407,56 @@ if (isNumericLexerRange!Range && isIntegral!Target)
 NumericParsedKind parseIntegral(String, Target)(scope String integralText, out Target target) pure
 if (isSomeString!String && isIntegral!Target)
 {
-    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(integralText);
+    auto range = NumericStringRange!(UElementType!String)(integralText);
     return parseIntegral(range, target);
+}
+
+version(none)
+NumericParsedKind parseValidIntegral(Target)(scope const(char)[] validIntegralText, ref Target target) pure
+in
+{
+    assert(validIntegralText.length != 0);
+}
+do
+{
+    auto isNeg = false;
+    auto i = 0;
+    if (validIntegralText[0] == '-')
+    {
+        isNeg = true;
+        i++;
+    }
+    else if (validIntegralText[0] == '+')
+        i++;
+        
+    enum maxDiv10 = Target.max / 10;
+    const maxLastDigit = (Target.min < 0 ? 7 : 5) + isNeg;
+
+    static if (Target.sizeof <= int.sizeof)
+        int vTemp = 0;
+    else
+        long vTemp = 0;
+        
+    ubyte b;
+    while (i < validIntegralText.length)
+    {
+        if (cvtDigit(validIntegralText[i], b))
+        {
+            if (vTemp >= 0 && (vTemp < maxDiv10 || (vTemp == maxDiv10 && b <= maxLastDigit)))
+                vTemp = (vTemp * 10) + b;
+            else
+                return isNeg ? NumericParsedKind.underflow : NumericParsedKind.overflow;
+        }
+        else
+        {
+            if (validIntegralText[i] != '_')
+                return NumericParsedKind.invalid;
+        }
+        i++;
+    }
+    
+    target = isNeg ? cast(Target)(-vTemp) : cast(Target)vTemp;
+    return NumericParsedKind.ok;
 }
 
 private NumericParsedKind parseIntegralImpl(Lexer, Target)(scope ref Lexer lexer, out Target target, out uint digitsCount) pure
@@ -1544,11 +1557,11 @@ if (isSomeString!String && isNumericLexerRange!Range && isIntegral!Target)
 {
     import std.uni : sicmp;
 
-    alias RangeElement = Unqual!(ElementEncodingType!Range);
+    alias RangeElement = UElementType!Range;
 
     suffixIndex = -1;
     uint digitsCount;
-    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementEncodingType!Range)());
+    auto lexer = NumericLexer!Range(integralText, defaultParseIntegralOptions!(ElementType!Range)());
     auto nk = parseIntegralImpl(lexer, target, digitsCount);
 
     debug(debug_pham_utl_utl_numeric_parser) debug writeln("nk=", nk, ", target=", target, ", digitsCount=", digitsCount);
@@ -1587,7 +1600,7 @@ if (isSomeString!String && isNumericLexerRange!Range && isIntegral!Target)
 NumericParsedKind parseIntegralSuffix(String, Target)(scope String integralText, scope const(String)[] expectedSuffixNames, out Target target, out int suffixIndex) pure
 if (isSomeChar!String && isIntegral!Target)
 {
-    auto range = NumericStringRange!(Unqual!(ElementEncodingType!String))(integralText);
+    auto range = NumericStringRange!(UElementType!String)(integralText);
     return parseIntegralSuffix(range, expectedSuffixNames, target, suffixIndex);
 }
 
@@ -2016,4 +2029,29 @@ unittest // parseComputingSize
     assert(v == computingSizeUnitValues[ComputingSizeUnit.pbytes] * 2);
     assert(parseComputingSize("2", ComputingSizeUnit.pbytes, v) == NumericParsedKind.ok);
     assert(v == computingSizeUnitValues[ComputingSizeUnit.pbytes] * 2);
+}
+
+version(none)
+unittest // parseValidIntegral
+{
+    int v;
+    auto a = parseValidIntegral!int("123", v);
+    assert(a == NumericParsedKind.ok);
+    assert(v == 123);
+    
+    a = parseValidIntegral!int("+123", v);
+    assert(a == NumericParsedKind.ok);
+    assert(v == 123);
+    
+    a = parseValidIntegral!int("-123", v);
+    assert(a == NumericParsedKind.ok);
+    assert(v == -123);
+    
+    a = parseValidIntegral!int("+123__456", v);
+    assert(a == NumericParsedKind.ok);
+    assert(v == 123_456);
+    
+    a = parseValidIntegral!int("-123_456", v);
+    assert(a == NumericParsedKind.ok);
+    assert(v == -123_456);    
 }
