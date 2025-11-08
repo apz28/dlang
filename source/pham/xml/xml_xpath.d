@@ -5168,7 +5168,45 @@ debug(debug_pham_xml_xml_xpath) ref Appender!string put(return ref Appender!stri
     return sink.put(value);
 }
 
-version(unittest) import pham.xml.xml_test;
+version(unittest)
+{
+    import std.conv : text;
+    import std.typecons : Nullable;
+    import pham.xml.xml_test;
+
+    struct NodeTestResult
+    {
+        Nullable!size_t length;
+        Nullable!XmlNodeType nodeType;
+        Nullable!string localName;
+        Nullable!string name;
+        Nullable!string value;
+        Nullable!bool hasAttributes;
+        Nullable!bool hasChildNodes;
+        Nullable!string attributeName;
+        Nullable!string attributeValue;
+
+        void check(XPathValue!string r, size_t line = __LINE__)
+        {
+            assert(length.isNull || r.length == length, text("length failed ", r.length, length, " at line ", line));
+
+            auto n = r.firstNode();
+            assert(n !is null, text("no node found at line ", line));
+            assert(nodeType.isNull || n.nodeType == nodeType, text("nodeType failed ", n.nodeType, " vs ", nodeType, " at line ", line));
+            assert(name.isNull || n.name == name, text("name failed ", n.name, name, " at line ", line));
+            assert(localName.isNull || n.localName == localName, text("localName failed ", n.localName, " vs ", localName, " at line ", line));
+            assert(value.isNull || n.innerText == value, text("value failed ", n.innerText, " vs ", value, " at line ", line));
+
+            assert(hasAttributes.isNull || n.hasAttributes == hasAttributes, text("hasAttributes failed ", n.hasAttributes, " vs ", hasAttributes, " at line ", line));
+            assert(hasChildNodes.isNull || n.hasChildNodes == hasChildNodes, text("hasChildNodes failed ", n.hasChildNodes, " vs ", hasChildNodes, " at line ", line));
+
+            auto a = !attributeName.isNull ? n.findAttribute(attributeName.get, null) : null;
+            string av = a !is null ? a.value : null;
+            assert(attributeName.isNull || a !is null, text("attributeName failed ", a ? a.localName : "", " vs ", attributeName, " at line ", line));
+            assert(attributeValue.isNull || av == attributeValue, text("attributeValue failed ", av, " vs ", attributeValue, " at line ", line));
+        }
+    }
+}
 
 debug(debug_pham_xml_xml_xpath)
 unittest  // XPathParser
@@ -5691,16 +5729,10 @@ unittest // fctBoolean - Complex
         r = evaluate(selectNode(doc, "/bookstore"), "lang('EN')");
         assert(r.get!bool() == true, r.get!string());
 
+        NodeTestResult expect = {length:1, nodeType:XmlNodeType.element, localName:"bookstore", name:"bookstore",
+            hasAttributes:true, hasChildNodes:true, attributeName:"lang", attributeValue:"en"};
         r = evaluate(doc, "child::*[lang('en')]");
-        assert(r.length == 1);
-        auto n = r.firstNode();
-        assert(n.localName == "bookstore");
-        assert(n.name == "bookstore");
-        assert(n.hasChildNodes);
-        assert(n.hasAttributes);
-        auto a = n.findAttribute("lang", null);
-        assert(a !is null);
-        assert(a.value == "en");
+        expect.check(r);
     }
 }
 
@@ -5725,5 +5757,27 @@ unittest // fctNumber - Complex
 
         r = evaluate(evaluate(doc, "/Doc/Test5"), "round(number(child::Para[3]))");
         assert(r.get!double() == 3, r.get!string());
+    }
+}
+
+unittest // Various nodeset
+{
+    if (auto doc = loadUnittestXml("xp005.xml"))
+    {
+        NodeTestResult expect1 = {length:1, nodeType:XmlNodeType.element, localName:"Child5", name:"Child5", hasChildNodes:true, value:"Last"};
+        auto r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[last()]");
+        expect1.check(r);
+        
+        NodeTestResult expect2 = {length:1, nodeType:XmlNodeType.element, localName:"Child4", name:"Child4", hasChildNodes:true, value:"Fourth"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[last() - 1]");
+        expect2.check(r);
+
+        NodeTestResult expect3 = {length:1, nodeType:XmlNodeType.attribute, localName:"Attr5", name:"Attr5", value:"Last"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "attribute::*[last()]");
+        expect3.check(r);
+
+        NodeTestResult expect4 = {length:1, nodeType:XmlNodeType.attribute, localName:"Attr4", name:"Attr4", value:"Fourth"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "attribute::*[last() - 1]");
+        expect4.check(r);
     }
 }

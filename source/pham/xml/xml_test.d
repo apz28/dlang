@@ -24,7 +24,7 @@ XmlDocument!string loadUnittestXml(string unittestFileName) @trusted
 
     __gshared XmlDocument!string[string] loadXmls;
 
-    const fullFileName = buildPath("xpathTestData", unittestFileName);
+    const fullFileName = buildPath("xpath_test_data", unittestFileName);
 
     if (auto doc = fullFileName in loadXmls)
         return *doc;
