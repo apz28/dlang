@@ -5971,6 +5971,6 @@ unittest // Various nodeset
         r = evaluate(evaluate(doc, "Doc/Test1/@Attr1"), "@*[2]");
         assert(!r.get!bool(), r.get!string());
 
-        traceXPath++;
+        debug(debug_pham_xml_xml_xpath) traceXPath++;
     }
 }
