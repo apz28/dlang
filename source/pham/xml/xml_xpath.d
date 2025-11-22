@@ -199,8 +199,10 @@ enum XPathAxisType : ubyte
     preceding,
     precedingSibling,
     self,
+    childOf,
 }
 
+version(none)
 enum XPathCaseOrder : ubyte
 {
     none,
@@ -1030,7 +1032,7 @@ public:
     XPathContext!S createOutputContext() nothrow
     {
         XPathContext!S result;
-        result._source = this._source;
+        result._source = null; // Do not set source to indicate not an original context
         result._document = this._document;
         result.equal = this.equal;
         result.filterNodes = this.filterNodes;
@@ -1063,6 +1065,12 @@ public:
     }
 
     pragma(inline, true)
+    @property XmlDocument!S document() nothrow
+    {
+        return _document;
+    }
+
+    pragma(inline, true)
     @property size_t hasResNodes()
     {
         return resValue.type == XPathDataType.nodeSet ? resValue.length : 0;
@@ -1075,9 +1083,9 @@ public:
     }
 
     pragma(inline, true)
-    @property XmlDocument!S document() nothrow
+    @property bool isInputSource()
     {
-        return _document;
+        return _source !is null && hasResNodes == 1 && resValue.firstNode is _source;
     }
 
     pragma(inline, true)
@@ -1229,6 +1237,9 @@ public:
                 break;
             case XPathAxisType.self:
                 evaluateFct = &evaluateSelf;
+                break;
+            case XPathAxisType.childOf:
+                evaluateFct = &evaluateChildOf;
                 break;
         }
     }
@@ -1425,14 +1436,37 @@ protected:
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (!e.hasChildNodes)
-                continue;
-
-            auto childNodes = e.childNodes;
-            foreach (e2; childNodes)
+            auto e2 = e.firstChild;
+            while (e2)
             {
                 if (accept(inputContext, e2))
                     outputContext.putRes(e2);
+                e2 = e2.nextSibling;
+            }
+        }
+
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
+    }
+
+    final void evaluateChildOf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+    {
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
+        {
+            if (accept(inputContext, e))
+                outputContext.putRes(e);
+
+            if (e.parent)
+            {
+                auto e2 = e.nodeType == XmlNodeType.attribute
+                    ? e.parent.firstAttribute
+                    : e.parent.firstChild;
+                while (e2)
+                {
+                    if (accept(inputContext, e2))
+                        outputContext.filterNodes ~= e2;
+                    e2 = e2.nextSibling;
+                }
             }
         }
 
@@ -1632,7 +1666,9 @@ public:
 
         auto outputContextCond = outputContextEval.createOutputContext();
         auto inputContextCond = outputContextEval.createOutputContext();
-        inputContextCond.filterNodes = outputContextEval.resNodes;
+        inputContextCond.filterNodes = outputContextEval.filterNodes.length
+            ? outputContextEval.filterNodes
+            : outputContextEval.resNodes;
 
         auto inputNodes = outputContextEval.resNodes;
         foreach (i, e; inputNodes)
@@ -2746,6 +2782,17 @@ if (isXmlString!S)
 public:
     alias C = XmlChar!S;
 
+    static struct XPathScannerState
+    {
+        S prefix, name;
+        S textValue;
+        double numberValue = 0; // Make struct to zero initialized because of inconsistent in D
+        size_t tokens;
+        size_t xPathExpressionNextIndex;
+        C currentChar = 0, kind = 0; // Make struct to zero initialized because of inconsistent in D
+        bool canBeFunction;
+    }
+
 public:
     this(S xpathExpression)
     in
@@ -2764,20 +2811,20 @@ public:
     bool nextChar() nothrow
     in
     {
-        assert(_xPathExpressionNextIndex <= _xPathExpressionLength);
+        assert(_state.xPathExpressionNextIndex <= _xPathExpressionLength);
     }
     do
     {
-        debug(debug_pham_xml_xml_xpath) scope (exit) traceFunctionPar(text("_kind=", _kind, ", _currentChar=", _currentChar));
+        debug(debug_pham_xml_xml_xpath) scope (exit) traceFunctionPar(text("kind=", _state.kind, ", currentChar=", _state.currentChar));
 
-        if (_xPathExpressionNextIndex < _xPathExpressionLength)
+        if (_state.xPathExpressionNextIndex < _xPathExpressionLength)
         {
-            _currentChar = _xPathExpression[_xPathExpressionNextIndex++];
+            _state.currentChar = _xPathExpression[_state.xPathExpressionNextIndex++];
             return true;
         }
         else
         {
-            _currentChar = 0;
+            _state.currentChar = 0;
             return false;
         }
     }
@@ -2795,11 +2842,17 @@ public:
             }
         }
 
+        _state.prefix = _state.name = _state.textValue = null;
+        _state.numberValue = 0;
+        _state.canBeFunction = false;
+        _state.tokens++;
+
         skipSpace();
         switch (currentChar)
         {
             case '\0':
-                _kind = XPathScannerLexKind.eof;
+                _state.kind = XPathScannerLexKind.eof;
+                _state.tokens--;
                 return false;
             case ',':
             case '@':
@@ -2814,75 +2867,75 @@ public:
             case '=':
             case '#':
             case '$':
-                _kind = currentChar;
+                _state.kind = currentChar;
                 nextChar();
                 break;
             case '<':
-                _kind = XPathScannerLexKind.lt;
+                _state.kind = XPathScannerLexKind.lt;
                 nextChar();
                 if (currentChar == '=')
                 {
-                    _kind = XPathScannerLexKind.le;
+                    _state.kind = XPathScannerLexKind.le;
                     nextChar();
                 }
                 break;
             case '>':
-                _kind = XPathScannerLexKind.gt;
+                _state.kind = XPathScannerLexKind.gt;
                 nextChar();
                 if (currentChar == '=')
                 {
-                    _kind = XPathScannerLexKind.ge;
+                    _state.kind = XPathScannerLexKind.ge;
                     nextChar();
                 }
                 break;
             case '!':
-                _kind = XPathScannerLexKind.bang;
+                _state.kind = XPathScannerLexKind.bang;
                 nextChar();
                 if (currentChar == '=')
                 {
-                    _kind = XPathScannerLexKind.ne;
+                    _state.kind = XPathScannerLexKind.ne;
                     nextChar();
                 }
                 break;
             case '.':
-                _kind = XPathScannerLexKind.dot;
+                _state.kind = XPathScannerLexKind.dot;
                 nextChar();
                 if (currentChar == '.')
                 {
-                    _kind = XPathScannerLexKind.dotDot;
+                    _state.kind = XPathScannerLexKind.dotDot;
                     nextChar();
                 }
                 else if (isDigit(currentChar))
                 {
-                    _kind = XPathScannerLexKind.number;
-                    _numberValue = scanNumberM();
+                    _state.kind = XPathScannerLexKind.number;
+                    _state.numberValue = scanNumberM();
                 }
                 break;
             case '/':
-                _kind = XPathScannerLexKind.slash;
+                _state.kind = XPathScannerLexKind.slash;
                 nextChar();
                 if (currentChar == '/')
                 {
-                    _kind = XPathScannerLexKind.slashSlash;
+                    _state.kind = XPathScannerLexKind.slashSlash;
                     nextChar();
                 }
                 break;
             case '"':
             case '\'':
-                _kind = XPathScannerLexKind.text;
-                _textValue = scanText();
+                _state.kind = XPathScannerLexKind.text;
+                _state.textValue = scanText();
                 break;
             default:
                 if (isDigit(currentChar))
                 {
-                    _kind = XPathScannerLexKind.number;
-                    _numberValue = scanNumberS();
+                    _state.kind = XPathScannerLexKind.number;
+                    _state.numberValue = scanNumberS();
                 }
                 else if (isNameStartC(currentChar))
                 {
-                    _kind = XPathScannerLexKind.name;
-                    _prefix = null;
-                    _name = scanName();
+                    _state.kind = XPathScannerLexKind.name;
+                    _state.prefix = null;
+                    _state.name = scanName();
                     // "foo:bar" is one lexem not three because it doesn't allow spaces in between
                     // We should distinct it from "foo::" and need process "foo ::" as well
                     if (currentChar == ':')
@@ -2893,19 +2946,19 @@ public:
                         {
                             // "foo::"
                             nextChar();
-                            _kind = XPathScannerLexKind.axe;
+                            _state.kind = XPathScannerLexKind.axe;
                         }
                         else
                         {
                             // "foo:*", "foo:bar" or "foo: "
-                            _prefix = _name;
+                            _state.prefix = _state.name;
                             if (currentChar == '*')
                             {
                                 nextChar();
-                                _name = "*";
+                                _state.name = "*";
                             }
                             else if (isNameStartC(currentChar))
-                                _name = scanName();
+                                _state.name = scanName();
                             else
                             {
                                 debug(debug_pham_xml_xml_xpath) debug stdout.flush();
@@ -2924,7 +2977,7 @@ public:
                             if (currentChar == ':')
                             {
                                 nextChar();
-                                _kind = XPathScannerLexKind.axe;
+                                _state.kind = XPathScannerLexKind.axe;
                             }
                             else
                             {
@@ -2935,7 +2988,7 @@ public:
                         }
                     }
                     skipSpace();
-                    _canBeFunction = currentChar == '(';
+                    _state.canBeFunction = currentChar == '(';
                 }
                 else
                 {
@@ -2949,40 +3002,52 @@ public:
         return true;
     }
 
+    XPathScannerState peekLex()
+    {
+        debug(debug_pham_xml_xml_xpath) traceFunction();
+
+        auto saveState = _state;
+        scope (exit)
+            _state = saveState;
+
+        nextLex();
+        return _state;
+    }
+
     S scanName() nothrow
     in
     {
         assert(isNameStartC(currentChar));
-        assert(_xPathExpressionNextIndex >= 1);
+        assert(_state.xPathExpressionNextIndex >= 1);
     }
     do
     {
-        const start = _xPathExpressionNextIndex - 1;
-        size_t end = _xPathExpressionNextIndex - 1;
+        const begin = _state.xPathExpressionNextIndex - 1;
+        size_t end = _state.xPathExpressionNextIndex - 1;
         while (currentChar != ':' && isNameInC(currentChar))
         {
             ++end;
             nextChar();
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[begin..end]));
 
-        return _xPathExpression[start..end];
+        return _xPathExpression[begin..end];
     }
 
     double scanNumberM() nothrow
     in
     {
         assert(isDigit(currentChar));
-        assert(_xPathExpressionNextIndex >= 2);
-        assert(_xPathExpression[_xPathExpressionNextIndex - 2] == '.');
+        assert(_state.xPathExpressionNextIndex >= 2);
+        assert(_xPathExpression[_state.xPathExpressionNextIndex - 2] == '.');
     }
     do
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
-        const start = _xPathExpressionNextIndex - 2;
-        size_t end = _xPathExpressionNextIndex - 1;
+        const begin = _state.xPathExpressionNextIndex - 2;
+        size_t end = _state.xPathExpressionNextIndex - 1;
 
         while (isDigit(currentChar))
         {
@@ -2990,23 +3055,23 @@ public:
             nextChar();
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[begin..end]));
 
-        return _xPathExpression[start..end].to!double();
+        return _xPathExpression[begin..end].to!double();
     }
 
     double scanNumberS() nothrow
     in
     {
         assert(currentChar == '.' || isDigit(currentChar));
-        assert(_xPathExpressionNextIndex >= 1);
+        assert(_state.xPathExpressionNextIndex >= 1);
     }
     do
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
-        const start = _xPathExpressionNextIndex - 1;
-        size_t end = _xPathExpressionNextIndex - 1;
+        const begin = _state.xPathExpressionNextIndex - 1;
+        size_t end = _state.xPathExpressionNextIndex - 1;
         while (isDigit(currentChar))
         {
             ++end;
@@ -3023,19 +3088,19 @@ public:
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[begin..end]));
 
-        return _xPathExpression[start..end].to!double();
+        return _xPathExpression[begin..end].to!double();
     }
 
     S scanText()
     {
         const quoteChar = currentChar;
         nextChar();
-        assert(_xPathExpressionNextIndex >= 1);
+        assert(_state.xPathExpressionNextIndex >= 1);
 
-        const start = _xPathExpressionNextIndex - 1;
-        size_t end = _xPathExpressionNextIndex - 1;
+        const begin = _state.xPathExpressionNextIndex - 1;
+        size_t end = _state.xPathExpressionNextIndex - 1;
 
         while (currentChar != quoteChar)
         {
@@ -3057,9 +3122,9 @@ public:
 
         nextChar();
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[start..end]));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[begin..end]));
 
-        return _xPathExpression[start..end];
+        return _xPathExpression[begin..end];
     }
 
     void skipSpace() nothrow
@@ -3070,27 +3135,23 @@ public:
 
     debug(debug_pham_xml_xml_xpath) string toString() const nothrow
     {
-        return text("name=", _name, ", kind=", _kind, ", currentChar=", _currentChar);
+        return text("name=", _state.name, ", kind=", _state.kind, ", currentChar=", _state.currentChar, ", tokens=", _state.tokens);
     }
 
     @property bool canBeFunction() const nothrow
-    in
     {
-        assert(_kind == XPathScannerLexKind.name);
-    }
-    do
-    {
-        return _canBeFunction;
+        //assert(_state.kind == XPathScannerLexKind.name);
+        return _state.canBeFunction;
     }
 
     @property C currentChar() const nothrow
     {
-        return _currentChar;
+        return _state.currentChar;
     }
 
     @property ptrdiff_t currentIndex() const nothrow
     {
-        return _xPathExpressionNextIndex - 1;
+        return _state.xPathExpressionNextIndex - 1;
     }
 
     @property bool isNameNodeType() const nothrow
@@ -3126,19 +3187,19 @@ public:
 
     @property C kind() const nothrow
     {
-        return _kind;
+        return _state.kind;
     }
 
     @property S name() const nothrow
     {
-        return _name;
+        return _state.name;
     }
 
     @property XPathAxisType nameAxisType() const nothrow
     in
     {
         assert(kind == XPathScannerLexKind.axe);
-        assert(_name.ptr !is null);
+        assert(_state.name.ptr !is null);
     }
     do
     {
@@ -3148,7 +3209,7 @@ public:
     @property XPathNodeType nameNodeType() const nothrow
     in
     {
-        assert(_name.ptr !is null);
+        assert(_state.name.ptr !is null);
     }
     do
     {
@@ -3161,23 +3222,15 @@ public:
     }
 
     @property double numberValue() const nothrow
-    in
     {
-        assert(_kind == XPathScannerLexKind.number);
-    }
-    do
-    {
-        return _numberValue;
+        //assert(_state.kind == XPathScannerLexKind.number);
+        return _state.numberValue;
     }
 
     @property S prefix() const nothrow
-    in
     {
-        assert(_kind == XPathScannerLexKind.name);
-    }
-    do
-    {
-        return _prefix;
+        //assert(_state.kind == XPathScannerLexKind.name);
+        return _state.prefix;
     }
 
     @property S sourceText() const nothrow
@@ -3186,25 +3239,21 @@ public:
     }
 
     @property S textValue() const nothrow
-    in
     {
-        assert(_kind == XPathScannerLexKind.text);
-        assert(_textValue.ptr !is null);
+        //assert(_state.kind == XPathScannerLexKind.text);
+        return _state.textValue;
     }
-    do
+
+    @property size_t tokens() const nothrow
     {
-        return _textValue;
+        return _state.tokens;
     }
 
 private:
     XPathAxisTypeTable!S _axisTypeTable;
-    S _prefix, _name;
-    S _textValue;
     S _xPathExpression;
-    size_t _xPathExpressionNextIndex, _xPathExpressionLength;
-    double _numberValue;
-    C _currentChar, _kind;
-    bool _canBeFunction;
+    size_t _xPathExpressionLength;
+    XPathScannerState _state;
 }
 
 struct XPathParser(S = string)
@@ -3223,7 +3272,7 @@ public:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            debug writeln();
+            traceLine(null);
             traceFunctionPar(text("sourceText=", sourceText));
             incNodeIndent();
             scope (exit)
@@ -3750,13 +3799,13 @@ private:
         }
 
         XPathNode!S result;
-        if (XPathScannerLexKind.dot == scanner.kind)
+        if (scanner.kind == XPathScannerLexKind.dot)
         {
             // '.'
             nextLex();
             result = new XPathAxis!S(aInput, XPathAxisType.self, aInput);
         }
-        else if (XPathScannerLexKind.dotDot == scanner.kind)
+        else if (scanner.kind == XPathScannerLexKind.dotDot)
         {
             // '..'
             nextLex();
@@ -3765,18 +3814,40 @@ private:
         else
         {
             // ( AxisName '::' | '@' )? NodeTest Predicate*
+            bool isChildOf = false;
             auto axisType = XPathAxisType.child;
             switch (scanner.kind)
             {
                 case XPathScannerLexKind.at: // '@'
                     axisType = XPathAxisType.attribute;
                     nextLex();
+
+                    // "@*[...]"
+                    if (scanner.tokens == 2)
+                    {
+                        if (scanner.kind == XPathScannerLexKind.star || !scanner.canBeFunction)
+                        {
+                            auto next = scanner.peekLex();
+                            if (next.kind == XPathScannerLexKind.lBracket)
+                                isChildOf = true;
+                        }
+                    }
                     break;
+
                 case XPathScannerLexKind.axe: // AxisName '::'
                     axisType = getAxisType();
                     nextLex();
                     break;
+
                 default:
+                    // "*[...]"
+                    if (scanner.tokens == 1)
+                    {
+                        auto next = scanner.peekLex();
+                        if (next.kind == XPathScannerLexKind.lBracket)
+                            isChildOf = true;
+                    }
+                    debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ***default***");
                     break;
             }
 
@@ -3784,8 +3855,9 @@ private:
             const nodeType = axisType == XPathAxisType.attribute || axisType == XPathAxisType.namespace
                 ? XPathNodeType.attribute
                 : XPathNodeType.element;
-            result = parseNodeTest(aInput, axisType, nodeType);
-            while (XPathScannerLexKind.lBracket == scanner.kind)
+
+            result = parseNodeTest(aInput, isChildOf ? XPathAxisType.childOf : axisType, nodeType);
+            while (scanner.kind == XPathScannerLexKind.lBracket)
                 result = new XPathFilter!S(result, result, parsePredicate(result));
         }
         return result;
@@ -3796,7 +3868,7 @@ private:
     {
         debug(debug_pham_xml_xml_xpath)
         {
-            traceFunctionPar(scanner, aInput);
+            traceFunctionPar(scanner, aInput, text("axisType=", axisType, ", nodeType=", nodeType));
             incNodeIndent();
             scope (exit)
                 decNodeIndent();
@@ -3825,7 +3897,7 @@ private:
                             // 'processing-instruction (' Literal ')'
                             checkToken(XPathScannerLexKind.text);
                             nodeName = scanner.textValue;
-                            debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ?name1?");
+                            debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ***name1***");
                             nextLex();
                         }
                     }
@@ -3836,7 +3908,7 @@ private:
                 {
                     nodePrefix = scanner.prefix;
                     nodeName = scanner.name;
-                    debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ?name2?");
+                    debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ***name2***");
                     nextLex();
                 }
                 break;
@@ -3853,7 +3925,7 @@ private:
                     nodePrefix = null;
                     nodeName = "*";
                 }
-                debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ?star?");
+                debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ***star***");
                 break;
             default:
                 debug(debug_pham_xml_xml_xpath) debug stdout.flush();
@@ -4217,6 +4289,9 @@ debug(debug_pham_xml_xml_xpath)
 
     package void traceFunction(string fullName = __FUNCTION__)
     {
+        if (traceXPath == 0)
+            return;
+
         debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
             "()");
     }
@@ -4224,6 +4299,9 @@ debug(debug_pham_xml_xml_xpath)
     package void traceFunctionPar(string inputs,
         string fullName = __FUNCTION__)
     {
+        if (traceXPath == 0)
+            return;
+
         debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
             "(", inputs, ")");
     }
@@ -4231,6 +4309,9 @@ debug(debug_pham_xml_xml_xpath)
     package void traceFunctionPar(ref XPathScanner!string scanner, XPathNode!string input,
         string fullName = __FUNCTION__)
     {
+        if (traceXPath == 0)
+            return;
+
         debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
             "(scanner=", scanner.toString(), ", input=", shortClassName(input), ")");
     }
@@ -4238,6 +4319,9 @@ debug(debug_pham_xml_xml_xpath)
     package void traceFunctionPar(ref XPathScanner!string scanner, string inputs = null,
         string fullName = __FUNCTION__)
     {
+        if (traceXPath == 0)
+            return;
+
         if (inputs.length == 0)
         {
             debug writeln(stringOfChar(nodeIndent * 2, ' '), shortFunctionName(2, fullName),
@@ -4250,7 +4334,16 @@ debug(debug_pham_xml_xml_xpath)
         }
     }
 
+    package void traceLine(string inputs)
+    {
+        if (traceXPath == 0)
+            return;
+
+        debug writeln(inputs);
+    }
+
     package size_t nodeIndent;
+    package size_t traceXPath;
 }
 
 
@@ -4742,6 +4835,7 @@ void fctNumber(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref 
 void fctPosition(S)(XPathFunction!S context, ref XPathContext!S inputContext, ref XPathContext!S outputContext) @trusted
 {
     double result = 0;
+
     auto inputNodes = inputContext.resNodes;
     if (!inputNodes.empty)
     {
@@ -5185,25 +5279,50 @@ version(unittest)
         Nullable!bool hasChildNodes;
         Nullable!string attributeName;
         Nullable!string attributeValue;
+    }
 
-        void check(XPathValue!string r, size_t line = __LINE__)
+    void check(NodeTestResult expect, XPathValue!string r, size_t line = __LINE__)
+    {
+        assert(expect.length.isNull || r.length == expect.length, text("length failed ", r.length, expect.length, " at line ", line));
+
+        auto n = r.firstNode();
+        assert(n !is null, text("no node found at line ", line));
+        assert(expect.nodeType.isNull || n.nodeType == expect.nodeType, text("nodeType failed ", n.nodeType, " vs ", expect.nodeType, " at line ", line));
+        assert(expect.name.isNull || n.name == expect.name, text("name failed ", n.name, expect.name, " at line ", line));
+        assert(expect.localName.isNull || n.localName == expect.localName, text("localName failed ", n.localName, " vs ", expect.localName, " at line ", line));
+        assert(expect.value.isNull || n.innerText == expect.value, text("value failed ", n.innerText, " vs ", expect.value, " at line ", line));
+
+        assert(expect.hasAttributes.isNull || n.hasAttributes == expect.hasAttributes, text("hasAttributes failed ", n.hasAttributes, " vs ", expect.hasAttributes, " at line ", line));
+        assert(expect.hasChildNodes.isNull || n.hasChildNodes == expect.hasChildNodes, text("hasChildNodes failed ", n.hasChildNodes, " vs ", expect.hasChildNodes, " at line ", line));
+
+        auto a = !expect.attributeName.isNull ? n.findAttribute(expect.attributeName.get, null) : null;
+        string av = a !is null ? a.value : null;
+        assert(expect.attributeName.isNull || a !is null, text("attributeName failed ", a ? a.localName : "", " vs ", expect.attributeName, " at line ", line));
+        assert(expect.attributeValue.isNull || av == expect.attributeValue, text("attributeValue failed ", av, " vs ", expect.attributeValue, " at line ", line));
+    }
+
+    void check(NodeTestResult[] expects, XPathValue!string r, size_t line = __LINE__)
+    {
+        auto nodes = r.nodes;
+        assert(nodes.length == expects.length, text("length failed ", nodes.length, expects.length, " at line ", line));
+
+        foreach (i, n; nodes)
         {
-            assert(length.isNull || r.length == length, text("length failed ", r.length, length, " at line ", line));
+            auto expect = expects[i];
 
-            auto n = r.firstNode();
             assert(n !is null, text("no node found at line ", line));
-            assert(nodeType.isNull || n.nodeType == nodeType, text("nodeType failed ", n.nodeType, " vs ", nodeType, " at line ", line));
-            assert(name.isNull || n.name == name, text("name failed ", n.name, name, " at line ", line));
-            assert(localName.isNull || n.localName == localName, text("localName failed ", n.localName, " vs ", localName, " at line ", line));
-            assert(value.isNull || n.innerText == value, text("value failed ", n.innerText, " vs ", value, " at line ", line));
+            assert(expect.nodeType.isNull || n.nodeType == expect.nodeType, text("nodeType failed ", n.nodeType, " vs ", expect.nodeType, " at line ", line));
+            assert(expect.name.isNull || n.name == expect.name, text("name failed ", n.name, expect.name, " at line ", line));
+            assert(expect.localName.isNull || n.localName == expect.localName, text("localName failed ", n.localName, " vs ", expect.localName, " at line ", line));
+            assert(expect.value.isNull || n.innerText == expect.value, text("value failed ", n.innerText, " vs ", expect.value, " at line ", line));
 
-            assert(hasAttributes.isNull || n.hasAttributes == hasAttributes, text("hasAttributes failed ", n.hasAttributes, " vs ", hasAttributes, " at line ", line));
-            assert(hasChildNodes.isNull || n.hasChildNodes == hasChildNodes, text("hasChildNodes failed ", n.hasChildNodes, " vs ", hasChildNodes, " at line ", line));
+            assert(expect.hasAttributes.isNull || n.hasAttributes == expect.hasAttributes, text("hasAttributes failed ", n.hasAttributes, " vs ", expect.hasAttributes, " at line ", line));
+            assert(expect.hasChildNodes.isNull || n.hasChildNodes == expect.hasChildNodes, text("hasChildNodes failed ", n.hasChildNodes, " vs ", expect.hasChildNodes, " at line ", line));
 
-            auto a = !attributeName.isNull ? n.findAttribute(attributeName.get, null) : null;
+            auto a = !expect.attributeName.isNull ? n.findAttribute(expect.attributeName.get, null) : null;
             string av = a !is null ? a.value : null;
-            assert(attributeName.isNull || a !is null, text("attributeName failed ", a ? a.localName : "", " vs ", attributeName, " at line ", line));
-            assert(attributeValue.isNull || av == attributeValue, text("attributeValue failed ", av, " vs ", attributeValue, " at line ", line));
+            assert(expect.attributeName.isNull || a !is null, text("attributeName failed ", a ? a.localName : "", " vs ", expect.attributeName, " at line ", line));
+            assert(expect.attributeValue.isNull || av == expect.attributeValue, text("attributeValue failed ", av, " vs ", expect.attributeValue, " at line ", line));
         }
     }
 }
@@ -5767,7 +5886,7 @@ unittest // Various nodeset
         NodeTestResult expect1 = {length:1, nodeType:XmlNodeType.element, localName:"Child5", name:"Child5", hasChildNodes:true, value:"Last"};
         auto r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[last()]");
         expect1.check(r);
-        
+
         NodeTestResult expect2 = {length:1, nodeType:XmlNodeType.element, localName:"Child4", name:"Child4", hasChildNodes:true, value:"Fourth"};
         r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[last() - 1]");
         expect2.check(r);
@@ -5779,5 +5898,79 @@ unittest // Various nodeset
         NodeTestResult expect4 = {length:1, nodeType:XmlNodeType.attribute, localName:"Attr4", name:"Attr4", value:"Fourth"};
         r = evaluate(evaluate(doc, "Doc/Test1"), "attribute::*[last() - 1]");
         expect4.check(r);
+
+        NodeTestResult expect5 = {length:1, nodeType:XmlNodeType.element, localName:"Child5", name:"Child5", hasChildNodes:true, value:"Last"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[position() = last()]");
+        expect5.check(r);
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child5"), "*[position() = last()]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child4"), "*[position() = last()]");
+        assert(!r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr5"), "@*[position() = last()]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr4"), "@*[position() = last()]");
+        assert(!r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test2/Child1"), "*[last() = 1]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child1"), "*[last() = 1]");
+        assert(!r.get!bool(), r.get!string());
+
+        NodeTestResult expect6 = {length:1, nodeType:XmlNodeType.element, localName:"Child2", name:"Child2", hasChildNodes:true, value:"Second"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[position() = 2]");
+        expect6.check(r);
+
+        NodeTestResult expect7 = {length:1, nodeType:XmlNodeType.attribute, localName:"Attr2", name:"Attr2", value:"Second"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "attribute::*[position() = 2]");
+        expect7.check(r);
+
+        NodeTestResult expect8 = {length:1, nodeType:XmlNodeType.element, localName:"Child2", name:"Child2", hasChildNodes:true, value:"Second"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[2]");
+        expect8.check(r);
+
+        NodeTestResult expect9 = {length:1, nodeType:XmlNodeType.attribute, localName:"Attr2", name:"Attr2", value:"Second"};
+        r = evaluate(evaluate(doc, "Doc/Test1"), "attribute::*[2]");
+        expect9.check(r);
+
+        NodeTestResult[] expect10 = [
+            {nodeType:XmlNodeType.element, localName:"Child1", name:"Child1", hasChildNodes:true, value:"First"},
+            {nodeType:XmlNodeType.element, localName:"Child2", name:"Child2", hasChildNodes:true, value:"Second"},
+            {nodeType:XmlNodeType.element, localName:"Child3", name:"Child3", hasChildNodes:true, value:"Third"},
+            {nodeType:XmlNodeType.element, localName:"Child4", name:"Child4", hasChildNodes:true, value:"Fourth"},
+            {nodeType:XmlNodeType.element, localName:"Child5", name:"Child5", hasChildNodes:true, value:"Last"},
+            ];
+        r = evaluate(evaluate(doc, "Doc/Test1"), "child::*[position()]");
+        expect10.check(r);
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child2"), "*[position() = 2]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child3"), "*[position() = 2]");
+        assert(!r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr2"), "@*[position() = 2]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr3"), "@*[position() = 2]");
+        assert(!r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child2"), "*[2]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/Child3"), "*[2]");
+        assert(!r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr2"), "@*[2]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr1"), "@*[2]");
+        assert(!r.get!bool(), r.get!string());
+
+        traceXPath++;
     }
 }
