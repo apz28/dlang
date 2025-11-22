@@ -1470,7 +1470,8 @@ protected:
             }
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length,
+            ", outputContext.filterNodes.length=", outputContext.filterNodes.length));
     }
 
     final void evaluateDescendant(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
@@ -1670,6 +1671,7 @@ public:
             ? outputContextEval.filterNodes
             : outputContextEval.resNodes;
 
+        const isInputSource = inputContext.isInputSource && outputContextEval.filterNodes.length != 0;
         auto inputNodes = outputContextEval.resNodes;
         foreach (i, e; inputNodes)
         {
@@ -1687,7 +1689,8 @@ public:
             final switch (v.type)
             {
                 case XPathDataType.number:
-                    vB = v.get!ptrdiff_t() == (i + 1); // +1=Based 1 index
+                    const peIndex = isInputSource ? inputContextCond.filterNodes.indexOf(e) : i;
+                    vB = peIndex >= 0 && v.get!ptrdiff_t() == (peIndex + 1); // +1=Based 1 index
                     break;
                 case XPathDataType.text:
                     vB = v.get!S().length != 0;
@@ -1704,7 +1707,9 @@ public:
             if (vB)
                 outputContext.putRes(e);
 
-            debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("e.name=", e.name, ", vB=", vB));
+            debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("e.name=", e.name, ", i=", i,
+                ", v.type=", v.type, ", v.value=", v.toString(), ", inputContext.isInputSource=", inputContext.isInputSource,
+                ", vB=", vB));
         }
     }
 
@@ -5971,6 +5976,8 @@ unittest // Various nodeset
         r = evaluate(evaluate(doc, "Doc/Test1/@Attr1"), "@*[2]");
         assert(!r.get!bool(), r.get!string());
 
+
         debug(debug_pham_xml_xml_xpath) traceXPath++;
+
     }
 }
