@@ -199,7 +199,7 @@ enum XPathAxisType : ubyte
     preceding,
     precedingSibling,
     self,
-    childOf,
+    siblingOf,
 }
 
 version(none)
@@ -429,7 +429,7 @@ static immutable ToXmlNodeTypeTable toXmlNodeTypeTable = ToXmlNodeTypeTable(
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.attribute, XmlNodeType.attribute),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.comment, XmlNodeType.comment),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.element, XmlNodeType.element),
-    ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.namespace, XmlNodeType.attribute),
+    ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.namespace, XmlNodeType.namespace),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.processingInstruction, XmlNodeType.processingInstruction),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.root, XmlNodeType.document),
     ToXmlNodeTypeTable.EnumArrayEntry(XPathNodeType.significantWhitespace, XmlNodeType.significantWhitespace),
@@ -1238,8 +1238,8 @@ public:
             case XPathAxisType.self:
                 evaluateFct = &evaluateSelf;
                 break;
-            case XPathAxisType.childOf:
-                evaluateFct = &evaluateChildOf;
+            case XPathAxisType.siblingOf:
+                evaluateFct = &evaluateSiblingOf;
                 break;
         }
     }
@@ -1448,32 +1448,6 @@ protected:
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
-    final void evaluateChildOf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
-    {
-        auto inputNodes = inputContext.resNodes;
-        foreach (e; inputNodes)
-        {
-            if (accept(inputContext, e))
-                outputContext.putRes(e);
-
-            if (e.parent)
-            {
-                auto e2 = e.nodeType == XmlNodeType.attribute
-                    ? e.parent.firstAttribute
-                    : e.parent.firstChild;
-                while (e2)
-                {
-                    if (accept(inputContext, e2))
-                        outputContext.filterNodes ~= e2;
-                    e2 = e2.nextSibling;
-                }
-            }
-        }
-
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length,
-            ", outputContext.filterNodes.length=", outputContext.filterNodes.length));
-    }
-
     final void evaluateDescendant(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
         auto inputNodes = inputContext.resNodes;
@@ -1623,6 +1597,32 @@ protected:
         }
 
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
+    }
+
+    final void evaluateSiblingOf(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
+    {
+        auto inputNodes = inputContext.resNodes;
+        foreach (e; inputNodes)
+        {
+            if (accept(inputContext, e))
+                outputContext.putRes(e);
+
+            if (e.parent)
+            {
+                auto e2 = e.nodeType == XmlNodeType.attribute
+                    ? e.parent.firstAttribute
+                    : e.parent.firstChild;
+                while (e2)
+                {
+                    if (accept(inputContext, e2))
+                        outputContext.filterNodes ~= e2;
+                    e2 = e2.nextSibling;
+                }
+            }
+        }
+
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length,
+            ", outputContext.filterNodes.length=", outputContext.filterNodes.length));
     }
 
 protected:
@@ -3819,7 +3819,7 @@ private:
         else
         {
             // ( AxisName '::' | '@' )? NodeTest Predicate*
-            bool isChildOf = false;
+            bool isSiblingOf = false;
             auto axisType = XPathAxisType.child;
             switch (scanner.kind)
             {
@@ -3834,7 +3834,7 @@ private:
                         {
                             auto next = scanner.peekLex();
                             if (next.kind == XPathScannerLexKind.lBracket)
-                                isChildOf = true;
+                                isSiblingOf = true;
                         }
                     }
                     break;
@@ -3850,18 +3850,18 @@ private:
                     {
                         auto next = scanner.peekLex();
                         if (next.kind == XPathScannerLexKind.lBracket)
-                            isChildOf = true;
+                            isSiblingOf = true;
                     }
                     debug(debug_pham_xml_xml_xpath) traceFunctionPar(scanner, " ***default***");
                     break;
             }
 
             // Need to check for axisType == XPathAxisType.namespace
-            const nodeType = axisType == XPathAxisType.attribute || axisType == XPathAxisType.namespace
+            const nodeType = axisType == XPathAxisType.attribute
                 ? XPathNodeType.attribute
-                : XPathNodeType.element;
+                : (axisType == XPathAxisType.namespace ? XPathNodeType.namespace : XPathNodeType.element);
 
-            result = parseNodeTest(aInput, isChildOf ? XPathAxisType.childOf : axisType, nodeType);
+            result = parseNodeTest(aInput, isSiblingOf ? XPathAxisType.siblingOf : axisType, nodeType);
             while (scanner.kind == XPathScannerLexKind.lBracket)
                 result = new XPathFilter!S(result, result, parsePredicate(result));
         }
@@ -4714,16 +4714,27 @@ void fctNamespaceUri(S)(XPathFunction!S context, ref XPathContext!S inputContext
         auto tempOutputContext = inputContext.createOutputContext();
         context.argumentList[0].evaluate(inputContext, tempOutputContext);
         auto inputNodes = tempOutputContext.resNodes;
-        if (!inputNodes.empty)
+        foreach (node; inputNodes)
         {
-            outputContext.resValue = inputNodes.front.namespace().namespaceUri;
-            return;
+            auto ns = inputNodes.front.namespace();
+            if (ns.isValid)
+            {
+                outputContext.resValue = ns.namespaceUri;
+                return;
+            }
         }
     }
 
     auto inputNodes = inputContext.resNodes;
-    if (!inputNodes.empty)
-        outputContext.resValue = inputNodes.front.namespace().namespaceUri;
+    foreach (node; inputNodes)
+    {
+        auto ns = inputNodes.front.namespace();
+        if (ns.isValid)
+        {
+            outputContext.resValue = ns.namespaceUri;
+            return;
+        }
+    }
 }
 
 /**
@@ -5177,15 +5188,15 @@ if (isXmlString!S)
 }
 
 pragma(inline, true)
-ptrdiff_t toInteger(bool value) nothrow pure
-{
-    return value ? 1 : 0;
-}
-
-pragma(inline, true)
 ptrdiff_t toInteger(double value) nothrow
 {
     return isNaN(value) ? -1 : cast(ptrdiff_t)cast(long)fctRound(value);
+}
+
+pragma(inline, true)
+ptrdiff_t toInteger(bool value) nothrow pure
+{
+    return value ? 1 : 0;
 }
 
 pragma(inline, true)
@@ -5220,12 +5231,6 @@ if (isXmlString!S)
         return double.nan;
 }
 
-S toText(S)(bool value) nothrow pure
-if (isXmlString!S)
-{
-    return value ? XmlConst!S.boolTrue : XmlConst!S.boolFalse;
-}
-
 S toText(S)(double value) nothrow
 if (isXmlString!S)
 {
@@ -5237,6 +5242,12 @@ if (isXmlString!S)
         return signbit(value) ? XmlConst!S.floatNInf : XmlConst!S.floatPInf;
     else
         return value.to!S();
+}
+
+S toText(S)(bool value) nothrow pure
+if (isXmlString!S)
+{
+    return value ? XmlConst!S.boolTrue : XmlConst!S.boolFalse;
 }
 
 S toText(S)(XmlNode!S node)
@@ -5808,16 +5819,19 @@ unittest // fctString - Complex
     {
         doc.namespaces.put("ns", "http://default.htm");
 
-        auto r = evaluate(evaluate(doc.documentElement, "/ns:store/ns:booksection/namespace::NSbook"), "string()");
+        //debug(debug_pham_xml_xml_xpath) traceXPath++;
+        //debug(debug_pham_xml_xml_namespace) traceNamespace++;
+
+        auto r = evaluate(evaluate(doc, "/ns:store/ns:booksection/namespace::NSbook"), "string()");
         assert(r.get!string() == "http://book.htm", r.get!string());
 
-        r = evaluate(evaluate(doc.documentElement, "/ns:store/namespace::*[1]"), "string()");
+        r = evaluate(evaluate(doc, "/ns:store/namespace::*[1]"), "string()");
         assert(r.get!string() == "http://default.htm", r.get!string());
 
         r = evaluate(doc, "string(ns:store/ns:booksection/namespace::*)");
         assert(r.get!string() == "http://book.htm", r.get!string());
 
-        r = evaluate(evaluate(doc.documentElement, "/ns:store/namespace::*[last()]"), "string()");
+        r = evaluate(evaluate(doc, "/ns:store/namespace::*[last()]"), "string()");
         assert(r.get!string() == "http://www.w3.org/XML/1998/namespace", r.get!string());
     }
 }
@@ -5976,8 +5990,149 @@ unittest // Various nodeset
         r = evaluate(evaluate(doc, "Doc/Test1/@Attr1"), "@*[2]");
         assert(!r.get!bool(), r.get!string());
 
+        r = evaluate(evaluate(doc, "Doc/Test1/Child3"), "*[position() > 2]");
+        assert(r.get!bool(), r.get!string());
 
-        debug(debug_pham_xml_xml_xpath) traceXPath++;
+        r = evaluate(evaluate(doc, "Doc/Test1/Child2"), "*[position() > 2]");
+        assert(!r.get!bool(), r.get!string());
 
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr3"), "@*[position() > 2]");
+        assert(r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "Doc/Test1/@Attr2"), "@*[position() > 2]");
+        assert(!r.get!bool(), r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test1"), "count(attribute::*)");
+        assert(r.get!double() == 5, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test1"), "count(descendant::Child3)");
+        assert(r.get!double() == 1, r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/Test1"), "count(descendant::Child3)");
+        assert(r.get!double() == 1, r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("xp008.xml"))
+    {
+        doc.namespaces.put("ns", "uri:this is a test");
+
+        auto r = evaluate(evaluate(doc.documentElement, "/Doc/ns:elem"), "namespace-uri()");
+        assert(r.get!string() == "uri:this is a test", r.get!string());
+
+        //debug(debug_pham_xml_xml_xpath) traceXPath++;
+        //debug(debug_pham_xml_xml_namespace) traceNamespace++;
+
+        r = evaluate(evaluate(doc.documentElement, "/Doc/ns:elem/@ns:attr"), "namespace-uri()");
+        assert(r.get!string() == "uri:this is a test", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc"), "namespace-uri(child::*)");
+        assert(r.get!string() == "uri:this is a test", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/ns:elem"), "namespace-uri(attribute::*)");
+        assert(r.get!string() == "uri:this is a test", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/ns:elem"), "name()");
+        assert(r.get!string() == "ns:elem", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/ns:elem/@ns:attr"), "name(child::*)");
+        assert(r.get!string() == "ns:attr", r.get!string());
+
+        r = evaluate(evaluate(doc.documentElement, "/Doc"), "name(child::*)");
+        assert(r.get!string() == "ns:elem", r.get!string());
+
+        r = evaluate(evaluate(doc, "/child::*/child::*"), "name(attribute::*)");
+        assert(r.get!string() == "ns:attr", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/ns:elem"), "local-name()");
+        assert(r.get!string() == "elem", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/ns:elem/@ns:attr"), "local-name()");
+        assert(r.get!string() == "attr", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc"), "local-name(child::*)");
+        assert(r.get!string() == "elem", r.get!string());
+
+        r = evaluate(evaluate(doc, "/Doc/ns:elem"), "local-name(attribute::*)");
+        assert(r.get!string() == "attr", r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("id4.xml"))
+    {
+        auto r = evaluate(doc, "id('1')");
+        assert(r.empty, r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("name2.xml"))
+    {
+        doc.namespaces.put("ns", "http://default.htm");
+
+        //debug(debug_pham_xml_xml_xpath) traceXPath++;
+        //debug(debug_pham_xml_xml_namespace) traceNamespace++;
+
+        auto r = evaluate(evaluate(doc, "/ns:store/ns:booksection/namespace::NSbook"), "namespace-uri()");
+        assert(r.get!string() == "", r.get!string());
+
+        r = evaluate(evaluate(doc, "/ns:store/namespace::*[1]"), "namespace-uri()");
+        assert(r.get!string() == "", r.get!string());
+
+        r = evaluate(evaluate(doc, "/ns:store/namespace::*[2]"), "namespace-uri()");
+        assert(r.get!string() == "", r.get!string());
+
+        r = evaluate(doc, "namespace-uri(ns:store/ns:booksection/namespace::*)");
+        assert(r.get!string() == "", r.get!string());
+
+        r = evaluate(evaluate(doc, "/ns:store/ns:booksection/namespace::NSbook"), "name()");
+        assert(r.get!string() == "NSbook", r.get!string());
+
+        r = evaluate(evaluate(doc, "/ns:store/namespace::*[1]"), "name()");
+        assert(r.get!string() == "", r.get!string());
+
+        r = evaluate(doc, "name(ns:store/ns:booksection/namespace::*)");
+        assert(r.get!string() == "NSbook", r.get!string());
     }
 }
+
+unittest // Various nodeset
+{
+    if (auto doc = loadUnittestXml("books.xml"))
+    {
+        auto r = evaluate(doc, "count(/bookstore/*[count(ancestor::*) = 1])");
+        assert(r.get!double() == 17, r.get!string());
+
+        r = evaluate(doc, "local-name(/bookstore/magazine[3]/articles/story1/text()/following::*)");
+        assert(r.get!string() == "details", r.get!string());
+
+        //debug(debug_pham_xml_xml_xpath) traceXPath++;
+
+        r = evaluate(evaluate(doc, "/bookstore"), "local-name(child::*/following::*[last()])");
+        // TODO assert(r.get!string() == "title", r.get!string());
+
+        r = evaluate(doc, "name(/bookstore/magazine[3]/articles/story1/text()/following::*)");
+        assert(r.get!string() == "details", r.get!string());
+
+        r = evaluate(evaluate(doc, "/bookstore"), "name(child::*/following::*[last()])");
+        // TODO assert(r.get!string() == "my:title", r.get!string());
+
+        r = evaluate(doc, "namespace-uri(/bookstore/magazine[3]/articles/story1/text()/following::*)");
+        assert(r.get!string() == "", r.get!string());
+
+        r = evaluate(evaluate(doc, "/bookstore"), "namespace-uri(child::*/following::*[last()])");
+        assert(r.get!string() == "urn:http//www.placeholder-name-here.com/schema/", r.get!string());
+
+        r = evaluate(doc, "count((/comment() | /bookstore/book[2]/author[1]/publication/text())/following-sibling::node())");
+        // TODO assert(r.get!double() == 7, r.get!string());
+    }
+
+    if (auto doc = loadUnittestXml("name2.xml"))
+    {
+        auto r = evaluate(doc, "namespace-uri(/*/*)");
+        assert(r.get!string() == "http://default.htm", r.get!string());
+
+        r = evaluate(doc, "namespace-uri(/*/*/*[1])");
+        assert(r.get!string() == "http://book.htm", r.get!string());
+
+        r = evaluate(doc, "namespace-uri(/*/*/*[2]/*[1])");
+        assert(r.get!string() == "http://book2.htm", r.get!string());
+    }
+}
+

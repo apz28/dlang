@@ -32,6 +32,13 @@ enum XmlEncodedMarker : ubyte
     utf32le,
 }
 
+enum XmlNamespaceNode : ubyte
+{
+    none = 0, // Must start as zero
+    onlyUri,
+    nameUri,
+}
+
 /** 
  * Template trait to determine if S is an build in D string (string, wstring, dstring.)
  * Params:

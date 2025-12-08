@@ -448,7 +448,7 @@ package:
         if (name.s.length == 0)
             throw new XmlParserException(name.loc, XmlMessage.eBlankName);
 
-        debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s, 
+        debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s,
             ", line=", name.loc.sourceLine, ", column=", name.loc.sourceColumn, ", nline=", _loc.sourceLine, ", ncolumn=", _loc.sourceColumn);
 
         return name.s;
@@ -520,7 +520,7 @@ protected:
             _currentChar = 0;
             _currentCount = 0;
             _empty = true;
-            
+
             /*
             static if (is(C == dchar))
                 throw new XmlConvertException(XmlMessage.eInvalidUtf32SequenceEos);
@@ -759,13 +759,18 @@ protected:
     C[] _sBuffer;
 }
 
-package(pham.xml) struct ParseContext(S)
-if (isXmlString!S)
+package(pham.xml)
 {
-@safe:
+    struct ParseContext(S)
+    if (isXmlString!S)
+    {
+    @safe:
 
-    alias C = XmlChar!S;
+    public:
+        alias C = XmlChar!S;
 
-    S s;
-    XmlLoc loc;
+    public:
+        S s;
+        XmlLoc loc;
+    }
 }

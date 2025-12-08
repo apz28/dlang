@@ -38,6 +38,24 @@ if (isXmlString!S)
 public:
     alias C = XmlChar!S;
 
+    struct XmlNSContext
+    {
+    @safe:
+
+    public:
+        bool equalPrefix(S prefix) const nothrow
+        {
+            return this.prefix == prefix
+                || (this.prefix.length == 0 && prefix.length == 0);
+        }
+
+    public:
+        Object element;
+        S prefix;
+        S uri;
+    }
+
+
 public:
     @disable this(this);
     @disable void opAssign(typeof(this));
@@ -618,7 +636,7 @@ private:
     void parseElement()
     {
         debug(debug_pham_xml_xml_parser)
-        {   
+        {
             debug writeln(__FUNCTION__, "(reader.font=", reader.font, ") - ", indentString());
             ++nodeIndent;
             scope (exit)
@@ -835,6 +853,14 @@ private:
         auto text = parseQuotedValue();
 
         auto attribute = document.createAttribute(name, text);
+        if (const ns = attribute.isNamespaceNode)
+        {
+            attribute.namespaceUri = XmlConst!S.xmlnsUri;
+            if (ns == XmlNamespaceNode.nameUri)
+                pushNSContext(parentNode, attribute.localName, attribute.value);
+            else
+                pushNSContext(parentNode, null, attribute.value);
+        }
         if (options.validate)
             parentNode.checkAttribute(attribute, "appendAttribute()");
 
@@ -858,8 +884,13 @@ private:
         expectChar!(skipSpaceBefore)('>');
 
         auto element = cast(XmlElement!S)popNode();
-        auto parentNode = peekNode();
 
+        auto elementUri = getUriContext(element.prefix);
+        if (elementUri.length)
+            element.namespaceUri = elementUri;
+        popNSContext(element);
+
+        auto parentNode = peekNode();
         static if (SAX)
         {
             if (useSaxElementEnd && options.onSaxElementNodeEnd(parentNode, element))
@@ -1019,7 +1050,7 @@ private:
 
     void parseSpaces()
     {
-        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "() - ", indentString()); 
+        debug(debug_pham_xml_xml_parser) debug writeln(__FUNCTION__, "() - ", indentString());
 
         auto s = reader.readSpaces();
         if (options.preserveWhitespace)
@@ -1057,11 +1088,43 @@ private:
     }
 
 private:
+    S getUriContext(S prefix) nothrow
+    {
+        if (ns.length)
+        {
+            size_t len = ns.length;
+            while (len)
+            {
+                if (ns[len - 1].equalPrefix(prefix))
+                    return ns[len - 1].uri;
+                len--;
+            }
+        }
+
+        return null;
+    }
+
+    void popNSContext(Object element) nothrow
+    {
+        if (ns.length != 0 && ns[$ - 1].element is element)
+            ns.length = ns.length - 1;
+    }
+
+    void pushNSContext(Object element, S prefix, S uri) nothrow
+    {
+        if (ns.capacity == 0)
+            ns.reserve(10);
+
+        ns ~= XmlNSContext(element, prefix, uri);
+    }
+
+private:
     enum skipSpaceBefore = 1;
     enum skipSpaceAfter = 2;
 
     XmlDocument!S document;
     XmlNode!S[] nodeStack;
+    XmlNSContext[] ns;
     XmlReader!S reader;
     const(XmlParseOptions!S) options;
 
@@ -1599,7 +1662,7 @@ unittest  // XmlParser.SAX
     }
 
     ProcessXml processXml;
-    
+
     XmlParseOptions!string options;
     version(none) options.onSaxAttributeNode = &processXml.processAttribute;
     version(none) options.onSaxElementNodeBegin = &processXml.processElementBegin;
