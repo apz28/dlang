@@ -111,6 +111,14 @@ static immutable string parserXml = q"XML
 </root>
 XML";
 
+static immutable string childNodesXml = q"XML
+<book ISBN='1-861001-57-5'>
+  <title>Pride And Prejudice</title>
+  <price>19.95</price>
+</book>
+<!-- Comment 6 -->	
+XML";
+
 static immutable string namespaceUriXml = q"XML
 <!-- Comment 1 -->
 <store xmlns="http://default.htm">

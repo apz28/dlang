@@ -5005,6 +5005,53 @@ unittest // XmlNodeList
     assert(rootElementTags2.empty);
 }
 
+unittest // childNodes
+{
+    import std.conv : text, to;
+    import pham.xml.xml_test : childNodesXml;
+
+    static immutable string[] expectedNames = [
+"name=book",
+" name=title",
+"  name=#text",
+" name=price",
+"  name=#text",
+"name=#comment",
+    ];
+
+    static void doIterateNode(XmlNode!string node, int level, ref string[] names)
+    {
+        names ~= text(traceIndentText(level), "name=", node.name);
+
+        foreach (childNode; node.childNodes)
+            doIterateNode(childNode, level + 1, names);
+    }
+
+    string[] names;
+    auto doc = XmlDocument!string(childNodesXml);
+    foreach (childNode; doc.childNodes)
+    {
+        doIterateNode(childNode, 0, names);
+    }
+
+    assert(names.length == expectedNames.length);
+    foreach (i, s; names)
+    {
+        assert(s == expectedNames[i], "i=" ~ i.to!string ~ ", s=" ~ s);
+    }
+
+    string nameText;
+    auto childNodes = doc.getChildNodes(null, Yes.deep);
+    foreach (childNode; childNodes)
+    {
+        if (nameText.length)
+            nameText = nameText ~ ", " ~ text("name=", childNode.name);
+        else
+            nameText = text("name=", childNode.name);
+    }
+    assert(nameText == "name=book, name=title, name=#text, name=price, name=#text, name=#comment", nameText);
+}
+
 unittest // namespaceUri
 {
     import std.conv : text, to;

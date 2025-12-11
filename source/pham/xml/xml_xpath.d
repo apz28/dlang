@@ -1469,7 +1469,7 @@ protected:
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (e.nodeType != XmlNodeType.attribute && accept(inputContext, e))
+            if (accept(inputContext, e))
                 outputContext.putRes(e);
 
             auto childNodes = e.getChildNodes(null, Yes.deep);
@@ -1483,17 +1483,24 @@ protected:
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
     }
 
+    // Will select all of the nodes that come after the context node and their descendant's,
+    // but that does not include the context node's descendants.
     final void evaluateFollowing(ref XPathContext!S inputContext, ref XPathContext!S outputContext)
     {
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (e.nodeType == XmlNodeType.attribute)
-                continue;
+            auto sibling = e.nextSibling;
+            while (sibling !is null)
+            {
+                debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("following.name=", sibling.name));
 
-            auto n = e.nextSibling;
-            if (n !is null && accept(inputContext, n))
-                outputContext.putRes(n);
+                auto siblingContext = inputContext.createOutputContext();
+                siblingContext.putRes(sibling);
+                evaluateDescendantOrSelf(siblingContext, outputContext);
+
+                sibling = sibling.nextSibling;
+            }
         }
 
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
@@ -1504,15 +1511,13 @@ protected:
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (e.nodeType == XmlNodeType.attribute)
-                continue;
-
-            auto n = e.nextSibling;
-            while (n !is null)
+            auto sibling = e.nextSibling;
+            while (sibling !is null)
             {
-                if (accept(inputContext, n))
-                    outputContext.putRes(n);
-                n = n.nextSibling;
+                if (accept(inputContext, sibling))
+                    outputContext.putRes(sibling);
+
+                sibling = sibling.nextSibling;
             }
         }
 
@@ -1556,12 +1561,17 @@ protected:
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (e.nodeType == XmlNodeType.attribute)
-                continue;
+            auto preceding = e.previousSibling;
+            while (preceding !is null)
+            {
+                debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("preceding.name=", preceding.name));
 
-            auto n = e.previousSibling;
-            if (n !is null && accept(inputContext, n))
-                outputContext.putRes(n);
+                auto precedingContext = inputContext.createOutputContext();
+                precedingContext.putRes(preceding);
+                evaluateDescendantOrSelf(precedingContext, outputContext);
+
+                preceding = preceding.previousSibling;
+            }
         }
 
         debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("outputContext.resNodes.length=", outputContext.resNodes.length));
@@ -1572,15 +1582,13 @@ protected:
         auto inputNodes = inputContext.resNodes;
         foreach (e; inputNodes)
         {
-            if (e.nodeType == XmlNodeType.attribute)
-                continue;
-
-            auto n = e.previousSibling;
-            while (n !is null)
+            auto preceding = e.previousSibling;
+            while (preceding !is null)
             {
-                if (accept(inputContext, n))
-                    outputContext.putRes(n);
-                n = n.previousSibling;
+                if (accept(inputContext, preceding))
+                    outputContext.putRes(preceding);
+
+                preceding = preceding.previousSibling;
             }
         }
 
@@ -6102,16 +6110,14 @@ unittest // Various nodeset
         r = evaluate(doc, "local-name(/bookstore/magazine[3]/articles/story1/text()/following::*)");
         assert(r.get!string() == "details", r.get!string());
 
-        //debug(debug_pham_xml_xml_xpath) traceXPath++;
-
         r = evaluate(evaluate(doc, "/bookstore"), "local-name(child::*/following::*[last()])");
-        // TODO assert(r.get!string() == "title", r.get!string());
+        assert(r.get!string() == "title", r.get!string());
 
         r = evaluate(doc, "name(/bookstore/magazine[3]/articles/story1/text()/following::*)");
         assert(r.get!string() == "details", r.get!string());
 
         r = evaluate(evaluate(doc, "/bookstore"), "name(child::*/following::*[last()])");
-        // TODO assert(r.get!string() == "my:title", r.get!string());
+        assert(r.get!string() == "my:title", r.get!string());
 
         r = evaluate(doc, "namespace-uri(/bookstore/magazine[3]/articles/story1/text()/following::*)");
         assert(r.get!string() == "", r.get!string());
@@ -6119,8 +6125,10 @@ unittest // Various nodeset
         r = evaluate(evaluate(doc, "/bookstore"), "namespace-uri(child::*/following::*[last()])");
         assert(r.get!string() == "urn:http//www.placeholder-name-here.com/schema/", r.get!string());
 
+        //debug(debug_pham_xml_xml_xpath) traceXPath++;
+
         r = evaluate(doc, "count((/comment() | /bookstore/book[2]/author[1]/publication/text())/following-sibling::node())");
-        // TODO assert(r.get!double() == 7, r.get!string());
+        assert(r.get!double() == 4, r.get!string()); // ==7 when reserve spaces
     }
 
     if (auto doc = loadUnittestXml("name2.xml"))
@@ -6135,4 +6143,3 @@ unittest // Various nodeset
         assert(r.get!string() == "http://book2.htm", r.get!string());
     }
 }
-
