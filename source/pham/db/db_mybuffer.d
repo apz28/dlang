@@ -12,7 +12,6 @@
 module pham.db.db_mybuffer;
 
 import std.conv : to;
-import std.format : FormatSpec, formatValue;
 import std.string : representation;
 import std.system : Endian;
 
@@ -22,7 +21,7 @@ import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : numericBitCast;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_result : ResultCode;
-import pham.utl.utl_text : simpleFloatFmt, simpleIntegerFmt;
+import pham.utl.utl_text : simpleFloatFmt, simpleIntegerFmt, stringOfNumber;
 import pham.db.db_buffer;
 import pham.db.db_message;
 import pham.db.db_type;
@@ -852,14 +851,14 @@ public:
     pragma(inline, true)
     void writeDate(scope const(DbDate) v) nothrow
     {
-        ubyte[maxDateBufferSize] bytes = void;
+        ubyte[maxDateBufferSize] bytes;
         const nBytes = dateEncode(bytes, v);
         _writer.writeBytes(bytes[0..nBytes]);
     }
 
     void writeDateString(scope const(DbDate) v) nothrow
     {
-        char[maxDateStringSize] str = void;
+        char[maxDateStringSize] str = 0;
         const len = dateEncodeString(str, v);
         writeOpaqueChars(str[0..len]);
     }
@@ -867,14 +866,14 @@ public:
     pragma(inline, true)
     void writeDateTime(scope const(DbDateTime) v) nothrow
     {
-        ubyte[maxDateTimeBufferSize] bytes = void;
+        ubyte[maxDateTimeBufferSize] bytes;
         const nBytes = dateTimeEncode(bytes, v);
         _writer.writeBytes(bytes[0..nBytes]);
     }
 
     void writeDateTimeString(scope const(DbDateTime) v) nothrow
     {
-        char[maxDateTimeStringSize] str = void;
+        char[maxDateTimeStringSize] str = 0;
         const len = dateTimeEncodeString(str, v);
         writeOpaqueChars(str[0..len]);
     }
@@ -901,10 +900,8 @@ public:
 
     void writeFloat32String(float32 v)
     {
-        ShortStringBuffer!char buffer;
-        auto fmtSpec = simpleFloatFmt();
-        formatValue(buffer, v, fmtSpec);
-        writeOpaqueChars(buffer[]);
+        char[300] buffer = 0;
+        writeOpaqueChars(stringOfNumber(buffer[], v, simpleFloatFmt()));
     }
 
     pragma(inline, true)
@@ -915,22 +912,20 @@ public:
 
     void writeFloat64String(float64 v)
     {
-        ShortStringBuffer!char buffer;
-        auto fmtSpec = simpleFloatFmt();
-        formatValue(buffer, v, fmtSpec);
-        writeOpaqueChars(buffer[]);
+        char[300] buffer = 0;
+        writeOpaqueChars(stringOfNumber(buffer[], v, simpleFloatFmt()));
     }
 
     void writeGeometry(scope const(MyGeometry) v) nothrow
     {
-        char[maxMyGeometryBufferSize] str = void;
+        char[maxMyGeometryBufferSize] str = 0;
         const len = geometryEncode(str, v);
         writeString(str[0..len]);
     }
 
     void writeGeometryString(scope const(MyGeometry) v) nothrow
     {
-        ubyte[maxMyGeometryBufferSize] bytes = void;
+        ubyte[maxMyGeometryBufferSize] bytes;
         const len = geometryEncode(bytes, v);
         writeBytesString(bytes[0..len]);
     }
@@ -955,10 +950,8 @@ public:
 
     void writeInt32String(int32 v)
     {
-        ShortStringBuffer!char buffer;
-        auto fmtSpec = simpleIntegerFmt();
-        formatValue(buffer, v, fmtSpec);
-        writeOpaqueChars(buffer[]);
+        char[50] buffer = 0;
+        writeOpaqueChars(stringOfNumber(buffer[], v, simpleIntegerFmt()));
     }
 
     pragma(inline, true)
@@ -969,10 +962,8 @@ public:
 
     void writeInt64String(int64 v)
     {
-        ShortStringBuffer!char buffer;
-        auto fmtSpec = simpleIntegerFmt();
-        formatValue(buffer, v, fmtSpec);
-        writeOpaqueChars(buffer[]);
+        char[50] buffer = 0;
+        writeOpaqueChars(stringOfNumber(buffer[], v, simpleIntegerFmt()));
     }
 
     pragma(inline, true)
@@ -1025,7 +1016,7 @@ public:
     pragma(inline, true)
     void writePackedUInt32(uint32 v) nothrow
     {
-        uint8 nBytes = void;
+        uint8 nBytes;
         auto bytes = uintEncodePacked!uint32(v, nBytes);
         _writer.writeBytes(bytes[0..nBytes]);
     }
@@ -1033,7 +1024,7 @@ public:
     pragma(inline, true)
     void writePackedUInt64(uint64 v) nothrow
     {
-        uint8 nBytes = void;
+        uint8 nBytes;
         auto bytes = uintEncodePacked!uint64(v, nBytes);
         _writer.writeBytes(bytes[0..nBytes]);
     }
@@ -1075,14 +1066,14 @@ public:
 
     void writeTimeSpan(scope const(DbTimeSpan) v) nothrow
     {
-        ubyte[maxTimeSpanBufferSize] bytes = void;
+        ubyte[maxTimeSpanBufferSize] bytes;
         const nBytes = timeSpanEncode(bytes, v);
         _writer.writeBytes(bytes[0..nBytes]);
     }
 
     void writeTimeSpanString(scope const(DbTimeSpan) v) nothrow
     {
-        char[maxTimeSpanStringSize] str = void;
+        char[maxTimeSpanStringSize] str = 0;
         const len = timeSpanEncodeString(str, v);
         writeOpaqueChars(str[0..len]);
     }
@@ -1130,14 +1121,14 @@ public:
     // "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
     void writeUUID(scope const(UUID) v) nothrow
     {
-        char[36] tempBuffer;
+        char[36] tempBuffer = 0;
         v.toString(tempBuffer[]);
         writeString(tempBuffer[]);
     }
 
     void writeUUIDString(scope const(UUID) v)
     {
-        char[36] tempBuffer;
+        char[36] tempBuffer = 0;
         v.toString(tempBuffer[]);
         writeStringString(tempBuffer[]);
     }

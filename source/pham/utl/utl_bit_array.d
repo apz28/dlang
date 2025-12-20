@@ -13,7 +13,7 @@ module pham.utl.utl_bit_array;
 
 import core.bitop : bsf, popcnt;
 import std.algorithm.comparison : min;
-import std.format : FormatSpec;
+import std.format.spec : FormatSpec;
 import std.range.primitives : isOutputRange, put;
 import std.traits : Unqual, isNumeric, isSomeChar, isUnsigned;
 

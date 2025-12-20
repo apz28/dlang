@@ -27,16 +27,10 @@ void deserialize(Deserializer deserializer, scope ref BigInt value, scope ref Se
 
 void serialize(Serializer serializer, scope ref BigInt value, scope ref Serializable attribute)
 {
-    import std.format.spec : FormatSpec;
-
     // There is no binary output from BigInt
-    FormatSpec!char fmt;
-    fmt.spec = 'd';
-    StaticBuffer!(char, 200) text;
-    value.toString(text, fmt);
+    const text = toString(value);
     serializer.write(text[], attribute, DataKind.integral);
 }
-
 
 version(unittest)
 {
@@ -44,8 +38,6 @@ package(pham.ser):
 
     static struct UnitTestStdBigInt
     {
-        import std.format : format;
-        
         BigInt bigInt1;
 
         ref typeof(this) setValues() return
@@ -56,14 +48,18 @@ package(pham.ser):
         
         void assertValues()
         {
-            assert(bigInt1 == BigInt("-71459266416693160362545788781600"), format("%d", bigInt1));
+            const bigInt1Text = toString(bigInt1);
+            assert(bigInt1 == BigInt("-71459266416693160362545788781600"), bigInt1Text[]);
         }
         
         void assertValuesArray(ptrdiff_t index)
         {
-            //import std.stdio : writeln; writeln(format("%d", BigInt("-71459266416693160362545788781600")+index));
+
+            import std.conv : text;
+            //import std.stdio : writeln; writeln(toString(BigInt("-71459266416693160362545788781600")+index))[]);
             
-            assert(bigInt1 == BigInt("-71459266416693160362545788781600")+index, format("%d %d", index, bigInt1));
+            const bigInt1Text = toString(bigInt1);
+            assert(bigInt1 == BigInt("-71459266416693160362545788781600")+index, text(index, " ", bigInt1Text[]));
         }
     }
     
@@ -73,6 +69,17 @@ package(pham.ser):
 
 
 private:
+
+StaticBuffer!(char, 300) toString(scope const(BigInt) value)
+{
+    import std.format.spec : FormatSpec;
+
+    FormatSpec!char fmt;
+    fmt.spec = 'd';
+    StaticBuffer!(char, 300) result;
+    value.toString(result, fmt);
+    return result;
+}
 
 shared static this() nothrow @safe
 {

@@ -437,7 +437,7 @@ public:
     /**
      * Exchanges this StaticArray elements with other StaticArray elements
      */
-    ref typeof(this) swap(ref typeof(this) other) @nogc nothrow return
+    ref typeof(this) swap(return ref typeof(this) other) @nogc nothrow return @trusted
     {
         if (this._items.ptr is other._items.ptr)
             return this;

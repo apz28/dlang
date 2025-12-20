@@ -2,7 +2,7 @@ module pham.external.dec.dec_sink;
 
 import std.algorithm.mutation : swapAt;
 import std.ascii : upHexChars = hexDigits, loHexChars = lowerHexDigits;
-import std.format : FormatSpec;
+import std.format.spec : FormatSpec;
 import std.range.primitives : isOutputRange, put;
 import std.traits : isIntegral, isSomeChar, Unqual;
 

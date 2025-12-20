@@ -14,7 +14,6 @@ module pham.db.db_type;
 import core.internal.hash : hashOf;
 import core.time : convert;
 import std.conv : to;
-import std.format: FormatSpec, formatValue;
 public import core.time : dur, Duration;
 import std.range.primitives : ElementType, isOutputRange, put;
 import std.traits : fullyQualifiedName, isArray, isSomeChar, Unqual;
@@ -38,7 +37,7 @@ import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_numeric_parser : ComputingSizeUnit, DurationUnit, NumericParsedKind,
     parseBase64, parseComputingSize, parseDuration, parseIntegral;
 import pham.utl.utl_result : cmp;
-import pham.utl.utl_text : NamedValue;
+import pham.utl.utl_text : NamedValue, simpleFloatFmt, simpleIntegerFmt, stringOfNumber;
 import pham.var.var_coerce;
 
 alias float32 = float;
@@ -175,7 +174,7 @@ enum DbDefault
      */
     transactionLockTimeout = 60,
 }
-    
+
 enum DbFatalErrorReason : ubyte
 {
     none,
@@ -998,15 +997,14 @@ public:
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
-        FormatSpec!Char spec;
-        spec.spec = 'f';
+        auto floatFmt = simpleFloatFmt();
 
         put(sink, "<(");
-        formatValue(sink, x, spec);
+        stringOfNumber(sink, x, floatFmt);
         put(sink, ',');
-        formatValue(sink, y, spec);
+        stringOfNumber(sink, y, floatFmt);
         put(sink, "),");
-        formatValue(sink, r, spec);
+        stringOfNumber(sink, r, floatFmt);
         put(sink, '>');
         return sink;
     }
@@ -1190,13 +1188,12 @@ public:
     {
         scope (failure) assert(0, "Assume nothrow failed");
 
-        FormatSpec!Char spec;
-        spec.spec = 'f';
+        auto floatFmt = simpleFloatFmt();
 
         put(sink, '(');
-        formatValue(sink, x, spec);
+        stringOfNumber(sink, x, floatFmt);
         put(sink, ',');
-        formatValue(sink, y, spec);
+        stringOfNumber(sink, y, floatFmt);
         put(sink, ')');
         return sink;
     }

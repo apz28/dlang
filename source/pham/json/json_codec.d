@@ -60,7 +60,6 @@ struct JSONTextEncoder
 {
     import std.algorithm.searching : canFind;
     import std.ascii : isControl;
-    import std.format : sformat;
     import std.math.traits : isNaN, isInfinity, signbit;
     import std.typecons : Yes;
     import std.utf : decode, encode;
@@ -194,11 +193,12 @@ public:
     auto ref Sink toString(Sink, T)(return auto ref Sink json, T value) nothrow pure
     if (isOutputRange!(Sink, char) && isIntegral!T)
     {
+        import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
+        
         scope (failure) assert(0, "Assume nothrow failed");
 
         char[50] buf;
-        const cvtValue = buf[].sformat!"%d"(value);
-        json.put(cvtValue);
+        json.put(stringOfNumber(buf[], value, simpleIntegerFmt()));
         return json;
     }
 
@@ -212,6 +212,8 @@ public:
     auto ref Sink toString(Sink, T)(return auto ref Sink json, const(T) value) pure
     if (isOutputRange!(Sink, char) && isFloatingPoint!T)
     {
+        import pham.utl.utl_text : simpleFloatFmt, stringOfNumber;
+        
         if (value.isNaN)
         {
             if (json5)
@@ -245,7 +247,9 @@ public:
             //     ceil(log(pow(2.0, double.mant_dig - 1)) / log(10.0) + 1) == (double.dig + 2)
             // Anything less will round off (1 + double.epsilon)
             char[50] buf;
-            const cvtValue = buf[].sformat!"%.18g"(value);
+            auto spec = simpleFloatFmt(18);
+            spec.spec = 'g';
+            const cvtValue = stringOfNumber(buf[], value, spec);
             json.put(cvtValue);
 
             if (!cvtValue.canFind('e') && !cvtValue.canFind('.'))

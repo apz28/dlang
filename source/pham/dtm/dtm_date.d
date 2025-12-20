@@ -13,7 +13,7 @@ module pham.dtm.dtm_date;
 
 import std.math.algebraic : abs;
 import std.range.primitives : isOutputRange;
-import std.traits : isSomeChar, Unqual;
+import std.traits : Unqual, isSomeChar;
 
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_result : cmp;

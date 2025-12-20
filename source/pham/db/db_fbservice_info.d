@@ -329,7 +329,8 @@ do
     return result;
 }
 
-private ref Appender!string buildConfiguration(return ref Appender!string result, ref const(FbTraceDatabaseConfiguration) configuration, string sep, FbTraceVersion traceVersion) @safe
+private ref Appender!string buildConfiguration(return ref Appender!string result, ref const(FbTraceDatabaseConfiguration) configuration,
+    string sep, FbTraceVersion traceVersion) @safe
 {
 	result.traceBoolTo("enabled", sep, configuration.enabled)
         .traceRegExToIf("include_filter", sep, configuration.includeFilter)
@@ -375,7 +376,8 @@ private ref Appender!string buildConfiguration(return ref Appender!string result
     return result;
 }
 
-private ref Appender!string buildConfiguration(return ref Appender!string result, ref const(FbTraceServiceConfiguration) configuration, string sep, FbTraceVersion traceVersion) @safe
+private ref Appender!string buildConfiguration(return ref Appender!string result, ref const(FbTraceServiceConfiguration) configuration,
+    string sep, FbTraceVersion traceVersion) @safe
 {
 	result.traceBoolTo("enabled", sep, configuration.enabled)
         .traceRegExToIf("include_filter", sep, configuration.includeFilter)
@@ -454,10 +456,19 @@ ref Appender!string traceBoolTo(return ref Appender!string appender, bool v) not
 
 ref Appender!string traceIntTo(return ref Appender!string appender, int v) @safe
 {
-    import std.format : sformat;
+    import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
 
     char[50] buffer;
-    appender.put(sformat(buffer[], "%d", v));
+    appender.put(stringOfNumber(buffer[], v, simpleIntegerFmt()));
+    return appender;
+}
+
+ref Appender!string traceIntTo(return ref Appender!string appender, long v) @safe
+{
+    import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
+
+    char[50] buffer;
+    appender.put(stringOfNumber(buffer[], v, simpleIntegerFmt()));
     return appender;
 }
 

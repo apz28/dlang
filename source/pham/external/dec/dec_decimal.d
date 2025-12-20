@@ -4,8 +4,8 @@ import std.math : FloatingPointControl, getNaNPayload, ieeeFlags,
     ldexp, resetIeeeFlags, signStd = signbit;
 import std.math.traits : isNaN;
 import std.range.primitives : ElementType, isInputRange, isOutputRange, put;
-import std.traits : isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString,
-    isUnsigned, Unqual, Unsigned;
+import std.traits : Unqual, Unsigned,
+    isFloatingPoint, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned;
 
 import pham.external.dec.dec_compare;
 import pham.external.dec.dec_integral;
@@ -19,7 +19,7 @@ public import pham.external.dec.dec_type;
 version(D_BetterC) {}
 else
 {
-  public import std.format : FormatSpec;
+  public import std.format.spec : FormatSpec;
   import pham.external.dec.dec_sink;
 }
 
@@ -855,7 +855,7 @@ public:
         @IEEECompliant("convertToDecimalCharacter", 22)
         string toString() const nothrow @safe
         {
-            FormatSpec!char spec;
+            auto spec = FormatSpec!char("");
             spec.spec = defaultFmtSpec;
             ShortStringBuffer!char resultBuffer;
             sinkDecimal(resultBuffer, spec, this, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
@@ -898,7 +898,7 @@ public:
         ref Writer toString(Writer, Char)(return ref Writer sink) const nothrow @safe
         if (isOutputRange!(Writer, Char) && isSomeChar!Char)
         {
-            FormatSpec!Char spec;
+            auto spec = FormatSpec!Char("");
             spec.spec = defaultFmtSpec;
             sinkDecimal(sink, spec, this, __ctfe ? RoundingMode.implicit : DecimalControl.rounding);
             return sink;

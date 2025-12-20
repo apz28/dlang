@@ -93,7 +93,7 @@ struct BinaryIntCoder
     if (isIntegral!V)
     {
         alias UV = Unsigned!V;
-        int counter = 1, shift = 0;
+        uint counter = 1, shift = 0;
         ubyte lowerBits = data[offset++];
         const isNegative = (lowerBits & negativeBit) != 0;
         UV result = lowerBits & firstByteMask;
@@ -128,7 +128,7 @@ struct BinaryIntCoder
 
         // First 6 bits
         ubyte lowerBits = cast(ubyte)(ev & firstByteMask);
-        ev >>= firstBits;
+        ev >>>= firstBits;
         if (ev)
             lowerBits |= moreBit;
         if (isNegative)
@@ -140,7 +140,7 @@ struct BinaryIntCoder
         while (ev)
         {
             lowerBits = cast(ubyte)(ev & moreByteMask);
-            ev >>= moreBits;
+            ev >>>= moreBits;
             if (ev)
                 lowerBits |= moreBit;
             sink.put(lowerBits);
@@ -281,7 +281,8 @@ public:
         static if (V.sizeof == long.sizeof)
             static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int8, BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else static if (V.sizeof == int.sizeof)
-            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
+            // BinaryDataType.int8 = supports size_t for loading from 64 bits data
+            static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int8, BinaryDataType.int4, BinaryDataType.int2, BinaryDataType.int1]);
         else static if (V.sizeof == short.sizeof)
             static immutable EnumSet!BinaryDataType checkTypes = EnumSet!BinaryDataType([BinaryDataType.int2, BinaryDataType.int1]);
         else //static if (V.sizeof == byte.sizeof)
@@ -296,16 +297,30 @@ public:
         static assert(V.sizeof <= long.sizeof);
 
         static if (V.sizeof >= long.sizeof)
-        if (t == BinaryDataType.int8)
-            return BinaryIntCoder.decodeInt!long(data, offset);
+        {
+            if (t == BinaryDataType.int8)
+                return BinaryIntCoder.decodeInt!long(data, offset);
+        }
 
         static if (V.sizeof >= int.sizeof)
-        if (t == BinaryDataType.int4)
-            return BinaryIntCoder.decodeInt!int(data, offset);
+        {
+            if (t == BinaryDataType.int4)
+                return BinaryIntCoder.decodeInt!int(data, offset);
+            // BinaryDataType.int8 = supports size_t for loading from 64 bits data
+            else if (t == BinaryDataType.int8)
+            {
+                const i8 = BinaryIntCoder.decodeInt!long(data, offset);
+                if (i8 < V.min || i8 > V.max)
+                    throw new DeserializerException("Overflow datatype " ~ V.stringof ~ ": " ~ i8.to!string);
+                return cast(V)i8;
+            }
+        }
 
         static if (V.sizeof >= short.sizeof)
-        if (t == BinaryDataType.int2)
-            return BinaryIntCoder.decodeInt!short(data, offset);
+        {
+            if (t == BinaryDataType.int2)
+                return BinaryIntCoder.decodeInt!short(data, offset);
+        }
 
         assert(t == BinaryDataType.int1);
         return cast(byte)data[offset++];
@@ -926,5 +941,83 @@ unittest // BinarySerializer.UnitTestCustomS1
         scope deserializer = new BinaryDeserializer(binCustom);
         auto c2 = deserializer.deserialize!UnitTestCustomS1();
         c2.assertValues();
+    }
+}
+
+unittest // size_t
+{
+    import std.conv : to;
+    import pham.utl.utl_convert : bytesFromHexs, bytesToHexs;
+
+    static immutable bin4 = "5048414D0001164012026231061F12016208BF9CB8F0071202623206F117";
+    static immutable bin8 = "5048414D0001164012026231061F12016209BF9CB8F0071202623206F117";
+
+    static struct PointerSize
+    {
+        byte b1;
+        size_t b;
+        byte b2;
+
+        ref typeof(this) setValues() return
+        {
+            b1 = cast(byte)0x1F;
+            b = 0x3F07073F; // Make it 4 bytes value
+            b2 = cast(byte)0xF1;
+            return this;
+        }
+
+        void assertValues(size_t line = __LINE__)
+        {
+            assert(b1 == cast(byte)0x1F, b1.to!string(16) ~ " from line# " ~ line.to!string);
+            assert(b == 0x3F07073F, b.to!string(16) ~ " from line# " ~ line.to!string);
+            assert(b2 == cast(byte)0xF1, b2.to!string(16) ~ " from line# " ~ line.to!string);
+        }
+    }
+
+    {
+        PointerSize c;
+        scope serializer = new BinarySerializer();
+        serializer.serialize!PointerSize(c.setValues());
+        auto hex = bytesToHexs(serializer.buffer[]);
+        static if (size_t.sizeof == 4)
+        {
+            version(BinarySerializer_size_t)
+            {
+                import std.file;
+                import std.stdio;
+
+                auto file = File("ser_serialization_bin_4.txt", "w");
+                file.write(hex);
+                file.close();
+            }
+
+            assert(hex == bin4);
+        }
+        else static if (size_t.sizeof == 8)
+        {
+            version(BinarySerializer_size_t)
+            {
+                import std.file;
+                import std.stdio;
+
+                auto file = File("ser_serialization_bin_8.txt", "w");
+                file.write(hex);
+                file.close();
+            }
+
+            assert(hex == bin8);
+        }
+    }
+
+    {
+        scope deserializer = new BinaryDeserializer(bytesFromHexs(bin4));
+        auto c = deserializer.deserialize!PointerSize();
+        c.assertValues();
+    }
+
+    {
+        scope deserializer = new BinaryDeserializer(bytesFromHexs(bin8));
+        auto c = deserializer.deserialize!PointerSize();
+        c.assertValues();
     }
 }

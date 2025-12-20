@@ -992,8 +992,8 @@ public:
     }
     do
     {
-        import std.format : sformat;
         import std.math : isInfinity, isNaN, sgn;
+        import pham.utl.utl_text : simpleFloatFmt, stringOfNumber;
 
         if (isNaN(v))
             return floatLiteralNaN(vBuffer, true);
@@ -1001,11 +1001,12 @@ public:
         if (isInfinity(v))
             return floatLiteralInfinity(vBuffer, sgn(v) != 0, true);
 
-        char[10] fmtBuffer = void;
-        const fmt = floatFormat.floatPrecision >= 18 ? "%.18f" : sformat(fmtBuffer[], "%%.%df", floatFormat.floatPrecision);
+        auto spec = floatFormat.floatPrecision >= 18
+            ? simpleFloatFmt(18)
+            : simpleFloatFmt(floatFormat.floatPrecision);
         return floatFormat.stripTrailingZero
-            ? floatStripTrailingZero(sformat(vBuffer, fmt, v))
-            : sformat(vBuffer[], fmt, v);
+            ? floatStripTrailingZero(stringOfNumber(vBuffer, v, spec))
+            : stringOfNumber(vBuffer, v, spec);
     }
 
     const(char)[] floatLiteral(return scope char[] vBuffer, scope const(char)[] literal, const(bool) floatConversion) @nogc nothrow pure
@@ -1950,7 +1951,7 @@ public:
     final void serialize(V : const T[K], T, K)(V v, scope ref Serializable attribute) @trusted
     if (isIntegral!K && !is(K == enum))
     {
-        import std.format : sformat;
+        import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
 
         static immutable typeName = fullyQualifiedName!T ~ "[" ~ K.stringof ~ "]";
         const length = v.length;
@@ -1962,12 +1963,12 @@ public:
             return;
 
         size_t index;
-        char[50] keyBuffer = void;
+        char[50] keyBuffer = 0;
         Serializable memberAttribute = attribute;
         memberAttribute.flags.symbolId = true;
         foreach (key, ref val; v)
         {
-            const keyStr = sformat(keyBuffer[], "%d", key);
+            const keyStr = stringOfNumber(keyBuffer[], key, simpleIntegerFmt());
             memberAttribute.name = keyStr.idup;
             aggregateItem(index, memberAttribute);
             serialize(val, memberAttribute);
@@ -2125,7 +2126,7 @@ nothrow @safe:
     T[Capacity] data = 0; // 0=Make its struct to be zero initializer
     size_t length;
 
-    T[] opSlice() @nogc return
+    inout(T)[] opSlice() inout @nogc return
     {
         return data[0..length];
     }
@@ -2246,24 +2247,24 @@ package(pham.ser):
             return this;
         }
 
-        void assertValues()
+        void assertValues(size_t line = __LINE__)
         {
-            assert(publicGetSet == 1, _publicGetSet.to!string);
-            assert(_protectedGetSet == 3, _protectedGetSet.to!string);
-            assert(_privateGetSet == 5, _privateGetSet.to!string);
-            assert(publicInt == 20, publicInt.to!string);
-            assert(protectedInt == 0, protectedInt.to!string);
-            assert(privateInt == 0, privateInt.to!string);
+            assert(publicGetSet == 1, _publicGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(_protectedGetSet == 3, _protectedGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(_privateGetSet == 5, _privateGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(publicInt == 20, publicInt.to!string ~ " from line# " ~ line.to!string);
+            assert(protectedInt == 0, protectedInt.to!string ~ " from line# " ~ line.to!string);
+            assert(privateInt == 0, privateInt.to!string ~ " from line# " ~ line.to!string);
         }
 
-        void assertValuesArray(ptrdiff_t index)
+        void assertValuesArray(ptrdiff_t index, size_t line = __LINE__)
         {
-            assert(publicGetSet == 1+index, publicGetSet.to!string);
-            assert(_protectedGetSet == 3, _protectedGetSet.to!string);
-            assert(_privateGetSet == 5, _privateGetSet.to!string);
-            assert(publicInt == 20+index, publicInt.to!string);
-            assert(protectedInt == 0, protectedInt.to!string);
-            assert(privateInt == 0, privateInt.to!string);
+            assert(publicGetSet == 1+index, publicGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(_protectedGetSet == 3, _protectedGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(_privateGetSet == 5, _privateGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(publicInt == 20+index, publicInt.to!string ~ " from line# " ~ line.to!string);
+            assert(protectedInt == 0, protectedInt.to!string ~ " from line# " ~ line.to!string);
+            assert(privateInt == 0, privateInt.to!string ~ " from line# " ~ line.to!string);
         }
 
     protected:
@@ -2336,15 +2337,15 @@ package(pham.ser):
             return this;
         }
 
-        void assertValues()
+        void assertValues(size_t line = __LINE__)
         {
-            assert(_publicGetSet == 1, _publicGetSet.to!string);
-            assert(_protectedGetSet == 3, _protectedGetSet.to!string);
-            assert(_privateGetSet == 5, _privateGetSet.to!string);
-            assert(publicInt == 30, publicInt.to!string);
-            publicStruct.assertValues();
-            assert(protectedInt == 0, protectedInt.to!string);
-            assert(privateInt == 0, privateInt.to!string);
+            assert(_publicGetSet == 1, _publicGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(_protectedGetSet == 3, _protectedGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(_privateGetSet == 5, _privateGetSet.to!string ~ " from line# " ~ line.to!string);
+            assert(publicInt == 30, publicInt.to!string ~ " from line# " ~ line.to!string);
+            publicStruct.assertValues(line);
+            assert(protectedInt == 0, protectedInt.to!string ~ " from line# " ~ line.to!string);
+            assert(privateInt == 0, privateInt.to!string ~ " from line# " ~ line.to!string);
         }
 
     protected:
@@ -2395,10 +2396,10 @@ package(pham.ser):
             return this;
         }
 
-        override void assertValues()
+        override void assertValues(size_t line = __LINE__)
         {
-            super.assertValues();
-            assert(publicStr == "C2 public string", publicStr);
+            super.assertValues(line);
+            assert(publicStr == "C2 public string", publicStr ~ " from line# " ~ line.to!string);
         }
     }
 
@@ -2467,39 +2468,39 @@ package(pham.ser):
             return this;
         }
 
-        void assertValues()
+        void assertValues(size_t line = __LINE__)
         {
             import std.math : isInfinity, isNaN;
 
-            assert(enum1 == UnitTestEnum.third, enum1.to!string);
-            assert(bool1 == true, bool1.to!string);
-            assert(byte1 == 101, byte1.to!string);
-            assert(short1 == -1003, short1.to!string);
-            assert(ushort1 == 3975, ushort1.to!string);
-            assert(int1 == -382653, int1.to!string);
-            assert(uint1 == 3957209, uint1.to!string);
-            assert(long1 == -394572364, long1.to!string);
-            assert(ulong1 == 284659274, ulong1.to!string);
-            assert(float1 == 6394763.5, float1.to!string);
-            assert(floatNaN.isNaN, floatNaN.to!string);
-            assert(double1 == -2846627456445.765, double1.to!string);
-            assert(doubleInf.isInfinity, doubleInf.to!string);
-            assert(string1 == "test string of", string1);
-            assert(charArray == "will this work?", charArray);
-            assert(binary1 == [37,24,204,101,43], binary1.to!string);
-            assert(intArray == [135,937,3725,3068,38465,380], intArray.to!string);
+            assert(enum1 == UnitTestEnum.third, enum1.to!string ~ " from line# " ~ line.to!string);
+            assert(bool1 == true, bool1.to!string ~ " from line# " ~ line.to!string);
+            assert(byte1 == 101, byte1.to!string ~ " from line# " ~ line.to!string);
+            assert(short1 == -1003, short1.to!string ~ " from line# " ~ line.to!string);
+            assert(ushort1 == 3975, ushort1.to!string ~ " from line# " ~ line.to!string);
+            assert(int1 == -382653, int1.to!string ~ " from line# " ~ line.to!string);
+            assert(uint1 == 3957209, uint1.to!string ~ " from line# " ~ line.to!string);
+            assert(long1 == -394572364, long1.to!string ~ " from line# " ~ line.to!string);
+            assert(ulong1 == 284659274, ulong1.to!string ~ " from line# " ~ line.to!string);
+            assert(float1 == 6394763.5, float1.to!string ~ " from line# " ~ line.to!string);
+            assert(floatNaN.isNaN, floatNaN.to!string ~ " from line# " ~ line.to!string);
+            assert(double1 == -2846627456445.765, double1.to!string ~ " from line# " ~ line.to!string);
+            assert(doubleInf.isInfinity, doubleInf.to!string ~ " from line# " ~ line.to!string);
+            assert(string1 == "test string of", string1 ~ " from line# " ~ line.to!string);
+            assert(charArray == "will this work?", charArray ~ " from line# " ~ line.to!string);
+            assert(binary1 == [37,24,204,101,43], binary1.to!string ~ " from line# " ~ line.to!string);
+            assert(intArray == [135,937,3725,3068,38465,380], intArray.to!string ~ " from line# " ~ line.to!string);
             assert(intArrayNull is null);
-            assert(intInt[2] == 23456, intInt[2].to!string);
-            assert(intInt[11] == 113456, intInt[11].to!string);
+            assert(intInt[2] == 23456, intInt[2].to!string ~ " from line# " ~ line.to!string);
+            assert(intInt[11] == 113456, intInt[11].to!string ~ " from line# " ~ line.to!string);
             assert(intIntNull is null);
-            assert(enumEnum[UnitTestEnum.third] == UnitTestEnum.second, enumEnum[UnitTestEnum.third].to!string);
-            assert(enumEnum[UnitTestEnum.forth] == UnitTestEnum.sixth, enumEnum[UnitTestEnum.forth].to!string);
-            assert(strStr["key1"] == "key1 value", strStr["key1"]);
-            assert(strStr["key2"] == "key2 value", strStr["key2"]);
-            assert(strStr["key3"] is null, strStr["key3"]);
-            struct1.assertValues();
+            assert(enumEnum[UnitTestEnum.third] == UnitTestEnum.second, enumEnum[UnitTestEnum.third].to!string ~ " from line# " ~ line.to!string);
+            assert(enumEnum[UnitTestEnum.forth] == UnitTestEnum.sixth, enumEnum[UnitTestEnum.forth].to!string ~ " from line# " ~ line.to!string);
+            assert(strStr["key1"] == "key1 value", strStr["key1"] ~ " from line# " ~ line.to!string);
+            assert(strStr["key2"] == "key2 value", strStr["key2"] ~ " from line# " ~ line.to!string);
+            assert(strStr["key3"] is null, strStr["key3"] ~ " from line# " ~ line.to!string);
+            struct1.assertValues(line);
             assert(class1 !is null);
-            class1.assertValues();
+            class1.assertValues(line);
             assert(class1Null is null);
         }
     }
@@ -2542,40 +2543,40 @@ package(pham.ser):
             return this;
         }
 
-        void assertValues()
+        void assertValues(size_t line = __LINE__)
         {
-            assert(enum1 == UnitTestEnum.third, enum1.to!string);
-            assert(bool1 == true, bool1.to!string);
-            assert(byte1 == 101, byte1.to!string);
-            assert(short1 == -1003, short1.to!string);
-            assert(ushort1 == 3975, ushort1.to!string);
-            assert(int1 == -382653, int1.to!string);
-            assert(uint1 == 3957209, uint1.to!string);
-            assert(long1 == -394572364, long1.to!string);
-            assert(ulong1 == 284659274, ulong1.to!string);
-            assert(float1 == 6394763.5, float1.to!string);
-            assert(double1 == -2846627456445.765, double1.to!string);
-            assert(string1 == "test string of", string1);
-            assert(charArray == "will this work?", charArray);
-            assert(binary1 == [37,24,204,101,43], binary1.to!string);
+            assert(enum1 == UnitTestEnum.third, enum1.to!string ~ " from line# " ~ line.to!string);
+            assert(bool1 == true, bool1.to!string ~ " from line# " ~ line.to!string);
+            assert(byte1 == 101, byte1.to!string ~ " from line# " ~ line.to!string);
+            assert(short1 == -1003, short1.to!string ~ " from line# " ~ line.to!string);
+            assert(ushort1 == 3975, ushort1.to!string ~ " from line# " ~ line.to!string);
+            assert(int1 == -382653, int1.to!string ~ " from line# " ~ line.to!string);
+            assert(uint1 == 3957209, uint1.to!string ~ " from line# " ~ line.to!string);
+            assert(long1 == -394572364, long1.to!string ~ " from line# " ~ line.to!string);
+            assert(ulong1 == 284659274, ulong1.to!string ~ " from line# " ~ line.to!string);
+            assert(float1 == 6394763.5, float1.to!string ~ " from line# " ~ line.to!string);
+            assert(double1 == -2846627456445.765, double1.to!string ~ " from line# " ~ line.to!string);
+            assert(string1 == "test string of", string1 ~ " from line# " ~ line.to!string);
+            assert(charArray == "will this work?", charArray ~ " from line# " ~ line.to!string);
+            assert(binary1 == [37,24,204,101,43], binary1.to!string ~ " from line# " ~ line.to!string);
         }
 
-        void assertValuesArray(ptrdiff_t index)
+        void assertValuesArray(ptrdiff_t index, size_t line = __LINE__)
         {
-            assert(enum1 == UnitTestEnum.third, enum1.to!string);
-            assert(bool1 == true, bool1.to!string);
-            assert(byte1 == 101+index, (byte1+index).to!string);
-            assert(short1 == -1003+index, (short1+index).to!string);
-            assert(ushort1 == 3975+index, (ushort1+index).to!string);
-            assert(int1 == -382653+index, (int1+index).to!string);
-            assert(uint1 == 3957209+index, (uint1+index).to!string);
-            assert(long1 == -394572364+index, (long1+index).to!string);
-            assert(ulong1 == 284659274+index, (ulong1+index).to!string);
-            assert(float1 == 6394763.5+index, (float1+index).to!string);
-            assert(double1 == -2846627456445.765+index, (double1+index).to!string);
-            assert(string1 == "test string of", string1);
-            assert(charArray == "will this work?", charArray);
-            assert(binary1 == [37,24,204,101,43], binary1.to!string);
+            assert(enum1 == UnitTestEnum.third, enum1.to!string ~ " from line# " ~ line.to!string);
+            assert(bool1 == true, bool1.to!string ~ " from line# " ~ line.to!string);
+            assert(byte1 == 101+index, (byte1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(short1 == -1003+index, (short1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(ushort1 == 3975+index, (ushort1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(int1 == -382653+index, (int1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(uint1 == 3957209+index, (uint1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(long1 == -394572364+index, (long1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(ulong1 == 284659274+index, (ulong1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(float1 == 6394763.5+index, (float1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(double1 == -2846627456445.765+index, (double1+index).to!string ~ " from line# " ~ line.to!string);
+            assert(string1 == "test string of", string1 ~ " from line# " ~ line.to!string);
+            assert(charArray == "will this work?", charArray ~ " from line# " ~ line.to!string);
+            assert(binary1 == [37,24,204,101,43], binary1.to!string ~ " from line# " ~ line.to!string);
         }
     }
 
@@ -2601,15 +2602,15 @@ package(pham.ser):
             return this;
         }
 
-        void assertValues() @safe
+        void assertValues(size_t line = __LINE__) @safe
         {
-            s1.assertValues();
-            assert(ds == "d string"d);
-            assert(iSkip == 0);
-            assert(ws == "w string"w);
-            assert(c1 == 'U');
-            assert(deserializerCounter == 3);
-            assert(serializerCounter == 3);
+            s1.assertValues(line);
+            assert(ds == "d string"d, ds.to!string() ~ " from line# " ~ line.to!string);
+            assert(iSkip == 0, iSkip.to!string ~ " from line# " ~ line.to!string);
+            assert(ws == "w string"w, ws.to!string() ~ " from line# " ~ line.to!string);
+            assert(c1 == 'U', c1 ~ " from line# " ~ line.to!string);
+            assert(deserializerCounter == 3, deserializerCounter.to!string ~ " from line# " ~ line.to!string);
+            assert(serializerCounter == 3, serializerCounter.to!string ~ " from line# " ~ line.to!string);
         }
 
         /**
@@ -2889,18 +2890,18 @@ package(pham.ser):
             return this;
         }
 
-        void assertValues()
+        void assertValues(size_t line = __LINE__)
         {
             assert(date1 == Date(1999, 1, 1));
             assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33, DateTimeZoneKind.utc), dateTime1.toString());
             assert(time1 == Time(12, 30, 33, DateTimeZoneKind.utc), time1.toString());
         }
 
-        void assertValuesArray(ptrdiff_t index)
+        void assertValuesArray(ptrdiff_t index, size_t line = __LINE__)
         {
-            assert(date1 == Date(1999, 1, 1).addDays(cast(int)index));
-            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33).addDays(cast(int)index), dateTime1.toString());
-            assert(time1 == Time(12, 30, 33).addSeconds(index), time1.toString());
+            assert(date1 == Date(1999, 1, 1).addDays(cast(int)index), date1.toString() ~ " from line# " ~ line.to!string);
+            assert(dateTime1 == DateTime(1999, 7, 6, 12, 30, 33).addDays(cast(int)index), dateTime1.toString() ~ " from line# " ~ line.to!string);
+            assert(time1 == Time(12, 30, 33).addSeconds(index), time1.toString() ~ " from line# " ~ line.to!string);
         }
     }
 

@@ -40,7 +40,7 @@ void serialize(Serializer serializer, scope ref UUID value, scope ref Serializab
     {
         case SerializerDataFormat.text:
             const characterCase = serializer.binaryFormat(attribute).characterCase;
-            char[36] text = void;
+            char[36] text = 0;
             value.toString(text[]);
             serializer.write(asciiCaseInplace(text[], characterCase)[], attribute, DataKind.uuid);
             return;

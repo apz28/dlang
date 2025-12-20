@@ -339,7 +339,7 @@ do
     }
 }
 
-void arrayZeroInit(T)(T[] array) @nogc nothrow pure @trusted
+void arrayZeroInit(T)(scope T[] array) @nogc nothrow pure @trusted
 {
     import core.stdc.string : memset;
 

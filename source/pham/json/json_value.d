@@ -221,7 +221,7 @@ public:
      * Throws:
      *  `JSONException` if `type` is not `JSONType.array`.
      */
-    ref inout(JSONValue) opIndex(size_t index) inout pure @safe
+    ref inout(JSONValue) opIndex(size_t index) inout pure return @safe
     {
         if (_type == JSONType.object)
         {
@@ -242,7 +242,7 @@ public:
      * Throws:
      *  `JSONException` if `type` is not `JSONType.object`.
      */
-    ref inout(JSONValue) opIndex(return scope const(char)[] key) inout pure @safe
+    ref inout(JSONValue) opIndex(return scope const(char)[] key) inout pure return @safe
     {
         auto obj = this.object;
         return *enforce!JSONException(key in obj, "Key not found: " ~ key);
@@ -760,10 +760,10 @@ package:
 
 enum JSONNavigate : ubyte
 {
-    child = 0x00,
-    descendant = 0x01,
-    array = 0x02,
-    object = 0x04,
+    child = 0x01,
+    descendant = 0x02,
+    array = 0x04,
+    object = 0x08,
 }
 
 struct JSONChilds(ubyte navigate)

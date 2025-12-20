@@ -25,7 +25,7 @@ import std.conv : emplace, to;
 import std.datetime.date : DateTime;
 import std.datetime.systime : Clock, SysTime;
 import std.datetime.timezone : LocalTime, UTC;
-import std.format : formattedWrite;
+import std.format.write : formattedWrite;
 import std.process : thisThreadID;
 import std.range.primitives : empty, ElementType, front, isInfinite, isInputRange, popFront;
 import std.traits : isDynamicArray, isIntegral, isSomeChar, isSomeString, Unqual;

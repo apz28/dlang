@@ -11,12 +11,10 @@
 
 module pham.utl.utl_text;
 
-import std.format : FormatSpec;
-import std.traits : Unqual, isSomeChar, isSomeString;
+import std.format.spec : FormatSpec;
+import std.traits : Unqual, isFloatingPoint, isIntegral, isSomeChar, isSomeString;
 
 public import pham.utl.utl_result : ResultIf;
-
-nothrow @safe:
 
 struct NamedValue(S)
 {
@@ -34,7 +32,7 @@ string className(const(Object) object) nothrow pure @safe
     return object is null ? "null" : typeid(object).name;
 }
 
-string concateLineIf(string lines, string addedLine)
+string concateLineIf(string lines, string addedLine) nothrow @safe
 {
     if (addedLine.length == 0)
         return lines;
@@ -44,18 +42,8 @@ string concateLineIf(string lines, string addedLine)
         return lines ~ "\n" ~ addedLine;
 }
 
-ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) pure
-{
-    foreach (i, ref v; values)
-    {
-        if (v.name == name)
-            return i;
-    }
-    return -1;
-}
-
 ResultIf!(Char[]) decodeFormValue(Char)(return Char[] encodedFormValue,
-    const(Char) invalidReplacementChar = '?') pure
+    const(Char) invalidReplacementChar = '?') nothrow pure @safe
 if (isSomeChar!Char)
 {
     import pham.utl.utl_array_append : Appender;
@@ -118,15 +106,14 @@ if (isSomeChar!Char)
         : ResultIf!(Char[]).error(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
 }
 
-/**
- * Returns true if `c` is in the range 0..0x7F
- * Params:
- *   c = the character to test
- */
-pragma(inline, true)
-bool isSimpleChar(const(char) c) @nogc pure
+ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) nothrow pure @safe
 {
-    return c <= 0x7F;
+    foreach (i, ref v; values)
+    {
+        if (v.name == name)
+            return i;
+    }
+    return -1;
 }
 
 /**
@@ -134,7 +121,7 @@ bool isSimpleChar(const(char) c) @nogc pure
  * Params:
  *   chars = the list of characters to test
  */
-bool isAllSimpleChar(scope const(char)[] chars) @nogc pure
+bool isAllSimpleChar(scope const(char)[] chars) @nogc nothrow pure @safe
 {
     foreach (i; 0..chars.length)
     {
@@ -142,6 +129,17 @@ bool isAllSimpleChar(scope const(char)[] chars) @nogc pure
             return false;
     }
     return true;
+}
+
+/**
+ * Returns true if `c` is in the range 0..0x7F
+ * Params:
+ *   c = the character to test
+ */
+pragma(inline, true)
+bool isSimpleChar(const(char) c) @nogc nothrow pure @safe
+{
+    return c <= 0x7F;
 }
 
 /**
@@ -155,8 +153,8 @@ bool isAllSimpleChar(scope const(char)[] chars) @nogc pure
  * Returns:
  *   a string with proper padded character(s)
  */
-S pad(S, C)(S value, const(ptrdiff_t) size, C c) nothrow pure @safe
-if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
+S pad(S, Char)(S value, const(ptrdiff_t) size, Char c) nothrow pure @safe
+if (isSomeString!S && isSomeChar!Char && is(Unqual!(typeof(S.init[0])) == Char))
 {
     import std.math : abs;
 
@@ -165,21 +163,21 @@ if (isSomeString!S && isSomeChar!C && is(Unqual!(typeof(S.init[0])) == C))
         return value;
 
     return size > 0
-        ? (stringOfChar!C(n - value.length, c) ~ value)
-        : (value ~ stringOfChar!C(n - value.length, c));
+        ? (stringOfChar!Char(n - value.length, c) ~ value)
+        : (value ~ stringOfChar!Char(n - value.length, c));
 }
 
-ref Writer padRight(C, Writer)(return ref Writer sink, const(size_t) length, const(size_t) size, C c) nothrow pure @safe
-if (isSomeChar!C)
+ref Writer padRight(Char, Writer)(return ref Writer sink, const(size_t) length, const(size_t) size, Char c) nothrow pure @safe
+if (isSomeChar!Char)
 {
     return length >= size
         ? sink
-        : stringOfChar!(C, Writer)(sink, size - length, c);
+        : stringOfChar!(Char, Writer)(sink, size - length, c);
 }
 
 void parseFormEncodedValues(Char)(return Char[] formEncodedValues,
     bool delegate(size_t index, return ResultIf!(Char[]) name, return ResultIf!(Char[]) value) nothrow @safe valueCallBack,
-    const(Char) invalidReplacementChar = '?')
+    const(Char) invalidReplacementChar = '?') nothrow @safe
 if (isSomeChar!Char)
 {
     size_t counter;
@@ -210,8 +208,8 @@ if (isSomeChar!Char)
  */
 string shortClassName(const(Object) object, uint parts = 2) nothrow pure @safe
 {
-    return object is null 
-        ? "null" 
+    return object is null
+        ? "null"
         : shortenTypeNameTemplate(typeid(object).name).shortenTypeNameModule(parts);
 }
 
@@ -262,11 +260,20 @@ string shortenTypeNameTemplate(string fullName) nothrow pure @safe
 
 /**
  * Returns FormatSpec!char with `f` format specifier
+ * Params:
+ *   precision = optional precision of formated string
+ *   width = optional width of formated string
  */
-FormatSpec!char simpleFloatFmt() nothrow pure @safe
+FormatSpec!Char simpleFloatFmt(Char = char)(int precision = -1, int width = 0) nothrow pure @safe
+if (isSomeChar!Char)
 {
-    FormatSpec!char result;
+    auto result = FormatSpec!Char("");
     result.spec = 'f';
+    result.flDash = true;
+    if (precision != -1)
+        result.precision = precision;
+    if (width != 0)
+        result.width = width;
     return result;
 }
 
@@ -280,7 +287,7 @@ FormatSpec!char simpleFloatFmt() nothrow pure @safe
  *   index of `c` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, const(Char) c) @nogc pure
+ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, const(Char) c) @nogc nothrow pure @safe
 if (isSomeChar!Char)
 {
 	foreach (i; 0..str.length)
@@ -301,7 +308,7 @@ if (isSomeChar!Char)
  *   index of `subStr` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, scope const(Char)[] subStr) @nogc pure
+ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, scope const(Char)[] subStr) @nogc nothrow pure @safe
 if (isSomeChar!Char)
 {
     if (str.length < subStr.length || subStr.length == 0)
@@ -338,7 +345,7 @@ if (isSomeChar!Char)
  *   index of any `chars` in `str`
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOfAny(Char)(scope const(Char)[] str, scope const(Char)[] chars) @nogc pure
+ptrdiff_t simpleIndexOfAny(Char)(scope const(Char)[] str, scope const(Char)[] chars) @nogc nothrow pure @safe
 if (isSomeChar!Char)
 {
 	foreach (i; 0..str.length)
@@ -354,17 +361,19 @@ if (isSomeChar!Char)
  * Params:
  *   width = optional width of formated string
  */
-FormatSpec!char simpleIntegerFmt(int width = 0) nothrow pure @safe
+FormatSpec!Char simpleIntegerFmt(Char = char)(int width = 0) nothrow pure @safe
+if (isSomeChar!Char)
 {
-    FormatSpec!char result;
+    auto result = FormatSpec!Char("");
     result.spec = 'd';
-    result.width = width;
+    if (width != 0)
+        result.width = width;
     return result;
 }
 
-auto simpleSplitter(S, Separator)(S str, Separator separator)
+auto simpleSplitter(S, Separator)(S str, Separator separator) nothrow @safe
 {
-    struct Result
+    static struct Result
     {
     nothrow @safe:
 
@@ -454,21 +463,21 @@ auto simpleSplitter(S, Separator)(S str, Separator separator)
  *   count = number of characters
  *   c = expected string of character
  */
-auto stringOfChar(C = char)(size_t count, C c) nothrow pure @trusted
-if (is(Unqual!C == char) || is(Unqual!C == wchar) || is(Unqual!C == dchar))
+auto stringOfChar(Char = char)(size_t count, Char c) nothrow pure @trusted
+if (is(Unqual!Char == char) || is(Unqual!Char == wchar) || is(Unqual!Char == dchar))
 {
-    auto result = new Unqual!C[](count);
+    auto result = new Unqual!Char[](count);
     result[] = c;
-    static if (is(Unqual!C == char))
+    static if (is(Unqual!Char == char))
         return cast(string)result;
-    else static if (is(Unqual!C == wchar))
+    else static if (is(Unqual!Char == wchar))
         return cast(wstring)result;
     else
         return cast(dstring)result;
 }
 
-ref Writer stringOfChar(C = char, Writer)(return ref Writer sink, size_t count, C c) nothrow pure @safe
-if (isSomeChar!C)
+ref Writer stringOfChar(Char = char, Writer)(return ref Writer sink, size_t count, Char c) nothrow pure @safe
+if (isSomeChar!Char)
 {
     while (count)
     {
@@ -478,7 +487,46 @@ if (isSomeChar!C)
     return sink;
 }
 
-S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) pure
+ref Writer stringOfNumber(Writer, T, Char = char)(return ref Writer sink, T number, scope auto ref FormatSpec!Char spec) pure @safe
+if ((isFloatingPoint!T || isIntegral!T) && isSomeChar!Char)
+{
+    import std.format.write : formatValue;
+
+    formatValue(sink, number, spec);
+    return sink;
+}
+
+Char[] stringOfNumber(T, Char = char)(return scope Char[] buffer, T number, scope auto ref FormatSpec!Char spec) pure @safe
+if ((isFloatingPoint!T || isIntegral!T) && isSomeChar!Char)
+{
+    static struct Sink
+    {
+        Char[] buf;
+        size_t i;
+
+        void put(Char c)
+        {
+            assert(i < buf.length);
+
+            buf[i] = c;
+            i++;
+        }
+
+        void put(scope const(Char)[] s)
+        {
+            assert(i + s.length < buf.length);
+
+            buf[i..i + s.length] = s[];
+            i += s.length;
+        }
+    }
+
+    auto sink = Sink(buffer);
+    stringOfNumber(sink, number, spec);
+    return buffer[0..sink.i];
+}
+
+S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) nothrow pure @safe
 {
     foreach (ref v; values)
     {
@@ -616,7 +664,7 @@ nothrow @safe unittest // shortFunctionName
     {
         assert(shortFunctionName(1) == "testSelf");
     }
-    
+
     static immutable sample = "pham.db.db_fbdatabase.FbService.traceStart";
     assert(shortFunctionName(0, sample).length == 0);
     assert(shortFunctionName(1, sample) == "traceStart");
@@ -625,14 +673,14 @@ nothrow @safe unittest // shortFunctionName
     assert(shortFunctionName(4, sample) == "db.db_fbdatabase.FbService.traceStart");
     assert(shortFunctionName(5, sample) == sample);
     assert(shortFunctionName(6, sample) == sample);
-    
+
     testSelf();
 }
 
 nothrow @safe unittest // shortTypeName
 {
     //import std.stdio : writeln; debug writeln(typeid(TestClassTemplate!int).name);
-    
+
     assert(shortTypeName!TestClassName() == "utl_text.TestClassName", shortTypeName!TestClassName());
     assert(shortTypeName!(TestClassTemplate!int)() == "utl_text.TestClassTemplate", shortTypeName!(TestClassTemplate!int)());
     assert(shortTypeName!TestStructName() == "utl_text.TestStructName", shortTypeName!TestStructName());
@@ -705,4 +753,19 @@ nothrow @safe unittest // stringOfChar (Writer)
 
     s.clear();
     assert(stringOfChar(s, 0, ' ').data.length == 0);
+}
+
+unittest // stringOfNumber
+{
+    char[50] buffer;
+
+    assert(stringOfNumber(buffer[], 0, simpleIntegerFmt()) == "0");
+    assert(stringOfNumber(buffer[], 1, simpleIntegerFmt()) == "1");
+    assert(stringOfNumber(buffer[], int.min, simpleIntegerFmt()) == "-2147483648");
+    assert(stringOfNumber(buffer[], int.max, simpleIntegerFmt()) == "2147483647");
+
+    assert(stringOfNumber(buffer[], 0.0, simpleFloatFmt(10)) == "0.0000000000");
+    assert(stringOfNumber(buffer[], 1.0, simpleFloatFmt(10)) == "1.0000000000");
+    assert(stringOfNumber(buffer[], 0.1, simpleFloatFmt(10)) == "0.1000000000", stringOfNumber(buffer[], 0.1, simpleFloatFmt(10)).idup);
+    assert(stringOfNumber(buffer[], -0.1, simpleFloatFmt(10)) == "-0.1000000000", stringOfNumber(buffer[], -0.1, simpleFloatFmt(10)).idup);
 }

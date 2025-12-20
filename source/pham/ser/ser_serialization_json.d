@@ -18,7 +18,9 @@ import pham.dtm.dtm_date : Date, DateTime;
 import pham.dtm.dtm_date_time_parse : DateTimePattern, dateTimeParse=parse;
 import pham.dtm.dtm_tick : DateTimeSetting, DateTimeZoneKind;
 import pham.dtm.dtm_time : Time;
-import pham.json : JSONOptions, JSONType, JSONValue, parseJSON;
+import pham.json.json_reader : parseJSON;
+import pham.json.json_type : JSONOptions, JSONType;
+import pham.json.json_value : JSONValue;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_enum_set : EnumSet;
 import pham.ser.ser_serialization;
@@ -30,7 +32,7 @@ class JsonDeserializer : Deserializer
 @safe:
 
 public:
-    this(scope const(char)[] data)
+    this(const(char)[] data)
     {
         this.root = parseJSON!(JSONOptions.none)(data); // Need to handle Nan, +inf, -inf ourself
         //import std.stdio : writeln; debug writeln("root=", root.toString(JSONOptions.specialFloatLiterals));

@@ -12,7 +12,6 @@
 module pham.db.db_myconvert;
 
 import core.time : dur;
-import std.format : FormatSpec, formatValue;
 import std.traits: isUnsigned, Unqual;
 
 debug(debug_pham_db_db_myconvert) import pham.db.db_debug;
@@ -21,7 +20,7 @@ import pham.dtm.dtm_date_time_parse;
 import pham.dtm.dtm_tick : Tick, TickPart;
 import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_bit : numericBitCast;
-import pham.utl.utl_text : simpleIntegerFmt;
+import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
 import pham.db.db_type;
 import pham.db.db_myoid;
 import pham.db.db_mytype;
@@ -242,20 +241,18 @@ uint8 geometryEncode(ref char[maxMyGeometryBufferSize] myGeometryChars, scope co
 {
 	scope (failure) assert(0, "Assume nothrow failed");
 
+    auto integerFmt = simpleIntegerFmt();
 	ShortStringBuffer!char buffer;
 	if (geometry.srid != 0)
     {
 		buffer.put("SRID=");
-		auto fmtSpec = simpleIntegerFmt();
-		formatValue(buffer, geometry.srid, fmtSpec);
+		stringOfNumber(buffer, geometry.srid, integerFmt);
         buffer.put(';');
     }
 	buffer.put("POINT(");
-	auto fmtSpec = simpleIntegerFmt();
-	formatValue(buffer, geometry.point.x, fmtSpec);
+	stringOfNumber(buffer, geometry.point.x, integerFmt);
 	buffer.put(' ');
-	fmtSpec = simpleIntegerFmt();
-	formatValue(buffer, geometry.point.y, fmtSpec);
+	stringOfNumber(buffer, geometry.point.y, integerFmt);
 	buffer.put(')');
 
 	myGeometryChars[0..buffer.length] = buffer[0..buffer.length];
@@ -337,24 +334,20 @@ uint8 timeSpanEncodeString(ref char[maxTimeSpanStringSize] myTimeSpanString, sco
 	bool isNeg;
 	timeSpan.getTime(isNeg, day, hour, minute, second, microsecond);
 
+    auto integerFmt2 = simpleIntegerFmt(2);
 	ShortStringBuffer!char buffer;
 	buffer.put('\'');
     if (isNeg)
 		buffer.put('-');
-	auto fmtSpec = simpleIntegerFmt();
-	formatValue(buffer, day, fmtSpec);
+	stringOfNumber(buffer, day, simpleIntegerFmt());
 	buffer.put(' ');
-	fmtSpec = simpleIntegerFmt(2);
-	formatValue(buffer, hour, fmtSpec);
+	stringOfNumber(buffer, hour, integerFmt2);
 	buffer.put(':');
-	fmtSpec = simpleIntegerFmt(2);
-	formatValue(buffer, minute, fmtSpec);
+	stringOfNumber(buffer, minute, integerFmt2);
 	buffer.put(':');
-	fmtSpec = simpleIntegerFmt(2);
-	formatValue(buffer, second, fmtSpec);
+	stringOfNumber(buffer, second, integerFmt2);
 	buffer.put('.');
-	fmtSpec = simpleIntegerFmt(6);
-	formatValue(buffer, microsecond, fmtSpec);
+	stringOfNumber(buffer, microsecond, simpleIntegerFmt(6));
 	buffer.put('\'');
 
 	myTimeSpanString[0..buffer.length] = buffer[0..buffer.length];
