@@ -757,7 +757,7 @@ nothrow @safe unittest // stringOfChar (Writer)
 
 unittest // stringOfNumber
 {
-    char[50] buffer;
+    char[50] buffer = 0;
 
     assert(stringOfNumber(buffer[], 0, simpleIntegerFmt()) == "0");
     assert(stringOfNumber(buffer[], 1, simpleIntegerFmt()) == "1");

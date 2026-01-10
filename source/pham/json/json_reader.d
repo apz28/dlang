@@ -495,7 +495,7 @@ private:
     // Returns false if failed or eos, true otherwise
     JSONTokenKind getDChar(ref dchar c)
     {
-        wchar[2] pair;
+        wchar[2] pair = 0;
         if (!getWChar(pair[0]))
             return JSONTokenKind.none;
 
@@ -937,7 +937,7 @@ private:
                     if (checkSeparator(val))
                         goto Next;
 
-                    char[4] buf;
+                    char[4] buf = 0;
                     const len = encode!(Yes.useReplacementDchar)(buf, val);
                     foreach (e; buf[0..len])
                         putChar(e);

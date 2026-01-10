@@ -458,7 +458,7 @@ ref Appender!string traceIntTo(return ref Appender!string appender, int v) @safe
 {
     import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
 
-    char[50] buffer;
+    char[50] buffer = 0;
     appender.put(stringOfNumber(buffer[], v, simpleIntegerFmt()));
     return appender;
 }
@@ -467,7 +467,7 @@ ref Appender!string traceIntTo(return ref Appender!string appender, long v) @saf
 {
     import pham.utl.utl_text : simpleIntegerFmt, stringOfNumber;
 
-    char[50] buffer;
+    char[50] buffer = 0;
     appender.put(stringOfNumber(buffer[], v, simpleIntegerFmt()));
     return appender;
 }

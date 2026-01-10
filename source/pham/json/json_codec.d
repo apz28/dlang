@@ -130,7 +130,7 @@ public:
     {
         // Ensure non-BMP characters are encoded as a pair
         // of UTF-16 surrogate characters, as per RFC 4627.
-        wchar[2] wchars; // 1 or 2 UTF-16 code units
+        wchar[2] wchars = 0; // 1 or 2 UTF-16 code units
         const len = encode!(Yes.useReplacementDchar)(wchars, c); // number of UTF-16 code units
         ubyte count;
         foreach (w; wchars[0..len])
@@ -151,7 +151,7 @@ public:
     {
         if (c >= 0x80)
         {
-            char[4] s;
+            char[4] s = 0;
             const len = encode!(Yes.useReplacementDchar)(s, c);
             return s.idup;
         }
@@ -197,7 +197,7 @@ public:
         
         scope (failure) assert(0, "Assume nothrow failed");
 
-        char[50] buf;
+        char[50] buf = 0;
         json.put(stringOfNumber(buf[], value, simpleIntegerFmt()));
         return json;
     }
@@ -246,7 +246,7 @@ public:
             // trips is actually:
             //     ceil(log(pow(2.0, double.mant_dig - 1)) / log(10.0) + 1) == (double.dig + 2)
             // Anything less will round off (1 + double.epsilon)
-            char[50] buf;
+            char[50] buf = 0;
             auto spec = simpleFloatFmt(18);
             spec.spec = 'g';
             const cvtValue = stringOfNumber(buf[], value, spec);
@@ -279,7 +279,7 @@ public:
     auto ref Sink toStringEncode(Sink, Char)(return auto ref Sink json, scope const(char)[] value) nothrow pure
     if (isOutputRange!(Sink, char) && (is(Char == char) || is(Char == dchar)))
     {
-        char[12] buffer;
+        char[12] buffer = 0;
 
         static if (is(Char == char))
         {

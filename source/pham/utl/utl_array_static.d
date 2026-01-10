@@ -662,7 +662,7 @@ private:
     }
 
     pragma(inline, true)
-    void setStaticReference() @nogc nothrow pure return @safe scope
+    void setStaticReference() @nogc nothrow pure return scope @trusted
     {
         _items = _staticItems[];
         _tryExtendBlock = false;
@@ -1042,7 +1042,7 @@ public:
         import std.typecons : Yes;
         import std.utf : encode, UseReplacementDchar;
 
-        char[4] buffer;
+        char[4] buffer = 0;
         const len = encode!(Yes.useReplacementDchar)(buffer, c);
         return put(buffer[0..len]);
     }

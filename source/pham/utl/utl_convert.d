@@ -121,7 +121,7 @@ if (isIntegral!N && (radix == 2 || radix == 8 || radix == 10 || radix == 16))
     alias UN = Unqual!N;
     enum bufSize = N.sizeof * 8;
 
-    char[bufSize] bufDigits;
+    char[bufSize] bufDigits = 0;
     size_t bufIndex = bufSize;
 
     static if (isUnsigned!N || radix != 10)

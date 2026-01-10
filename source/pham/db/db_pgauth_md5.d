@@ -50,7 +50,7 @@ public:
             return status;
 
         const md5Password = MD5toHex(userPassword, userName);
-        char[3 + 32] result;
+        char[3 + 32] result = 0;
         result[0..3] = "md5";
         result[3..$] = MD5toHex(md5Password, serverAuthData);
         authData = result[].representation();

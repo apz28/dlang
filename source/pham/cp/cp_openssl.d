@@ -225,7 +225,7 @@ public:
         if (_connected && _ssl)
         {
             opensslApi.SSL_set_quiet_shutdown(_ssl, 1);
-            if (sslOKStatus != opensslApi.SSL_shutdown(_ssl))
+            if (opensslApi.SSL_shutdown(_ssl) != sslOKStatus)
                 rs = currentError("SSL_shutdown");
         }
 
@@ -236,13 +236,14 @@ public:
     ResultStatus connect(int socketHandle) @trusted
     in
     {
-        assert(isInitialized && !isConnected);
+        assert(!isConnected);
     }
     do
     {
-        //opensslApi.SSL_set_ex_data(_ssl, sslDataIndex(), &this);
+        if (!isInitialized)
+            return ResultStatus.error(-1, "SSL is not initialized");
 
-        if (sslOKStatus != opensslApi.SSL_set_fd(_ssl, socketHandle))
+        if (opensslApi.SSL_set_fd(_ssl, socketHandle) != sslOKStatus)
             return currentError("SSL_set_fd");
 
         int r = opensslApi.SSL_connect(_ssl);
@@ -278,7 +279,7 @@ public:
     do
     {
         disposeSSLResources(); // _ctx & _ssl
-        
+
         _connected = false;
         sslCa = sslCaDir = sslCert = sslKey = sslKeyPassword = null;
         sslCertType = sslKeyType = SSL_FILETYPE_PEM;
@@ -291,7 +292,7 @@ public:
         return ResultCode.ok;
     }
 
-    ResultStatus initialize() @trusted
+    ResultStatus initialize() return @trusted
     in
     {
         assert(!isInitialized);
@@ -312,10 +313,13 @@ public:
         if (_ssl is null)
             return initializeError("SSL_new");
 
+        //import std.stdio : writeln; debug writeln("sslDataIndex=", sslDataIndex());
+        opensslApi.SSL_set_ex_data(_ssl, sslDataIndex(), &this);
+
         return ResultStatus.ok();
     }
 
-    ResultStatus receive(ubyte[] data, out size_t readSize) @trusted
+    ResultStatus receive(scope ubyte[] data, out size_t readSize) @trusted
     in
     {
         assert(isInitialized);
@@ -421,15 +425,36 @@ public:
         return ResultStatus.ok();
     }
 
+    static int ctxDataIndex() @trusted
+    {
+        import core.atomic : atomicLoad, cas;
+
+        static shared int ctxIdx = -1;
+        if (ctxIdx.atomicLoad() == -1)
+        {
+            static immutable ctxIdentifier = __MODULE__ ~ ".OpenSSLClientSocketCTX";
+            const int newIdx = opensslApi.SSL_CTX_get_ex_new_index(0, cast(void*)ctxIdentifier.ptr, null, null, null);
+            if (newIdx >= 0)
+                cas(&ctxIdx, -1, newIdx);
+            assert(ctxIdx >= 0);
+        }
+        return ctxIdx.atomicLoad();
+    }
+
     static int sslDataIndex() @trusted
     {
-        __gshared int idx = -1;
-        if (idx == -1)
+        import core.atomic : atomicLoad, cas;
+
+        static shared int sslIdx = -1;
+        if (sslIdx.atomicLoad() == -1)
         {
-            static const identifier = __MODULE__ ~ ".OpenSSLClientSocket";
-            idx = opensslApi.SSL_get_ex_new_index(0, cast(void*)identifier.ptr, null, null, null);
+            static immutable sslIdentifier = __MODULE__ ~ ".OpenSSLClientSocketSSL";
+            const int newIdx = opensslApi.SSL_get_ex_new_index(0, cast(void*)sslIdentifier.ptr, null, null, null);
+            if (newIdx >= 0)
+                cas(&sslIdx, -1, newIdx);
+            assert(sslIdx >= 0);
         }
-        return idx;
+        return sslIdx.atomicLoad();
     }
 
     void uninitialize()
@@ -439,94 +464,108 @@ public:
     }
 
     ResultStatus verifyCertificate() @trusted
-    in
     {
-        assert(isInitialized);
-        assert(isConnected);
-    }
-    do
-    {
-        X509* x509 = opensslApi.SSL_get_peer_certificate(_ssl);
+        this.lastVerificationCallbackResult.reset();
+        
+        ResultStatus returnErrorStatus(ResultStatus errorStatus)
+        {
+            if (this.lastVerificationCallbackResult.isOK)
+                this.lastVerificationCallbackResult = errorStatus;
+            return errorStatus;
+        }
+        
+        if (!isInitialized)
+            return returnErrorStatus(ResultStatus.error(-1, "SSL is not initialized"));
+        if (!isConnected)
+            return returnErrorStatus(ResultStatus.error(-1, "SSL is not connected"));
+
+        auto x509 = opensslApi.SSL_get_peer_certificate(_ssl);
         if (x509 is null)
-            return currentError("SSL_get_peer_certificate");
+            return returnErrorStatus(currentError("SSL_get_peer_certificate"));
         scope (exit)
             opensslApi.X509_free(x509);
 
-        const vr = opensslApi.SSL_get_verify_result(_ssl);
-        if (X509_V_OK != vr)
-            return currentError("SSL_get_verify_result");
+        if (opensslApi.SSL_get_verify_result(_ssl) != X509_V_OK)
+            return returnErrorStatus(currentError("SSL_get_verify_result"));
 
         if (verificationHost.length)
         {
             auto verificationHostz = toStringz(verificationHost);
-            if (sslOKStatus != opensslApi.X509_check_ip(x509, verificationHostz, verificationHost.length, 0))
+            if (opensslApi.X509_check_ip(x509, verificationHostz, verificationHost.length, 0) != sslOKStatus)
             {
-                if (sslOKStatus != opensslApi.X509_check_host(x509, verificationHostz, verificationHost.length, 0, null))
-                    return currentError("X509_check_host");
+                if (opensslApi.X509_check_host(x509, verificationHostz, verificationHost.length, 0, null) != sslOKStatus)
+                    return returnErrorStatus(currentError("X509_check_host"));
             }
         }
 
         return ResultStatus.ok();
     }
 
-    version(none)
-    static int verifyCallback(int preverify_ok, X509_STORE_CTX* sctx)
+    static int verifyCertificateCallback(int preverify_ok, scope X509_STORE_CTX* sctx) @trusted
     {
-        return sslOKStatus; //1=OK
+        import std.conv : to;
+        import pham.utl.utl_array_append : Appender;
 
-        version(none)
-        {
+        OpenSSLClientSocket* clientSocket = null;
         auto ssl = cast(SSL*)opensslApi.X509_STORE_CTX_get_ex_data(sctx, opensslApi.SSL_get_ex_data_X509_STORE_CTX_idx());
-        auto clientSocket = cast(OpenSSLClientSocket*)opensslApi.SSL_get_ex_data(ssl, sslDataIndex());
+        if (ssl !is null)
+            clientSocket = cast(OpenSSLClientSocket*)opensslApi.SSL_get_ex_data(ssl, sslDataIndex());
 
-        enum bufSize = 500;
-        char[bufSize] buf;
-        auto cert = X509_STORE_CTX_get_current_cert(sctx);
-        int currentError = X509_STORE_CTX_get_error(sctx);
-
-        const depth = X509_STORE_CTX_get_error_depth(sctx);
-        X509_NAME_oneline(X509_get_subject_name(cert), buf, bufSize);
-
-        /*
-         * Catch a too long certificate chain. The depth limit set using
-         * SSL_CTX_set_verify_depth() is by purpose set to "limit+1" so
-         * that whenever the "depth>verify_depth" condition is met, we
-         * have violated the limit and want to log this error condition.
-         * We must do it here, because the CHAIN_TOO_LONG error would not
-         * be found explicitly; only errors introduced by cutting off the
-         * additional certificates would be logged.
-         */
-        //if (*clientSocket.verificationDepth && depth > *clientSocket.verificationDepth)
-        //{
-        //    X509_STORE_CTX_set_error(sctx, X509_V_ERR_CERT_CHAIN_TOO_LONG);
-        //    preverify_ok = 0;
-        //}
-
-        if (!preverify_ok)
+        // No error -> no further check
+        if (preverify_ok)
         {
-            //printf("verify error:num=%d:%s:depth=%d:%s\n", err,
-            //        X509_verify_cert_error_string(err), depth, buf);
+            if (clientSocket !is null)
+                clientSocket.lastVerificationCallbackResult.reset();
+
+            return preverify_ok;
         }
 
+        Appender!string errorMessage;
 
-        /*
-         * At this point, err contains the last verification error. We can use
-         * it for something special
-         */
-        //if (!preverify_ok && (err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT))
-        //{
-        //    X509_NAME_oneline(X509_get_issuer_name(sctx->current_cert), buf, bufSize);
-        //    printf("issuer= %s\n", buf);
-        //}
+        const errorCode = opensslApi.X509_STORE_CTX_get_error(sctx);
 
-        //if (mydata->always_continue)
-        //    return 1;
-        //else
-        //     return preverify_ok;
+        {
+            // Pull all the information we have on the verification failure
+            const errorDepth = opensslApi.X509_STORE_CTX_get_error_depth(sctx);
+            const errorString = opensslApi.X509_verify_cert_error_string(errorCode);
+            errorMessage.put("Certificate verification failed at depth ");
+            errorMessage.put(errorDepth.to!string());
+            errorMessage.put(": ");
+            errorMessage.put(fromStringz(errorString));
+            errorMessage.put(" [code ");
+            errorMessage.put(errorCode.to!string());
+            errorMessage.put("].");
         }
+
+        auto cert = opensslApi.X509_STORE_CTX_get_current_cert(sctx);
+        if (cert !is null)
+        {
+            const subject = OpenSSLExt.nameToString(opensslApi.X509_get_subject_name(cert));
+            const issuer = OpenSSLExt.nameToString(opensslApi.X509_get_issuer_name(cert));
+
+            /*
+             * Pull the serial number, too, in case a Subject is still ambiguous.
+             * This mirrors be_tls_get_peer_serial().
+             */
+            const serialNumber = OpenSSLExt.numberToString(opensslApi.X509_get_serialNumber(cert));
+
+            errorMessage.put('\n');
+			errorMessage.put("Failed certificate data (unverified): subject ");
+            errorMessage.put(subject);
+            errorMessage.put(", serial number ");
+            errorMessage.put(serialNumber.length ? serialNumber : "unknown");
+            errorMessage.put(", issuer ");
+            errorMessage.put(issuer);
+            errorMessage.put(".");
+        }
+
+        if (clientSocket !is null)
+            clientSocket.lastVerificationCallbackResult = ResultStatus.error(errorCode, errorMessage.data);
+
+        return preverify_ok;
     }
 
-    @property SSL_CTX* ctx() @nogc pure
+    @property SSL_CTX* ctx() @nogc pure return
     {
         return _ctx;
     }
@@ -543,7 +582,7 @@ public:
         return _ssl !is null && _ctx !is null;
     }
 
-    @property SSL* ssl() @nogc pure
+    @property SSL* ssl() @nogc pure return
     {
         return _ssl;
     }
@@ -557,6 +596,7 @@ public:
     int sslKeyType = SSL_FILETYPE_PEM;
 
     OpenSSLVerifyCallback verificationCallback;
+    ResultStatus lastVerificationCallbackResult;
     string verificationHost;
     int verificationDepth;
     int verificationMode = -1; // SSL_VERIFY_NONE=0
@@ -582,16 +622,21 @@ private:
         }
     }
 
-    ResultStatus initializeCTX() @trusted
+    ResultStatus initializeCTX() return @trusted
     {
         _ctx = opensslApi.SSL_CTX_new(opensslApi.TLS_client_method());
         if (_ctx is null)
             return initializeError("SSL_CTX_new");
 
+        //import std.stdio : writeln; debug writeln("ctxDataIndex=", ctxDataIndex());
+        opensslApi.SSL_CTX_set_ex_data(_ctx, ctxDataIndex(), &this);
+
         /*
         _ctx = opensslApi.SSL_CTX_new(opensslApi.TLS_method());
         if (_ctx is null)
             return initializeError("SSL_CTX_new");
+
+        opensslApi.SSL_CTX_set_ex_data(_ctx, ctxDataIndex(), &this);
         const flags = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_COMPRESSION;
         opensslApi.SSL_CTX_set_options(_ctx, flags);
         */
@@ -600,7 +645,7 @@ private:
         {
             auto cs = ciphers.join(":");
             auto csz = toStringz(cs);
-            if (sslOKStatus != opensslApi.SSL_CTX_set_cipher_list(_ctx, csz))
+            if (opensslApi.SSL_CTX_set_cipher_list(_ctx, csz) != sslOKStatus)
                 return initializeError("SSL_CTX_set_cipher_list");
         }
 
@@ -622,12 +667,12 @@ private:
             auto useSslCertz = toStringz(useSslCert);
             if (sslCertType == 0)
             {
-                if (sslOKStatus != opensslApi.SSL_CTX_use_certificate_chain_file(_ctx, useSslCertz))
+                if (opensslApi.SSL_CTX_use_certificate_chain_file(_ctx, useSslCertz) != sslOKStatus)
                     return initializeError("SSL_CTX_use_certificate_chain_file");
             }
             else
             {
-                if (sslOKStatus != opensslApi.SSL_CTX_use_certificate_file(_ctx, useSslCertz, sslCertType))
+                if (opensslApi.SSL_CTX_use_certificate_file(_ctx, useSslCertz, sslCertType) != sslOKStatus)
                     return initializeError("SSL_CTX_use_certificate_file");
             }
         }
@@ -649,7 +694,7 @@ private:
             }
 
             auto useSslKeyz = toStringz(useSslKey);
-            if (sslOKStatus != opensslApi.SSL_CTX_use_PrivateKey_file(_ctx, useSslKeyz, sslKeyType))
+            if (opensslApi.SSL_CTX_use_PrivateKey_file(_ctx, useSslKeyz, sslKeyType) != sslOKStatus)
                 return initializeError("SSL_CTX_use_PrivateKey_file");
         }
 
@@ -657,10 +702,10 @@ private:
         {
             auto sslCaz = sslCa.length ? toStringz(sslCa) : null;
             auto sslCaDirz = sslCaDir.length ? toStringz(sslCaDir) : null;
-            if (sslOKStatus != opensslApi.SSL_CTX_load_verify_locations(_ctx, sslCaz, sslCaDirz))
+            if (opensslApi.SSL_CTX_load_verify_locations(_ctx, sslCaz, sslCaDirz) != sslOKStatus)
                 return initializeError("SSL_CTX_load_verify_locations");
         }
-        else if (sslOKStatus != opensslApi.SSL_CTX_set_default_verify_paths(_ctx))
+        else if (opensslApi.SSL_CTX_set_default_verify_paths(_ctx) != sslOKStatus)
             return initializeError("SSL_CTX_set_default_verify_paths");
 
         if (verificationDepth > 0)
@@ -671,7 +716,7 @@ private:
 
         if (sslCert.length && sslKey.length)
         {
-            if (sslOKStatus != opensslApi.SSL_CTX_check_private_key(_ctx))
+            if (opensslApi.SSL_CTX_check_private_key(_ctx) != sslOKStatus)
                 return initializeError("SSL_CTX_check_private_key");
         }
 
@@ -685,9 +730,9 @@ private:
              * (not valid IP address), call X509_VERIFY_PARAM_set1_host().
              */
             auto verificationHostz = toStringz(verificationHost);
-            if (sslOKStatus != opensslApi.X509_VERIFY_PARAM_set1_ip_asc(param, verificationHostz))
+            if (opensslApi.X509_VERIFY_PARAM_set1_ip_asc(param, verificationHostz) != sslOKStatus)
             {
-                if (sslOKStatus != opensslApi.X509_VERIFY_PARAM_set1_host(param, verificationHostz, verificationHost.length))
+                if (opensslApi.X509_VERIFY_PARAM_set1_host(param, verificationHostz, verificationHost.length) != sslOKStatus)
                     return initializeError("X509_VERIFY_PARAM_set1_host");
             }
         }
@@ -702,7 +747,7 @@ private:
         return error;
     }
 
-    static int loadSslKeyPassword(char* buffer, int size, int rwFlag, void* cbu) @trusted
+    static int loadSslKeyPassword(scope char* buffer, int size, int rwFlag, scope void* cbu) @trusted
     {
         import core.stdc.string : memcpy;
 
@@ -762,7 +807,7 @@ public:
     do
     {
         disposeSSLResources(); // _ctx
-        
+
         _info.dispose(disposingReason);
         _iv.dispose(disposingReason);
         _key.dispose(disposingReason);
@@ -892,7 +937,7 @@ public:
         return _info.blockLength;
     }
 
-    @property EVP_CIPHER_CTX* ctx() @nogc pure
+    @property EVP_CIPHER_CTX* ctx() @nogc pure return
     {
         return _ctx;
     }
@@ -1044,9 +1089,9 @@ public:
         return ResultStatus.ok();
     }
 
-    static ResultStatus generatePrimNumber(uint bitLength, const(ubyte)[] randomSeed,
+    static ResultStatus generatePrimNumber(uint bitLength, scope const(ubyte)[] randomSeed,
         ref char[] hexPrim,
-        const(char)[] hexAdd = null,
+        scope const(char)[] hexAdd = null,
         bool safe = false) @trusted
     {
         auto apiStatus = opensslApi.status();
@@ -1058,12 +1103,8 @@ public:
 
         BIGNUM* bn = null;
         BIGNUM* bnAdd = null;
-        char* bnHex = null;
         scope (exit)
         {
-            if (bnHex !is null)
-                opensslApi.OPENSSL_free(bnHex);
-
             if (bnAdd !is null)
                 opensslApi.BN_free(bnAdd);
 
@@ -1074,7 +1115,7 @@ public:
         if (hexAdd.length)
         {
             auto hexAddz = toStringz(hexAdd);
-            if (0 == opensslApi.BN_hex2bn(&bnAdd, hexAddz))
+            if (opensslApi.BN_hex2bn(&bnAdd, hexAddz) == 0)
                 return currentError("BN_hex2bn");
         }
 
@@ -1082,35 +1123,108 @@ public:
         if (bn is null)
             return currentError("BN_new");
 
-        if (sslOKStatus != opensslApi.BN_generate_prime_ex(bn, cast(int)bitLength, safe ? 1 : 0, bnAdd, null, null))
+        if (opensslApi.BN_generate_prime_ex(bn, cast(int)bitLength, safe ? 1 : 0, bnAdd, null, null) != sslOKStatus)
             return currentError("BN_generate_prime_ex");
 
-        bnHex = opensslApi.BN_bn2hex(bn);
+        auto bnHex = opensslApi.BN_bn2hex(bn);
         if (bnHex is null)
             return currentError("BN_bn2hex");
+        scope (exit)
+            opensslApi.OPENSSL_free(bnHex);
 
-        //char* bnDec = opensslApi.BN_bn2dec(bn);
-        //auto decPrim = fromStringz(bnDec);
-        //opensslApi.OPENSSL_free(bnDec);
-        //debug(debug_pham_cp_cp_openssl) debug writeln(__FUNCTION__, "() - decPrim=", decPrim);
+        //debug(debug_pham_cp_cp_openssl) debug writeln(__FUNCTION__, "() - decPrim=", numberToString(bn));
 
-        hexPrim = fromStringz(bnHex);
+        hexPrim = fromStringz(bnHex).dup;
         debug(debug_pham_cp_cp_openssl) debug writeln(__FUNCTION__, "() - hexPrim=", hexPrim);
 
         return ResultStatus.ok();
     }
 
-    static int getSize(BIO* bio) @nogc @trusted
+    static int getSize(scope BIO* bio) @nogc @trusted
     {
         return opensslApi.BIO_pending(bio);
     }
 
-    static bool isEof(BIO* bio) @nogc @trusted
+    static bool isEof(scope BIO* bio) @nogc @trusted
     {
         return opensslApi.BIO_eof(bio) == 1;
     }
 
-    static ResultStatus readAll(BIO* bio, ref ubyte[] data) @trusted
+    static string nameToString(scope X509_NAME* name) @trusted
+    {
+        import core.stdc.string : cstrLen = strlen;
+
+        auto memBuf = opensslApi.BIO_new(opensslApi.BIO_s_mem());
+        if (memBuf is null)
+            return null;
+        scope (exit)
+        {
+            opensslApi.BIO_set_close(memBuf, BIO_CLOSE);
+            opensslApi.BIO_free(memBuf);
+        }
+
+        uint fldCount;
+        const count = opensslApi.X509_NAME_entry_count(name);
+       	foreach (i; 0..count)
+        {
+            auto e = opensslApi.X509_NAME_get_entry(name, i);
+            auto nid = opensslApi.OBJ_obj2nid(opensslApi.X509_NAME_ENTRY_get_object(e));
+            if (nid == NID_undef)
+                continue;
+
+            auto fieldName1 = opensslApi.OBJ_nid2sn(nid);
+            auto fieldName = fieldName1 !is null ? fieldName1 : opensslApi.OBJ_nid2ln(nid);
+            const fieldNameLen = fieldName !is null ? cstrLen(fieldName) : 0;
+            if (fieldNameLen <= 0 || fieldNameLen > 100) // 100 avoid garbage
+                continue;
+
+            if (fldCount)
+                opensslApi.BIO_write(memBuf, ", ".ptr, 2);
+
+            opensslApi.BIO_write(memBuf, fieldName, cast(int)fieldNameLen);
+            opensslApi.BIO_write(memBuf, "=".ptr, 1);
+
+            auto v = opensslApi.X509_NAME_ENTRY_get_data(e);
+            if (v !is null)
+                opensslApi.ASN1_STRING_print_ex(memBuf, v, (ASN1_STRFLGS_RFC2253 & ~ASN1_STRFLGS_ESC_MSB) | ASN1_STRFLGS_UTF8_CONVERT);
+
+            fldCount++;
+        }
+
+        if (fldCount == 0)
+            return null;
+
+        // Ensure null termination of the BIO's content
+        opensslApi.BIO_write(memBuf, "\0".ptr, 1);
+
+        char* sp = null;
+        const size = opensslApi.BIO_get_mem_data(memBuf, &sp);
+        return fromStringz(sp).idup;
+    }
+
+    static string numberToString(scope ASN1_INTEGER* number) @trusted
+    {
+		auto bigNumber = opensslApi.ASN1_INTEGER_to_BN(number, null);
+        if (bigNumber is null)
+            return null;
+        scope (exit)
+            opensslApi.BN_free(bigNumber);
+
+        return numberToString(bigNumber);
+    }
+
+    static string numberToString(scope BIGNUM* number) @trusted
+    {
+		auto resultTemp = opensslApi.BN_bn2dec(number);
+        if (resultTemp is null)
+            return null;
+        scope (exit)
+            opensslApi.OPENSSL_free(resultTemp);
+
+        return fromStringz(resultTemp).idup;
+    }
+    
+    static ResultStatus readAll(scope BIO* bio, ref ubyte[] data) @trusted
     {
         const bioSize = getSize(bio);
         opensslApi.BIO_seek(bio, 0);
@@ -1125,7 +1239,7 @@ public:
         return ResultStatus.ok();
     }
 
-    static ResultStatus readAll(BIO* bio, ref char[] data) @trusted
+    static ResultStatus readAll(scope BIO* bio, ref char[] data) @trusted
     {
         const bioSize = getSize(bio);
         opensslApi.BIO_seek(bio, 0);
@@ -1206,12 +1320,12 @@ public:
         return _pemData.length != 0;
     }
 
-    @property const(char)[] pemData() const @nogc pure
+    @property char[] pemData() @nogc pure return
     {
         return _pemData;
     }
 
-    @property const(char)[] pemFile() const @nogc pure
+    @property const(char)[] pemFile() const @nogc pure return
     {
         return _pemFile;
     }
@@ -1263,7 +1377,7 @@ public:
     do
     {
         disposeSSLResources(); // _rsa
-        
+
         _pem.dispose(disposingReason);
         paddingMode = RSA_PKCS1_OAEP_PADDING;
         return ResultCode.ok;
@@ -1544,7 +1658,7 @@ ResultStatus currentError(string apiName, c_long code) nothrow @trusted
     return ResultStatus.error(cast(int)code, msg.length != 0 ? msg.idup : apiName);
 }
 
-ResultStatus currentSSLError(SSL* ssl, int r, string apiName) nothrow @trusted
+ResultStatus currentSSLError(scope SSL* ssl, int r, string apiName) nothrow @trusted
 {
     const code = opensslApi.SSL_get_error(ssl, r);
     const msg = fromStringz(opensslApi.ERR_reason_error_string(code));

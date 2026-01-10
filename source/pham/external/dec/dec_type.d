@@ -402,7 +402,7 @@ public:
     }
 
     version(D_BetterC)
-    private static char[500] errorMessageBuffer;
+    private static char[500] errorMessageBuffer = 0;
 
     static noreturn throwDivisionByZeroError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
     {

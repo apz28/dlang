@@ -11,8 +11,6 @@
 
 module pham.utl.utl_utf8;
 
-import std.algorithm.mutation : swapAt;
-import std.range.primitives : empty, front, popFront, put, save;
 import std.string : representation;
 import std.traits : isSomeChar;
 

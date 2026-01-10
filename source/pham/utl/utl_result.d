@@ -277,7 +277,7 @@ do
         import core.sys.windows.winbase : FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS;
         import core.sys.windows.winnt : LANG_NEUTRAL;
 
-        wchar[1_000] buf = void;
+        wchar[1_000] buf = '\0';
         auto n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, null, errorCode, LANG_NEUTRAL, buf.ptr, buf.length, null);
         return n > 0 ? osWCharToString(buf[0..n]) : null;
     }

@@ -140,7 +140,7 @@ string currentComputerName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetComputerNameW;
 
-        wchar[1_000] result = void;
+        wchar[1_000] result = '\0';
         uint len = result.length - 1;
         if (GetComputerNameW(&result[0], &len))
             return osWCharToString(result[0..len]);
@@ -186,7 +186,7 @@ string currentProcessName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetModuleFileNameW;
 
-        wchar[1_000] result = void;
+        wchar[1_000] result = '\0';
         const readLen = GetModuleFileNameW(null, &result[0], result.length - 1);
         return readLen != 0 ? osWCharToString(result[0..readLen]) : null;
     }
@@ -194,7 +194,7 @@ string currentProcessName() nothrow @trusted
     {
         import core.sys.posix.unistd : readlink;
 
-        char[1_000] result = void;
+        char[1_000] result = '\0';
         const readLen = readlink("/proc/self/exe".ptr, &result[0], result.length - 1);
         return readLen != -1 ? osCharToString(result[0..readLen]) : null;
     }
@@ -214,7 +214,7 @@ string currentUserName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetUserNameW;
 
-        wchar[1_000] result = void;
+        wchar[1_000] result = '\0';
         uint len = result.length - 1;
         if (GetUserNameW(&result[0], &len))
             return osWCharToString(result[0..len]);

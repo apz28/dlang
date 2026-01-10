@@ -2567,7 +2567,7 @@ public:
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "()");
 
-        char[4] buffer;
+        char[4] buffer = 0;
         const len = encode!(Yes.useReplacementDchar)(buffer, msgChar);
         logger.commitMsg(buffer[0..len]);
     }
@@ -3619,7 +3619,7 @@ string currentUserName() nothrow @trusted
     {
         import core.sys.windows.winbase : GetUserNameW;
 
-        wchar[1000] result = void;
+        wchar[1_000] result = '\0';
         uint len = result.length - 1;
         if (GetUserNameW(&result[0], &len))
             return osWCharToString(result[0..len]);
@@ -3630,7 +3630,7 @@ string currentUserName() nothrow @trusted
     {
         import core.sys.posix.unistd : getlogin_r;
 
-        char[1000] result = '\0';
+        char[1_000] result = '\0';
         uint len = result.length - 1;
         if (getlogin_r(&result[0], len) == 0)
             return osCharToString(result[]);

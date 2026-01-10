@@ -839,13 +839,11 @@ string formatGroup(const(char)[] v, in FormatGroupSpec spec = FormatGroupSpec.in
     import std.range : walkLength;
     import std.uni : byGrapheme;
 
-    char[250] buffer;
-    ptrdiff_t bLen;
-    ptrdiff_t cLen = v.length;
-    ptrdiff_t c = 2 - (cLen % 3);
+    char[300] buffer = 0;
+    ptrdiff_t bLen, cLen = v.length, c = 2 - (cLen % 3);
     for (ptrdiff_t i = 0; cLen > 0; ++i)
     {
-        char e = v[i];
+        const e = v[i];
         buffer[bLen++] = e;
         if (--cLen > 0)
         {

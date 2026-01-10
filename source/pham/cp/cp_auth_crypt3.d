@@ -288,7 +288,7 @@ struct Crypt3Key
     *
     * Description: Set up the key schedule from the encryption key.
     *
-    * Inputs:      char[66] key
+    * Inputs:      byte[66] key
     *              64 characters array. Each character represents a
     *              bit in the key.
     *

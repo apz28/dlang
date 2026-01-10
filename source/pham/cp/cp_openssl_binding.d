@@ -41,23 +41,35 @@ version(Windows)
 {
     private static immutable string loadLib = "LoadLibrary(&lib[0])";
 
-    static immutable LibName[] libSslNames = libSslNamesImpl();
-    private LibName[] libSslNamesImpl() pure @safe
+    static if (size_t.sizeof == 8)
     {
-        static if (size_t.sizeof == 8)
-            return ["libssl-3-x64.dll"w, "libssl-1_1-x64.dll"w];
-        else
-            return ["libssl-3.dll"w, "libssl-1_1.dll"w];
+        static immutable LibName[] libSslNames = [
+            "libssl-3.6.0-x64.dll"w, "libssl-3-x64.dll"w,
+            "libssl-1_1_1w-x64.dll"w, "libssl-1_1-x64.dll"w,
+            "libssl-x64.dll"w
+            ];
+
+        static immutable LibName[] libCryptoNames = [
+            "libcrypto-3.6.0-x64.dll"w, "libcrypto-3-x64.dll"w,
+            "libcrypto-1_1_1w-x64.dll"w, "libcrypto-1_1-x64.dll"w,
+            "libcrypto-x64.dll"w
+            ];
+    }
+    else
+    {
+        static immutable LibName[] libSslNames = [
+            "libssl-3.6.0.dll"w, "libssl-3.dll"w,
+            "libssl-1_1_1w.dll"w, "libssl-1_1.dll"w,
+            "libssl.dll"w
+            ];
+
+        static immutable LibName[] libCryptoNames = [
+            "libcrypto-3.6.0.dll"w, "libcrypto-3.dll"w,
+            "libcrypto-1_1_1w.dll"w, "libcrypto-1_1.dll"w,
+            "libcrypto.dll"w
+            ];
     }
 
-    static immutable LibName[] libCryptoNames = libCryptoNamesImpl();
-    private LibName[] libCryptoNamesImpl() pure @safe
-    {
-        static if (size_t.sizeof == 8)
-            return ["libcrypto-3-x64.dll"w, "libcrypto-1_1-x64.dll"w];
-        else
-            return ["libcrypto-3.dll"w, "libcrypto-1_1.dll"w];
-    }
 }
 else version(OSX)
 {
@@ -66,20 +78,32 @@ else version(OSX)
 
     static immutable LibName[] libSslNames = [
         "libssl.46.dylib", "libssl.44.dylib", "libssl.43.dylib",
-        "libssl.35.dylib"];
+        "libssl.35.dylib",
+        "libssl.dylib"
+        ];
 
     static immutable LibName[] libCryptoNames = [
         "libcrypto.44.dylib", "libcrypto.42.dylib", "libcrypto.41.dylib",
-        "libcrypto.35.dylib"];
+        "libcrypto.35.dylib",
+        "libcrypto.dylib"
+        ];
 }
 else version(Posix)
 {
     import core.sys.posix.dlfcn : RTLD_LAZY;
     private static immutable loadLib = "dlopen(lib.ptr, RTLD_LAZY)";
 
-    static immutable LibName[] libSslNames = ["libssl.so.3.0", "libssl.so.1.1"];
+    static immutable LibName[] libSslNames = [
+        "libssl.so.3.6.0", "libssl.so.3.0",
+        "libssl.so.1.1.1w", "libssl.so.1.1",
+        "libssl.so"
+        ];
 
-    static immutable LibName[] libCryptoNames = ["libcrypto.so.3.0", "libcrypto.so.1.1"];
+    static immutable LibName[] libCryptoNames = [
+        "libcrypto.so.3.6.0", "libcrypto.so.3.0",
+        "libcrypto.so.1.1.1w", "libcrypto.so.1.1",
+        "libcrypto.so"
+        ];
 }
 else
     pragma(msg, "Unsupported system for " ~ __MODULE__);
@@ -134,6 +158,20 @@ enum int SSL_ERROR_WANT_READ = 2;
 enum int SSL_ERROR_WANT_WRITE = 3;
 enum int SSL_ERROR_SYSCALL = 5;
 
+enum ASN1_STRFLGS_ESC_2253 = 1;
+enum ASN1_STRFLGS_ESC_CTRL = 2;
+enum ASN1_STRFLGS_ESC_MSB = 4;
+enum ASN1_STRFLGS_UTF8_CONVERT = 0x10;
+enum ASN1_STRFLGS_DUMP_DER = 0x200;
+enum ASN1_STRFLGS_DUMP_UNKNOWN = 0x100;
+enum ASN1_STRFLGS_RFC2253 = ASN1_STRFLGS_ESC_2253 | ASN1_STRFLGS_ESC_CTRL | ASN1_STRFLGS_ESC_MSB | ASN1_STRFLGS_UTF8_CONVERT | ASN1_STRFLGS_DUMP_UNKNOWN | ASN1_STRFLGS_DUMP_DER;
+
+/* bio.h */
+enum BIO_CLOSE = 0x01;
+
+/* obj_mac.h */
+enum NID_undef = 0;
+
 /**
  * ssl.h
  * Standard initialization options
@@ -171,6 +209,9 @@ struct EVP_PKEY {}
 /*
  * ssl.h
  */
+struct ASN1_INTEGER {}
+struct ASN1_OBJECT {}
+struct ASN1_STRING {}
 struct BIGNUM {}
 struct BIO {}
 struct BIO_METHOD {}
@@ -183,90 +224,108 @@ struct SSL {}
 struct SSL_CIPHER {}
 struct SSL_CTX {}
 struct SSL_METHOD {}
+
 struct X509 {}
+struct X509_NAME {}
+struct X509_NAME_ENTRY {}
 struct X509_STORE_CTX {}
 struct X509_VERIFY_PARAM {}
 
 alias OpenSSLCipherType = EVP_CIPHER* delegate() const nothrow;
-alias OpenSSLPemPasswordCallback = int function(char* buffer, int size, int rwFlag, void* cbu) nothrow;
-alias OpenSSLVerifyCallback = int function(int preverify_ok, X509_STORE_CTX* sctx) nothrow;
+alias OpenSSLPemPasswordCallback = int function(scope char* buffer, int size, int rwFlag, scope void* cbu) nothrow;
+alias OpenSSLVerifyCallback = int function(int preverify_ok, scope X509_STORE_CTX* sctx) nothrow;
 
-alias CRYPTOExDup = int function(CRYPTO_EX_DATA* to, CRYPTO_EX_DATA* from, void* from_d, int idx, c_long argl, void* argp) nothrow;
-alias CRYPTOExFree = void function(void* parent, void* ptr, CRYPTO_EX_DATA* ad, int idx, c_long argl, void* argp) nothrow;
-alias CRYPTOExNew = int function(void* parent, void* ptr, CRYPTO_EX_DATA* ad, int idx, c_long argl, void* argp) nothrow;
+alias CRYPTOExDup = int function(scope CRYPTO_EX_DATA* to, scope CRYPTO_EX_DATA* from, scope void* from_d, int idx, c_long argl, scope void* argp) nothrow;
+alias CRYPTOExFree = void function(scope void* parent, scope void* ptr, CRYPTO_EX_DATA* ad, int idx, c_long argl, scope void* argp) nothrow;
+alias CRYPTOExNew = int function(scope void* parent, scope void* ptr, CRYPTO_EX_DATA* ad, int idx, c_long argl, scope void* argp) nothrow;
 
 struct OpenSSLApi
 {
 nothrow:
 
 public:
-    c_long BIO_ctrl(BIO* bio, int cmd, c_long larg, void* parg) const @nogc
+    BIGNUM* ASN1_INTEGER_to_BN(scope ASN1_INTEGER* ai, scope BIGNUM* bn) const @nogc
+    {
+        return adapter_ASN1_INTEGER_to_BN(ai, bn);
+    }
+
+    c_long BIO_ctrl(scope BIO* bio, int cmd, c_long larg, void* parg) const @nogc
     {
         return adapter_BIO_ctrl(bio, cmd, larg, parg);
     }
 
-    int BIO_eof(BIO* bio) const @nogc
+    int BIO_eof(scope BIO* bio) const @nogc
     {
         return cast(int)BIO_ctrl(bio, 2, 0, null); // BIO_CTRL_EOF=2
     }
 
-    int BIO_free(BIO* bio) const @nogc
+    int BIO_free(scope BIO* bio) const @nogc
     {
         return adapter_BIO_free(bio);
     }
 
-    BIO* BIO_new(BIO_METHOD* method) const
+    c_long BIO_get_mem_data(scope BIO* bio, void* data) const @nogc
+    {
+        return BIO_ctrl(bio, 3, 0, data); // BIO_CTRL_INFO=3
+    }
+
+    BIO* BIO_new(scope BIO_METHOD* method) const @nogc
     {
         return adapter_BIO_new(method);
     }
 
-    BIO* BIO_new_file(const(char)* filename, const(char)* mode) const
+    BIO* BIO_new_file(scope const(char)* fileName, scope const(char)* mode) const @nogc
     {
-        return adapter_BIO_new_file(filename, mode);
+        return adapter_BIO_new_file(fileName, mode);
     }
 
     // If len is -1 then the buf is assumed to be null terminated
-    BIO* BIO_new_mem_buf(const(void)* buf, int len) const
+    BIO* BIO_new_mem_buf(void* buf, int len) const @nogc
     {
         return adapter_BIO_new_mem_buf(buf, len);
     }
 
-    int BIO_pending(BIO* bio) const @nogc
+    int BIO_pending(scope BIO* bio) const @nogc
     {
         return cast(int)BIO_ctrl(bio, 10, 0, null); // BIO_CTRL_PENDING=10
     }
 
-    int BIO_read(BIO* bio, void* buf, int len) const @nogc
+    int BIO_read(scope BIO* bio, scope void* buf, int len) const @nogc
     {
         return adapter_BIO_read(bio, buf, len);
     }
 
-    int BIO_reset(BIO* bio) const
+    int BIO_reset(scope BIO* bio) const @nogc
     {
         return cast(int)BIO_ctrl(bio, 1, 0, null); // BIO_CTRL_RESET=1
     }
 
-    BIO_METHOD* BIO_s_mem() const
+    BIO_METHOD* BIO_s_mem() const @nogc
     {
         return adapter_BIO_s_mem();
     }
 
-    int BIO_seek(BIO* bio, int offset) const @nogc
+    int BIO_seek(scope BIO* bio, int offset) const @nogc
     {
         return cast(int)BIO_ctrl(bio, 128, offset, null); // BIO_C_FILE_SEEK=128
     }
 
-    int BIO_tell(BIO* bio) const @nogc
+    int BIO_set_close(scope BIO* bio, int code) const @nogc
+    {
+        return cast(int)BIO_ctrl(bio, 9, code, null); // BIO_CTRL_SET_CLOSE=9
+    }
+
+    int BIO_tell(scope BIO* bio) const @nogc
     {
         return cast(int)BIO_ctrl(bio, 133, 0, null); // BIO_C_FILE_TELL=133
     }
 
-    int BIO_write(BIO* bio, const(void)* buf, int len) const @nogc
+    int BIO_write(scope BIO* bio, scope const(void)* buf, int len) const @nogc
     {
         return adapter_BIO_write(bio, buf, len);
     }
 
-    BIGNUM* BN_bin2bn(const(ubyte)* s, int len, BIGNUM* ret) const
+    BIGNUM* BN_bin2bn(scope const(ubyte)* s, int len, scope BIGNUM* ret) const @nogc
     {
         return adapter_BN_bin2bn(s, len, ret);
     }
@@ -276,203 +335,203 @@ public:
         adapter_BN_free(n);
     }
 
-    char* BN_bn2dec(BIGNUM* n) const
+    char* BN_bn2dec(scope BIGNUM* n) const @nogc
     {
         return adapter_BN_bn2dec(n);
     }
 
-    char* BN_bn2hex(BIGNUM* n) const
+    char* BN_bn2hex(scope BIGNUM* n) const @nogc
     {
         return adapter_BN_bn2hex(n);
     }
 
-    int BN_generate_prime_ex(BIGNUM* ret, int bits, int safe, BIGNUM* add, BIGNUM* rem,
-        BN_GENCB* cb) const
+    int BN_generate_prime_ex(scope BIGNUM* ret, int bits, int safe, scope BIGNUM* add, scope BIGNUM* rem, scope BN_GENCB* cb) const @nogc
     {
         return adapter_BN_generate_prime_ex(ret, bits, safe, add, rem, cb);
     }
 
-    int BN_hex2bn(BIGNUM** n, const(char)* hex) const
+    int BN_hex2bn(scope BIGNUM** n, scope const(char)* hex) const @nogc
     {
         return adapter_BN_hex2bn(n, hex);
     }
 
-    BIGNUM* BN_new() const
+    BIGNUM* BN_new() const @nogc
     {
         return adapter_BN_new();
     }
 
-    int BN_set_word(BIGNUM* n, c_ulong w) const @nogc
+    int BN_set_word(scope BIGNUM* n, c_ulong w) const @nogc
     {
         return adapter_BN_set_word(n, w);
     }
 
-    void CONF_modules_unload() const
+    void CONF_modules_unload() const @nogc
     {
         return adapter_CONF_modules_unload();
     }
 
-    void CRYPTO_free(void* p, char* file = null, int line = 0) const
+    void CRYPTO_free(void* p, scope const(char)* file = null, int line = 0) const @nogc
     {
         adapter_CRYPTO_free(p, file, line);
     }
 
-    int CRYPTO_get_ex_new_index(int classIdx, c_long argl, void* argp, CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const
+    int CRYPTO_get_ex_new_index(int classIdx, c_long argl, void* argp,
+        CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
     {
         return adapter_CRYPTO_get_ex_new_index(classIdx, argl, argp, newFunc, dupFunc, freeFunc);
     }
 
-    void DH_free(DH* dh) const
+    void DH_free(DH* dh) const @nogc
     {
         adapter_DH_free(dh);
     }
 
-    DH* DH_new() const
+    DH* DH_new() const @nogc
     {
         return adapter_DH_new();
     }
 
-    int DH_set0_pqg(DH* dh, BIGNUM* p, BIGNUM* q, BIGNUM* g) const
+    int DH_set0_pqg(DH* dh, scope BIGNUM* p, scope BIGNUM* q, scope BIGNUM* g) const @nogc
     {
         return adapter_DH_set0_pqg(dh, p, q, g);
     }
 
-    EVP_CIPHER* EVP_bf_cbc() const
+    EVP_CIPHER* EVP_bf_cbc() const @nogc
     {
         return adapter_EVP_bf_cbc();
     }
 
-    EVP_CIPHER* EVP_bf_cfb() const
+    EVP_CIPHER* EVP_bf_cfb() const @nogc
     {
         return adapter_EVP_bf_cfb();
     }
 
-    EVP_CIPHER* EVP_bf_ecb() const
+    EVP_CIPHER* EVP_bf_ecb() const @nogc
     {
         return adapter_EVP_bf_ecb();
     }
 
-    EVP_CIPHER* EVP_bf_ofb() const
+    EVP_CIPHER* EVP_bf_ofb() const @nogc
     {
         return adapter_EVP_bf_ofb();
     }
 
-    EVP_CIPHER* EVP_cast5_cbc() const
+    EVP_CIPHER* EVP_cast5_cbc() const @nogc
     {
         return adapter_EVP_cast5_cbc();
     }
 
-    EVP_CIPHER* EVP_cast5_cfb() const
+    EVP_CIPHER* EVP_cast5_cfb() const @nogc
     {
         return adapter_EVP_cast5_cfb();
     }
 
-    EVP_CIPHER* EVP_cast5_ecb() const
+    EVP_CIPHER* EVP_cast5_ecb() const @nogc
     {
         return adapter_EVP_cast5_ecb();
     }
 
-    EVP_CIPHER* EVP_cast5_ofb() const
+    EVP_CIPHER* EVP_cast5_ofb() const @nogc
     {
         return adapter_EVP_cast5_ofb();
     }
 
-    EVP_CIPHER* EVP_des_cbc() const
+    EVP_CIPHER* EVP_des_cbc() const @nogc
     {
         return adapter_EVP_des_cbc();
     }
 
-    EVP_CIPHER* EVP_des_cfb() const
+    EVP_CIPHER* EVP_des_cfb() const @nogc
     {
         return adapter_EVP_des_cfb();
     }
 
-    EVP_CIPHER* EVP_des_ecb() const
+    EVP_CIPHER* EVP_des_ecb() const @nogc
     {
         return adapter_EVP_des_ecb();
     }
 
-    EVP_CIPHER* EVP_des_ofb() const
+    EVP_CIPHER* EVP_des_ofb() const @nogc
     {
         return adapter_EVP_des_ofb();
     }
 
-    EVP_CIPHER* EVP_des_ede3_cbc() const
+    EVP_CIPHER* EVP_des_ede3_cbc() const @nogc
     {
         return adapter_EVP_des_ede3_cbc();
     }
 
-    EVP_CIPHER* EVP_des_ede3_cfb() const
+    EVP_CIPHER* EVP_des_ede3_cfb() const @nogc
     {
         return adapter_EVP_des_ede3_cfb();
     }
 
-    EVP_CIPHER* EVP_des_ede3_ecb() const
+    EVP_CIPHER* EVP_des_ede3_ecb() const @nogc
     {
         return adapter_EVP_des_ede3_ecb();
     }
 
-    EVP_CIPHER* EVP_des_ede3_ofb() const
+    EVP_CIPHER* EVP_des_ede3_ofb() const @nogc
     {
         return adapter_EVP_des_ede3_ofb();
     }
 
-    EVP_CIPHER* EVP_aes_128_cbc() const
+    EVP_CIPHER* EVP_aes_128_cbc() const @nogc
     {
         return adapter_EVP_aes_128_cbc();
     }
 
-    EVP_CIPHER* EVP_aes_192_cbc() const
+    EVP_CIPHER* EVP_aes_192_cbc() const @nogc
     {
         return adapter_EVP_aes_192_cbc();
     }
 
-    EVP_CIPHER* EVP_aes_256_cbc() const
+    EVP_CIPHER* EVP_aes_256_cbc() const @nogc
     {
         return adapter_EVP_aes_256_cbc();
     }
 
-    EVP_CIPHER* EVP_aes_128_cfb() const
+    EVP_CIPHER* EVP_aes_128_cfb() const @nogc
     {
         return adapter_EVP_aes_128_cfb();
     }
 
-    EVP_CIPHER* EVP_aes_192_cfb() const
+    EVP_CIPHER* EVP_aes_192_cfb() const @nogc
     {
         return adapter_EVP_aes_192_cfb();
     }
 
-    EVP_CIPHER* EVP_aes_256_cfb() const
+    EVP_CIPHER* EVP_aes_256_cfb() const @nogc
     {
         return adapter_EVP_aes_256_cfb();
     }
 
-    EVP_CIPHER* EVP_aes_128_ecb() const
+    EVP_CIPHER* EVP_aes_128_ecb() const @nogc
     {
         return adapter_EVP_aes_128_ecb();
     }
 
-    EVP_CIPHER* EVP_aes_192_ecb() const
+    EVP_CIPHER* EVP_aes_192_ecb() const @nogc
     {
         return adapter_EVP_aes_192_ecb();
     }
 
-    EVP_CIPHER* EVP_aes_256_ecb() const
+    EVP_CIPHER* EVP_aes_256_ecb() const @nogc
     {
         return adapter_EVP_aes_256_ecb();
     }
 
-    EVP_CIPHER* EVP_aes_128_ofb() const
+    EVP_CIPHER* EVP_aes_128_ofb() const @nogc
     {
         return adapter_EVP_aes_128_ofb();
     }
 
-    EVP_CIPHER* EVP_aes_192_ofb() const
+    EVP_CIPHER* EVP_aes_192_ofb() const @nogc
     {
         return adapter_EVP_aes_192_ofb();
     }
 
-    EVP_CIPHER* EVP_aes_256_ofb() const
+    EVP_CIPHER* EVP_aes_256_ofb() const @nogc
     {
         return adapter_EVP_aes_256_ofb();
     }
@@ -482,42 +541,44 @@ public:
         adapter_EVP_CIPHER_CTX_free(ctx);
     }
 
-    EVP_CIPHER_CTX* EVP_CIPHER_CTX_new() const
+    EVP_CIPHER_CTX* EVP_CIPHER_CTX_new() const @nogc
     {
         return adapter_EVP_CIPHER_CTX_new();
     }
 
-    int EVP_CIPHER_CTX_set_key_length(EVP_CIPHER_CTX* ctx, int keyLen) const
+    int EVP_CIPHER_CTX_set_key_length(scope EVP_CIPHER_CTX* ctx, int keyLen) const @nogc
     {
         return adapter_EVP_CIPHER_CTX_set_key_length(ctx, keyLen);
     }
 
-    int EVP_DecryptFinal_ex(EVP_CIPHER_CTX* ctx, ubyte* outData, int* outLen) const
+    int EVP_DecryptFinal_ex(scope EVP_CIPHER_CTX* ctx, scope ubyte* outData, scope int* outLen) const @nogc
     {
         return adapter_EVP_DecryptFinal_ex(ctx, outData, outLen);
     }
 
-    int EVP_DecryptInit_ex(EVP_CIPHER_CTX* ctx, EVP_CIPHER* type, void* engineImpl, const(ubyte)* key, const(ubyte)* iv) const
+    int EVP_DecryptInit_ex(scope EVP_CIPHER_CTX* ctx, scope EVP_CIPHER* type, scope void* engineImpl,
+        scope const(ubyte)* key, scope const(ubyte)* iv) const @nogc
     {
         return adapter_EVP_DecryptInit_ex(ctx, type, engineImpl, key, iv);
     }
 
-    int EVP_DecryptUpdate(EVP_CIPHER_CTX* ctx, ubyte* outData, int* outLen, const(ubyte)* inData, int inLen) const
+    int EVP_DecryptUpdate(scope EVP_CIPHER_CTX* ctx, scope ubyte* outData, scope int* outLen, scope const(ubyte)* inData, int inLen) const @nogc
     {
         return adapter_EVP_DecryptUpdate(ctx, outData, outLen, inData, inLen);
     }
 
-    int EVP_EncryptFinal_ex(EVP_CIPHER_CTX* ctx, ubyte* outData, int* outLen) const
+    int EVP_EncryptFinal_ex(scope EVP_CIPHER_CTX* ctx, scope ubyte* outData, scope int* outLen) const @nogc
     {
         return adapter_EVP_EncryptFinal_ex(ctx, outData, outLen);
     }
 
-    int EVP_EncryptInit_ex(EVP_CIPHER_CTX* ctx, EVP_CIPHER* type, void* engineImpl, const(ubyte)* key, const(ubyte)* iv) const
+    int EVP_EncryptInit_ex(scope EVP_CIPHER_CTX* ctx, scope EVP_CIPHER* type, scope void* engineImpl,
+        scope const(ubyte)* key, scope const(ubyte)* iv) const @nogc
     {
         return adapter_EVP_EncryptInit_ex(ctx, type, engineImpl, key, iv);
     }
 
-    int EVP_EncryptUpdate(EVP_CIPHER_CTX* ctx, ubyte* outData, int* outLen, const(ubyte)* inData, int inLen) const
+    int EVP_EncryptUpdate(scope EVP_CIPHER_CTX* ctx, scope ubyte* outData, scope int* outLen, scope const(ubyte)* inData, int inLen) const @nogc
     {
         return adapter_EVP_EncryptUpdate(ctx, outData, outLen, inData, inLen);
     }
@@ -527,48 +588,52 @@ public:
         adapter_EVP_PKEY_free(key);
     }
 
-    EVP_PKEY* EVP_PKEY_new() const
+    EVP_PKEY* EVP_PKEY_new() const @nogc
     {
         return adapter_EVP_PKEY_new();
     }
 
-    void OPENSSL_free(void* p) const
+    void OPENSSL_free(void* p) const @nogc
     {
         CRYPTO_free(p);
     }
 
-    EVP_PKEY* PEM_read_bio_PrivateKey(BIO* bio, EVP_PKEY** x, OpenSSLPemPasswordCallback cb, void* cbu) const
+    EVP_PKEY* PEM_read_bio_PrivateKey(scope BIO* bio, scope EVP_PKEY** x,
+        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_PrivateKey(bio, x, cb, cbu);
     }
 
-    EVP_PKEY* PEM_read_bio_PUBKEY(BIO* bio, EVP_PKEY** x, OpenSSLPemPasswordCallback cb, void* cbu) const
+    EVP_PKEY* PEM_read_bio_PUBKEY(scope BIO* bio, scope EVP_PKEY** x,
+        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_PUBKEY(bio, x, cb, cbu);
     }
 
-    RSA* PEM_read_bio_RSAPrivateKey(BIO* bio, RSA** x, OpenSSLPemPasswordCallback cb, void* cbu) const
+    RSA* PEM_read_bio_RSAPrivateKey(scope BIO* bio, scope RSA** x,
+        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_RSAPrivateKey(bio, x, cb, cbu);
     }
 
-    RSA* PEM_read_bio_RSA_PUBKEY(BIO* bio, RSA** x, OpenSSLPemPasswordCallback cb, void* cbu) const
+    RSA* PEM_read_bio_RSA_PUBKEY(scope BIO* bio, scope RSA** x,
+        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_RSA_PUBKEY(bio, x, cb, cbu);
     }
 
-    int PEM_write_bio_RSAPrivateKey(BIO* bio, RSA* rsa,
-        EVP_CIPHER* enCTX, const(ubyte)* keyStr, int keyLen, OpenSSLPemPasswordCallback cb, void* cbu) const
+    int PEM_write_bio_RSAPrivateKey(scope BIO* bio, scope RSA* rsa, scope EVP_CIPHER* enCTX, scope const(ubyte)* keyStr, int keyLen,
+        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_write_bio_RSAPrivateKey(bio, rsa, enCTX, keyStr, keyLen, cb, cbu);
     }
 
-    int PEM_write_bio_RSA_PUBKEY(BIO* bio, RSA* rsa) const
+    int PEM_write_bio_RSA_PUBKEY(scope BIO* bio, scope RSA* rsa) const @nogc
     {
         return adapter_PEM_write_bio_RSA_PUBKEY(bio, rsa);
     }
 
-    void RAND_seed(const(void)* buf, int bufSize) const
+    void RAND_seed(scope const(void)* buf, int bufSize) const @nogc
     {
         adapter_RAND_seed(buf, bufSize);
     }
@@ -578,72 +643,72 @@ public:
         adapter_RSA_free(rsa);
     }
 
-    int RSA_generate_key_ex(RSA* rsa, int bits, BIGNUM* e, void* cb) const
+    int RSA_generate_key_ex(scope RSA* rsa, int bits, scope BIGNUM* e, scope void* cb) const @nogc
     {
         return adapter_RSA_generate_key_ex(rsa, bits, e, cb);
     }
 
-    RSA* RSA_new() const
+    RSA* RSA_new() const @nogc
     {
         return adapter_RSA_new();
     }
 
-    int RSA_private_decrypt(int fromLen, const(ubyte)* from, ubyte* to, RSA* rsa, int paddingMode) const
+    int RSA_private_decrypt(int fromLen, scope const(ubyte)* from, scope ubyte* to, scope RSA* rsa, int paddingMode) const @nogc
     {
         return adapter_RSA_private_decrypt(fromLen, from, to, rsa, paddingMode);
     }
 
-    int RSA_private_encrypt(int fromLen, const(ubyte)* from, ubyte* to, RSA* rsa, int paddingMode) const
+    int RSA_private_encrypt(int fromLen, scope const(ubyte)* from, scope ubyte* to, scope RSA* rsa, int paddingMode) const @nogc
     {
         return adapter_RSA_private_encrypt(fromLen, from, to, rsa, paddingMode);
     }
 
-    int RSA_public_decrypt(int fromLen, const(ubyte)* from, ubyte* to, RSA* rsa, int paddingMode) const
+    int RSA_public_decrypt(int fromLen, scope const(ubyte)* from, scope ubyte* to, scope RSA* rsa, int paddingMode) const @nogc
     {
         return adapter_RSA_public_decrypt(fromLen, from, to, rsa, paddingMode);
     }
 
-    int RSA_public_encrypt(int fromLen, const(ubyte)* from, ubyte* to, RSA* rsa, int paddingMode) const
+    int RSA_public_encrypt(int fromLen, scope const(ubyte)* from, scope ubyte* to, scope RSA* rsa, int paddingMode) const @nogc
     {
         return adapter_RSA_public_encrypt(fromLen, from, to, rsa, paddingMode);
     }
 
-    int RSA_security_bits(const(RSA)* rsa) const
+    int RSA_security_bits(scope const(RSA)* rsa) const @nogc
     {
         return adapter_RSA_security_bits(rsa);
     }
 
-    int RSA_size(const(RSA)* rsa) const
+    int RSA_size(scope const(RSA)* rsa) const @nogc
     {
         return adapter_RSA_size(rsa);
     }
 
-    SSL_METHOD* TLS_method() const
+    SSL_METHOD* TLS_method() const @nogc
     {
         return adapter_TLS_method();
     }
 
-    SSL_METHOD* TLS_client_method() const
+    SSL_METHOD* TLS_client_method() const @nogc
     {
         return adapter_TLS_client_method();
     }
 
-    char* SSL_CIPHER_get_name(SSL_CIPHER* c) const
+    char* SSL_CIPHER_get_name(scope SSL_CIPHER* c) const @nogc
     {
         return adapter_SSL_CIPHER_get_name(c);
     }
 
-    char* SSL_CIPHER_get_version(SSL_CIPHER* c) const
+    char* SSL_CIPHER_get_version(scope SSL_CIPHER* c) const @nogc
     {
         return adapter_SSL_CIPHER_get_version(c);
     }
 
-    int SSL_CTX_check_private_key(SSL_CTX* ctx) const
+    int SSL_CTX_check_private_key(scope SSL_CTX* ctx) const @nogc
     {
         return adapter_SSL_CTX_check_private_key(ctx);
     }
 
-    c_long SSL_CTX_ctrl(SSL_CTX* ctx, int cmd, c_long larg, void* parg) const
+    c_long SSL_CTX_ctrl(scope SSL_CTX* ctx, int cmd, c_long larg, scope void* parg) const @nogc
     {
         return adapter_SSL_CTX_ctrl(ctx, cmd, larg, parg);
     }
@@ -653,34 +718,40 @@ public:
         adapter_SSL_CTX_free(ctx);
     }
 
-    int SSL_CTX_load_verify_locations(SSL_CTX* ctx, const(char)* CAFile, const(char)* CAPath) const @nogc
+    int SSL_CTX_load_verify_locations(scope SSL_CTX* ctx, scope const(char)* CAFile, scope const(char)* CAPath) const @nogc
     {
         return adapter_SSL_CTX_load_verify_locations(ctx, CAFile, CAPath);
     }
 
-    SSL_CTX* SSL_CTX_new(SSL_METHOD* method) const
+    SSL_CTX* SSL_CTX_new(scope SSL_METHOD* method) const @nogc
     {
         return adapter_SSL_CTX_new(method);
     }
 
-    int SSL_CTX_get_ex_new_index(c_long argl, void* argp, CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const
+    void* SSL_CTX_get_ex_data(scope SSL_CTX* ctx, int idx) const @nogc
+    {
+        return adapter_SSL_CTX_get_ex_data(ctx, idx);
+    }
+
+    int SSL_CTX_get_ex_new_index(c_long argl, void* argp,
+        CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
     {
         //CRYPTO_EX_INDEX_SSL_CTX=1
         return CRYPTO_get_ex_new_index(1, argl, argp, newFunc, dupFunc, freeFunc);
     }
 
-    X509_VERIFY_PARAM* SSL_CTX_get0_param(SSL_CTX* ctx) const
+    X509_VERIFY_PARAM* SSL_CTX_get0_param(scope SSL_CTX* ctx) const @nogc
     {
         return adapter_SSL_CTX_get0_param(ctx);
     }
 
     // "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256..."
-    int SSL_CTX_set_cipher_list(SSL_CTX* ctx, const(char)* list) const @nogc
+    int SSL_CTX_set_cipher_list(scope SSL_CTX* ctx, scope const(char)* list) const @nogc
     {
         return adapter_SSL_CTX_set_cipher_list(ctx, list);
     }
 
-    c_long SSL_CTX_set_tmp_dh(SSL_CTX* ctx, DH* dh) const
+    c_long SSL_CTX_set_tmp_dh(scope SSL_CTX* ctx, scope DH* dh) const @nogc
     {
         //SSL_CTRL_SET_DH_AUTO=118
         //SSL_CTX_ctrl(ctx, 118, 1, null);
@@ -689,188 +760,200 @@ public:
         return SSL_CTX_ctrl(ctx, 3, 0, dh);
     }
 
-    void SSL_CTX_set_default_passwd_cb(SSL_CTX* ctx, OpenSSLPemPasswordCallback cb) const @nogc
+    void SSL_CTX_set_default_passwd_cb(scope SSL_CTX* ctx, OpenSSLPemPasswordCallback cb) const @nogc
     {
         adapter_SSL_CTX_set_default_passwd_cb(ctx, cb);
     }
 
-    void SSL_CTX_set_default_passwd_cb_userdata(SSL_CTX* ctx, void* cbu) const @nogc
+    void SSL_CTX_set_default_passwd_cb_userdata(scope SSL_CTX* ctx, void* cbu) const @nogc
     {
         adapter_SSL_CTX_set_default_passwd_cb_userdata(ctx, cbu);
     }
 
-    int SSL_CTX_set_default_verify_paths(SSL_CTX* ctx) const @nogc
+    int SSL_CTX_set_default_verify_paths(scope SSL_CTX* ctx) const @nogc
     {
         return adapter_SSL_CTX_set_default_verify_paths(ctx);
     }
 
-    c_long SSL_CTX_set_max_proto_version(SSL_CTX* ctx, int v) const @nogc
+    int SSL_CTX_set_ex_data(scope SSL_CTX* ctx, int idx, void* data) const @nogc
+    {
+        // libssl-1_1.dll does not have this function
+        return adapter_SSL_CTX_set_ex_data !is null ? adapter_SSL_CTX_set_ex_data(ctx, idx, data) : NID_undef;
+    }
+
+    c_long SSL_CTX_set_max_proto_version(scope SSL_CTX* ctx, int v) const @nogc
     {
         return adapter_SSL_CTX_ctrl(ctx, SSL_CTRL_SET_MAX_PROTO_VERSION, v, null);
     }
 
-    c_long SSL_CTX_set_min_proto_version(SSL_CTX* ctx, int v) const @nogc
+    c_long SSL_CTX_set_min_proto_version(scope SSL_CTX* ctx, int v) const @nogc
     {
         return adapter_SSL_CTX_ctrl(ctx, SSL_CTRL_SET_MIN_PROTO_VERSION, v, null);
     }
 
-    c_long SSL_CTX_set_mode(SSL_CTX* ctx, int mode) const
+    c_long SSL_CTX_set_mode(scope SSL_CTX* ctx, int mode) const @nogc
     {
         //SSL_CTRL_MODE=33
         return SSL_CTX_ctrl(ctx, 33, mode, null);
     }
 
-    c_ulong SSL_CTX_set_options(SSL_CTX* ctx, c_ulong options) const @nogc
+    c_ulong SSL_CTX_set_options(scope SSL_CTX* ctx, c_ulong options) const @nogc
     {
         return adapter_SSL_CTX_set_options(ctx, options);
     }
 
-    void SSL_CTX_set_verify(SSL_CTX* ctx, int mode, OpenSSLVerifyCallback cb) const @nogc
+    void SSL_CTX_set_verify(scope SSL_CTX* ctx, int mode, OpenSSLVerifyCallback cb) const @nogc
     {
         adapter_SSL_CTX_set_verify(ctx, mode, cb);
     }
 
-    void SSL_CTX_set_verify_depth(SSL_CTX* ctx, int depth) const @nogc
+    void SSL_CTX_set_verify_depth(scope SSL_CTX* ctx, int depth) const @nogc
     {
         adapter_SSL_CTX_set_verify_depth(ctx, depth);
     }
 
-    int SSL_CTX_use_certificate(SSL_CTX* ctx, X509* x) const @nogc
+    int SSL_CTX_use_certificate(scope SSL_CTX* ctx, scope X509* x) const @nogc
     {
         return adapter_SSL_CTX_use_certificate(ctx, x);
     }
 
-    int SSL_CTX_use_certificate_chain_file(SSL_CTX* ctx, const(char)* file) const @nogc
+    int SSL_CTX_use_certificate_chain_file(scope SSL_CTX* ctx, scope const(char)* file) const @nogc
     {
         return adapter_SSL_CTX_use_certificate_chain_file(ctx, file);
     }
 
-    int SSL_CTX_use_certificate_file(SSL_CTX* ctx, const(char)* file, int type) const @nogc
+    int SSL_CTX_use_certificate_file(scope SSL_CTX* ctx, scope const(char)* file, int type) const @nogc
     {
         return adapter_SSL_CTX_use_certificate_file(ctx, file, type);
     }
 
-    int SSL_CTX_use_PrivateKey_file(SSL_CTX* ctx, const(char)* file, int type) const @nogc
+    int SSL_CTX_use_PrivateKey_file(scope SSL_CTX* ctx, scope const(char)* file, int type) const @nogc
     {
         return adapter_SSL_CTX_use_PrivateKey_file(ctx, file, type);
     }
 
-    int SSL_accept(SSL* ssl) const
+    int SSL_accept(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_accept(ssl);
     }
 
-    int SSL_connect(SSL* ssl) const
+    int SSL_connect(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_connect(ssl);
     }
 
-    c_long SSL_ctrl(SSL* ssl, int cmd, c_long larg, void* parg) const
+    c_long SSL_ctrl(scope SSL* ssl, int cmd, c_long larg, scope void* parg) const @nogc
     {
         return adapter_SSL_ctrl(ssl, cmd, larg, parg);
     }
 
-    void SSL_free(SSL* ssl) const @nogc
+    void SSL_free(scope SSL* ssl) const @nogc
     {
         adapter_SSL_free(ssl);
     }
 
-    SSL_CIPHER* SSL_get_current_cipher(SSL* ssl) const
+    SSL_CIPHER* SSL_get_current_cipher(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_get_current_cipher(ssl);
     }
 
-    int SSL_get_error(SSL* ssl, int err) const @nogc
+    int SSL_get_error(scope SSL* ssl, int err) const @nogc
     {
         return adapter_SSL_get_error(ssl, err);
     }
 
-    void* SSL_get_ex_data(SSL* ssl, int idx) const
+    void* SSL_get_ex_data(scope SSL* ssl, int idx) const @nogc
     {
         return adapter_SSL_get_ex_data(ssl, idx);
     }
 
-    int SSL_get_ex_data_X509_STORE_CTX_idx() const
+    int SSL_get_ex_data_X509_STORE_CTX_idx() const @nogc
     {
         return adapter_SSL_get_ex_data_X509_STORE_CTX_idx();
     }
 
-    int SSL_get_ex_new_index(c_long argl, void* argp, CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const
+    int SSL_get_ex_new_index(c_long argl, void* argp,
+        CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
     {
         //CRYPTO_EX_INDEX_SSL=0
         return CRYPTO_get_ex_new_index(0, argl, argp, newFunc, dupFunc, freeFunc);
     }
 
-    X509* SSL_get_peer_certificate(SSL* ssl) const
+    X509* SSL_get_peer_certificate(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_get_peer_certificate(ssl);
     }
 
-    c_long SSL_get_verify_result(SSL* ssl) const
+    c_long SSL_get_verify_result(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_get_verify_result(ssl);
     }
 
-    SSL* SSL_new(SSL_CTX* ctx) const @nogc
+    SSL* SSL_new(scope SSL_CTX* ctx) const @nogc
     {
         return adapter_SSL_new(ctx);
     }
 
-    int SSL_pending(SSL* ssl) const @nogc
+    int SSL_pending(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_pending(ssl);
     }
 
-    int SSL_read(SSL* ssl, void* b, int n) const @nogc
+    int SSL_read(scope SSL* ssl, scope void* b, int n) const @nogc
     {
         return adapter_SSL_read(ssl, b, n);
     }
 
-    int SSL_set_ex_data(SSL* ssl, int idx, void* arg) const
+    int SSL_set_ex_data(scope SSL* ssl, int idx, void* data) const @nogc
     {
-        return adapter_SSL_set_ex_data(ssl, idx, arg);
+        return adapter_SSL_set_ex_data(ssl, idx, data);
     }
 
-    int SSL_set_fd(SSL* ssl, int fd) const @nogc
+    int SSL_set_fd(scope SSL* ssl, int fd) const @nogc
     {
         return adapter_SSL_set_fd(ssl, fd);
     }
 
-    c_ulong SSL_set_options(SSL* ssl, c_ulong options) const @nogc
+    c_ulong SSL_set_options(scope SSL* ssl, c_ulong options) const @nogc
     {
         return adapter_SSL_set_options(ssl, options);
     }
 
-    void SSL_set_quiet_shutdown(SSL* ssl, int mode) const @nogc
+    void SSL_set_quiet_shutdown(scope SSL* ssl, int mode) const @nogc
     {
         adapter_SSL_set_quiet_shutdown(ssl, mode);
     }
 
-    c_long SSL_set_tlsext_host_name(SSL* ssl, const(char)* host) const @nogc
+    c_long SSL_set_tlsext_host_name(scope SSL* ssl, scope const(char)* host) const @nogc
     {
         enum SSL_CTRL_SET_TLSEXT_HOSTNAME = 55; // ssl.h
         enum TLSEXT_NAMETYPE_host_name = 0; // tls1.h
         return adapter_SSL_ctrl(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, cast(void*)host);
     }
 
-    int SSL_shutdown(SSL* ssl) const @nogc
+    int SSL_shutdown(scope SSL* ssl) const @nogc
     {
         return adapter_SSL_shutdown(ssl);
     }
 
-    int SSL_write(SSL* ssl, const(void)* b, int n) const @nogc
+    int SSL_write(scope SSL* ssl, scope const(void)* b, int n) const @nogc
     {
         return adapter_SSL_write(ssl, b, n);
     }
 
-    int X509_check_host(X509* x509, const(char)* name, size_t nameLen, uint flags, char** peerName) const
+    int X509_check_host(scope X509* x509, scope const(char)* name, size_t nameLen, uint flags, scope char** peerName) const @nogc
     {
         return adapter_X509_check_host(x509, name, nameLen, flags, peerName);
     }
 
-    int X509_check_ip(X509* x509, const(char)* address, size_t addressLen, uint flags) const @nogc
+    int X509_check_ip(scope X509* x509, scope const(char)* address, size_t addressLen, uint flags) const @nogc
     {
         return adapter_X509_check_ip(x509, address, addressLen, flags);
+    }
+
+    int X509_NAME_entry_count(scope X509_NAME* name) const @nogc
+    {
+        return adapter_X509_NAME_entry_count(name);
     }
 
     void X509_free(X509* x509) const @nogc
@@ -878,17 +961,89 @@ public:
         adapter_X509_free(x509);
     }
 
-    int X509_VERIFY_PARAM_set1_host(X509_VERIFY_PARAM* param, const(char)* name, size_t nameLen) const
+    X509_NAME_ENTRY* X509_NAME_get_entry(scope X509_NAME* name, int index) const @nogc
+    {
+        return adapter_X509_NAME_get_entry(name, index);
+    }
+
+    X509_NAME* X509_get_issuer_name(scope X509* x509) const @nogc
+    {
+        return adapter_X509_get_issuer_name(x509);
+    }
+
+    ASN1_STRING* X509_NAME_ENTRY_get_data(scope X509_NAME_ENTRY* ne) const @nogc
+    {
+        return adapter_X509_NAME_ENTRY_get_data(ne);
+    }
+
+    ASN1_OBJECT* X509_NAME_ENTRY_get_object(scope X509_NAME_ENTRY* ne) const @nogc
+    {
+        return adapter_X509_NAME_ENTRY_get_object(ne);
+    }
+
+    ASN1_INTEGER* X509_get_serialNumber(scope X509* x509) const @nogc
+    {
+        return adapter_X509_get_serialNumber(x509);
+    }
+
+    X509_NAME* X509_get_subject_name(scope X509* x509) const @nogc
+    {
+        return adapter_X509_get_subject_name(x509);
+    }
+
+    const(char)* X509_verify_cert_error_string(c_long errorCode) const @nogc
+    {
+        return adapter_X509_verify_cert_error_string(errorCode);
+    }
+
+    int X509_VERIFY_PARAM_set1_host(scope X509_VERIFY_PARAM* param, scope const(char)* name, size_t nameLen) const @nogc
     {
         return adapter_X509_VERIFY_PARAM_set1_host(param, name, nameLen);
     }
 
-    int X509_VERIFY_PARAM_set1_ip_asc(X509_VERIFY_PARAM* param, const(char)* ipasc) const
+    int X509_VERIFY_PARAM_set1_ip_asc(scope X509_VERIFY_PARAM* param, scope const(char)* ipasc) const @nogc
     {
         return adapter_X509_VERIFY_PARAM_set1_ip_asc(param, ipasc);
     }
 
-    void ERR_clear_error() const
+    X509* X509_STORE_CTX_get_current_cert(scope X509_STORE_CTX* ctx) const @nogc
+    {
+        return adapter_X509_STORE_CTX_get_current_cert(ctx);
+    }
+
+    int X509_STORE_CTX_get_error(scope X509_STORE_CTX* ctx) const @nogc
+    {
+        return adapter_X509_STORE_CTX_get_error(ctx);
+    }
+
+    int X509_STORE_CTX_get_error_depth(scope X509_STORE_CTX* ctx) const @nogc
+    {
+        return adapter_X509_STORE_CTX_get_error_depth(ctx);
+    }
+
+    void* X509_STORE_CTX_get_ex_data(scope X509_STORE_CTX* ctx, int idx) const @nogc
+    {
+        return adapter_X509_STORE_CTX_get_ex_data(ctx, idx);
+    }
+
+    int X509_STORE_CTX_get_ex_new_index(c_long argl, void* argp,
+        CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
+    {
+        //CRYPTO_EX_INDEX_X509_STORE_CTX=5
+        return CRYPTO_get_ex_new_index(5, argl, argp, newFunc, dupFunc, freeFunc);
+    }
+
+    int X509_STORE_CTX_set_ex_data(scope X509_STORE_CTX* ctx, int idx, void* data) const @nogc
+    {
+        return adapter_X509_STORE_CTX_set_ex_data(ctx, idx, data);
+    }
+
+    int ASN1_STRING_print_ex(scope BIO* bio, scope ASN1_STRING* str, c_ulong flags) const @nogc
+    {
+        return adapter_ASN1_STRING_print_ex(bio, str, flags);
+    }
+
+    void ERR_clear_error() const @nogc
     {
         adapter_ERR_clear_error();
     }
@@ -903,8 +1058,23 @@ public:
         return adapter_ERR_reason_error_string(code);
     }
 
+    int OBJ_obj2nid(scope ASN1_OBJECT* obj) const @nogc
+    {
+        return adapter_OBJ_obj2nid(obj);
+    }
+
+    char* OBJ_nid2ln(int nid) const @nogc
+    {
+        return adapter_OBJ_nid2ln(nid);
+    }
+
+    char* OBJ_nid2sn(int nid) const @nogc
+    {
+        return adapter_OBJ_nid2sn(nid);
+    }
+
 public:
-    ResultStatus status() const pure @safe
+    ResultStatus status() const @nogc pure @safe
     {
         ResultStatus result = _loadSslStatus.isError
             ? _loadSslStatus
@@ -984,11 +1154,13 @@ private:
     mixin(Function_decl!("OPENSSL_init_crypto", int, ulong, OPENSSL_INIT_SETTINGS*)); // fixed width 64 bit arg
     mixin(Function_decl!("OPENSSL_init_ssl", int, ulong, OPENSSL_INIT_SETTINGS*)); // fixed width 64 bit arg
 
+    mixin(Function_decl!("ASN1_INTEGER_to_BN", BIGNUM*, ASN1_INTEGER*, BIGNUM*));
+
     mixin(Function_decl!("BIO_ctrl", c_long, BIO*, int, c_long, void*));
     mixin(Function_decl!("BIO_free", int, BIO*));
     mixin(Function_decl!("BIO_new", BIO*, BIO_METHOD*));
     mixin(Function_decl!("BIO_new_file", BIO*, const(char)*, const(char)*));
-    mixin(Function_decl!("BIO_new_mem_buf", BIO*, const(void)*, int));
+    mixin(Function_decl!("BIO_new_mem_buf", BIO*, void*, int));
     mixin(Function_decl!("BIO_read", int, BIO*, void*, int));
     mixin(Function_decl!("BIO_s_mem", BIO_METHOD*));
     mixin(Function_decl!("BIO_write", int, BIO*, const(void)*, int));
@@ -1004,7 +1176,7 @@ private:
 
     mixin(Function_decl!("CONF_modules_unload", void));
 
-    mixin(Function_decl!("CRYPTO_free", void, void*, char*, int));
+    mixin(Function_decl!("CRYPTO_free", void, void*, const(char)*, int));
     mixin(Function_decl!("CRYPTO_get_ex_new_index", int, int, c_long, void*, void*, void*, void*));
 
     mixin(Function_decl!("DH_free", void, DH*));
@@ -1087,11 +1259,13 @@ private:
     mixin(Function_decl!("SSL_CTX_free", void, SSL_CTX*));
     mixin(Function_decl!("SSL_CTX_load_verify_locations", int, SSL_CTX*, const(char)*, const(char)*));
     mixin(Function_decl!("SSL_CTX_new", SSL_CTX*, SSL_METHOD*));
+    mixin(Function_decl!("SSL_CTX_get_ex_data", void*, SSL_CTX*, int));
     mixin(Function_decl!("SSL_CTX_get0_param", X509_VERIFY_PARAM*, SSL_CTX*));
     mixin(Function_decl!("SSL_CTX_set_cipher_list", int, SSL_CTX*, const(char)*));
     mixin(Function_decl!("SSL_CTX_set_default_passwd_cb", void, SSL_CTX*, void*));
     mixin(Function_decl!("SSL_CTX_set_default_passwd_cb_userdata", void, SSL_CTX*, void*));
     mixin(Function_decl!("SSL_CTX_set_default_verify_paths", int, SSL_CTX*));
+    mixin(Function_decl!("SSL_CTX_set_ex_data", int, SSL_CTX*, int, void*));
     mixin(Function_decl!("SSL_CTX_set_options", c_ulong, SSL_CTX*, c_ulong));
     mixin(Function_decl!("SSL_CTX_set_verify", void, SSL_CTX*, int, void*));
     mixin(Function_decl!("SSL_CTX_set_verify_depth", void, SSL_CTX*, int));
@@ -1122,13 +1296,33 @@ private:
 
     mixin(Function_decl!("X509_check_host", int, X509*, const(char)*, size_t, uint, char**));
     mixin(Function_decl!("X509_check_ip", int, X509*, const(char)*, size_t, uint));
+    mixin(Function_decl!("X509_NAME_entry_count", int, X509_NAME*));
     mixin(Function_decl!("X509_free", void, X509*));
+    mixin(Function_decl!("X509_NAME_get_entry", X509_NAME_ENTRY*, X509_NAME*, int));
+    mixin(Function_decl!("X509_get_issuer_name", X509_NAME*, X509*));
+    mixin(Function_decl!("X509_NAME_ENTRY_get_data", ASN1_STRING*, X509_NAME_ENTRY*));
+    mixin(Function_decl!("X509_NAME_ENTRY_get_object", ASN1_OBJECT*, X509_NAME_ENTRY*));
+    mixin(Function_decl!("X509_get_serialNumber", ASN1_INTEGER*, X509*));
+    mixin(Function_decl!("X509_get_subject_name", X509_NAME*, X509*));
+    mixin(Function_decl!("X509_verify_cert_error_string", char*, c_long));
     mixin(Function_decl!("X509_VERIFY_PARAM_set1_host", int, X509_VERIFY_PARAM*, const(char)*, size_t));
     mixin(Function_decl!("X509_VERIFY_PARAM_set1_ip_asc", int, X509_VERIFY_PARAM*, const(char)*));
+
+    mixin(Function_decl!("X509_STORE_CTX_get_current_cert", X509*, X509_STORE_CTX*));
+    mixin(Function_decl!("X509_STORE_CTX_get_error", int, X509_STORE_CTX*));
+    mixin(Function_decl!("X509_STORE_CTX_get_error_depth", int, X509_STORE_CTX*));
+    mixin(Function_decl!("X509_STORE_CTX_get_ex_data", void*, X509_STORE_CTX*, int));
+    mixin(Function_decl!("X509_STORE_CTX_set_ex_data", int, X509_STORE_CTX*, int, void*));
+
+    mixin(Function_decl!("ASN1_STRING_print_ex", int, BIO*, ASN1_STRING*, c_ulong));
 
     mixin(Function_decl!("ERR_clear_error", void));
     mixin(Function_decl!("ERR_get_error", c_ulong));
     mixin(Function_decl!("ERR_reason_error_string", char*, c_ulong));
+
+    mixin(Function_decl!("OBJ_obj2nid", int, ASN1_OBJECT*));
+    mixin(Function_decl!("OBJ_nid2ln", char*, int));
+    mixin(Function_decl!("OBJ_nid2sn", char*, int));
 }
 
 static immutable OpenSSLApi opensslApi;
