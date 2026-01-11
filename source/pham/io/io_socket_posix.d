@@ -23,7 +23,7 @@ import core.sys.posix.sys.socket;
 import core.sys.posix.sys.time : timeval;
 import core.sys.posix.unistd : close, gethostname;
 
-import pham.utl.utl_result : ResultCode;
+import pham.utl.utl_result : ResultCode, TryLimit;
 import pham.io.io_socket_type : PollFDSet, PollResult,
     SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems,
     isSelectMode, toSocketTimeMSecs;
@@ -64,7 +64,7 @@ in
 do
 {
     SocketHandle result;
-    int limit = 0;
+    TryLimit limit;
     do
     {
         result = accept(handle, nameVal, nameLen);
@@ -84,11 +84,10 @@ do
     return bind(handle, nameVal, nameLen);
 }
 
-private enum limitEINTR = 5;
 pragma(inline, true)
-bool canRetry(int apiResult, ref int limit) @nogc nothrow
+bool canRetry(int apiResult, ref TryLimit limit) @nogc nothrow
 {
-    return apiResult == errorSocketResult && errno == EINTR && limit++ < limitEINTR;
+    return apiResult == errorSocketResult && errno == EINTR && !limit.incOverLimit();
 }
 
 pragma(inline, true)
@@ -133,7 +132,8 @@ in
 }
 do
 {
-    int r, result, limit;
+    int r, result;
+    TryLimit limit;
     do
     {
         r = ioctl(handle, FIONREAD, &result);
@@ -267,7 +267,8 @@ short pollEventOf(const(SelectMode) modes) @nogc nothrow pure @safe
 int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted
 {
     const length = pollSets.length;
-    int r, limit;
+    int r;
+    TryLimit limit;
     do
     {
         r = poll(&pollSets.pollFDs[0], length, toSocketTimeMSecs(timeout));
@@ -334,7 +335,8 @@ in
 }
 do
 {
-    int r, limit;
+    int r;
+    TryLimit limit;
     do
     {
         const len = cast(int)bytes.length;
@@ -346,7 +348,8 @@ do
 
 int selectSocket(ref SelectFDSet selectSets, TimeVal timeout) nothrow @trusted
 {
-    int r, limit;
+    int r;
+    TryLimit limit;
     do
     {
         r = select(selectSets.nfds + 1,
@@ -413,7 +416,8 @@ in
 }
 do
 {
-    int r, limit;
+    int r;
+    TryLimit limit;
     do
     {
         const len = cast(int)bytes.length;

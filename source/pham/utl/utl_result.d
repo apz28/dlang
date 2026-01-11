@@ -244,7 +244,7 @@ if (!isScalarType!T1 && !isScalarType!T2)
             // https://issues.dlang.org/show_bug.cgi?id=17244
             static assert(is(U1 == U2));
             import core.stdc.string : memcmp;
-            
+
             const c = (() @trusted => memcmp(&at(lhs, i), &at(rhs, i), U1.sizeof))();
             if (c != 0)
                 return c;
@@ -799,6 +799,57 @@ public:
     uint line;
 }
 
+struct TryLimit
+{
+@nogc nothrow @safe:
+
+    static assert(ptrdiff_t.sizeof >= 4); // Must be atleast 4 bytes
+
+public:
+    @disable this(this);
+    @disable void opAssign(typeof(this));
+
+    this(ptrdiff_t maxCount) pure
+    {
+        this.maxCount = maxCount;
+        this._count = 0;
+    }
+
+    bool incOverLimit() pure
+    {
+        _count++;
+        return isOverLimit;
+    }
+
+    void reset() pure
+    {
+        _count = 0;
+    }
+
+    @property ptrdiff_t count() const pure
+    {
+        return _count;
+    }
+
+    pragma(inline, true)
+    @property bool isOverLimit() const pure
+    {
+        return _count > maxCount && maxCount >= 0;
+    }
+
+    @property bool isUnlimit() const pure
+    {
+        return maxCount < 0;
+    }
+
+public:
+    enum defaultLimit = 3;
+    const(ptrdiff_t) maxCount = defaultLimit;
+
+private:
+    ptrdiff_t _count;
+}
+
 
 private:
 
@@ -953,4 +1004,64 @@ unittest // ResultStatus
     assert(r);
     assert(r.errorCode == 0);
     assert(r.errorMessage is null);
+}
+
+unittest // TryLimit
+{
+    TryLimit defLimit;
+    assert(!defLimit.isOverLimit);
+    assert(!defLimit.isUnlimit);
+    foreach (i; 0..TryLimit.defaultLimit)
+    {
+        assert(!defLimit.incOverLimit());
+        assert(!defLimit.isOverLimit);
+        assert(defLimit.count == i + 1);
+    }
+    assert(defLimit.incOverLimit());
+    assert(defLimit.isOverLimit);
+    assert(defLimit.count == TryLimit.defaultLimit + 1);
+
+    TryLimit limit0 = TryLimit(0);
+    assert(!limit0.isOverLimit);
+    assert(!limit0.isUnlimit);
+    assert(limit0.incOverLimit());
+    assert(limit0.isOverLimit);
+    assert(limit0.count == 1);
+
+    TryLimit limit2 = TryLimit(2);
+    assert(!limit2.isOverLimit);
+    assert(!limit2.isUnlimit);
+    foreach (i; 0..2)
+    {
+        assert(!limit2.incOverLimit());
+        assert(!limit2.isOverLimit);
+        assert(limit2.count == i + 1);
+    }
+    assert(limit2.incOverLimit());
+    assert(limit2.isOverLimit);
+    assert(limit2.count == 3);
+    limit2.reset();
+    assert(limit2.count == 0);
+    assert(!limit2.isOverLimit);
+    assert(!limit2.isUnlimit);
+    foreach (i; 0..2)
+    {
+        assert(!limit2.incOverLimit());
+        assert(!limit2.isOverLimit);
+        assert(limit2.count == i + 1);
+    }
+    assert(limit2.incOverLimit());
+    assert(limit2.isOverLimit);
+    assert(limit2.count == 3);
+
+    TryLimit unlimit = TryLimit(-1);
+    assert(!unlimit.isOverLimit);
+    assert(unlimit.isUnlimit);
+    foreach (i; 0..100)
+    {
+        assert(!unlimit.incOverLimit());
+        assert(!unlimit.isOverLimit);
+        assert(unlimit.count == i + 1);
+    }
+    assert(!unlimit.isOverLimit);
 }
