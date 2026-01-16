@@ -19,21 +19,19 @@ import std.conv : to;
 import std.math.traits : isNaN;
 import std.meta : AliasSeq, allSatisfy, anySatisfy, staticIndexOf;
 import std.range.primitives : ElementType;
-import std.traits : ConstOf, ImmutableOf, Parameters, ReturnType, SharedConstOf, SharedOf, Unqual, 
+import std.traits : ConstOf, ImmutableOf, Parameters, ReturnType, SharedConstOf, SharedOf, Unqual,
     ImplicitConversionTargets = AllImplicitConversionTargets, fullyQualifiedName,
     hasElaborateCopyConstructor, hasElaborateDestructor, hasIndirections, hasMember,
     isArray, isAssociativeArray, isBasicType, isBoolean, isDelegate, isDynamicArray,
     isFloatingPoint, isFunctionPointer, isInstanceOf, isIntegral, isPointer,
     isSigned, isSomeChar, isSomeFunction, isSomeString, isStaticArray, isUnsigned,
-    staticMap;    
+    staticMap;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
 debug(debug_pham_var_var_variant) import std.stdio : writeln;
 import pham.utl.utl_result : cmp;
 import pham.utl.utl_trait : isDelegateWith, isTypeOf, maxAlignment, maxSize;
 import pham.var.var_coerce;
-
-struct AnonymousStruct;
 
 enum variantNoLengthMarker = -1;
 
@@ -137,22 +135,26 @@ public:
     }
 
     static if (elaborateConstructor)
-    this(this) nothrow @trusted
     {
-        if (handler)
+        this(this) nothrow @trusted
         {
-            ubyte[size] tempStore;
-            handler.postblit(size, pointer, &tempStore);
+            if (handler)
+            {
+                ubyte[size] tempStore;
+                handler.postblit(size, pointer, &tempStore);
+            }
         }
     }
 
     static if (elaborateDestructor)
-    ~this() nothrow @trusted
     {
-        if (handler)
+        ~this() nothrow @trusted
         {
-            handler.destruct(size, pointer);
-            handler = Handler!void.getHandler();
+            if (handler)
+            {
+                handler.destruct(size, pointer);
+                handler = Handler!void.getHandler();
+            }
         }
     }
 
@@ -543,20 +545,35 @@ public:
      */
     inout(Variant) opIndex(I)(I indexOrKey) inout return
     {
-        inout(Variant) result;
+        //import std.stdio : writeln; debug writeln(__FUNCTION__, "(indexOrKey=", indexOrKey, ", variantType=", variantType, ")");
+
         switch (variantType)
         {
             case VariantType.dynamicArray:
             case VariantType.staticArray:
                 static if (isIntegral!I)
-                if (handler.indexAR(size, pointer, cast(size_t)indexOrKey, cast(void*)&result))
-                    return result;
+                {
+                    inout(Variant) result;
+                    if (handler.indexAR(size, pointer, cast(size_t)indexOrKey, cast(void*)&result))
+                        return result;
+                }
 
                 break; // break for error
 
             case VariantType.associativeArray:
+                inout(Variant) result;
                 if (handler.indexAA(size, pointer, &indexOrKey, typeid(I), cast(void*)&result))
                     return result;
+
+                break; // break for error
+
+            case VariantType.struct_: // tuple is anonymous of struct type
+                static if (isIntegral!I) // index to a member?
+                {
+                    inout(Variant) result;
+                    if (handler.indexTuple(size, pointer, cast(size_t)indexOrKey, cast(void*)&result))
+                        return result;
+                }
 
                 break; // break for error
 
@@ -611,9 +628,17 @@ public:
                     alias assignKey = indexOrKey;
                 else
                     auto assignKey = Variant(indexOrKey);
-
                 if (handler.indexAssignAA(size, pointer, &assignValue, &assignKey))
                     return value;
+
+                break; // break for error
+
+            case VariantType.struct_: // tuple is anonymous of struct type
+                static if (isIntegral!I) // index to a member?
+                {
+                    if (handler.indexAssignTuple(size, pointer, &assignValue, cast(size_t)indexOrKey))
+                        return value;
+                }
 
                 break; // break for error
 
@@ -652,8 +677,10 @@ public:
     T coerce(T)() @trusted
     {
         static if (allowed!T)
-        if (auto pv = peek!T())
-            return *pv;
+        {
+            if (auto pv = peek!T())
+                return *pv;
+        }
 
         if (!isNull)
         {
@@ -665,13 +692,17 @@ public:
                     return result;
 
                 static if (is(T == bool))
-                if (cvh.canCast && cvh.doCast(handler.valuePointer(size, pointer), &result))
-                    return result;
+                {
+                    if (cvh.canCast && cvh.doCast(handler.valuePointer(size, pointer), &result))
+                        return result;
+                }
             }
 
             static if (is(T : Object))
-            if (variantType == VariantType.class_)
-                return cast(T)(doGet!Object());
+            {
+                if (variantType == VariantType.class_)
+                    return cast(T)(doGet!Object());
+            }
         }
 
         throw new VariantException(typeInfo, typeid(T), "coerce()");
@@ -722,7 +753,7 @@ public:
             {
                 // Value type will invoke destructor with garbage -> access violation
                 static if (hasElaborateDestructor!T)
-                memset(cast(void*)&result, 0, T.sizeof);
+                    memset(cast(void*)&result, 0, T.sizeof);
 
                 // Implicit conversion?
                 if (!isNull)
@@ -774,9 +805,11 @@ public:
     inout(T)* peek(T)() inout nothrow pure return @trusted
     {
         static if (!is(T == void))
-        static assert(allowed!T,
-            "Cannot store a " ~ fullyQualifiedName!T ~ " in a " ~ fullyQualifiedName!VariantN
-            ~ ".\nValid types are " ~ AllowedTypes.stringof);
+        {
+            static assert(allowed!T,
+                "Cannot store a " ~ fullyQualifiedName!T ~ " in a " ~ fullyQualifiedName!VariantN
+                ~ ".\nValid types are " ~ AllowedTypes.stringof);
+        }
 
         if (typeInfo !is typeid(T))
             return null;
@@ -831,7 +864,7 @@ public:
         {
             // Value type will invoke destructor with garbage -> access violation
             static if (hasElaborateDestructor!T)
-            memset(cast(void*)&tempValue, 0, T.sizeof);
+                memset(cast(void*)&tempValue, 0, T.sizeof);
 
             return false;
         }
@@ -920,8 +953,10 @@ private:
                 import std.format : format;
                 return q{
                     static if (allowed!(%1$s) && T.allowed!(%1$s))
-                    if (canGet!(%1$s)() && rhs.canGet!(%1$s)())
-                        return VariantN(doGet!(%1$s)() %2$s rhs.doGet!(%1$s)());
+                    {
+                        if (canGet!(%1$s)() && rhs.canGet!(%1$s)())
+                            return VariantN(doGet!(%1$s)() %2$s rhs.doGet!(%1$s)());
+                    }
                 }.format(tp, op);
             }
 
@@ -936,38 +971,54 @@ private:
         else
         {
             static if (allowed!T)
-            if (auto pv = peek!T())
-                return VariantN(mixin("*pv " ~ op ~ " rhs"));
+            {
+                if (auto pv = peek!T())
+                    return VariantN(mixin("*pv " ~ op ~ " rhs"));
+            }
 
             static if (allowed!int && is(typeof(T.max) : int) && !isUnsigned!T)
-            if (canGet!int)
-                return VariantN(mixin("doGet!int() " ~ op ~ " rhs"));
+            {
+                if (canGet!int)
+                    return VariantN(mixin("doGet!int() " ~ op ~ " rhs"));
+            }
 
             static if (allowed!uint && is(typeof(T.max) : uint) && isUnsigned!T)
-            if (canGet!uint)
-                return VariantN(mixin("doGet!uint() " ~ op ~ " rhs"));
+            {
+                if (canGet!uint)
+                    return VariantN(mixin("doGet!uint() " ~ op ~ " rhs"));
+            }
 
             static if (allowed!long && is(typeof(T.max) : long))
-            if (canGet!long)
-                return VariantN(mixin("doGet!long() " ~ op ~ " rhs"));
+            {
+                if (canGet!long)
+                    return VariantN(mixin("doGet!long() " ~ op ~ " rhs"));
+            }
 
             static if (allowed!ulong && is(typeof(T.max) : ulong))
-            if (canGet!ulong)
-                return VariantN(mixin("doGet!ulong() " ~ op ~ " rhs"));
+            {
+                if (canGet!ulong)
+                    return VariantN(mixin("doGet!ulong() " ~ op ~ " rhs"));
+            }
 
             static if (allowed!float && is(T : float) && T.sizeof <= 4)
-            if (canGet!float)
-                return VariantN(mixin("doGet!float() " ~ op ~ " rhs"));
+            {
+                if (canGet!float)
+                    return VariantN(mixin("doGet!float() " ~ op ~ " rhs"));
+            }
 
             // is(T : real) = T can be implicitly converted to double
             static if (allowed!double && is(T : double))
-            if (canGet!double)
-                return VariantN(mixin("doGet!double() " ~ op ~ " rhs"));
+            {
+                if (canGet!double)
+                    return VariantN(mixin("doGet!double() " ~ op ~ " rhs"));
+            }
 
             // is(T : real) = T can be implicitly converted to real
             static if (allowed!real && is(T : real))
-            if (canGet!real)
-                return VariantN(mixin("doGet!real() " ~ op ~ " rhs"));
+            {
+                if (canGet!real)
+                    return VariantN(mixin("doGet!real() " ~ op ~ " rhs"));
+            }
         }
 
         assert(0, "Cannot do Variant(" ~ AllowedTypes.stringof ~ ") " ~ op ~ " " ~ fullyQualifiedName!T);
@@ -979,40 +1030,32 @@ private:
      */
     void doAssign(T, bool Assign)(T rhs) nothrow @trusted
     {
+        // Assignment must destruct previous value
+        static if (Assign)
+        {
+            handler.destruct(size, pointer);
+        }
+        // In case of failed initialization
+        handler = Handler!void.getHandler();
+
         static if (is(T == void))
         {
-            // Assignment must destruct previous value
-            static if (Assign)
-            handler.destruct(size, pointer);
-
-            handler = Handler!void.getHandler();
+            // Do nothing for void type
         }
         else static if (is(T : VariantN))
         {
-            // Assignment must destruct previous value
-            static if (Assign)
-            handler.destruct(size, pointer);
-
-            handler = rhs.handler;
             if (rhs.typeInfo !is typeid(void))
             {
-                handler.assignSelf(rhs.size, rhs.pointer, size, pointer);
-
-                // PostBlit after copy
-                handler.construct(size, pointer);
+                auto setHandler = rhs.handler;
+                setHandler.assignSelf(rhs.size, rhs.pointer, size, pointer);
+                setHandler.construct(size, pointer); // PostBlit after copy
+                handler = setHandler;
             }
         }
         else static if (is(T : const(VariantN)))
             static assert(false, "Unsupport assigning `Variant` from `const Variant`");
         else
         {
-            // Assignment must destruct previous value
-            static if (Assign)
-            {
-                handler.destruct(size, pointer);
-                handler = Handler!void.getHandler(); // In case of failed initialization
-            }
-
             static if (T.sizeof <= size)
             {
                 copyEmplace(rhs, *cast(T*)pointer);
@@ -1485,6 +1528,7 @@ public:
     {
         return cast(Handler!T*)&hHandler;
     }
+
     private static shared Handler!T hHandler;
 
 public:
@@ -1512,10 +1556,14 @@ public:
         indexAA = &hIndexAA;
     bool function(size_t size, scope void* store, size_t index, void* value) nothrow @trusted
         indexAR = &hIndexAR;
+    bool function(size_t size, scope void* store, size_t index, void* value) nothrow @trusted
+        indexTuple = &hIndexTuple;
     bool function(size_t size, scope void* store, scope void* value, scope void* key) @trusted
         indexAssignAA = &hIndexAssignAA;
     bool function(size_t size, scope void* store, scope void* value, size_t index) @trusted
         indexAssignAR = &hIndexAssignAR;
+    bool function(size_t size, scope void* store, scope void* value, size_t index) @trusted
+        indexAssignTuple = &hIndexAssignTuple;
     bool function(TypeInfo unqualifiedRhsValue) nothrow pure @safe
         isCompatibleArrayComparison = &hIsCompatibleArrayComparison;
     ptrdiff_t function(size_t size, scope void* store) @nogc nothrow pure @safe
@@ -1625,7 +1673,9 @@ private:
         size_t pLength, scope void* pValues, scope void* result) @trusted
     {
         static if (!isFunctionPointer!T && !isDelegate!T)
+        {
             return -1;
+        }
         else
         {
             alias ParamTypes = Parameters!T;
@@ -1699,13 +1749,13 @@ private:
     static void hConstruct(size_t size, scope void* store) nothrow @trusted
     {
         static if (hasElaborateCopyConstructor!T)
-        hValuePointer(size, store).__xpostblit();
+            hValuePointer(size, store).__xpostblit();
     }
 
     static void hDestruct(size_t size, scope void* store) nothrow @trusted
     {
         static if (hasElaborateDestructor!T)
-        hValuePointer(size, store).__xdtor();
+            hValuePointer(size, store).__xdtor();
 
         // Prevent double calls with dangling data/pointer
         // Second reason is to avoid false runtime pinned memory
@@ -1792,14 +1842,38 @@ private:
             return false;
     }
 
-    static bool hIndexAR(size_t size, scope void* store, size_t index,
-        void* value) nothrow @trusted
+    static bool hIndexAR(size_t size, scope void* store, size_t index, void* value) nothrow @trusted
     {
         static if (isArray!T && !is(Unqual!(typeof(T.init[0])) == void))
         {
             auto vAR = hValuePointer(size, store);
             *(cast(Variant*)value) = Variant((*vAR)[index]);
             return true;
+        }
+        else
+            return false;
+    }
+
+    static bool hIndexTuple(size_t size, scope void* store, size_t index, void* value) nothrow @trusted
+    {
+        static if (isInstanceOf!(Tuple, T))
+        {
+            auto vTuple = hValuePointer(size, store);
+
+            //import std.stdio : writeln; debug writeln(__FUNCTION__, "(index=", index, ", vTuple.length=", vTuple.length, ")");
+
+            switch (index)
+            {
+                static foreach (i; 0..vTuple.length)
+                {
+                    case i:
+
+                        *(cast(Variant*)value) = Variant((*vTuple)[i]);
+                        return true;
+                }
+                default:
+                    return false;
+            }
         }
         else
             return false;
@@ -1826,6 +1900,29 @@ private:
         {
             (*v)[index] = (cast(Variant*)value).get!(typeof((*v)[0]));
             return true;
+        }
+        else
+            return false;
+    }
+
+    static bool hIndexAssignTuple(size_t size, scope void* store,
+        scope void* value, size_t index) @trusted
+    {
+        static if (isInstanceOf!(Tuple, T))
+        {
+            auto vTuple = hValuePointer(size, store);
+
+            switch (index)
+            {
+                static foreach (i; 0..vTuple.length)
+                {
+                    case i:
+                        (*vTuple)[i] = (cast(Variant*)value).get!(typeof((*vTuple)[i]));
+                        return true;
+                }
+                default:
+                    return false;
+            }
         }
         else
             return false;
@@ -1874,7 +1971,7 @@ private:
         }
 
         static if (hasElaborateCopyConstructor!T)
-        hConstruct(size, store);
+            hConstruct(size, store);
     }
 
     static string hQualifiedName() @nogc nothrow pure @safe
@@ -1885,7 +1982,9 @@ private:
     static size_t hToHash(size_t size, scope void* store) nothrow @safe
     {
         static if (is(T == void) || typeid(T) is typeid(null))
+        {
             return typeid(T).getHash(store);
+        }
         else
         {
             auto v = hValuePointer(size, store);
@@ -2306,6 +2405,7 @@ if (isAlgebraic!VariantType && Handlers.length > 0)
     assert(0);
 }
 
+struct AnonymousStruct;
 alias This2Variant(V, T...) = AliasSeq!(ReplaceTypeUnless!(isAlgebraic, AnonymousStruct, V, T));
 
 nothrow @safe version(unittest)
@@ -5785,4 +5885,20 @@ unittest // Unassign
     v = Variant(1);
     assert(!v.isUnassign);
     assert(!v.isNull);
+}
+
+unittest // Tuple
+{
+    import std.typecons : Tuple, tuple;
+
+    Variant v = tuple(1, 2);
+
+    // opIndex
+    assert(v[0] == 1);
+    assert(v[1] == 2);
+
+    // opIndexAssign
+    v[1] = 10;
+    assert(v[1] == 10);
+    assert(v[0] == 1);
 }
