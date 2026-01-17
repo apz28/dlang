@@ -256,7 +256,8 @@ public:
 
     int BIO_eof(scope BIO* bio) const @nogc
     {
-        return cast(int)BIO_ctrl(bio, 2, 0, null); // BIO_CTRL_EOF=2
+        enum BIO_CTRL_EOF = 2; // bio.h
+        return cast(int)BIO_ctrl(bio, BIO_CTRL_EOF, 0, null);
     }
 
     int BIO_free(scope BIO* bio) const @nogc
@@ -266,7 +267,8 @@ public:
 
     c_long BIO_get_mem_data(scope BIO* bio, void* data) const @nogc
     {
-        return BIO_ctrl(bio, 3, 0, data); // BIO_CTRL_INFO=3
+        enum BIO_CTRL_INFO = 3; // bio.h
+        return BIO_ctrl(bio, BIO_CTRL_INFO, 0, data);
     }
 
     BIO* BIO_new(scope BIO_METHOD* method) const @nogc
@@ -287,7 +289,8 @@ public:
 
     int BIO_pending(scope BIO* bio) const @nogc
     {
-        return cast(int)BIO_ctrl(bio, 10, 0, null); // BIO_CTRL_PENDING=10
+        enum BIO_CTRL_PENDING = 10;
+        return cast(int)BIO_ctrl(bio, BIO_CTRL_PENDING, 0, null);
     }
 
     int BIO_read(scope BIO* bio, scope void* buf, int len) const @nogc
@@ -297,7 +300,8 @@ public:
 
     int BIO_reset(scope BIO* bio) const @nogc
     {
-        return cast(int)BIO_ctrl(bio, 1, 0, null); // BIO_CTRL_RESET=1
+        enum BIO_CTRL_RESET = 1; // bio.h
+        return cast(int)BIO_ctrl(bio, BIO_CTRL_RESET, 0, null);
     }
 
     BIO_METHOD* BIO_s_mem() const @nogc
@@ -307,17 +311,20 @@ public:
 
     int BIO_seek(scope BIO* bio, int offset) const @nogc
     {
-        return cast(int)BIO_ctrl(bio, 128, offset, null); // BIO_C_FILE_SEEK=128
+        enum BIO_C_FILE_SEEK = 128; // bio.h
+        return cast(int)BIO_ctrl(bio, BIO_C_FILE_SEEK, offset, null);
     }
 
     int BIO_set_close(scope BIO* bio, int code) const @nogc
     {
-        return cast(int)BIO_ctrl(bio, 9, code, null); // BIO_CTRL_SET_CLOSE=9
+        enum BIO_CTRL_SET_CLOSE = 9; // bio.h
+        return cast(int)BIO_ctrl(bio, BIO_CTRL_SET_CLOSE, code, null);
     }
 
     int BIO_tell(scope BIO* bio) const @nogc
     {
-        return cast(int)BIO_ctrl(bio, 133, 0, null); // BIO_C_FILE_TELL=133
+        enum BIO_C_FILE_TELL = 133; // bio.h
+        return cast(int)BIO_ctrl(bio, BIO_C_FILE_TELL, 0, null);
     }
 
     int BIO_write(scope BIO* bio, scope const(void)* buf, int len) const @nogc
@@ -578,7 +585,8 @@ public:
         return adapter_EVP_EncryptInit_ex(ctx, type, engineImpl, key, iv);
     }
 
-    int EVP_EncryptUpdate(scope EVP_CIPHER_CTX* ctx, scope ubyte* outData, scope int* outLen, scope const(ubyte)* inData, int inLen) const @nogc
+    int EVP_EncryptUpdate(scope EVP_CIPHER_CTX* ctx, scope ubyte* outData, scope int* outLen,
+        scope const(ubyte)* inData, int inLen) const @nogc
     {
         return adapter_EVP_EncryptUpdate(ctx, outData, outLen, inData, inLen);
     }
@@ -599,31 +607,32 @@ public:
     }
 
     EVP_PKEY* PEM_read_bio_PrivateKey(scope BIO* bio, scope EVP_PKEY** x,
-        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
+        scope OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_PrivateKey(bio, x, cb, cbu);
     }
 
     EVP_PKEY* PEM_read_bio_PUBKEY(scope BIO* bio, scope EVP_PKEY** x,
-        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
+        scope OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_PUBKEY(bio, x, cb, cbu);
     }
 
     RSA* PEM_read_bio_RSAPrivateKey(scope BIO* bio, scope RSA** x,
-        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
+        scope OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_RSAPrivateKey(bio, x, cb, cbu);
     }
 
     RSA* PEM_read_bio_RSA_PUBKEY(scope BIO* bio, scope RSA** x,
-        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
+        scope OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_read_bio_RSA_PUBKEY(bio, x, cb, cbu);
     }
 
-    int PEM_write_bio_RSAPrivateKey(scope BIO* bio, scope RSA* rsa, scope EVP_CIPHER* enCTX, scope const(ubyte)* keyStr, int keyLen,
-        OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
+    int PEM_write_bio_RSAPrivateKey(scope BIO* bio, scope RSA* rsa, scope EVP_CIPHER* enCTX,
+        scope const(ubyte)* keyStr, int keyLen,
+        scope OpenSSLPemPasswordCallback cb, scope void* cbu) const @nogc
     {
         return adapter_PEM_write_bio_RSAPrivateKey(bio, rsa, enCTX, keyStr, keyLen, cb, cbu);
     }
@@ -736,8 +745,8 @@ public:
     int SSL_CTX_get_ex_new_index(c_long argl, void* argp,
         CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
     {
-        //CRYPTO_EX_INDEX_SSL_CTX=1
-        return CRYPTO_get_ex_new_index(1, argl, argp, newFunc, dupFunc, freeFunc);
+        enum CRYPTO_EX_INDEX_SSL_CTX = 1; // crypto.h
+        return CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_SSL_CTX, argl, argp, newFunc, dupFunc, freeFunc);
     }
 
     X509_VERIFY_PARAM* SSL_CTX_get0_param(scope SSL_CTX* ctx) const @nogc
@@ -753,14 +762,14 @@ public:
 
     c_long SSL_CTX_set_tmp_dh(scope SSL_CTX* ctx, scope DH* dh) const @nogc
     {
-        //SSL_CTRL_SET_DH_AUTO=118
-        //SSL_CTX_ctrl(ctx, 118, 1, null);
+        //enum SSL_CTRL_SET_DH_AUTO = 118; // ssl.h
+        //SSL_CTX_ctrl(ctx, SSL_CTRL_SET_DH_AUTO, 1, null);
 
-        //SSL_CTRL_SET_TMP_DH=3
-        return SSL_CTX_ctrl(ctx, 3, 0, dh);
+        enum SSL_CTRL_SET_TMP_DH = 3; // ssl.h
+        return SSL_CTX_ctrl(ctx, SSL_CTRL_SET_TMP_DH, 0, dh);
     }
 
-    void SSL_CTX_set_default_passwd_cb(scope SSL_CTX* ctx, OpenSSLPemPasswordCallback cb) const @nogc
+    void SSL_CTX_set_default_passwd_cb(scope SSL_CTX* ctx, scope OpenSSLPemPasswordCallback cb) const @nogc
     {
         adapter_SSL_CTX_set_default_passwd_cb(ctx, cb);
     }
@@ -793,8 +802,8 @@ public:
 
     c_long SSL_CTX_set_mode(scope SSL_CTX* ctx, int mode) const @nogc
     {
-        //SSL_CTRL_MODE=33
-        return SSL_CTX_ctrl(ctx, 33, mode, null);
+        enum SSL_CTRL_MODE = 33; // ssl.h
+        return SSL_CTX_ctrl(ctx, SSL_CTRL_MODE, mode, null);
     }
 
     c_ulong SSL_CTX_set_options(scope SSL_CTX* ctx, c_ulong options) const @nogc
@@ -802,7 +811,7 @@ public:
         return adapter_SSL_CTX_set_options(ctx, options);
     }
 
-    void SSL_CTX_set_verify(scope SSL_CTX* ctx, int mode, OpenSSLVerifyCallback cb) const @nogc
+    void SSL_CTX_set_verify(scope SSL_CTX* ctx, int mode, scope OpenSSLVerifyCallback cb) const @nogc
     {
         adapter_SSL_CTX_set_verify(ctx, mode, cb);
     }
@@ -875,8 +884,8 @@ public:
     int SSL_get_ex_new_index(c_long argl, void* argp,
         CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
     {
-        //CRYPTO_EX_INDEX_SSL=0
-        return CRYPTO_get_ex_new_index(0, argl, argp, newFunc, dupFunc, freeFunc);
+        enum CRYPTO_EX_INDEX_SSL = 0; // crypto.h
+        return CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_SSL, argl, argp, newFunc, dupFunc, freeFunc);
     }
 
     X509* SSL_get_peer_certificate(scope SSL* ssl) const @nogc
@@ -1029,8 +1038,8 @@ public:
     int X509_STORE_CTX_get_ex_new_index(c_long argl, void* argp,
         CRYPTOExNew newFunc, CRYPTOExDup dupFunc, CRYPTOExFree freeFunc) const @nogc
     {
-        //CRYPTO_EX_INDEX_X509_STORE_CTX=5
-        return CRYPTO_get_ex_new_index(5, argl, argp, newFunc, dupFunc, freeFunc);
+        enum CRYPTO_EX_INDEX_X509_STORE_CTX = 5; // crypto.h
+        return CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_X509_STORE_CTX, argl, argp, newFunc, dupFunc, freeFunc);
     }
 
     int X509_STORE_CTX_set_ex_data(scope X509_STORE_CTX* ctx, int idx, void* data) const @nogc
