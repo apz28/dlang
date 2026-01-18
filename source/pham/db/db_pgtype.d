@@ -141,7 +141,7 @@ static immutable DbTypeInfo[] pgNativeTypes = [
     {dbName:"array_xml(?)", dbType:DbType.stringVary|DbType.array, dbId:PgOIdType.array_xml, nativeName:"string[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
     {dbName:"int2vector(?)", dbType:DbType.int16|DbType.array, dbId:PgOIdType.int2vector, nativeName:"int16[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
     {dbName:"oidvector(?)", dbType:DbType.int32|DbType.array, dbId:PgOIdType.oidvector, nativeName:"int32[]", nativeSize:DbTypeSize.array, displaySize:DbTypeDisplaySize.array},
-    {dbName:"", dbType:DbType.unknown, dbId:PgOIdType.void_, nativeName:"void", nativeSize:0, displaySize:4},
+    {dbName:"", dbType:DbType.unknown, dbId:PgOIdType.unknown, nativeName:"void", nativeSize:0, displaySize:4},
     ];
 
 alias PgDbIdToDbTypeInfos = Dictionary!(int32, immutable(DbTypeInfo)*);
