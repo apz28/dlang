@@ -871,27 +871,20 @@ public:
     }
 
     /**
-     * Constructs and returns instance Variant with null value
-     */
-    static Variant varNull() nothrow @safe
-    {
-        return Variant.init;
-    }
-
-    /**
-     * Constructs and returns instance Variant with Unassign value
-     */
-    static Variant varUnassign() nothrow @safe
-    {
-        return Variant(Unassign.init);
-    }
-
-    /**
-     * Returns true if `Variant` held value of type void or null
+     * Returns true if `Variant` held value of type void or null or unassign
      */
     @property bool isNull() const nothrow pure @safe
     {
         return handler.nullType(size, pointer) != NullType.value;
+    }
+
+    /**
+     * Returns true if `Variant` held value of type Unassign
+     * Unassign is a subset of null
+     */
+    @property bool isUnassign() const nothrow pure @safe
+    {
+        return typeInfo is typeid(Unassign);
     }
 
     /**
@@ -900,14 +893,6 @@ public:
     @property bool isVoid() const nothrow pure @safe
     {
         return handler.nullType(size, pointer) == NullType.void_;
-    }
-
-    /**
-     * Returns true if `Variant` held value of type Unassign
-     */
-    @property bool isUnassign() const nothrow pure @safe
-    {
-        return typeInfo is typeid(Unassign);
     }
 
     /**
@@ -938,9 +923,27 @@ public:
     /**
      * Returns the `VariantType` of the currently held value.
      */
-    @property VariantType variantType() const nothrow pure @safe
+    @property VariantType varType() const nothrow pure @safe
     {
         return handler.variantType();
+    }
+
+    alias variantType = varType;
+
+    /**
+     * Constructs and returns instance Variant with null value
+     */
+    @property static Variant varNull() nothrow @safe
+    {
+        return Variant.init;
+    }
+
+    /**
+     * Constructs and returns instance Variant with Unassign value
+     */
+    @property static Variant varUnassign() nothrow @safe
+    {
+        return Variant(Unassign.init);
     }
 
 private:
@@ -1506,7 +1509,7 @@ NullType nullTypeOf(T)() @nogc nothrow pure @safe
 {
     static if (is(T == void))
         return NullType.void_;
-    else static if (typeid(T) is typeid(null))
+    else static if (typeid(T) is typeid(null) || typeid(T) is typeid(Unassign))
         return NullType.null_;
     else
         return NullType.value;
@@ -2250,6 +2253,7 @@ nothrow @safe:
         return "Variant.Unassign";
     }
 
+private:
     byte dummy;
 }
 
@@ -5876,13 +5880,17 @@ unittest // Unassign
 {
     auto v = Variant.varUnassign();
     assert(v.isUnassign);
-    assert(!v.isNull);
+    assert(v.isNull);
 
     v = Variant.varNull();
     assert(v.isNull);
     assert(!v.isUnassign);
 
-    v = Variant(1);
+    v = Variant(0);
+    assert(!v.isUnassign);
+    assert(!v.isNull);
+
+    v = Variant(false);
     assert(!v.isUnassign);
     assert(!v.isNull);
 }

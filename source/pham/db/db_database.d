@@ -420,6 +420,9 @@ public:
         return this;
     }
 
+    /**
+     * Executes a SQL statement against its connection and returns the number of rows affected
+     */
     final DbRecordsAffected executeNonQuery() @safe
     {
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
@@ -445,11 +448,24 @@ public:
         return recordsAffected;
     }
 
+    /**
+     * Same as executeReader
+     */
+    alias executeQuery = executeReader;
+
+    /**
+     * Executes the command against its connection and returning a DbReader that can be used to access the row results
+     */
     final DbReader executeReader() @safe
     {
         return executeReaderImpl(false);
     }
 
+    /**
+     * Executes the command its connection and returns the first column of the first row in the first returned result set.
+     * All other columns, rows and result sets are ignored.
+     * If the command does not return any row, an unassign value is returned
+     */
     final DbValue executeScalar() @safe
     {
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
@@ -473,7 +489,7 @@ public:
 
         doExecuteCommand(DbCommandExecuteType.scalar);
         auto values = fetch(true);
-        return values ? values[0] : DbValue.dbNull();
+        return values ? values[0] : DbValue.dbUnassign();
     }
 
     /**
@@ -536,6 +552,9 @@ public:
         return parameterCount ? parameters.outputs!T(outputOnly) : null;
     }
 
+    /**
+     * Creates a prepared (or compiled) version of the command
+     */
     final typeof(this) prepare() @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
@@ -568,7 +587,7 @@ public:
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-            
+
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, _executeCommandText, e);
             throw e;
@@ -717,10 +736,11 @@ public:
         return setCommandText(tableName, DbCommandType.table);
     }
 
-    /** Gets or sets the sql statement of this DbCommand
-        In case of commandType = storedProcedure, it should be a stored procedure name
-        In case of commandType = table, it should be a table or view name
-    */
+    /**
+     * Gets or sets the sql statement of this DbCommand
+     * In case of commandType = storedProcedure, it should be a stored procedure name
+     * In case of commandType = table, it should be a table or view name
+     */
     @property final string commandText() const nothrow @safe
     {
         return _commandText;
@@ -748,8 +768,9 @@ public:
         return this;
     }
 
-    /** Gets or sets how the commandText property is interpreted
-    */
+    /**
+     * Gets or sets how the commandText property is interpreted
+     */
     @property final DbCommandType commandType() const nothrow @safe
     {
         return _commandType;
@@ -761,8 +782,9 @@ public:
         return this;
     }
 
-    /** Gets DbConnection used by this DbCommand
-    */
+    /**
+     * Gets DbConnection used by this DbCommand
+     */
     @property final DbConnection connection() nothrow pure @safe
     {
         return _connection;
@@ -1303,7 +1325,7 @@ protected:
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-            
+
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
@@ -1370,7 +1392,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-                
+
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, _executeCommandText, e);
             }
@@ -1451,7 +1473,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-                
+
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
             }
@@ -1858,6 +1880,12 @@ public:
         return _defaultTransaction;
     }
 
+    /**
+     * Executes a SQL statement against this connection and returns the number of rows affected
+     * Params:
+     *  commandText = a SQL statement
+     *  commandParameters = optional parameter(s) if commandText has them
+     */
     final DbRecordsAffected executeNonQuery(string commandText,
         DbParameterList commandParameters = null) @safe
     {
@@ -1875,8 +1903,17 @@ public:
         return command.executeNonQuery();
     }
 
+    /**
+     * Same as executeReader
+     */
     alias executeQuery = executeReader;
 
+    /**
+     * Executes the commandText against this connection and returning a DbReader that can be used to access the row results
+     * Params:
+     *  commandText = a SQL statement
+     *  commandParameters = optional parameter(s) if commandText has them
+     */
     final DbReader executeReader(string commandText,
         DbParameterList commandParameters = null) @safe
     {
@@ -1892,8 +1929,14 @@ public:
         return command.executeReaderImpl(true);
     }
 
+    /**
+     * Executes the commandText against this connection, returning a DbReader that can be used to access the row results
+     * Params:
+     *  commandText = a SQL statement
+     *  commandParameters = optional parameter(s) if commandText has them
+     */
     final DbReader executeReader(Parameters...)(string commandText, Parameters commandParameters) @safe
-    if (Parameters.length > 0 && !is(T[0] == DbParameterList))
+    if (Parameters.length > 0 && !is(Parameters[0] == DbParameterList))
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
@@ -1914,6 +1957,14 @@ public:
         return command.executeReaderImpl(true);
     }
 
+    /**
+     * Executes the commandText against this connection and returns the first column of the first row in the first returned result set.
+     * All other columns, rows and result sets are ignored.
+     * If the commandText does not return any row, an unassign value is returned
+     * Params:
+     *  commandText = a SQL statement
+     *  commandParameters = optional parameter(s) if commandText has them
+     */
     final DbValue executeScalar(string commandText,
         DbParameterList commandParameters = null) @safe
     {
@@ -1932,8 +1983,16 @@ public:
         return command.executeScalar();
     }
 
+    /**
+     * Executes the commandText against this connection and returns the first column of the first row in the first returned result set.
+     * All other columns, rows and result sets are ignored.
+     * If the commandText does not return any row, an unassign value is returned
+     * Params:
+     *  commandText = a SQL statement
+     *  commandParameters = optional parameter(s) if commandText has them
+     */
     final DbValue executeScalar(Parameters...)(string commandText, Parameters commandParameters) @safe
-    if (Parameters.length > 0 && !is(T[0] == DbParameterList))
+    if (Parameters.length > 0 && !is(Parameters[0] == DbParameterList))
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
@@ -1948,6 +2007,12 @@ public:
         return command.executeScalar();
     }
 
+    /**
+     * Checks and returns true if a database has a function and returns false otherwise
+     * Params:
+     *  routineName = a function name
+     *  schema = an optional database schema
+     */
     final bool existFunction(string functionName,
         string schema = null) @safe
     {
@@ -1955,9 +2020,11 @@ public:
     }
 
     /**
+     * Checks and returns true if a database has a function or stored-procedure and returns false otherwise
      * Params:
-     *   routineName = a function or stored-procedure name
-     *   type = FUNCTION or PROCEDURE
+     *  routineName = a function or stored-procedure name
+     *  type = FUNCTION or PROCEDURE for stored-procedure
+     *  schema = an optional database schema
      */
     bool existRoutine(string routineName, string type,
         string schema = null) @safe
@@ -1984,12 +2051,24 @@ public:
         return !r.isNull && r.value == 1;
     }
 
+    /**
+     * Checks and returns true if a database has a stored-procedure and returns false otherwise
+     * Params:
+     *  storedProcedureName = a stored-procedure name
+     *  schema = an optional database schema
+     */
     final bool existStoredProcedure(string storedProcedureName,
         string schema = null) @safe
     {
         return existRoutine(storedProcedureName, DbRoutineType.storedProcedure, schema);
     }
 
+    /**
+     * Checks and returns true if a database has a table and returns false otherwise
+     * Params:
+     *  tableName = a table name
+     *  schema = an optional database schema
+     */
     bool existTable(string tableName,
         string schema = null) @safe
     {
@@ -2014,6 +2093,12 @@ public:
         return !r.isNull && r.value == 1;
     }
 
+    /**
+     * Checks and returns true if a database has a view and returns false otherwise
+     * Params:
+     *  viewName = a view name
+     *  schema = an optional database schema
+     */
     bool existView(string viewName,
         string schema = null) @safe
     {
@@ -2363,7 +2448,7 @@ package(pham.db):
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-            
+
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
@@ -2446,7 +2531,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-                
+
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
@@ -2464,7 +2549,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-                
+
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
@@ -2527,7 +2612,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-                
+
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
@@ -3767,7 +3852,7 @@ protected:
     string getDefault(string name) const nothrow
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(name=", name, ")");
-        debug(debug_pham_db_db_database) scope(exit) debug writeln("\t", "end");
+        //debug(debug_pham_db_db_database) scope(exit) debug writeln("\t", "end");
 
         auto k = name in dbDefaultConnectionParameterValues;
         if (k is null)
@@ -3780,7 +3865,7 @@ protected:
     final string getString(string name) const nothrow
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(name=", name, ")");
-        debug(debug_pham_db_db_database) scope(exit) debug writeln("\t", "end");
+        //debug(debug_pham_db_db_database) scope(exit) debug writeln("\t", "end");
 
         const i = indexOf(name);
         if (i >= 0)
@@ -3843,7 +3928,7 @@ protected:
     void setDefaultIfs() nothrow
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(begin)");
-        debug(debug_pham_db_db_database) scope(exit) debug writeln(__FUNCTION__, "(end)");
+        //debug(debug_pham_db_db_database) scope(exit) debug writeln(__FUNCTION__, "(end)");
 
         foreach (ref dpv; dbDefaultConnectionParameterValues.byKeyValue)
         {
@@ -4695,12 +4780,14 @@ public:
 
     @property final typeof(this) saveLongData(DbSaveLongData value) nothrow @trusted
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(value?=", value !is null, ", _list?=", _list !is null, ", columns?=", cast(DbColumnList)_list !is null, ", params?=", cast(DbParameterList)_list !is null, ")");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(value?=", value !is null, ", _list?=", _list !is null,
+            ", columns?=", cast(DbColumnList)_list !is null, ", params?=", cast(DbParameterList)_list !is null, ")");
 
         if (auto cl = cast(DbColumnList)_list)
         {
             if (_saveLongData !is null)
                 cl._saveLongDataCount--;
+
             if (value !is null)
                 cl._saveLongDataCount++;
         }
@@ -4708,6 +4795,7 @@ public:
         {
             if (_saveLongData !is null)
                 pl._saveLongDataCount--;
+
             if (value !is null)
                 pl._saveLongDataCount++;
         }
@@ -5449,7 +5537,7 @@ public:
     {
         this._command = command;
         this._columns = command.columns;
-        this._flags.checkRows = true;
+        this._flags.checkRow = true;
         this._flags.implicitTransaction = implicitTransaction;
         this._flags.ownCommand = ownCommand;
     }
@@ -5459,10 +5547,43 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    /*
+    alias opApply = opApplyImpl!(int delegate(ref DbRowValue));
+    alias opApply = opApplyImpl!(int delegate(size_t, ref DbRowValue));
+
+    final int opApplyImpl(CallBack)(scope CallBack callBack)
+    if (is(CallBack : int delegate(ref DbRowValue)) || is(CallBack : int delegate(size_t, ref DbRowValue)))
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+
+        _flags.fetchClobBlobValue = true;
+        scope (exit)
+            _flags.fetchClobBlobValue = false;
+
+        static if (is(CallBack : int delegate(ref DbRowValue)))
+        {
+            while (read())
+            {
+                if (const r = callBack(_currentRow))
+                    return r;
+            }
+        }
+        else
+        {
+            size_t i;
+            while (read())
+            {
+                if (const r = callBack(i, _currentRow))
+                    return r;
+                i++;
+            }
+        }
+        return 0;
+    }
+
+    /**
      * Remove this DbReader from its command
      * Returns:
-     *      Self
+     *  Self
      */
     ref typeof(this) detach() nothrow return
     {
@@ -5472,11 +5593,16 @@ public:
         {
             // If already cloned, skip
             if (_columns.command !is null)
+            {
                 _columns = _columns.clone(null);
+                if (_idTypeColumns.length)
+                    buildIdTypeColumns();
+            }
         }
         else
         {
             _columns = null;
+            _idTypeColumns = null;
             _currentRow.dispose(DisposingReason.dispose);
         }
 
@@ -5484,7 +5610,7 @@ public:
             doDetach(DisposingReason.dispose);
 
         _flags.allRowsFetched = true; // No longer able to fetch after detached
-        _flags.checkRows = false;
+        _flags.checkRow = false;
 
         return this;
     }
@@ -5503,9 +5629,10 @@ public:
 
         _command = null;
         _columns = null;
+        _idTypeColumns = null;
         _fetchedRowCount = 0;
         _flags.allRowsFetched = true;
-        _flags.checkRows = false;
+        _flags.checkRow = false;
         _currentRow.dispose(disposingReason);
         return ResultCode.ok;
     }
@@ -5516,7 +5643,7 @@ public:
     DbValue getDbValue(const(size_t) colIndex) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -5530,7 +5657,7 @@ public:
     DbValue getDbValue(string colName) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(columns.indexOf(colName) >= 0);
     }
     do
@@ -5571,7 +5698,7 @@ public:
     Variant getValue(const(size_t) colIndex) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -5582,7 +5709,7 @@ public:
     T getValue(T)(const(size_t) colIndex) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(colIndex < _currentRow.length);
     }
     do
@@ -5596,7 +5723,7 @@ public:
     Variant getValue(string colName) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(columns.indexOf(colName) >= 0);
     }
     do
@@ -5607,12 +5734,12 @@ public:
     bool isNull(const(size_t) colIndex) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(colIndex < _currentRow.length);
     }
     do
     {
-        return _currentRow[colIndex].isNull();
+        return _currentRow[colIndex].isNull;
     }
 
     /**
@@ -5621,7 +5748,7 @@ public:
     bool isNull(string colName) @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
         assert(columns.indexOf(colName) >= 0);
     }
     do
@@ -5632,7 +5759,7 @@ public:
     void popFront() @safe
     {
         // Initialize the first row?
-        if (_flags.checkRows)
+        if (_flags.checkRow)
         {
             if (read())
                 read();
@@ -5649,7 +5776,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_fetchedRowCount=", _fetchedRowCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
-        if (_flags.checkRows)
+        if (_flags.checkRow)
             return fetchFirst(false);
 
         if (!_flags.allRowsFetched)
@@ -5667,7 +5794,7 @@ public:
     @property size_t colCount() @safe
     in
     {
-        assert(!_flags.checkRows);
+        assert(!_flags.checkRow);
     }
     do
     {
@@ -5721,7 +5848,7 @@ public:
      */
     @property bool hasRows() @safe
     {
-        if (_flags.checkRows)
+        if (_flags.checkRow)
             fetchFirst(true);
 
         return _fetchedRowCount != 0;
@@ -5742,10 +5869,24 @@ private:
     {
         allRowsFetched,
         cacheResult,
-        checkRows,
+        checkRow,
+        fetchClobBlobValue,
         implicitTransaction,
         ownCommand,
         skipFetchNext,
+    }
+
+    void buildIdTypeColumns() nothrow @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+
+        _idTypeColumns = null;
+        foreach (column; _columns)
+        {
+            const idType = column.isValueIdType();
+            if (idType == DbColumnIdType.blob || idType == DbColumnIdType.clob || idType == DbColumnIdType.array)
+                _idTypeColumns ~= column;
+        }
     }
 
     void doDetach(const(DisposingReason) disposingReason) nothrow @safe
@@ -5756,7 +5897,7 @@ private:
         scope (exit)
         {
             _command = null;
-            _flags.checkRows = false;
+            _flags.checkRow = false;
             _flags.implicitTransaction = false;
             _flags.ownCommand = false;
         }
@@ -5767,21 +5908,24 @@ private:
     bool fetchFirst(const(bool) checking) @safe
     in
     {
-         assert(_flags.checkRows);
+         assert(_flags.checkRow);
     }
     do
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(checking=", checking, ")");
 
         _currentRow = _command.fetch(false);
-        _flags.checkRows = false;
+        _flags.checkRow = false;
         const hasRow = _currentRow.length != 0;
         if (hasRow)
         {
             _fetchedRowCount++;
             if (checking)
                 _flags.skipFetchNext = true;
-            readRowBlob(_currentRow);
+
+            buildIdTypeColumns();
+            if (_idTypeColumns.length)
+                readRowBlob(_currentRow);
         }
         else
         {
@@ -5796,7 +5940,7 @@ private:
     void fetchNext() @safe
     in
     {
-         assert(!_flags.checkRows);
+         assert(!_flags.checkRow);
     }
     do
     {
@@ -5807,7 +5951,8 @@ private:
         if (hasRow)
         {
             _fetchedRowCount++;
-            readRowBlob(_currentRow);
+            if (_idTypeColumns.length)
+                readRowBlob(_currentRow);
         }
         else
             _flags.allRowsFetched = true;
@@ -5825,8 +5970,7 @@ private:
         {
             case DbColumnIdType.no:
                 return _currentRow[colIndex].value;
-            case DbColumnIdType.array:
-                return _command.readArray(column, _currentRow[colIndex]);
+
             case DbColumnIdType.blob:
                 if (column.saveLongData is null)
                 {
@@ -5835,7 +5979,8 @@ private:
                     return Variant(blob);
                 }
                 else
-                    return Variant.varNull; // Variant(_command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+                    return Variant.varUnassign; // Variant(_command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+
             case DbColumnIdType.clob:
                 if (column.saveLongData is null)
                 {
@@ -5844,31 +5989,60 @@ private:
                     return Variant(clob);
                 }
                 else
-                    return Variant.varNull; // Variant(_command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+                    return Variant.varUnassign; // Variant(_command.readBlob(column, _currentRow[colIndex], _currentRow.row));
+
+            case DbColumnIdType.array:
+                return _command.readArray(column, _currentRow[colIndex]);
         }
     }
 
     void readRowBlob(ref DbRowValue rowValue) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_columns.saveLongDataCount=", _columns.saveLongDataCount, ")");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(_idTypeColumns.length=", _idTypeColumns.length,
+            ", _columns.saveLongDataCount=", _columns.saveLongDataCount, ", _flags.fetchClobBlobValue=", _flags.fetchClobBlobValue, ")");
 
-        if (_columns.saveLongDataCount == 0)
+        const isFetchClobBlobValue = _flags.fetchClobBlobValue;
+        if (!isFetchClobBlobValue && _columns.saveLongDataCount == 0)
             return;
 
-        foreach (i, column; _columns)
+        foreach (column; _idTypeColumns)
         {
-            if (column.saveLongData is null)
-                continue;
-
+            const i = column.ordinal - 1;
             final switch (column.isValueIdType())
             {
-                case DbColumnIdType.no:
-                case DbColumnIdType.array:
+                case DbColumnIdType.blob:
+                    // Has custom saving blob data?
+                    if (column.saveLongData !is null)
+                        _command.readBlob(column, rowValue[i], rowValue.row);
+                    else if (isFetchClobBlobValue)
+                    {
+                        ubyte[] blob;
+                        _command.readBlob(column, _currentRow[i], _currentRow.row, blob);
+                        _currentRow[i].value = Variant(blob);
+                    }
                     break;
 
-                case DbColumnIdType.blob:
                 case DbColumnIdType.clob:
-                    _command.readBlob(column, rowValue[i], rowValue.row);
+                    // Has custom saving clob data?
+                    if (column.saveLongData !is null)
+                        _command.readBlob(column, rowValue[i], rowValue.row);
+                    else if (isFetchClobBlobValue)
+                    {
+                        string clob;
+                        _command.readClob(column, _currentRow[i], _currentRow.row, clob);
+                        _currentRow[i].value = Variant(clob);
+                    }
+                    break;
+
+                case DbColumnIdType.array:
+                    if (isFetchClobBlobValue)
+                    {
+                        _currentRow[i].value = _command.readArray(column, _currentRow[i]);
+                    }
+                    break;
+
+                case DbColumnIdType.no:
+                    assert(0);
             }
         }
     }
@@ -5876,6 +6050,7 @@ private:
 private:
     DbCommand _command;
     DbColumnList _columns;
+    DbColumn[] _idTypeColumns;
     DbRowValue _currentRow;
     size_t _fetchedRowCount;
     EnumSet!Flag _flags;
@@ -6327,7 +6502,7 @@ package(pham.db):
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-            
+
             if (auto log = canErrorLog())
                 log.errorf("%s.%s(isolationLevel=%s) - %s", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), e.msg, e);
 
@@ -6442,7 +6617,7 @@ protected:
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
-            
+
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }

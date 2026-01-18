@@ -1564,8 +1564,9 @@ WHERE INT_FIELD = @INT_FIELD
     {
         import std.math : isClose;
 
-        int count;
         assert(reader.hasRows());
+
+        int count;
         while (reader.read())
         {
             count++;
@@ -1612,6 +1613,35 @@ WHERE INT_FIELD = @INT_FIELD
 
             assert(reader.getValue(13) == 4_294_967_296);
             assert(reader.getValue("BIGINT_FIELD") == 4_294_967_296);
+        }
+        assert(count == 1);
+    }
+
+    void validateSelectCommandTextReaderRange(ref DbReader reader)
+    {
+        import std.math : isClose;
+
+        // Must not call hasRows to loading blob/clob columns' value
+        int count;
+        foreach (ref row; reader)
+        {
+            count++;
+            debug(debug_pham_db_db_mydatabase) debug writeln("unittest pham.db.mydatabase.MyCommand.DML.checking - count: ", count);
+
+            assert(row[0].value == 1);
+            assert(row[1].value == 2);
+            assert(isClose(row[2].value.get!float(), 3.10f));
+            assert(isClose(row[3].value.get!double(), 4.20));
+            assert(row[4].value.get!Decimal64() == Decimal64.money(5.4, 2));
+            assert(row[5].value.get!Decimal64() == Decimal64.money(6.5, 2));
+            assert(row[6].value == DbDate(2020, 5, 20));
+            assert(row[7].value == DbTime(1, 1, 1));
+            assert(row[8].value == DbDateTime(2020, 5, 20, 7, 31, 0));
+            assert(row[9].value == "ABC");
+            assert(row[10].value == "XYZ");
+            assert(row[11].isNull);
+            assert(row[12].value == "TEXT");
+            assert(row[13].value == 4_294_967_296);
         }
         assert(count == 1);
     }
@@ -1823,6 +1853,14 @@ unittest // MyCommand.DML - Simple select
         scope (exit)
             reader.dispose();
         validateSelectCommandTextReader(reader);
+    }
+
+    // Try again against range
+    {
+        auto reader = command.executeReader();
+        scope (exit)
+            reader.dispose();
+        validateSelectCommandTextReaderRange(reader);
     }
 
     {
@@ -2134,15 +2172,12 @@ unittest // DbDatabaseList.createConnectionByURL
 }
 
 version(UnitTestMYDatabase)
-unittest // MyConnection.DML.execute...
+unittest // MyConnection.DML.executeReader
 {
     auto connection = createUnitTestConnection();
     scope (exit)
         connection.dispose();
     connection.open();
-
-    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
-    assert(INT_FIELD.get!int() == 1); // First field
 
     auto reader1 = connection.executeReader(simpleSelectCommandText());
     validateSelectCommandTextReader(reader1);
@@ -2157,12 +2192,28 @@ unittest // MyConnection.DML.execute...
     }
     reader2.dispose();
     assert(rowCount == 1);
+}
+
+version(UnitTestMYDatabase)
+unittest // MyConnection.DML.executeScalar
+{
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
+    assert(INT_FIELD.get!int() == 1); // First field
 
     auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
     assert(TEXT_FIELD.get!string() == "TEXT");
 
     TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = ?", 1);
     assert(TEXT_FIELD.get!string() == "TEXT");
+
+    auto unassign = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE 0=1");
+    assert(unassign.isUnassign);
+    assert(unassign.isNull);
 }
 
 version(UnitTestMYDatabase)

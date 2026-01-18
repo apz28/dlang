@@ -89,13 +89,6 @@ public:
         return this._type == rhs._type && this._value == rhs._value;
     }
 
-    static DbValue dbNull(DbType dbType = DbType.unknown) nothrow @safe
-    {
-        auto result = DbValue(dbType);
-        result.nullify();
-        return result;
-    }
-
     int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
@@ -127,6 +120,19 @@ public:
     {
         this._value = value;
         this._type = type;
+    }
+
+    @property static DbValue dbNull(DbType dbType = DbType.unknown) nothrow @safe
+    {
+        auto result = DbValue(dbType);
+        return result;
+    }
+
+    @property static DbValue dbUnassign(DbType dbType = DbType.unknown) nothrow @safe
+    {
+        auto result = DbValue(dbType);
+        result._value = Variant.varUnassign;
+        return result;
     }
 
     /**
@@ -162,6 +168,11 @@ public:
     @property bool isNull() const nothrow pure @safe
     {
         return _value.isNull || (isDbTypeHasZeroSizeAsNull(_type) && size == 0);
+    }
+
+    @property bool isUnassign() const nothrow pure @safe
+    {
+        return _value.isUnassign;
     }
 
     /**
