@@ -1007,6 +1007,9 @@ protected:
 
     final void describeParameter(ref PgWriter writer, PgParameter parameter)
     {
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(parameter.name=", parameter.name,
+            ", parameter.type=", parameter.type, ", parameter.baseTypeId=", parameter.baseTypeId, ")");
+
         if (parameter.isNull)
             return writer.writeInt32(pgNullValueLength);
 
@@ -1448,6 +1451,16 @@ protected:
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
+        /*
+        size_t sendParameters = inputParameters.length;
+        foreach (parameter; inputParameters)
+        {
+            const baseTypeId = parameter.baseTypeId;
+            if (baseTypeId == PgOIdType.void_ || baseTypeId == PgOIdType.unknown)
+                sendParameters--;
+        }
+        */
+
 		writer.beginMessage(PgOIdDescribeType.parseStatement);
         writer.writeCChars(command.name);
         writer.writeCChars(sql);
@@ -1456,10 +1469,11 @@ protected:
             writer.writeInt16(cast(int16)inputParameters.length);
             foreach (parameter; inputParameters)
             {
-                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "parameter.name=", parameter.name, ", baseName=", parameter.baseName,
-                    ", baseTypeId=", parameter.baseTypeId);
+                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "parameter.name=", parameter.name,
+                    ", baseName=", parameter.baseName, ", baseTypeId=", parameter.baseTypeId);
 
-                writer.writeInt32(parameter.baseTypeId); // OIDType
+                const baseTypeId = parameter.baseTypeId;
+                writer.writeInt32(baseTypeId != PgOIdType.void_ ? baseTypeId : PgOIdType.unknown); // OIDType
             }
         }
         else

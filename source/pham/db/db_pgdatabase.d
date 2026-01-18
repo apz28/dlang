@@ -2712,11 +2712,24 @@ unittest // PgConnection.DML.execute...
     auto INT_FIELD = connection.executeScalar(simpleSelectCommandText());
     assert(INT_FIELD.get!int() == 1); // First field
 
-    auto reader = connection.executeReader(simpleSelectCommandText());
-    validateSelectCommandTextReader(reader);
-    reader.dispose();
+    auto reader1 = connection.executeReader(simpleSelectCommandText());
+    validateSelectCommandTextReader(reader1);
+    reader1.dispose();
+
+    int rowCount = 0;
+    auto reader2 = connection.executeQuery("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = ?", 1);
+    while (reader2.read())
+    {
+        assert(reader2.getValue!string(0) == "TEXT");
+        rowCount++;
+    }
+    reader2.dispose();
+    assert(rowCount == 1);
 
     auto TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = 1");
+    assert(TEXT_FIELD.get!string() == "TEXT");
+
+    TEXT_FIELD = connection.executeScalar("SELECT TEXT_FIELD FROM TEST_SELECT WHERE INT_FIELD = ?", 1);
     assert(TEXT_FIELD.get!string() == "TEXT");
 }
 

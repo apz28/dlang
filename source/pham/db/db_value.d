@@ -41,13 +41,34 @@ public:
     {
         version(profile) debug auto p = PerfFunction.create();
 
-        this._type = type;
-        doAssign!false(value);
+        version(DbValueTypeSet)
+        {
+            if (type == DbType.unknown)
+                doAssign!true(value);
+            else
+            {
+                this._type = type;
+                doAssign!false(value);
+            }
+        }
+        else
+        {
+            this._type = type;
+            doAssign!false(value);
+        }
     }
 
     ref typeof(this) opAssign(T)(T rhs) return @safe
     {
-        doAssign!true(rhs);
+        version(DbValueTypeSet)
+        {
+            if (this._type == DbType.unknown)
+                doAssign!true(rhs);
+            else
+                doAssign!false(rhs);
+        }
+        else
+            doAssign!false(rhs);
         return this;
     }
 
@@ -177,7 +198,15 @@ public:
 
     @property void value(Variant value) nothrow @safe
     {
-        doAssignVariant(value);
+        version(DbValueTypeSet)
+        {
+            if (this._type == DbType.unknown)
+                doAssignVariant!true(value);
+            else
+                doAssignVariant!false(value);
+        }
+        else
+            doAssignVariant!false(value);
     }
 
     alias this = value;
@@ -187,7 +216,7 @@ package(pham.db):
     DbType _type;
 
 private:
-    void doAssign(bool byAssign, T)(T rhs) @safe
+    void doAssign(bool setType, T)(T rhs) @safe
     {
         alias UT = Unqual!T;
 
@@ -198,22 +227,32 @@ private:
         else static if (is(UT == bool))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == byte))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == ubyte) || is(UT == short))
         {
             this._value = cast(short)rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == ushort) || is(UT == int))
         {
             this._value = cast(int)rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == uint) || is(UT == long) || is(UT == ulong))
         {
             this._value = cast(long)rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == float))
         {
@@ -221,6 +260,8 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == double))
         {
@@ -228,6 +269,8 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == real))
         {
@@ -235,52 +278,77 @@ private:
                 this._value.nullify();
             else
                 this._value = cast(double)rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == DbDate))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == DbDateTime))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == DbTime))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         // Map to DbDateTime
         else static if (is(UT == DateTime))
         {
             this._value = DbDateTime.toDbDateTime(rhs);
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         // Map to DbTime
         else static if (is(UT == Time))
         {
             this._value = DbTime.toDbTime(rhs);
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == UUID))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == char) || is(UT == wchar) || is(UT == dchar))
         {
-            this._value = rhs.to!string();
+            auto s = rhs.to!string();
+            this._value = s;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(T == string))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(T == wstring) || is(T == dstring))
         {
             this._value = rhs.to!string();
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == char[]))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == ubyte[]))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == Decimal32))
         {
@@ -288,6 +356,8 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == Decimal64))
         {
@@ -295,6 +365,8 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == Decimal128))
         {
@@ -302,10 +374,14 @@ private:
                 this._value.nullify();
             else
                 this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == BigInteger))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (is(UT == DbValue))
         {
@@ -315,73 +391,69 @@ private:
         else static if (is(UT == struct))
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else static if (isArrayT!T)
         {
             this._value = rhs;
+            static if (setType)
+                this._type = dbTypeOf!UT();
         }
         else
             static assert(0, "Unsupport system for " ~ __FUNCTION__ ~ "." ~ T.stringof);
     }
 
-    void doAssignVariant(Variant rhs) nothrow @safe
+    void doAssignVariant(bool setType)(Variant rhs) nothrow @safe
     {
         this._value = rhs;
 
-        version(DbValueTypeSet)
+        static if (setType)
         {
-            if (rhsTypeIf != DbType.unknown)
-                this._type = rhsTypeIf;
-            else
+            final switch (rhs.variantType)
             {
-                const variantTypeSize = rhs.typeSize;
-                final switch (rhs.variantType)
-                {
-                    case VariantType.null_:
-                        break;
-                    case VariantType.boolean:
-                        this._type = DbType.boolean;
-                        break;
-                    case VariantType.character:
-                        this._type = DbType.stringFixed;
-                        break;
-                    case VariantType.integer:
-                        this._type = variantTypeSize == 2
-                            ? DbType.int16
-                            : (variantTypeSize == 4 ? DbType.int32 : DbType.int64);
-                        break;
-                    case VariantType.float_:
-                        this._type = variantTypeSize == 4
-                            ? DbType.float32
-                            : DbType.float64;
-                        break;
-                    case VariantType.enum_:
-                        this._type = DbType.int32;
-                        break;
-                    case VariantType.string:
-                        this._type = DbType.stringVary;
+                case VariantType.null_:
+                    break;
+                case VariantType.boolean:
+                    this._type = dbTypeOf!bool();
+                    break;
+                case VariantType.character:
+                    this._type = dbTypeOf!char();
+                    break;
+                case VariantType.integer:
+                    const variantTypeSize = rhs.typeSize;
+                    this._type = variantTypeSize == 2
+                        ? dbTypeOf!short
+                        : (variantTypeSize == 4 ? dbTypeOf!int : dbTypeOf!long);
+                    break;
+                case VariantType.float_:
+                    const variantTypeSize = rhs.typeSize;
+                    this._type = variantTypeSize == 4 ? dbTypeOf!float : dbTypeOf!double;
+                    break;
+                case VariantType.enum_:
+                    this._type = dbTypeOf!int;
+                    break;
+                case VariantType.string:
+                    this._type = dbTypeOf.string;
                     // TODO convert wstring & dstring to string?
-                        break;
-                    case VariantType.staticArray:
-                    case VariantType.dynamicArray:
-                        // TODO this._type = (DbType.array | dbTypeOf!E());
-                        break;
-                    case VariantType.struct_:
-                        this._type = DbType.record;
-                        break;
+                    break;
+                case VariantType.staticArray:
+                case VariantType.dynamicArray:
+                    // TODO this._type = (DbType.array | dbTypeOf!E());
+                    break;
+                case VariantType.struct_:
+                    this._type = DbType.record;
+                    break;
 
-                    case VariantType.associativeArray:
-                    case VariantType.class_:
-                    case VariantType.interface_:
-                    case VariantType.union_:
-                    case VariantType.delegate_:
-                    case VariantType.function_:
-                    case VariantType.pointer:
-                    case VariantType.unknown:
-                        this._value.nullify();
-                        this._type = DbType.unknown;
-                        break;
-                }
+                case VariantType.associativeArray:
+                case VariantType.class_:
+                case VariantType.interface_:
+                case VariantType.union_:
+                case VariantType.delegate_:
+                case VariantType.function_:
+                case VariantType.pointer:
+                case VariantType.unknown:
+                    break;
             }
         }
     }
@@ -453,7 +525,7 @@ public:
             foreach (ref c; _columnValues)
                 c.nullify();
         }
-        
+
         _columnValues = null;
         _row = 0;
         return ResultCode.ok;

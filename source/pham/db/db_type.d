@@ -496,7 +496,7 @@ enum DbType : int
     decimal32,
     decimal64,
     decimal128,
-    numeric,  // Same as decimal
+    numeric, // Same as decimal
     float32,
     float64,
     date,
@@ -505,15 +505,15 @@ enum DbType : int
     time,
     timeTZ,
     uuid,
-    stringFixed,  // fixed length string - char[] (static length)
+    stringFixed, // fixed length string - char[] (static length)
     stringVary, // variable length string - string (has length limit)
-    text,   // similar to stringVary but with special construct for each database (no length limit) - string
-    json,   // string with json format - ubyte[]
-    xml,    // string with xml format - ubyte[]
+    text, // similar to stringVary but with special construct for each database (no length limit) - string
+    json, // string with json format - ubyte[]
+    xml, // string with xml format - ubyte[]
     binaryFixed,
     binaryVary,
-    blob,   // similar to binaryVary but with special construct for each database (no length limit) - binary
-    record,     // struct is reserved keyword
+    blob, // similar to binaryVary but with special construct for each database (no length limit) - binary
+    record, // struct is reserved keyword
     array = 1 << 31,
 }
 
@@ -1986,26 +1986,27 @@ static immutable DbDefaultConnectionParameterValues dbDefaultConnectionParameter
 
 static immutable DbTypeInfo[] dbNativeTypes = [
     // Native & Standard
-    {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:0, nativeName:"bool", nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean},
-    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:"byte", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
-    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:"ubyte", nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
-    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:"short", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
-    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:"ushort", nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
-    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:"int", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
-    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:"uint", nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
-    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:"long", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
-    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:"ulong", nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
-    {dbName:"FLOAT", dbType:DbType.float32, dbId:0, nativeName:"float", nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
-    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:"double", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
-    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:"real", nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"BOOLEAN", dbType:DbType.boolean, dbId:0, nativeName:bool.stringof, nativeSize:DbTypeSize.boolean, displaySize:DbTypeDisplaySize.boolean},
+    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:byte.stringof, nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"TINYINT", dbType:DbType.int8, dbId:0, nativeName:ubyte.stringof, nativeSize:DbTypeSize.int8, displaySize:DbTypeDisplaySize.int8},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:short.stringof, nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"SMALLINT", dbType:DbType.int16, dbId:0, nativeName:ushort.stringof, nativeSize:DbTypeSize.int16, displaySize:DbTypeDisplaySize.int16},
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:int.stringof, nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"INTEGER", dbType:DbType.int32, dbId:0, nativeName:uint.stringof, nativeSize:DbTypeSize.int32, displaySize:DbTypeDisplaySize.int32},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:long.stringof, nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"BIGINT", dbType:DbType.int64, dbId:0, nativeName:ulong.stringof, nativeSize:DbTypeSize.int64, displaySize:DbTypeDisplaySize.int64},
+    {dbName:"FLOAT", dbType:DbType.float32, dbId:0, nativeName:float.stringof, nativeSize:DbTypeSize.float32, displaySize:DbTypeDisplaySize.float32},
+    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:double.stringof, nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
+    {dbName:"DOUBLE", dbType:DbType.float64, dbId:0, nativeName:real.stringof, nativeSize:DbTypeSize.float64, displaySize:DbTypeDisplaySize.float64},
     {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:"string", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:char[].stringof, nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
     {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:"wstring", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
     {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:"dstring", nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
     {dbName:"CHAR(1)", dbType:DbType.stringFixed, dbId:0, nativeName:"char", nativeSize:char.sizeof, displaySize:1},
-    {dbName:"CHAR(2)", dbType:DbType.stringFixed, dbId:0, nativeName:"wchar", nativeSize:char.sizeof*2, displaySize:1},
-    {dbName:"CHAR(4)", dbType:DbType.stringFixed, dbId:0, nativeName:"dchar", nativeSize:char.sizeof*4, displaySize:1},
-    {dbName:"VARBINARY(?)", dbType:DbType.binaryVary, dbId:0, nativeName:"ubyte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.stringVary},
-    {dbName:"VARBINARY(?)", dbType:DbType.binaryVary, dbId:0, nativeName:"byte[]", nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
+    {dbName:"CHAR(2)", dbType:DbType.stringFixed, dbId:0, nativeName:"wchar", nativeSize:wchar.sizeof, displaySize:1},
+    {dbName:"CHAR(4)", dbType:DbType.stringFixed, dbId:0, nativeName:"dchar", nativeSize:dchar.sizeof, displaySize:1},
+    {dbName:"VARBINARY(?)", dbType:DbType.binaryVary, dbId:0, nativeName:ubyte[].stringof, nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARBINARY(?)", dbType:DbType.binaryVary, dbId:0, nativeName:byte[].stringof, nativeSize:DbTypeSize.binaryVary, displaySize:DbTypeDisplaySize.binaryVary},
     {dbName:"DATE", dbType:DbType.date, dbId:0, nativeName:"DbDate", nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
     {dbName:"DATETIME", dbType:DbType.datetime, dbId:0, nativeName:"DbDateTime", nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
     {dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:"DbTime", nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
@@ -2039,6 +2040,12 @@ static immutable DbTypeInfo[] dbNativeTypes = [
     {dbName:"DATE", dbType:DbType.date, dbId:0, nativeName:fullyQualifiedName!DbDate, nativeSize:DbTypeSize.date, displaySize:DbTypeDisplaySize.date},
     {dbName:"DATETIME", dbType:DbType.datetime, dbId:0, nativeName:fullyQualifiedName!DbDateTime, nativeSize:DbTypeSize.datetime, displaySize:DbTypeDisplaySize.datetime},
     {dbName:"TIME", dbType:DbType.time, dbId:0, nativeName:fullyQualifiedName!DbTime, nativeSize:DbTypeSize.time, displaySize:DbTypeDisplaySize.time},
+    {dbName:"CHAR(32)", dbType:DbType.uuid, dbId:0, nativeName:fullyQualifiedName!UUID, nativeSize:DbTypeSize.uuid, displaySize:DbTypeDisplaySize.uuid},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:string.stringof, nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:wstring.stringof, nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"VARCHAR(?)", dbType:DbType.stringVary, dbId:0, nativeName:dstring.stringof, nativeSize:DbTypeSize.stringVary, displaySize:DbTypeDisplaySize.stringVary},
+    {dbName:"CHAR(2)", dbType:DbType.stringFixed, dbId:0, nativeName:wchar.stringof, nativeSize:wchar.sizeof, displaySize:1},
+    {dbName:"CHAR(4)", dbType:DbType.stringFixed, dbId:0, nativeName:dchar.stringof, nativeSize:dchar.sizeof, displaySize:1},
     ];
 
 alias DbTypeToDbTypeInfos = Dictionary!(DbType, immutable(DbTypeInfo)*);
@@ -2797,9 +2804,9 @@ unittest // dbTypeOf
     //pragma(msg, "Date: ", Date.sizeof); // 4
 
     assert(dbTypeOf!bool() == DbType.boolean);
-    assert(dbTypeOf!char() == DbType.stringFixed);
-    assert(dbTypeOf!wchar() == DbType.stringFixed);
-    assert(dbTypeOf!dchar() == DbType.stringFixed);
+    assert(dbTypeOf!char() == DbType.stringFixed, dbTypeOf!char().toName());
+    assert(dbTypeOf!wchar() == DbType.stringFixed, dbTypeOf!wchar().toName());
+    assert(dbTypeOf!dchar() == DbType.stringFixed, dbTypeOf!dchar().toName());
     assert(dbTypeOf!byte() == DbType.int8);
     assert(dbTypeOf!ubyte() == DbType.int8);
     assert(dbTypeOf!short() == DbType.int16);
@@ -2811,9 +2818,9 @@ unittest // dbTypeOf
     assert(dbTypeOf!float() == DbType.float32);
     assert(dbTypeOf!double() == DbType.float64);
     assert(dbTypeOf!real() == DbType.float64);
-    assert(dbTypeOf!string() == DbType.stringVary);
-    assert(dbTypeOf!wstring() == DbType.stringVary);
-    assert(dbTypeOf!dstring() == DbType.stringVary);
+    assert(dbTypeOf!string() == DbType.stringVary, dbTypeOf!string().toName());
+    assert(dbTypeOf!wstring() == DbType.stringVary, dbTypeOf!wstring().toName());
+    assert(dbTypeOf!dstring() == DbType.stringVary, dbTypeOf!dstring().toName());
     //assert(dbTypeOf!Date() == DbType.date);
     //assert(dbTypeOf!DateTime() == DbType.datetime);
     //assert(dbTypeOf!Time() == DbType.time);
@@ -2822,9 +2829,9 @@ unittest // dbTypeOf
     assert(dbTypeOf!DbTime() == DbType.time);
     assert(dbTypeOf!(ubyte[])() == DbType.binaryVary);
     assert(dbTypeOf!UUID() == DbType.uuid);
-    assert(dbTypeOf!Decimal32() == DbType.decimal32, toName(dbTypeOf!Decimal32()));
-    assert(dbTypeOf!Decimal64() == DbType.decimal64, toName(dbTypeOf!Decimal64()));
-    assert(dbTypeOf!Decimal128() == DbType.decimal128, toName(dbTypeOf!Decimal128()));
+    assert(dbTypeOf!Decimal32() == DbType.decimal32, dbTypeOf!Decimal32().toName());
+    assert(dbTypeOf!Decimal64() == DbType.decimal64, dbTypeOf!Decimal64().toName());
+    assert(dbTypeOf!Decimal128() == DbType.decimal128, dbTypeOf!Decimal128().toName());
 
     version(none)
     {

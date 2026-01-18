@@ -568,6 +568,7 @@ public:
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+            
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, _executeCommandText, e);
             throw e;
@@ -1302,6 +1303,7 @@ protected:
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+            
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
         }
@@ -1368,6 +1370,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, _executeCommandText, e);
             }
@@ -1448,6 +1451,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s%s%s", forLogInfo(), shortFunctionName(2), e.msg, newline, commandText, e);
             }
@@ -1859,11 +1863,11 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
+        const isParameters = commandParameters !is null && commandParameters.length != 0;
+
         auto command = createCommandText(commandText);
         scope (exit)
             command.dispose();
-
-        const isParameters = commandParameters !is null && commandParameters.length != 0;
         command.parametersCheck = isParameters;
         if (isParameters)
             command.parameters.assign(commandParameters);
@@ -1871,16 +1875,41 @@ public:
         return command.executeNonQuery();
     }
 
+    alias executeQuery = executeReader;
+
     final DbReader executeReader(string commandText,
         DbParameterList commandParameters = null) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
-        auto command = createCommandText(commandText);
         const isParameters = commandParameters !is null && commandParameters.length != 0;
+
+        auto command = createCommandText(commandText);
         command.parametersCheck = isParameters;
         if (isParameters)
             command.parameters.assign(commandParameters);
+
+        return command.executeReaderImpl(true);
+    }
+
+    final DbReader executeReader(Parameters...)(string commandText, Parameters commandParameters) @safe
+    if (Parameters.length > 0 && !is(T[0] == DbParameterList))
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
+
+        auto command = createCommandText(commandText);
+
+        try
+        {
+            command.prepare();
+            foreach (i, v; commandParameters)
+                command.parameters[i].value = DbValue(v, dbTypeOf!(Parameters[i])());
+        }
+        catch (Exception e)
+        {
+            command.dispose();
+            throw e;
+        }
 
         return command.executeReaderImpl(true);
     }
@@ -1890,14 +1919,31 @@ public:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
+        const isParameters = commandParameters !is null && commandParameters.length != 0;
+
         auto command = createCommandText(commandText);
         scope (exit)
             command.dispose();
 
-        const isParameters = commandParameters !is null && commandParameters.length != 0;
         command.parametersCheck = isParameters;
         if (isParameters)
             command.parameters.assign(commandParameters);
+
+        return command.executeScalar();
+    }
+
+    final DbValue executeScalar(Parameters...)(string commandText, Parameters commandParameters) @safe
+    if (Parameters.length > 0 && !is(T[0] == DbParameterList))
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
+
+        auto command = createCommandText(commandText);
+        scope (exit)
+            command.dispose();
+
+        command.prepare();
+        foreach (i, v; commandParameters)
+            command.parameters[i].value = DbValue(v, dbTypeOf!(Parameters[i])());
 
         return command.executeScalar();
     }
@@ -1989,6 +2035,7 @@ public:
         return !r.isNull && r.value == 1;
     }
 
+    pragma(inline, true)
     final string forCacheKey() const nothrow @safe
     {
         return _connectionStringBuilder.forCacheKey();
@@ -2316,6 +2363,7 @@ package(pham.db):
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+            
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
@@ -2398,6 +2446,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
@@ -2415,6 +2464,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
@@ -2477,6 +2527,7 @@ protected:
             catch (Exception e)
             {
                 debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+                
                 if (auto log = canErrorLog())
                     log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
             }
@@ -4937,16 +4988,18 @@ protected:
 
     final void valueAssigned() nothrow @safe
     {
-        if (type == DbType.unknown && _dbValue.type != DbType.unknown)
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(type=", type, ", _dbValue.type=", _dbValue.type, ")");
+
+        if (this.type == DbType.unknown && _dbValue.type != DbType.unknown)
         {
-            type = _dbValue.type;
-            size = isDbTypeHasSize(_dbValue.type) && _dbValue.hasSize
+            this.type = _dbValue.type;
+            this.size = isDbTypeHasSize(_dbValue.type) && _dbValue.hasSize
                 ? cast(int32)_dbValue.size
                 : 0;
             reevaluateBaseType();
         }
-        else if (type != DbType.unknown)
-            _dbValue.type = type;
+        else if (this.type != DbType.unknown)
+            _dbValue.type = this.type;
     }
 
 protected:
@@ -5626,16 +5679,6 @@ public:
         return _command;
     }
 
-    @property DbDatabase database() nothrow pure @safe
-    {
-        return _command !is null ? _command.database : null;
-    }
-
-    @property bool empty() @safe
-    {
-        return hasRows ? _flags.allRowsFetched : true;
-    }
-
     /**
      * Returns number of defining columns of this DbReader
      */
@@ -5654,6 +5697,16 @@ public:
 
     deprecated("please use columns")
     alias fields = columns;
+
+    @property DbDatabase database() nothrow pure @safe
+    {
+        return _command !is null ? _command.database : null;
+    }
+
+    @property bool empty() @safe
+    {
+        return hasRows ? _flags.allRowsFetched : true;
+    }
 
     /**
      * Returns number of rows had been read/fetched so far
@@ -6274,6 +6327,7 @@ package(pham.db):
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+            
             if (auto log = canErrorLog())
                 log.errorf("%s.%s(isolationLevel=%s) - %s", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), e.msg, e);
 
@@ -6388,6 +6442,7 @@ protected:
         catch (Exception e)
         {
             debug(debug_pham_db_db_database) debug writeln("\t", e.msg);
+            
             if (auto log = canErrorLog())
                 log.errorf("%s.%s() - %s", forLogInfo(), shortFunctionName(2), e.msg, e);
         }
