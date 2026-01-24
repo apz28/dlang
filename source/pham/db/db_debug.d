@@ -17,10 +17,10 @@ string dgLimitString(scope const(char)[] chars, size_t limit = 100) nothrow pure
 {
     import std.array : Appender;
     //import std.ascii : newline;
-    
+
     if (chars.length <= limit)
         return chars.idup;
-    
+
     Appender!string result;
     while (chars.length)
     {
@@ -45,7 +45,7 @@ string dgToString(scope const(char)[] chars) nothrow pure @safe
 
 string dgToString(T)(const(T) n) nothrow pure @safe
 if (isIntegral!T)
-{    
+{
     import std.conv : to;
     debug return n.to!string;
 }
@@ -53,9 +53,39 @@ if (isIntegral!T)
 void writeln(S...)(S args)
 {
     import std.stdio : stdout, write;
-    
+
     debug write(args, '\n');
     debug stdout.flush();
+}
+
+void writelnFor(scope string[] lines, const(uint) beginCount, const(uint) endCount)
+{
+    size_t i = 0;
+    uint count = beginCount;
+    while (count)
+    {
+        if (i < lines.length)
+        {
+            writeln(lines[i]);
+            i++;
+        }
+        count--;
+    }
+
+    if (lines.length > beginCount)
+    {
+        i = lines.length;
+        count = endCount;
+        while (count)
+        {
+            if (i > beginCount)
+            {
+                writeln(lines[i - 1]);
+                i--;
+            }
+            count--;
+        }
+    }
 }
 
 struct DgMarker
@@ -63,17 +93,17 @@ struct DgMarker
 nothrow @safe:
 
     static immutable string sep = "----------";
-    
+
     this(string marker)
     {
         this.marker = marker;
         debug writeln("\nBEG", sep, "\n", marker, "\n", sep, "---\n");
     }
-    
+
     ~this()
     {
         debug writeln("\n", sep, "---\n", marker, "\nEND", sep, "\n");
     }
-    
+
     string marker;
 }

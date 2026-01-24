@@ -1142,7 +1142,7 @@ public:
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(vendorMode=%d)%s%s", forLogInfo(), shortFunctionName(2), vendorMode, newline, commandText);
+            log.tracef("%s.%s(vendorMode=%d)%s%s", forLogInfo(), shortFunctionName(2), vendorMode, newline, commandText);
 
         const wasPrepared = prepared;
         if (!wasPrepared)
@@ -2445,7 +2445,7 @@ ORDER BY p.RDB$PARAMETER_NUMBER
         checkInactive();
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
+            log.tracef("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         reset();
 
@@ -5514,71 +5514,80 @@ unittest // FbConnection.openService
 version(UnitTestFBDatabase)
 unittest // FbService.trace...
 {
-    import pham.db.db_debug : writeln;
-
+    import pham.db.db_debug : writelnFor;
+    
     auto csb = createUnitTestConnectionStringBuilder();
     csb.receiveTimeout = dur!"seconds"(3); // For production usage, should be desired duration to wait for to get all trace logs
     auto service = FbService(csb);
     scope (exit)
         service.dispose();
 
+    string[] logLines;
     void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
     {
-        debug writeln(fct, "=", info.strValue);
+        logLines ~= (fct ~ '=' ~ info.strValue);
     }
     service.serviceOutputEvents ~= &serviceOutput;
 
     FbHandle sessionId;
+
+    logLines.length = 0;    
     FbTraceDatabaseConfiguration databaseConfiguration;
     service.traceStart("test", [databaseConfiguration], sessionId);
     service.traceStop(sessionId);
+    writelnFor(logLines, 2, 2);
 
+    logLines.length = 0;
     FbTraceServiceConfiguration serviceConfiguration;
     service.traceStart("test", [databaseConfiguration], serviceConfiguration, sessionId);
     service.traceStop(sessionId);
+    writelnFor(logLines, 2, 2);
 }
 
 version(UnitTestFBDatabase)
 unittest // FbService.logGet
 {
-    import pham.db.db_debug : writeln;
+    import pham.db.db_debug : writelnFor;
 
     auto csb = createUnitTestConnectionStringBuilder();
     auto service = FbService(csb);
     scope (exit)
         service.dispose();
 
-    size_t lineCount;
+    string[] logLines;
     void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
     {
-        lineCount++;
-        if (lineCount <= 4)
-            debug writeln(fct, "=", info.strValue);
+        logLines ~= (fct ~ '=' ~ info.strValue);
     }
     service.serviceOutputEvents ~= &serviceOutput;
-    lineCount = 0;
+    
+    logLines.length = 0;
     service.logGet();
+    writelnFor(logLines, 2, 2);
 }
 
 version(UnitTestFBDatabase)
 unittest // FbService.repair
 {
-    import pham.db.db_debug : writeln;
+    import pham.db.db_debug : writelnFor;
 
     auto csb = createUnitTestConnectionStringBuilder();
     auto service = FbService(csb);
     scope (exit)
         service.dispose();
 
+    string[] logLines;
     void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
     {
-        debug writeln(fct, "=", info.strValue);
+        logLines ~= (fct ~ '=' ~ info.strValue);
     }
     service.serviceOutputEvents ~= &serviceOutput;
 
+    logLines.length = 0;
     FbRepairConfiguration repairConfiguration;
     repairConfiguration.options = FbRepairFlags.sweepDatabase;
     service.repair(repairConfiguration);
+    writelnFor(logLines, 2, 2);
 }
 
 version(UnitTestFBDatabase)
@@ -5588,7 +5597,7 @@ unittest // FbService.backup & restore
     import std.file : tempDir;
     import std.path : chainPath;
     //import std.process : thisProcessID;
-    import pham.db.db_debug : writeln;
+    import pham.db.db_debug : writelnFor;
 
     static void deleteFile(string fileName)
     {
@@ -5603,14 +5612,10 @@ unittest // FbService.backup & restore
     scope (exit)
         service.dispose();
 
-    string lastLine;
+    string[] logLines;
     void serviceOutput(DbConnection, string fct, FbIscServiceInfoResponse info, ref int)
     {
-        if (lastLine != info.strValue)
-        {
-            debug writeln(fct, "=", info.strValue);
-            lastLine = info.strValue;
-        }
+        logLines ~= (fct ~ '=' ~ info.strValue);
     }
     service.serviceOutputEvents ~= &serviceOutput;
 
@@ -5622,28 +5627,28 @@ unittest // FbService.backup & restore
         deleteFile(restoreFileName);
     }
 
-    lastLine = null;
+    logLines.length = 0;
     FbBackupConfiguration backupConfiguration;
     backupConfiguration.backupFiles ~= FbBackupFile(backupFileName);
     backupConfiguration.options = FbBackupFlags.metaDataOnly | FbBackupFlags.ignoreLimbo
         | FbBackupFlags.noDatabaseTriggers | FbBackupFlags.noGarbageCollect;
     backupConfiguration.verbose = true;
     service.backup(backupConfiguration);
+    writelnFor(logLines, 2, 2);
 
-    lastLine = null;
+    logLines.length = 0;
     FbRestoreConfiguration restoreConfiguration;
     restoreConfiguration.databaseName = restoreFileName;
     restoreConfiguration.backupFiles ~= FbBackupFile(backupFileName);
     restoreConfiguration.options = FbRestoreFlags.create | FbRestoreFlags.replace;
     restoreConfiguration.verbose = true;
     service.restore(restoreConfiguration);
+    writelnFor(logLines, 2, 2);
 }
 
 version(UnitTestFBDatabase)
 unittest // FbService.user...
 {
-    import pham.db.db_debug : writeln;
-
     auto csb = createUnitTestConnectionStringBuilder();
     auto service = FbService(csb);
     scope (exit)

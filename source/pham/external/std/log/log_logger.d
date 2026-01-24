@@ -647,19 +647,19 @@ template defaultLogFunction(LogLevel ll)
  * logFatal(true, 1337, " is number");
  * --------------------
  */
-alias logTrace = defaultLogFunction!(LogLevel.trace);
+alias logCritical = defaultLogFunction!(LogLevel.critical);
 /// Ditto
 alias logDebug = defaultLogFunction!(LogLevel.debug_);
 /// Ditto
-alias logInfo = defaultLogFunction!(LogLevel.info);
-/// Ditto
-alias logWarn = defaultLogFunction!(LogLevel.warn);
-/// Ditto
 alias logError = defaultLogFunction!(LogLevel.error);
 /// Ditto
-alias logCritical = defaultLogFunction!(LogLevel.critical);
-/// Ditto
 alias logFatal = defaultLogFunction!(LogLevel.fatal);
+/// Ditto
+alias logInfo = defaultLogFunction!(LogLevel.info);
+/// Ditto
+alias logTrace = defaultLogFunction!(LogLevel.trace);
+/// Ditto
+alias logWarn = defaultLogFunction!(LogLevel.warn);
 
 /**
  * This template provides the global `printf`-style log functions with
@@ -733,19 +733,19 @@ template defaultLogFunctionf(LogLevel ll)
  * logFatalf(someFunct(), "is number %d", 6);
  * --------------------
  */
-alias logTracef = defaultLogFunctionf!(LogLevel.trace);
+alias logCriticalf = defaultLogFunctionf!(LogLevel.critical);
 /// Ditto
 alias logDebugf = defaultLogFunctionf!(LogLevel.debug_);
 /// Ditto
-alias logInfof = defaultLogFunctionf!(LogLevel.info);
-/// Ditto
-alias logWarnf = defaultLogFunctionf!(LogLevel.warn);
-/// Ditto
 alias logErrorf = defaultLogFunctionf!(LogLevel.error);
 /// Ditto
-alias logCriticalf = defaultLogFunctionf!(LogLevel.critical);
-/// Ditto
 alias logFatalf = defaultLogFunctionf!(LogLevel.fatal);
+/// Ditto
+alias logInfof = defaultLogFunctionf!(LogLevel.info);
+/// Ditto
+alias logTracef = defaultLogFunctionf!(LogLevel.trace);
+/// Ditto
+alias logWarnf = defaultLogFunctionf!(LogLevel.warn);
 
 /**
  * This class is the base of every logger. In order to create a new kind of
@@ -929,26 +929,32 @@ public:
     }
 
     /// Ditto
-    alias isTrace = isFunction!(LogLevel.trace).isImpl;
-    alias isTrace2 = isFunction!(LogLevel.trace).isImpl2;
+    alias isCritical = isFunction!(LogLevel.critical).isImpl;
+    alias isCritical2 = isFunction!(LogLevel.critical).isImpl2;
+
     /// Ditto
     alias isDebug = isFunction!(LogLevel.debug_).isImpl;
     alias isDebug2 = isFunction!(LogLevel.debug_).isImpl2;
-    /// Ditto
-    alias isInfo = isFunction!(LogLevel.info).isImpl;
-    alias isInfo2 = isFunction!(LogLevel.info).isImpl2;
-    /// Ditto
-    alias isWarn = isFunction!(LogLevel.warn).isImpl;
-    alias isWarn2 = isFunction!(LogLevel.warn).isImpl2;
+
     /// Ditto
     alias isError = isFunction!(LogLevel.error).isImpl;
     alias isError2 = isFunction!(LogLevel.error).isImpl2;
-    /// Ditto
-    alias isCritical = isFunction!(LogLevel.critical).isImpl;
-    alias isCritical2 = isFunction!(LogLevel.critical).isImpl2;
+
     /// Ditto
     alias isFatal = isFunction!(LogLevel.fatal).isImpl;
     alias isFatal2 = isFunction!(LogLevel.fatal).isImpl2;
+
+    /// Ditto
+    alias isInfo = isFunction!(LogLevel.info).isImpl;
+    alias isInfo2 = isFunction!(LogLevel.info).isImpl2;
+
+    /// Ditto
+    alias isTrace = isFunction!(LogLevel.trace).isImpl;
+    alias isTrace2 = isFunction!(LogLevel.trace).isImpl2;
+
+    /// Ditto
+    alias isWarn = isFunction!(LogLevel.warn).isImpl;
+    alias isWarn2 = isFunction!(LogLevel.warn).isImpl2;
 
     /// Ditto
     pragma(inline, true)
@@ -1210,42 +1216,35 @@ public:
     }
 
     /// Ditto
-    alias trace = logFunction!(LogLevel.trace).logImpl;
-    /// Ditto
-    alias tracef = logFunction!(LogLevel.trace).logImplf;
-
-    /// Ditto
-    alias debug_ = logFunction!(LogLevel.debug_).logImpl;
-    /// Ditto
-    alias debugf_ = logFunction!(LogLevel.debug_).logImplf;
-
-    /// Ditto
-    alias info = logFunction!(LogLevel.info).logImpl;
-    /// Ditto
-    alias infof = logFunction!(LogLevel.info).logImplf;
-
-    /// Ditto
-    alias warn = logFunction!(LogLevel.warn).logImpl;
-    /// Ditto
-    alias warnf = logFunction!(LogLevel.warn).logImplf;
-
-    /// Ditto
-    alias error = logFunction!(LogLevel.error).logImpl;
-    /// Ditto
-    alias errorf = logFunction!(LogLevel.error).logImplf;
-
-    /// Ditto
     alias critical = logFunction!(LogLevel.critical).logImpl;
-    /// Ditto
     alias criticalf = logFunction!(LogLevel.critical).logImplf;
 
     /// Ditto
-    alias fatal = logFunction!(LogLevel.fatal).logImpl;
+    alias debug_ = logFunction!(LogLevel.debug_).logImpl;
+    alias debugf_ = logFunction!(LogLevel.debug_).logImplf;
+
     /// Ditto
+    alias error = logFunction!(LogLevel.error).logImpl;
+    alias errorf = logFunction!(LogLevel.error).logImplf;
+
+    /// Ditto
+    alias fatal = logFunction!(LogLevel.fatal).logImpl;
     alias fatalf = logFunction!(LogLevel.fatal).logImplf;
 
+    /// Ditto
+    alias info = logFunction!(LogLevel.info).logImpl;
+    alias infof = logFunction!(LogLevel.info).logImplf;
+
+    /// Ditto
+    alias trace = logFunction!(LogLevel.trace).logImpl;
+    alias tracef = logFunction!(LogLevel.trace).logImplf;
+
+    /// Ditto
+    alias warn = logFunction!(LogLevel.warn).logImpl;
+    alias warnf = logFunction!(LogLevel.warn).logImplf;
+
     /**
-     * This function logs function call to instant `Logger`.
+     * This function logs function call to instant `Logger` with the `LogLevel` of the used `Logger`.
      */
     final void log(LogLocation location) nothrow @safe
     {
@@ -1257,7 +1256,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = defaultRequestLogLevel;
+                const ll = this.logLevel;
                 if (isLogLevel(ll, location.moduleName))
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1275,8 +1274,7 @@ public:
     }
 
     /**
-     * This function logs data to the used `Logger` with the `LogLevel`
-     * of the used `Logger`.
+     * This function logs data to the used `Logger` with the `LogLevel` of the used `Logger`.
      * In order for the resulting log message to be logged the `LogLevel`
      * of the used `Logger` must be greater or equal than the `LogLevel` of the `globalLogLevel`.
      * Params:
@@ -1299,7 +1297,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = defaultRequestLogLevel;
+                const ll = this.logLevel;
                 if (isLogLevel(ll, moduleName))
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1349,7 +1347,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = defaultRequestLogLevel;
+                const ll = this.logLevel;
                 if (isLogLevel(ll, moduleName) && condition)
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1492,7 +1490,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = defaultRequestLogLevel;
+                const ll = this.logLevel;
                 if (isLogLevel(ll, moduleName))
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -1539,7 +1537,7 @@ public:
             // Special try construct for grep
             try {
                 auto currTime = currentTime();
-                const ll = defaultRequestLogLevel;
+                const ll = this.logLevel;
                 if (isLogLevel(ll, moduleName) && condition)
                 {
                     isFatal = ll == LogLevel.fatal;
@@ -3279,7 +3277,8 @@ public:
         this.logBeginEnd = logBeginEnd;
         this.warnMsecs = warnMsecs;
         this.done = false;
-        if (this.payload.logger !is null)
+
+        if (logger !is null)
         {
             if (logBeginEnd)
             {
@@ -3288,6 +3287,7 @@ public:
                 payload.header.timestamp = currentTime();
                 payload.logger.forwardLog(payload);
             }
+
             this.startedTimestamp = currentTime();
         }
     }
@@ -3309,6 +3309,11 @@ public:
         return !done && payload.logger !is null;
     }
 
+    static Logger canLog(Logger logger)
+    {
+        return logger !is null && logger.isWarn ? logger : null;
+    }
+
     void log()
     {
         if (payload.logger !is null)
@@ -3319,12 +3324,14 @@ public:
             payload.message = logMessage(elapsed.total!"msecs", false);
             payload.logger.forwardLog(payload);
         }
+
         done = true;
     }
 
     void logAndReset()
     {
         log();
+
         done = false;
         if (payload.logger !is null)
         {
@@ -3335,6 +3342,7 @@ public:
                 payload.header.timestamp = currentTime();
                 payload.logger.forwardLog(payload);
             }
+
             startedTimestamp = currentTime();
         }
     }

@@ -1453,9 +1453,9 @@ protected:
 
         /*
         size_t sendParameters = inputParameters.length;
-        foreach (parameter; inputParameters)
+        foreach (inputParameter; inputParameters)
         {
-            const baseTypeId = parameter.baseTypeId;
+            const baseTypeId = inputParameter.baseTypeId;
             if (baseTypeId == PgOIdType.void_ || baseTypeId == PgOIdType.unknown)
                 sendParameters--;
         }
@@ -1467,13 +1467,14 @@ protected:
         if (inputParameters.length)
         {
             writer.writeInt16(cast(int16)inputParameters.length);
-            foreach (parameter; inputParameters)
+            foreach (inputParameter; inputParameters)
             {
-                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "parameter.name=", parameter.name,
-                    ", baseName=", parameter.baseName, ", baseTypeId=", parameter.baseTypeId);
+                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "inputParameter.name=", inputParameter.name,
+                    ", baseName=", inputParameter.baseName, ", baseTypeId=", inputParameter.baseTypeId);
 
-                const baseTypeId = parameter.baseTypeId;
-                writer.writeInt32(baseTypeId != PgOIdType.void_ ? baseTypeId : PgOIdType.unknown); // OIDType
+                // 54.2.3. Extended Query; PgOIdType.void_ is only being used for out parameter
+                const baseTypeId = inputParameter.baseTypeId;
+                writer.writeInt32(baseTypeId != PgOIdType.void_ ? baseTypeId : PgOIdType.unknown);
             }
         }
         else

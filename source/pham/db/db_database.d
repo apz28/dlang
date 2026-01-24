@@ -15,12 +15,12 @@ import core.atomic : atomicFetchAdd, atomicFetchSub, atomicLoad, atomicStore, ca
 import core.sync.mutex : Mutex;
 public import core.time : Duration, dur;
 public import std.ascii : newline;
-import std.conv : to;
+import std.conv : text, to;
 import std.traits : FieldNameTuple, Unqual;
 
 debug(debug_pham_db_db_database) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
-import pham.external.std.log.log_logger : Logger, LogLevel;
+import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_delegate_list;
@@ -137,6 +137,13 @@ public:
 
     abstract DbColumn createSelf(DbCommand command) nothrow @safe;
 
+    /**
+     * Generate a string used for anonymous column name
+     * Params:
+     *  ordinal = a number to be used as part of generated name
+     * Example:
+     *  DbColumn.generateName(100) = "_column100"
+     */
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
         import pham.utl.utl_convert : putNumber;
@@ -147,8 +154,9 @@ public:
             .data;
     }
 
-    /** Gets or sets whether this column is aliased
-    */
+    /**
+     * Gets or sets whether this column is aliased
+     */
     @property final bool isAlias() const nothrow @safe
     {
         return _flags.isAlias;
@@ -371,7 +379,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkActive();
 
@@ -395,6 +403,12 @@ public:
     final Logger canTraceLog() nothrow @safe
     {
         return _connection !is null ? _connection.canTraceLog() : null;
+    }
+
+    pragma(inline, true)
+    final Logger canWarnLog() nothrow @safe
+    {
+        return _connection !is null ? _connection.canWarnLog() : null;
     }
 
     final typeof(this) clearColumns() nothrow @safe
@@ -428,7 +442,7 @@ public:
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkCommand(-1);
         resetStatement(ResetStatementKind.executing);
@@ -471,7 +485,7 @@ public:
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkCommand(DbCommandType.ddl);
         resetStatement(ResetStatementKind.executing);
@@ -507,7 +521,7 @@ public:
         version(profile) debug auto p = PerfFunction.create();
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkActive();
 
@@ -561,7 +575,7 @@ public:
         assert(!prepared, "command already prepared");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         if (prepared)
             return this;
@@ -636,7 +650,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         if (_connection !is null && _connection.isFatalError)
         {
@@ -1066,7 +1080,7 @@ package(pham.db):
         debug(debug_pham_db_db_database) auto dgMarker = DgMarker(__FUNCTION__ ~ "(" ~ commandText ~ ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
+            log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
         checkCommand(DbCommandType.ddl);
         resetStatement(ResetStatementKind.executing);
@@ -1201,7 +1215,7 @@ protected:
         if (auto log = canTraceLog())
         {
             if (result != commandText)
-                log.infof("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, result);
+                log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, result);
         }
 
         return result;
@@ -1745,7 +1759,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
+            log.tracef("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         checkActive();
 
@@ -1768,15 +1782,21 @@ public:
     pragma(inline, true)
     final Logger canTimeLog() nothrow @safe
     {
-        auto result = logger;
-        return result !is null && result.isWarn ? result : null;
+        return LogTimming.canLog(logger);
     }
 
     pragma(inline, true)
     final Logger canTraceLog() nothrow @safe
     {
         auto result = logger;
-        return result !is null && result.isInfo ? result : null;
+        return result !is null && result.isTrace ? result : null;
+    }
+
+    pragma(inline, true)
+    final Logger canWarnLog() nothrow @safe
+    {
+        auto result = logger;
+        return result !is null && result.isWarn ? result : null;
     }
 
     final typeof(this) close() nothrow @safe
@@ -1788,7 +1808,7 @@ public:
             return this;
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
+            log.tracef("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         _state = DbConnectionState.closing;
         scope (exit)
@@ -1945,8 +1965,23 @@ public:
         try
         {
             command.prepare();
-            foreach (i, v; commandParameters)
-                command.parameters[i].value = DbValue(v, dbTypeOf!(Parameters[i])());
+            const limitLength = command.parameters.length;
+
+            if (commandParameters.length != limitLength)
+            {
+                if (auto log = canWarnLog())
+                {
+                    auto info = text("Parameter count: ", commandParameters.length, " is over ", limitLength, ".\n");
+                    log.warnf("%s.%s() - %s%s", forLogInfo(), shortFunctionName(2), info, commandText);
+                }
+            }
+
+            foreach (i, e; commandParameters)
+            {
+                if (i == limitLength)
+                    break;
+                command.parameters[i].value = DbValue(e, dbTypeOf!(Parameters[i])());
+            }
         }
         catch (Exception e)
         {
@@ -2001,8 +2036,23 @@ public:
             command.dispose();
 
         command.prepare();
-        foreach (i, v; commandParameters)
-            command.parameters[i].value = DbValue(v, dbTypeOf!(Parameters[i])());
+        const limitLength = command.parameters.length;
+
+        if (commandParameters.length != limitLength)
+        {
+            if (auto log = canWarnLog())
+            {
+                auto info = text("Parameter count: ", commandParameters.length, " is over ", limitLength, ".\n");
+                log.warnf("%s.%s() - %s%s", forLogInfo(), shortFunctionName(2), info, commandText);
+            }
+        }
+
+        foreach (i, e; commandParameters)
+        {
+            if (i == limitLength)
+                break;
+            command.parameters[i].value = DbValue(e, dbTypeOf!(Parameters[i])());
+        }
 
         return command.executeScalar();
     }
@@ -2180,7 +2230,7 @@ public:
         checkInactive();
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
+            log.tracef("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         //if (_poolList !is null)
         //    return _poolList.release(this);
@@ -2210,7 +2260,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s()", forLogInfo(), shortFunctionName(2));
+            log.tracef("%s.%s()", forLogInfo(), shortFunctionName(2));
 
         if (_poolList !is null)
             return _poolList.release(this);
@@ -4523,7 +4573,7 @@ class DbNamedColumn : DbNamedObject
 {
 public:
     /*
-     * Indicates if column value is an external resource id which needs special loading/saving
+     * Indicates if column/parameter value is an external resource id which needs special loading/saving
      */
     DbColumnIdType isValueIdType() const nothrow @safe
     {
@@ -4556,7 +4606,7 @@ public:
     }
 
     /**
-     * Gets or sets the id of the column in the schema table
+     * Gets or sets the id of the column/parameter in the schema table
      */
     @property final int32 baseId() const nothrow @safe
     {
@@ -4570,7 +4620,7 @@ public:
     }
 
     /**
-     * Gets or sets the name of the column in the schema table
+     * Gets or sets the name of the column/parameter in the schema table
      */
     @property final string baseName() const nothrow @safe
     {
@@ -4584,7 +4634,7 @@ public:
     }
 
     /**
-     * Gets or sets the owner of the column in the schema table
+     * Gets or sets the owner of the column/parameter in the schema table
      */
     @property final string baseOwner() const nothrow @safe
     {
@@ -4612,7 +4662,7 @@ public:
     }
 
     /**
-     * Gets or sets provider-specific numeric scale of the column
+     * Gets or sets provider-specific numeric scale of the column/parameter
      */
     @property final int16 baseNumericDigits() const nothrow @safe
     {
@@ -4626,7 +4676,7 @@ public:
     }
 
     /**
-     * Gets or sets provider-specific numeric scale of the column
+     * Gets or sets provider-specific numeric scale of the column/parameter
      */
     @property final int16 baseNumericScale() const nothrow @safe
     {
@@ -4640,7 +4690,7 @@ public:
     }
 
     /**
-     * Gets or sets provider-specific size of the column
+     * Gets or sets provider-specific size of the column/parameter
      */
     @property final int32 baseSize() const nothrow @safe
     {
@@ -4654,7 +4704,7 @@ public:
     }
 
     /**
-     * Gets or sets provider-specific subtype of the column
+     * Gets or sets provider-specific subtype of the column/parameter
      */
     @property final int32 baseSubTypeId() const nothrow @safe
     {
@@ -4696,7 +4746,7 @@ public:
     }
 
     /**
-     * Gets or sets provider-specific data type of the column
+     * Gets or sets provider-specific data type of the column/parameter
      */
     @property final DbBaseTypeInfo baseType() const nothrow @safe
     {
@@ -4704,7 +4754,7 @@ public:
     }
 
     /**
-     * Gets or sets provider-specific data type of the column
+     * Gets or sets provider-specific data type of the column/parameter
      */
     @property final int32 baseTypeId() const nothrow @safe
     {
@@ -4717,16 +4767,27 @@ public:
         return this;
     }
 
+    /**
+     * The command that this column/parameter belongs to.
+     * It can be nil
+     */
     @property final DbCommand command() nothrow pure @safe
     {
         return _command;
     }
 
+    /**
+     * The database that this column/parameter belongs to.
+     * It can be nil
+     */
     @property final DbDatabase database() nothrow pure @safe
     {
         return _database;
     }
 
+    /**
+     * Returns true if this column/parameter's data type is an array
+     */
     @property bool isArray() const nothrow @safe
     {
         return (_type & DbType.array) != 0;
@@ -4746,7 +4807,7 @@ public:
     }
 
     /**
-     * Gets or sets whether this column is a key for the dataset
+     * Gets or sets whether this column/parameter is a key for the dataset
      */
     @property final bool isKey() const nothrow @safe
     {
@@ -4760,7 +4821,7 @@ public:
     }
 
     /**
-     * Gets or sets the ordinal of the column, based 1 value
+     * Gets or sets the ordinal of this column/parameter, based 1 value
      */
     @property final uint16 ordinal() const nothrow @safe
     {
@@ -4773,6 +4834,9 @@ public:
         return this;
     }
 
+    /**
+     * A delegate to load data without storing in this column/parameter
+     */
     @property final DbSaveLongData saveLongData() nothrow pure @safe
     {
         return _saveLongData;
@@ -4805,7 +4869,7 @@ public:
     }
 
     /**
-     * Gets or sets maximum size, in bytes of the parameter
+     * Gets or sets maximum size, in bytes of this column/parameter
      * used for array, binary, binaryFixed, utf8String, fixedUtf8String
      * json, and xml types.
      */
@@ -4822,7 +4886,7 @@ public:
     }
 
     /**
-     * Gets or sets the DbType of the parameter
+     * Gets or sets the DbType of this column/parameter
      */
     pragma(inline, true)
     @property final DbType type() const nothrow @safe
@@ -4842,6 +4906,9 @@ public:
     }
 
 protected:
+    /**
+     * Assign this member's value to dest corresponding members
+     */
     void assignTo(DbNamedColumn dest) nothrow @safe
     {
         debug(debug_pham_db_db_database) string memberNames;
@@ -4856,6 +4923,9 @@ protected:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(memberNames=", memberNames, ")");
     }
 
+    /**
+     * Recalculate _baseType when there is a set/change of _type
+     */
     void reevaluateBaseType() nothrow @safe
     {}
 
@@ -4918,6 +4988,13 @@ public:
         return this;
     }
 
+    /**
+     * Generate a string used for anonymous parameter name
+     * Params:
+     *  ordinal = a number to be used as part of generated name
+     * Example:
+     *  DbParameter.generateName(100) = "_param100"
+     */
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
         import pham.utl.utl_convert : putNumber;
@@ -4997,7 +5074,7 @@ public:
     }
 
     /**
-     * Gets or sets a value that describes the type of the parameter
+     * Gets or sets a value that describes the type of this parameter
      */
     @property final DbParameterDirection direction() const nothrow @safe
     {
@@ -5018,6 +5095,9 @@ public:
             return _dbValue.isNull || (isDbTypeHasZeroSizeAsNull(type) && _dbValue.size <= 0);
     }
 
+    /**
+     * Gets or sets the value of this parameter
+     */
     @property final Variant variant() nothrow @safe
     {
         return _dbValue.value;
@@ -5031,7 +5111,7 @@ public:
     }
 
     /**
-     * Gets or sets the value of the parameter
+     * Gets or sets the value of this parameter
      */
     @property final ref DbValue value() nothrow return @safe
     {
@@ -5184,7 +5264,7 @@ public:
     final DbParameterList assign(DbParameterList source) @safe
     {
         clear();
-        if (source is null)
+        if (source is null || source.length == 0)
             return this;
 
         reserve(source.length);
@@ -6175,7 +6255,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
+            log.tracef("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         scope (failure)
             resetState(DbTransactionState.error);
@@ -6203,7 +6283,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
+            log.tracef("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         checkSavePointState();
         auto savePointStatement = createSavePointStatement(DbSavePoint.commit, savePointName);
@@ -6247,7 +6327,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
+            log.tracef("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         if (state != DbTransactionState.active)
             return this;
@@ -6278,7 +6358,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
+            log.tracef("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         checkSavePointState();
         auto savePointStatement = createSavePointStatement(DbSavePoint.rollback, savePointName);
@@ -6293,7 +6373,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(autoCommit=", autoCommit, ", isolationLevel=", isolationLevel, ", isRetaining=", isRetaining, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
+            log.tracef("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         checkState(DbTransactionState.inactive);
         scope (failure)
@@ -6320,7 +6400,7 @@ public:
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ")");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
+            log.tracef("%s.%s(isolationLevel=%s, savePointName=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel), savePointName);
 
         checkSavePointState();
         if (savePointName.length == 0)
@@ -6487,7 +6567,7 @@ package(pham.db):
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         if (auto log = canTraceLog())
-            log.infof("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
+            log.tracef("%s.%s(isolationLevel=%s)", forLogInfo(), shortFunctionName(2), toName!DbIsolationLevel(isolationLevel));
 
         if (state != DbTransactionState.active)
             return this;
@@ -6725,4 +6805,16 @@ shared static ~this() nothrow
         _secondTimer.destroy();
         _secondTimer = null;
     }
+}
+
+unittest // DbColumn.generateName
+{
+    assert(DbColumn.generateName(1) == "_column1");
+    assert(DbColumn.generateName(100) == "_column100");
+}
+
+unittest // DbParameter.generateName
+{
+    assert(DbParameter.generateName(1) == "_param1");
+    assert(DbParameter.generateName(100) == "_param100");
 }
