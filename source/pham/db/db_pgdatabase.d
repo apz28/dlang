@@ -945,7 +945,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = pgConnection.protocol;
@@ -980,7 +980,7 @@ protected:
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ", fetchAgain=", fetchAgain, ")");
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         const fetchRecordCount = type == DbCommandExecuteType.scalar ? 1 : fetchRecordCount;
@@ -1012,7 +1012,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         PgReader reader; // Since it is package message, need reader to continue reading row values
@@ -1089,7 +1089,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = pgConnection.protocol;

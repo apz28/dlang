@@ -299,7 +299,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         const lPrepared = prepared;
@@ -361,7 +361,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;
@@ -391,7 +391,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare);
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = myConnection.protocol;

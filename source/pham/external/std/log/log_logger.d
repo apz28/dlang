@@ -3260,13 +3260,16 @@ public:
     /**
      * Params:
      *  logger = Logger where logging message being written to
-     *  logBeginEnd = if true, immediately write a log with message = "0"
      *  warnMsecs = Change log to warn when > 0 and at time of writing log with
-     *      elapsed time in millisecond greater than this parameter value
+     *      elapsed time in millisecond greater/equal than this parameter value
+     *  beginMarker = An text element shown before message text for the begin event
+     *  endMarker = An text element shown before message text for the end event
+     * Notes:
+     *  A begin event is being logged only if beginMarker and endMarker are not empty
      */
     this(Logger logger, string message,
-        bool logBeginEnd = false,
         Duration warnMsecs = Duration.zero,
+        string beginMarker = "Begin", string endMarker = "End",
         in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__)
     {
         this.message = message;
@@ -3274,34 +3277,31 @@ public:
         this.payload.header.logLevel = LogLevel.info;
         this.payload.header.location = LogLocation(line, fileName, funcName, moduleName);
         this.payload.header.threadID = thisThreadID;
-        this.logBeginEnd = logBeginEnd;
         this.warnMsecs = warnMsecs;
+        this.beginMarker = beginMarker;
+        this.endMarker = endMarker;
         this.done = false;
 
         if (logger !is null)
         {
-            if (logBeginEnd)
+            if (beginMarker.length && endMarker.length)
             {
-                payload.message = logMessage(0, true);
-                payload.header.logLevel = LogLevel.info;
-                payload.header.timestamp = currentTime();
-                payload.logger.forwardLog(payload);
+                this.payload.header.timestamp = currentTime();
+                this.payload.header.logLevel = LogLevel.info;
+                this.payload.message = logMessage(0, true);
+                this.payload.logger.forwardLog(payload);
             }
-
-            this.startedTimestamp = currentTime();
         }
+
+        // Set after begin log entry to avoid long/inaccurate logging
+        // not related to timing operation
+        this._startedTimestamp = currentTime();
     }
 
     ~this()
     {
         if (canLog())
             log();
-    }
-
-    version(none) // Just use this instead: xxx = LogTimming.init;
-    static typeof(this) opCall()
-    {
-        return LogTimming(null, false, 0, 0, null, null, null, null);
     }
 
     bool canLog()
@@ -3318,10 +3318,11 @@ public:
     {
         if (payload.logger !is null)
         {
-            payload.header.timestamp = currentTime();
-            const elapsed = payload.header.timestamp - startedTimestamp;
-            payload.header.logLevel = warnMsecs > Duration.zero && elapsed >= warnMsecs ? LogLevel.warn : LogLevel.info;
-            payload.message = logMessage(elapsed.total!"msecs", false);
+            const curTimeStamp = currentTime();
+            const elapsedTime = curTimeStamp - _startedTimestamp;
+            payload.header.timestamp = curTimeStamp;
+            payload.header.logLevel = warnMsecs > Duration.zero && elapsedTime >= warnMsecs ? LogLevel.warn : LogLevel.info;
+            payload.message = logMessage(elapsedTime.total!"msecs", false);
             payload.logger.forwardLog(payload);
         }
 
@@ -3333,39 +3334,45 @@ public:
         log();
 
         done = false;
+
         if (payload.logger !is null)
         {
-            if (logBeginEnd)
+            if (beginMarker.length && endMarker.length)
             {
-                payload.message = logMessage(0, true);
-                payload.header.logLevel = LogLevel.info;
                 payload.header.timestamp = currentTime();
+                payload.header.logLevel = LogLevel.info;
+                payload.message = logMessage(0, true);
                 payload.logger.forwardLog(payload);
             }
-
-            startedTimestamp = currentTime();
         }
+
+        this._startedTimestamp = currentTime();
+    }
+
+    @property SysTime startedTimestamp() const
+    {
+        return _startedTimestamp;
     }
 
 private:
-    string logMessage(const(ulong) msecs, bool beginLog)
+    string logMessage(ulong msecs, bool beginLog)
     {
-        if (logBeginEnd)
+        if (beginMarker.length && endMarker.length)
         {
-            const preMessage = beginLog ? "Begin" : "End";
-            return text(to!string(msecs), ",", preMessage, ",", message);
+            const preMessage = beginLog ? beginMarker : endMarker;
+            return text(msecs, ",", preMessage, ",", message);
         }
         else
-            return text(to!string(msecs), ",", message);
+            return text(msecs, ",", message);
     }
 
 private:
     Logger.LogEntry payload;
+    string beginMarker, endMarker;
     string message;
-    SysTime startedTimestamp;
+    SysTime _startedTimestamp;
     Duration warnMsecs;
     bool done;
-    bool logBeginEnd;
 }
 
 struct LogRAIIMutex
@@ -5082,7 +5089,9 @@ unittest // LogTimming
     string msg;
     void timeLog(bool logBeginEnd = false, Duration warnMsecs = Duration.zero, bool logIt = true) nothrow
     {
-        auto timing = logIt ? LogTimming(tl, "timeLog", logBeginEnd, warnMsecs) : LogTimming.init;
+        auto timing = logIt
+            ? logBeginEnd ? LogTimming(tl, "timeLog", warnMsecs) : LogTimming(tl, "timeLog", warnMsecs, null, null)
+            : LogTimming.init;
         msg = tl.msg;
         if (warnMsecs > Duration.zero)
             Thread.sleep(warnMsecs + dur!"msecs"(2));

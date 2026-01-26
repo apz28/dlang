@@ -14,7 +14,7 @@ module pham.db.db_fbtype;
 import std.array : replace;
 import std.conv : to;
 import std.range.primitives : isOutputRange, put;
-import std.traits : EnumMembers, Unqual;
+import std.traits : EnumMembers, Unqual, isIntegral;
 
 debug(debug_pham_db_db_fbtype) import pham.db.db_debug;
 import pham.utl.utl_array_dictionary;
@@ -445,8 +445,7 @@ public:
                             goto case FbIsc.isc_info_truncated;
                         }
 
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        const uint columnLen = parseInt32!true(payload, posData, len, typ);
+                        const columnLen = parseInteger!uint32(payload, posData, typ);
 
                         if (bindIndex == bindResults.length)
                         {
@@ -459,8 +458,7 @@ public:
 			            break;
 
 			        case FbIsc.isc_info_sql_sqlda_seq:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-			            columnIndex = parseInt32!true(payload, posData, len, typ) - 1;
+			            columnIndex = parseInteger!int32(payload, posData, typ) - 1;
 
                         if (checkColumnIndex(typ) >= bindResults[checkBindIndex(typ)].length)
                         {
@@ -471,50 +469,42 @@ public:
 			            break;
 
 			        case FbIsc.isc_info_sql_type:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto dataType = parseInt32!true(payload, posData, len, typ);
+                        auto dataType = parseInteger!int32(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).type = dataType;
 			            break;
 
 			        case FbIsc.isc_info_sql_sub_type:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto dataSubType = parseInt32!true(payload, posData, len, typ);
+                        auto dataSubType = parseInteger!int32(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).subType = dataSubType;
 			            break;
 
 			        case FbIsc.isc_info_sql_scale:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto numericScale = cast(int16)parseInt32!true(payload, posData, len, typ);
+                        auto numericScale = cast(int16)parseInteger!int32(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).numericScale = numericScale;
 			            break;
 
 			        case FbIsc.isc_info_sql_length:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto dataSize = parseInt32!true(payload, posData, len, typ);
+                        auto dataSize = parseInteger!int32(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).size = dataSize;
 			            break;
 
 			        case FbIsc.isc_info_sql_field:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto columnName = parseString!true(payload, posData, len, typ);
+                        auto columnName = parseString(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).name = columnName;
 			            break;
 
 			        case FbIsc.isc_info_sql_relation:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto tableName = parseString!true(payload, posData, len, typ);
+			            auto tableName = parseString(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).tableName = tableName;
 			            break;
 
 			        case FbIsc.isc_info_sql_owner:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto owner = parseString!true(payload, posData, len, typ);
+                        auto owner = parseString(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).owner = owner;
 			            break;
 
 			        case FbIsc.isc_info_sql_alias:
-			            const uint len = parseInt32!true(payload, posData, 2, typ);
-                        auto aliasName = parseString!true(payload, posData, len, typ);
+                        auto aliasName = parseString(payload, posData, typ);
 			            bindResults[checkBindIndex(typ)].column(checkColumnIndex(typ)).aliasName = aliasName;
 			            break;
 
@@ -1339,14 +1329,13 @@ public:
             if (typ == FbIsc.isc_info_end)
                 break;
 
-            const len = parseInt32!true(payload, pos, 2, typ);
             switch (typ)
             {
 			    // Database characteristics
 
     		    // Number of database pages allocated
 			    case FbIsc.isc_info_allocation:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Database version(level) number:
@@ -1356,6 +1345,7 @@ public:
 			    case FbIsc.isc_info_base_level:
                     parseCheckLength(payload, pos, 2, typ);
 				    result ~= FbIscInfo(toVersionString([payload[pos], payload[pos + 1]]));
+                    pos += 2;
 				    break;
 
 			    /** Database file name and site name:
@@ -1366,12 +1356,9 @@ public:
 			        A string of l bytes, containing the site name
 			    */
 			    case FbIsc.isc_info_db_id:
-                    auto pos2 = pos + 1;
-                    int len2 = parseInt32!true(payload, pos2, 1, typ);
-                    auto dbFile = parseString!true(payload, pos2, len2, typ);
-
-                    len2 = parseInt32!true(payload, pos2, 1, typ);
-                    auto siteName = parseString!false(payload, pos2, len2, typ);
+                    pos++;
+                    auto dbFile = parseString(payload, pos, typ, 1);
+                    auto siteName = parseString(payload, pos, typ, 1);
                     const(char)[] fullName = siteName ~ ":" ~ dbFile;
                     result ~= FbIscInfo(fullName);
 				    break;
@@ -1384,6 +1371,7 @@ public:
 			    case FbIsc.isc_info_implementation:
                     parseCheckLength(payload, pos, 3, typ);
 				    result ~= FbIscInfo(toVersionString([payload[pos], payload[pos + 1], payload[pos + 2]]));
+                    pos += 3;
 				    break;
 
 			    /** 0 or 1
@@ -1392,7 +1380,9 @@ public:
 			        1 indicates no space is reserved for such records
 			    */
 			    case FbIsc.isc_info_no_reserve:
-				    result ~= FbIscInfo(parseBool!false(payload, pos, typ));
+                    parseCheckLength(payload, pos, 1, typ);
+				    result ~= FbIscInfo(payload[pos] == 1);
+                    pos++;
 				    break;
 
 			    /** ODS major version number
@@ -1403,7 +1393,7 @@ public:
 			        results in an error
 			    */
 			    case FbIsc.isc_info_ods_version:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** On-disk structure (ODS) minor version number; an increase in a
@@ -1413,14 +1403,14 @@ public:
 				    version numbers
 			    */
 			    case FbIsc.isc_info_ods_minor_version:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Number of bytes per page of the attached database; use with
 				    isc_info_allocation to determine the size of the database
 			    */
 			    case FbIsc.isc_info_page_size:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Version identification string of the database implementation:
@@ -1430,20 +1420,18 @@ public:
 			    */
 			    case FbIsc.isc_info_version:
 			    case FbIsc.isc_info_firebird_version:
-                    uint msgCount = parseInt32!false(payload, pos, 1, typ);
-                    auto pos2 = pos + 1;
+                    parseCheckLength(payload, pos, 1, typ);
+                    uint msgCount = payload[pos];
+                    pos++;
                     while (msgCount--)
-				    {
-                        const len2 = parseInt32!true(payload, pos2, 1, typ);
-                        result ~= FbIscInfo(parseString!true(payload, pos2, len2, typ));
-				    }
+                        result ~= FbIscInfo(parseString(payload, pos, typ, 1));
 				    break;
 
 			    // Environmental characteristics
 
 			    // Amount of server memory (in bytes) currently in use
 			    case FbIsc.isc_info_current_memory:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Number specifying the mode in which database writes are performed
@@ -1451,100 +1439,102 @@ public:
                     1 for synchronous
 			    */
 			    case FbIsc.isc_info_forced_writes:
-				    result ~= FbIscInfo(parseBool!false(payload, pos, typ));
+                    parseCheckLength(payload, pos, 1, typ);
+				    result ~= FbIscInfo(payload[pos] == 1);
+                    pos++;
 				    break;
 
 			    /** Maximum amount of memory (in bytes) used at one time since the first
 			        process attached to the database
 			    */
 			    case FbIsc.isc_info_max_memory:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of memory buffers currently allocated
 			    case FbIsc.isc_info_num_buffers:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Number of transactions that are committed between sweeps to
 			        remove database record versions that are no longer needed
 		        */
 			    case FbIsc.isc_info_sweep_interval:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Performance statistics
 
 			    // Number of reads from the memory data cache
 			    case FbIsc.isc_info_fetches:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of writes to the memory data cache
 			    case FbIsc.isc_info_marks:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of page reads
 			    case FbIsc.isc_info_reads:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of page writes
 			    case FbIsc.isc_info_writes:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Database operation counts
 
 			    // Number of removals of a version of a record
 			    case FbIsc.isc_info_backout_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of database deletes since the database was last attached
 			    case FbIsc.isc_info_delete_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Number of removals of a record and all of its ancestors, for records
 			        whose deletions have been committed
 			    */
 			    case FbIsc.isc_info_expunge_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of inserts into the database since the database was last attached
 			    case FbIsc.isc_info_insert_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of removals of old versions of fully mature records
 			    case FbIsc.isc_info_purge_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of reads done via an index since the database was last attached
 			    case FbIsc.isc_info_read_idx_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    /** Number of sequential sequential table scans (row reads) done on each
 			        table since the database was last attached
 			    */
 			    case FbIsc.isc_info_read_seq_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
     		    // Number of database updates since the database was last attached
 			    case FbIsc.isc_info_update_count:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Misc
 
 			    case FbIsc.isc_info_db_class:
-				    const serverClass = parseInt32!false(payload, pos, len, typ);
+				    const serverClass = parseInteger!int32(payload, pos, typ);
                     string serverText = serverClass == FbIsc.isc_info_db_class_classic_access
 					        ? FbIscText.infoDbClassClassicText
                             : FbIscText.infoDbClassServerText;
@@ -1552,49 +1542,48 @@ public:
 				    break;
 
 			    case FbIsc.isc_info_db_read_only:
-				    result ~= FbIscInfo(parseBool!false(payload, pos, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
                 // Database size in pages
 			    case FbIsc.isc_info_db_size_in_pages:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
                 // Number of oldest transaction
 			    case FbIsc.isc_info_oldest_transaction:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
                 // Number of oldest active transaction
 			    case FbIsc.isc_info_oldest_active:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
                 // Number of oldest snapshot transaction
 			    case FbIsc.isc_info_oldest_snapshot:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of next transaction
 			    case FbIsc.isc_info_next_transaction:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
 			    // Number of active	transactions
 			    case FbIsc.isc_info_active_transactions:
-				    result ~= FbIscInfo(parseInt32!false(payload, pos, len, typ));
+				    result ~= FbIscInfo(parseInteger!int32(payload, pos, typ));
 				    break;
 
     		    // Active user name
 			    case FbIsc.isc_info_user_names:
-                    const uint len2 = parseInt32!false(payload, pos, 1, typ);
-				    result ~= FbIscInfo(parseString!false(payload, pos + 1, len2, typ));
+				    result ~= FbIscInfo(parseString(payload, pos, typ, 1));
 				    break;
 
                 default:
+                    pos += parseLength(payload, pos, typ);
                     break;
             }
-            pos += len;
         }
 
         return result;
@@ -1816,8 +1805,7 @@ public:
         {
             import pham.utl.utl_array : indexOf;
 
-			const uint len1 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_key_type);
-            auto pluginType = parseString!true(data, pos, len1, FbIscServerKeyType.tag_key_type).idup;
+            auto pluginType = parseString(data, pos, FbIscServerKeyType.tag_key_type, 1).idup;
             if (pos >= endPos)
                 return;
 
@@ -1828,16 +1816,14 @@ public:
                 throw new FbException(DbErrorCode.read, msg);
             }
 
-			const uint len2 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_key_plugins);
-            auto pluginNames = parseString!true(data, pos, len2, FbIscServerKeyType.tag_key_plugins).idup;
+            auto pluginNames = parseString(data, pos, FbIscServerKeyType.tag_key_plugins, 1).idup;
 
             FbIscServerPluginKey[] pluginKeys;
             while (pos < endPos && data[pos] == FbIscServerKeyType.tag_plugin_specific)
             {
                 pos++;
 
-                const uint len3 = parseInt32!true(data, pos, 1, FbIscServerKeyType.tag_plugin_specific);
-                auto data = parseBytes(data, pos, len3, FbIscServerKeyType.tag_plugin_specific);
+                auto data = parseBytes(data, pos, FbIscServerKeyType.tag_plugin_specific, 1);
                 const i = data.indexOf(0);
                 if (i > 0)
                 {
@@ -1889,7 +1875,7 @@ nothrow @safe:
         user,
     }
 
-    void reset() 
+    void reset()
     {
         code = int32Value = 0;
         strValue = null;
@@ -1898,7 +1884,7 @@ nothrow @safe:
         userInfoValues = null;
         valueKind = ValueKind.unassigned;
     }
-    
+
     string strValue;
     ubyte[] byteValues;
     FbIscDatabaseInfo databaseInfoValue;
@@ -2079,6 +2065,26 @@ public:
     uint line;
 }
 
+struct FbIscTransactionInfo
+{
+@safe:
+
+public:
+    static typeof(this) parse(scope const(ubyte)[] data)
+    {
+        return parseTransactionInfo(data);
+    }
+
+public:
+    int64 id;
+    int64 oldestActiveId;
+    int64 snapshotId;
+    uint8 access; // [isc_info_tra_readonly | isc_info_tra_readwrite]
+    uint8 isolation; // [isc_info_tra_read_committed | isc_info_tra_consistency | isc_info_tra_concurrency]
+    uint8 isolationSub; // For isc_info_tra_read_committed, it can have [isc_info_tra_read_consistency | isc_info_tra_rec_version | isc_info_tra_no_rec_version]
+    int16 lockTimeout;
+}
+
 struct FbIscTrustedAuthResponse
 {
 nothrow @safe:
@@ -2148,7 +2154,7 @@ if (isOutputRange!(W, ubyte))
     size_t result, pos;
 	while (pos < endPos)
 	{
-        const len = parseInt32!true(data, pos, 2, FbIscType.sql_blob);
+        const len = parseLength(data, pos, FbIscType.sql_blob);
         put(sink, data[pos..pos + len]);
         result += len;
         pos += len;
@@ -2171,23 +2177,22 @@ FbIscBlobSize parseBlobSize(scope const(ubyte)[] data)
         if (typ == FbIsc.isc_info_end)
             break;
 
-        const len = parseInt32!true(data, pos, 2, typ);
         switch (typ)
         {
             case FbIsc.isc_info_blob_max_segment:
-                result.maxSegment = parseInt32!true(data, pos, len, typ);
+                result.maxSegment = parseInteger!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_info_blob_num_segments:
-                result.segmentCount = parseInt32!true(data, pos, len, typ);
+                result.segmentCount = parseInteger!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_info_blob_total_length:
-                result.length = parseInt32!true(data, pos, len, typ);
+                result.length = parseInteger!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_info_blob_type:
-                result.type = parseInt32!true(data, pos, len, typ);
+                result.type = parseInteger!int32(data, pos, typ);
                 break;
 
             default:
@@ -2202,55 +2207,41 @@ FbIscBlobSize parseBlobSize(scope const(ubyte)[] data)
     return result;
 }
 
-bool parseBool(bool advance)(scope const(ubyte)[] data, size_t index, int type) pure
-if (advance == false)
+bool parseBool(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
 {
-    parseCheckLength(data, index, 1, type);
-    return parseBoolImpl(data, index);
+    uint bytes;
+    return parseBool(data, index, bytes, type, lengthBytes);
 }
 
-int parseBool(bool advance)(scope const(ubyte)[] data, ref size_t index, int type) pure
-if (advance == true)
+bool parseBool(scope const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
 {
-    parseCheckLength(data, index, 1, type);
-    return parseBoolImpl(data, index);
+    return parseInteger!int32(data, index, bytes, type, lengthBytes) != 0;
 }
 
+const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+{
+    uint bytes;
+    return parseBytes(data, index, bytes, type, lengthBytes);
+}
+
+const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+{
+    bytes = parseLength(data, index, type, lengthBytes);
+
+    const(ubyte)[] result = null;
+    if (bytes)
+        result = data[index..index + bytes];
+    index += bytes;
+    bytes += lengthBytes;
+
+    return result;
+}
+
+/**
+ * Check if index + length is not out of bound of array `data`
+ */
 pragma(inline, true)
-private bool parseBoolImpl(scope const(ubyte)[] data, ref size_t index) nothrow pure
-{
-    return data[index++] == 1;
-}
-
-const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, uint length, int type) pure
-{
-    parseCheckLength(data, index, length, type);
-    return parseBytesImpl(data, index, length);
-}
-
-const(ubyte)[] parseBytes(byte byteLength = 2)(const(ubyte)[] data, ref size_t index, int type) pure
-{
-    uint length;
-    return parseLength!byteLength(data, index, length, type)
-        ? parseBytes(data, index, length, type)
-        : null;
-}
-
-pragma(inline, true)
-private const(ubyte)[] parseBytesImpl(const(ubyte)[] data, ref size_t index, uint length) nothrow pure
-{
-    if (length)
-    {
-        auto result = data[index..index + length];
-        index += length;
-        return result;
-    }
-    else
-        return null;
-}
-
-pragma(inline, true)
-void parseCheckLength(scope const(ubyte)[] data, size_t index, uint length, int type) pure
+void parseCheckLength(scope const(ubyte)[] data, size_t index, const(uint) length, int type) pure
 {
     if (index + length > data.length)
     {
@@ -2272,17 +2263,16 @@ FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
         if (typ == FbIsc.isc_info_end)
             break;
 
-		const len = parseInt32!true(data, pos, 2, typ);
 		if (typ == FbIsc.isc_info_sql_stmt_type)
-		    return cast(FbIscCommandType)parseInt32!true(data, pos, len, typ);
+		    return cast(FbIscCommandType)parseInteger!int32(data, pos, typ);
         else
-            pos += len;
+            pos += parseLength(data, pos, typ);
 	}
 
 	return FbIscCommandType.none;
 }
 
-FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data)
+FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data) pure
 {
     FbIscDatabaseInfo result;
 
@@ -2300,15 +2290,15 @@ FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data)
         switch (typ)
         {
             case FbIsc.isc_spb_num_att:
-                result.connectionCount = parseInt32!true(data, pos, 4, typ);
+                result.connectionCount = parseIntegerFixedLength!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_spb_dbname:
-                result.databaseNames ~= parseString!true(data, pos, typ).idup;
+                result.databaseNames ~= parseString(data, pos, typ).idup;
                 break;
 
             case FbIsc.isc_spb_num_db:
-                pos += 4;
+                pos += uint32.sizeof; // parseIntegerFixedLength!int32(data, pos, typ)
                 break;
 
             default:
@@ -2320,82 +2310,127 @@ FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data)
     return result;
 }
 
-int32 parseInt32(bool advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
-if (advance == false)
+T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+if (isIntegral!T)
 {
-    parseCheckLength(data, index, length, type);
-    return parseInt32Impl(data, index, length);
+    uint bytes;
+    return parseInteger!T(data, index, bytes, type, lengthBytes);
 }
 
-int32 parseInt32(bool advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
-if (advance == true)
+T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+if (isIntegral!T)
 {
-    parseCheckLength(data, index, length, type);
-    return parseInt32Impl(data, index, length);
+    bytes = parseLength(data, index, type, lengthBytes);
+
+    T result = 0;
+    uint shift = 0;
+    foreach (i; 0..bytes)
+    {
+        result += cast(T)data[index++] << shift;
+        shift += 8;
+    }
+    bytes += lengthBytes;
+
+    return result;
 }
 
-int32 parseInt32(bool advance, byte byteLength = 2)(scope const(ubyte)[] data, ref size_t index, int type) pure
-if (advance == true)
+T parseIntegerFixedLength(T)(scope const(ubyte)[] data, ref size_t index, int type) pure
+if (isIntegral!T)
 {
-    uint length;
-    return parseLength!byteLength(data, index, length, type)
-        ? parseInt32!true(data, index, length, type)
-        : 0;
+    parseCheckLength(data, index, T.sizeof, type);
+
+    T result = 0;
+    uint shift = 0;
+    foreach (i; 0..T.sizeof)
+    {
+        result += cast(T)data[index++] << shift;
+        shift += 8;
+    }
+
+    return result;
 }
 
-private int32 parseInt32Impl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
+/**
+ * Check and return length in `length` bytes
+ */
+uint parseLength(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+in
 {
-	int32 result = 0;
-	uint shift = 0;
-	while (length--)
+    assert(lengthBytes <= 4);
+}
+do
+{
+    parseCheckLength(data, index, lengthBytes, type);
+
+	uint result, shift;
+	foreach (i; 0..lengthBytes)
 	{
-		result += cast(int)data[index++] << shift;
+		result += cast(uint)data[index++] << shift;
 		shift += 8;
 	}
-	return result;
+    
+    parseCheckLength(data, index, result, type);
+    return result;
 }
 
-version(none)
-int64 parseInt64(bool advance)(scope const(ubyte)[] data, size_t index, uint length, int type) pure
-if (advance == false)
+FbIscTransactionInfo parseTransactionInfo(scope const(ubyte)[] data)
 {
-    parseCheckLength(data, index, length, type);
-    return parseInt64Impl(data, index, length);
-}
+    FbIscTransactionInfo result;
 
-version(none)
-int64 parseInt64(bool advance)(scope const(ubyte)[] data, ref size_t index, uint length, int type) pure
-if (advance == true)
-{
-    parseCheckLength(data, index, length, type);
-    return parseInt64Impl(data, index, length);
-}
+    if (data.length <= 2)
+        return result;
 
-version(none)
-private int64 parseInt64Impl(scope const(ubyte)[] data, ref size_t index, uint length) nothrow pure
-{
-	int64 result = 0;
-	uint shift = 0;
-	while (length--)
-	{
-		result += cast(int64)data[index++] << shift;
-		shift += 8;
-	}
-	return result;
-}
+    const endPos = data.length - 2; // -2 for item length
+    size_t pos = 0;
+    while (pos < endPos)
+    {
+        const typ = data[pos++];
+        if (typ == FbIsc.isc_info_end)
+            break;
 
-bool parseLength(byte byteLength = 2)(scope const(ubyte)[] data, ref size_t index, out uint length, int type) pure
-{
-    length = parseInt32!true(data, index, byteLength, type);
-    return length != 0;
+        switch (typ)
+        {
+            case FbIsc.isc_info_tra_id:
+                result.id = parseInteger!int64(data, pos, typ);
+                break;
+
+            case FbIsc.isc_info_tra_oldest_active:
+                result.oldestActiveId = parseInteger!int64(data, pos, typ);
+                break;
+
+            case FbIsc.isc_info_tra_oldest_snapshot:
+                result.snapshotId = parseInteger!int64(data, pos, typ);
+                break;
+
+            case FbIsc.isc_info_tra_isolation:
+                const v = parseInteger!uint16(data, pos, typ);
+                result.isolation = cast(uint8)(v & 0xFF);
+                result.isolationSub = cast(uint8)((v >> 8) & 0xFF);
+                break;
+
+            case FbIsc.isc_info_tra_access:
+                result.access = parseInteger!uint8(data, pos, typ);
+                break;
+
+            case FbIsc.isc_info_tra_lock_timeout:
+                result.lockTimeout = parseInteger!int16(data, pos, typ);
+                break;
+
+            //case FbIsc.isc_info_error:
+
+            default:
+                auto msg = DbMessage.eInvalidSQLDAType.fmtMessage(typ);
+                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_dsql_sqlda_err);
+        }
+    }
+
+    return result;
 }
 
 string parsePlan(scope const(ubyte)[] data, FbIsc describeMode) pure
 {
-    const len = parseInt32!false(data, 1, 2, describeMode);
-    return len > 0
-        ? parseString!false(data, 3, len, describeMode).idup
-        : null;
+    size_t index = 1;
+    return parseString(data, index, describeMode).idup;
 }
 
 DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
@@ -2418,8 +2453,7 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
             if (typ == FbIsc.isc_info_end)
                 break;
 
-			const len = parseInt32!true(data, pos, 2, typ);
-            const count = parseInt32!true(data, pos, len, typ);
+            const count = parseInteger!int32(data, pos, typ);
 			switch (typ)
 			{
 				case FbIsc.isc_info_req_select_count:
@@ -2443,7 +2477,6 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 					break;
 
                 default:
-                    pos += len;
                     break;
 			}
 		}
@@ -2455,7 +2488,7 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
         if (typ == FbIsc.isc_info_end)
             break;
 
-		const len = parseInt32!true(data, pos, 2, typ);
+		const len = parseLength(data, pos, typ);
 		if (typ == FbIsc.isc_info_sql_records)
 		{
             if (pos < endPos)
@@ -2468,6 +2501,25 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 	}
 
 	return result;
+}
+
+const(char)[] parseString(return const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+{
+    uint bytes;
+    return parseString(data, index, bytes, type, lengthBytes);
+}
+
+const(char)[] parseString(return const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+{
+    bytes = parseLength(data, index, type, lengthBytes);
+
+    const(char)[] result = null;
+    if (bytes)
+        result = cast(const(char)[])data[index..index + bytes];
+    index += bytes;
+    bytes += lengthBytes;
+
+    return result;
 }
 
 FbHandle parseTraceSessionId(scope const(char)[] statusLine) nothrow
@@ -2500,42 +2552,6 @@ FbHandle parseTraceSessionId(scope const(char)[] statusLine) nothrow
     return FbHandle.init;
 }
 
-const(char)[] parseString(bool advance)(return const(ubyte)[] data, size_t index, uint length, int type) pure
-if (advance == false)
-{
-    parseCheckLength(data, index, length, type);
-    return parseStringImpl(data, index, length);
-}
-
-const(char)[] parseString(bool advance)(return const(ubyte)[] data, ref size_t index, uint length, int type) pure
-if (advance == true)
-{
-    parseCheckLength(data, index, length, type);
-    return parseStringImpl(data, index, length);
-}
-
-const(char)[] parseString(bool advance, byte byteLength = 2)(return const(ubyte)[] data, ref size_t index, int type) pure
-if (advance == true)
-{
-    uint length;
-    return parseLength!byteLength(data, index, length, type)
-        ? parseString!true(data, index, length, type)
-        : null;
-}
-
-pragma(inline, true)
-private const(char)[] parseStringImpl(return const(ubyte)[] data, ref size_t index, uint length) nothrow pure
-{
-    if (length)
-    {
-        auto result = cast(const(char)[])data[index..index + length];
-        index += length;
-        return result;
-    }
-    else
-        return null;
-}
-
 FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
 {
     debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(data.length=", data.length, ")");
@@ -2563,39 +2579,39 @@ FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
                     result ~= currentUser;
 
                 currentUser.reset();
-                currentUser.userName = parseString!true(data, pos, typ).idup;
+                currentUser.userName = parseString(data, pos, typ).idup;
                 break;
 
             case FbIsc.isc_spb_sec_firstname:
-                currentUser.firstName = parseString!true(data, pos, typ).idup;
+                currentUser.firstName = parseString(data, pos, typ).idup;
                 break;
 
             case FbIsc.isc_spb_sec_middlename:
-                currentUser.middleName = parseString!true(data, pos, typ).idup;
+                currentUser.middleName = parseString(data, pos, typ).idup;
                 break;
 
             case FbIsc.isc_spb_sec_lastname:
-                currentUser.lastName = parseString!true(data, pos, typ).idup;
+                currentUser.lastName = parseString(data, pos, typ).idup;
                 break;
 
             case FbIsc.isc_spb_sec_userid:
-                currentUser.userId = parseInt32!true(data, pos, 4, typ);
+                currentUser.userId = parseIntegerFixedLength!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_spb_sec_groupid:
-                currentUser.groupId = parseInt32!true(data, pos, 4, typ);
+                currentUser.groupId = parseIntegerFixedLength!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_spb_sec_admin:
-                currentUser.admin = parseInt32!true(data, pos, 4, typ);
+                currentUser.admin = parseIntegerFixedLength!int32(data, pos, typ);
                 break;
 
             case FbIsc.isc_spb_sec_groupname:
-                currentUser.groupName = parseString!true(data, pos, typ).idup;
+                currentUser.groupName = parseString(data, pos, typ).idup;
                 break;
 
             case FbIsc.isc_spb_sec_password:
-                currentUser.userPassword = parseString!true(data, pos, typ).idup;
+                currentUser.userPassword = parseString(data, pos, typ).idup;
                 break;
 
             default:

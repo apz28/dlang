@@ -213,13 +213,23 @@ enum FbIsc
     isc_tpb_no_auto_undo = 20,
     isc_tpb_lock_timeout = 21,
 
-    // Transaction information items
+    // Transaction information items for
+    // op_info_transaction
     isc_info_tra_id = 4,
     isc_info_tra_oldest_interesting = 5,
     isc_info_tra_oldest_snapshot = 6,
     isc_info_tra_oldest_active = 7,
     isc_info_tra_isolation = 8,
+        isc_info_tra_consistency = 1,
+        isc_info_tra_concurrency = 2,
+        isc_info_tra_read_committed = 3,
+        // sub-info of isc_info_tra_read_committed
+        isc_info_tra_no_rec_version	= 0,
+        isc_info_tra_rec_version = 1,
+        isc_info_tra_read_consistency = 2,
     isc_info_tra_access = 9,
+        isc_info_tra_readonly = 0,
+        isc_info_tra_readwrite = 1,
     isc_info_tra_lock_timeout = 10,
 
     // Database Parameter Block parameters
@@ -546,14 +556,16 @@ enum FbIsc
     op_cancel_blob = 38,
     op_close_blob = 39,
     op_info_blob = 43,
-        // Blob information items for op_info_blob
-        isc_info_blob_num_segments = 4,
-        isc_info_blob_max_segment = 5,
-        isc_info_blob_total_length = 6,
-        isc_info_blob_type = 7,
     op_batch_segments = 44, // For putting all blob
     op_open_blob2 = 56,
     op_create_blob2 = 57,
+
+    // Blob information items for
+    // op_info_blob
+    isc_info_blob_num_segments = 4,
+    isc_info_blob_max_segment = 5,
+    isc_info_blob_total_length = 6,
+    isc_info_blob_type = 7,
 
     // Array operations
     op_get_slice = 58,
@@ -641,6 +653,7 @@ enum FbIscSize
     socketReadBufferLength = (oneK * 64) + (oneK * 2),
     socketWriteBufferLength = (oneK * 64) + oneK,
     statementTypeBufferLength = 100,
+    transactionInfoBufferLength = 100,
 }
 
 enum FbIscResultCode

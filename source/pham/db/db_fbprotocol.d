@@ -1144,6 +1144,28 @@ public:
         writer.flush();
     }
 
+    final FbIscTransactionInfo transactionInfoRead()
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+        auto deferredInfo = FbDeferredInfo(FbDeferredFlag.scopedData);
+        auto r = readGenericResponse(deferredInfo, null);
+        return FbIscTransactionInfo.parse(r.data);
+    }
+
+    final void transactionInfoWrite(FbTransaction transaction)
+    {
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
+
+        auto writer = FbXdrWriter(connection);
+		writer.writeOperation(FbIsc.op_info_transaction);
+        writer.writeHandle(transaction.fbHandle);
+		writer.writeHandle(0);
+		writer.writeBytes(describeTransactionInfoItems);
+		writer.writeInt32(FbIscSize.transactionInfoBufferLength);
+        writer.flush();
+    }
+
     final FbIscCommandType typeCommandRead(FbCommand command, ref FbDeferredInfo deferredInfo)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
@@ -2693,4 +2715,15 @@ static immutable ubyte[] describeStatementRowsAffectedInfoItems = [
 // SQL type
 static immutable ubyte[] describeStatementTypeInfoItems = [
     FbIsc.isc_info_sql_stmt_type,
+    ];
+
+// Transaction information
+static immutable ubyte[] describeTransactionInfoItems = [
+    FbIsc.isc_info_tra_id,
+    FbIsc.isc_info_tra_oldest_active,
+    FbIsc.isc_info_tra_oldest_snapshot,
+    FbIsc.isc_info_tra_isolation,
+    FbIsc.isc_info_tra_access,
+    FbIsc.isc_info_tra_lock_timeout,
+    FbIsc.isc_info_end,
     ];

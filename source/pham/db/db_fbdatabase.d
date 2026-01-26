@@ -1365,7 +1365,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1447,7 +1447,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -1492,7 +1492,7 @@ protected:
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, sql), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         static if (fbDeferredProtocol)
@@ -1579,7 +1579,7 @@ protected:
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
-            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), false, logTimmingWarningDur)
+            ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
         auto protocol = fbConnection.protocol;
@@ -3400,7 +3400,7 @@ package(pham.db):
 				case FbIsc.isc_info_svc_get_license_mask:
 				case FbIsc.isc_info_svc_capabilities:
 				case FbIsc.isc_info_svc_get_licensed_users:
-                    auto iv = parseInt32!true(data, pos, typ);
+                    auto iv = parseInteger!int32(data, pos, typ);
                     info.valueKind = FbIscServiceInfoResponse.ValueKind.int32;
                     info.code = typ;
                     info.int32Value = iv;
@@ -3415,7 +3415,7 @@ package(pham.db):
 				case FbIsc.isc_info_svc_get_env_msg:
 				case FbIsc.isc_info_svc_user_dbpath:
 				case FbIsc.isc_info_svc_line:
-                    auto str = parseString!true(data, pos, typ);
+                    auto str = parseString(data, pos, typ);
                     const concateStr = truncated && info.strValue.length;
                     if (str.length || concateStr)
                     {
@@ -3430,7 +3430,7 @@ package(pham.db):
                     break;
 
 				case FbIsc.isc_info_svc_to_eof:
-                    auto buf = parseBytes!2(data, pos, typ);
+                    auto buf = parseBytes(data, pos, typ);
                     const concateBytes = truncated && info.byteValues.length;
                     if (buf.length || concateBytes)
                     {
@@ -3445,7 +3445,7 @@ package(pham.db):
                     break;
 
 				case FbIsc.isc_info_svc_svr_db_info:
-                    auto dbData = parseBytes!2(data, pos, typ);
+                    auto dbData = parseBytes(data, pos, typ);
                     auto db = dbData.length ? parseDatabaseInfo(dbData) : FbIscDatabaseInfo.init;
                     if (dbData.length)
                     {
@@ -3460,7 +3460,7 @@ package(pham.db):
                     break;
 
 				case FbIsc.isc_info_svc_get_users:
-                    auto usrData = parseBytes!2(data, pos, typ);
+                    auto usrData = parseBytes(data, pos, typ);
                     auto usr = usrData.length ? parseUserInfo(usrData) : cast(FbIscUserInfo[])null;
                     if (usr.length || (truncated && info.userInfoValues.length))
 					{
@@ -3550,6 +3550,13 @@ public:
     {
         enum minSupportVersion = VersionString("4.0");
         return super.canSavePoint() && VersionString(connection.serverVersion()) >= minSupportVersion;
+    }
+
+    final FbIscTransactionInfo info()
+    {
+        auto protocol = fbConnection.protocol;
+        protocol.transactionInfoWrite(this);
+        return protocol.transactionInfoRead();
     }
 
     @property final FbConnection fbConnection() nothrow pure @safe
@@ -5496,6 +5503,30 @@ unittest // blob
 }
 
 version(UnitTestFBDatabase)
+unittest // FbTransaction.info
+{
+    auto connection = createUnitTestConnection();
+    scope (exit)
+        connection.dispose();
+    connection.open();
+
+    auto transaction = cast(FbTransaction)connection.defaultTransaction();
+    transaction.start();
+    scope (exit)
+        transaction.rollback();
+
+    auto info = transaction.info();
+    // import std.stdio : writeln; writeln("FbTransaction.info=", info);
+    assert(info.id != 0);
+    assert(info.oldestActiveId != 0);
+    assert(info.snapshotId != 0);
+    assert(info.access == FbIsc.isc_info_tra_readwrite);
+    assert(info.isolation == FbIsc.isc_info_tra_read_committed);
+    //assert(info.isolationSub == FbIsc);
+    //assert(info.lockTimeout != 0);
+}
+
+version(UnitTestFBDatabase)
 unittest // FbConnection.openService
 {
     auto connection = createUnitTestConnection();
@@ -5515,7 +5546,7 @@ version(UnitTestFBDatabase)
 unittest // FbService.trace...
 {
     import pham.db.db_debug : writelnFor;
-    
+
     auto csb = createUnitTestConnectionStringBuilder();
     csb.receiveTimeout = dur!"seconds"(3); // For production usage, should be desired duration to wait for to get all trace logs
     auto service = FbService(csb);
@@ -5531,7 +5562,7 @@ unittest // FbService.trace...
 
     FbHandle sessionId;
 
-    logLines.length = 0;    
+    logLines.length = 0;
     FbTraceDatabaseConfiguration databaseConfiguration;
     service.traceStart("test", [databaseConfiguration], sessionId);
     service.traceStop(sessionId);
@@ -5560,7 +5591,7 @@ unittest // FbService.logGet
         logLines ~= (fct ~ '=' ~ info.strValue);
     }
     service.serviceOutputEvents ~= &serviceOutput;
-    
+
     logLines.length = 0;
     service.logGet();
     writelnFor(logLines, 2, 2);
