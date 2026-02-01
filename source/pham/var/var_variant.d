@@ -28,7 +28,7 @@ import std.traits : ConstOf, ImmutableOf, Parameters, ReturnType, SharedConstOf,
     staticMap;
 import std.typecons : ReplaceTypeUnless, Tuple;
 
-debug(debug_pham_var_var_variant) import std.stdio : writeln;
+debug(debug_pham_var_var_variant) import pham.var.var_debug;
 import pham.utl.utl_result : cmp;
 import pham.utl.utl_trait : isDelegateWith, isTypeOf, maxAlignment, maxSize;
 import pham.var.var_coerce;
@@ -83,6 +83,7 @@ enum VariantType : ubyte
  * `VariantN` object without being boxed (types larger than this will be boxed).
  */
 struct VariantN(size_t MaxDataSize, AllowedDataTypes...)
+if (MaxDataSize >= size_t.sizeof)
 {
 public:
     /**
@@ -103,8 +104,7 @@ public:
     }
 
     enum bool elaborateConstructor = !AllowedTypes.length
-        || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes)
-        || MaxDataSize < maxSize!(AllowedTypes);
+        || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes);
 
     enum bool elaborateDestructor = !AllowedTypes.length
         || anySatisfy!(hasElaborateDestructor, AllowedTypes);
@@ -138,11 +138,12 @@ public:
     {
         this(this) nothrow @trusted
         {
+            debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(this.stringof=", typeof(this).stringof, ", this.typeInfo=", this.typeInfo.toString, ")");
+
             if (handler)
-            {
-                ubyte[size] tempStore;
-                handler.postblit(size, pointer, &tempStore);
-            }
+                handler.postblit(size, pointer, typeInfo);
+
+            debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(this.stringof=", typeof(this).stringof, ", this.typeInfo=", this.typeInfo.toString, ")");
         }
     }
 
@@ -421,12 +422,12 @@ public:
     {
         static if (is(Unqual!T == VariantN))
         {
-            alias trhs = Unqual!T;
+            alias TRhs = Unqual!T;
             scope prhs = &rhs;
         }
         else
         {
-            alias trhs = VariantN;
+            alias TRhs = VariantN;
             auto vrhs = VariantN(rhs);
             scope prhs = &vrhs;
         }
@@ -437,15 +438,15 @@ public:
 
         // Convert rhs to self type?
         VariantN convertedToSelf;
-        if (prhs.handler.tryGet(prhs.size, prhs.pointer, convertedToSelf.size, convertedToSelf.pointer, this.typeInfo))
+        if (prhs.handler.tryGet(prhs.size, prhs.pointer, convertedToSelf.size, convertedToSelf.pointer, prhs.typeInfo))
         {
             () nothrow @trusted { convertedToSelf.handler = cast(Handler!void*)handler; } ();
             return handler.cmp(size, pointer, convertedToSelf.size, convertedToSelf.pointer);
         }
 
         // Convert self to rhs type?
-        trhs convertedToRhs;
-        if (handler.tryGet(size, pointer, convertedToRhs.size, convertedToRhs.pointer, prhs.typeInfo))
+        TRhs convertedToRhs;
+        if (handler.tryGet(size, pointer, convertedToRhs.size, convertedToRhs.pointer, this.typeInfo))
         {
             () nothrow @trusted { convertedToRhs.handler = cast(Handler!void*)prhs.handler; } ();
             return prhs.handler.cmp(convertedToRhs.size, convertedToRhs.pointer, prhs.size, prhs.pointer);
@@ -464,7 +465,7 @@ public:
         // if it's 'null' then it's equal to null, otherwise it's always greater
         // than 'null'
         const nullLhs = isNull ? 0 : 1;
-        const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
+        const nullRhs = .nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
             return .cmp(nullLhs, nullRhs);
@@ -484,12 +485,12 @@ public:
     {
         static if (is(Unqual!T == VariantN))
         {
-            alias trhs = Unqual!T;
+            alias TRhs = Unqual!T;
             scope prhs = &rhs;
         }
         else
         {
-            alias trhs = VariantN;
+            alias TRhs = VariantN;
             auto vrhs = VariantN(rhs);
             scope prhs = &vrhs;
         }
@@ -502,15 +503,15 @@ public:
         VariantN convertedToSelf;
         if (prhs.handler.tryGet(prhs.size, prhs.pointer, convertedToSelf.size, convertedToSelf.pointer, this.typeInfo))
         {
-            () nothrow @trusted { convertedToSelf.handler = cast(Handler!void*)handler; } ();
+            convertedToSelf.handler = cast(Handler!void*)handler;
             return handler.equals(size, pointer, convertedToSelf.size, convertedToSelf.pointer);
         }
 
         // Convert self to rhs type?
-        trhs convertedToRhs;
+        TRhs convertedToRhs;
         if (handler.tryGet(size, pointer, convertedToRhs.size, convertedToRhs.pointer, prhs.typeInfo))
         {
-            () nothrow @trusted { convertedToRhs.handler = cast(Handler!void*)prhs.handler; } ();
+            convertedToRhs.handler = cast(Handler!void*)prhs.handler;
             return prhs.handler.equals(convertedToRhs.size, convertedToRhs.pointer, prhs.size, prhs.pointer);
         }
 
@@ -527,7 +528,7 @@ public:
         // if it's 'null' then it's equal to null, otherwise it's always greater
         // than 'null'
         const nullLhs = isNull ? 0 : 1;
-        const nullRhs = nullTypeOf!T() == NullType.value ? 1 : 0;
+        const nullRhs = .nullTypeOf!T() == NullType.value ? 1 : 0;
 
         if (nullLhs == 0 || nullRhs == 0)
             return nullLhs == nullRhs;
@@ -663,7 +664,12 @@ public:
      */
     bool canGet(T)() inout nothrow @safe
     {
-        return handler.tryGet(size, pointer, 0, null, typeid(T));
+        static if (is(typeof(T.isAnyVariantNType)) && T.AllowedTypes.length == 0)
+        {
+            return true;
+        }
+        else
+            return handler.tryGet(size, pointer, 0, null, typeid(T));
     }
 
     /**
@@ -684,6 +690,16 @@ public:
 
         if (!isNull)
         {
+            static if (is(typeof(T.isAnyVariantNType)) && T.AllowedTypes.length == 0)
+            {
+                T result;
+                if (handler.tryGet(size, pointer, T.size, result.pointer, this.typeInfo))
+                {
+                    result.handler = this.handler;
+                    return result;
+                }
+            }
+
             ConvertHandler cvh;
             if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
             {
@@ -703,6 +719,13 @@ public:
                 if (variantType == VariantType.class_)
                     return cast(T)(doGet!Object());
             }
+        }
+        else
+        {
+            static if (is(T == class) || is(T == interface) || isPointer!T || isSomeString!T)
+                return null;
+            else static if (is(typeof(T.isAnyVariantNType)))
+                return T.init;
         }
 
         throw new VariantException(typeInfo, typeid(T), "coerce()");
@@ -736,40 +759,47 @@ public:
     inout(T) get(T)() inout @trusted
     {
         static if (is(T == VariantN))
+        {
             return this;
+        }
         else
         {
             static if (is(T == shared))
-                alias R = shared Unqual!T;
+                alias UT = shared Unqual!T;
             else
-                alias R = Unqual!T;
+                alias UT = Unqual!T;
 
-            inout(T) result = void;
-            if (handler.tryGet(size, pointer, T.sizeof, cast(void*)(cast(R*)&result), typeid(T)))
-                return result;
-            else if (auto pv = peek!T())
-                return *pv;
+            static if (hasElaborateDestructor!T || is(typeof(T.isAnyVariantNType)))
+                inout(T) result;
             else
+                inout(T) result = void;
+
+            static if (is(typeof(T.isAnyVariantNType)) && T.AllowedTypes.length == 0)
             {
-                // Value type will invoke destructor with garbage -> access violation
-                static if (hasElaborateDestructor!T)
-                    memset(cast(void*)&result, 0, T.sizeof);
-
-                // Implicit conversion?
-                if (!isNull)
+                if (handler.tryGet(size, pointer, T.size, result.pointer, this.typeInfo))
                 {
-                    debug(debug_pham_var_var_variant) debug writeln(__FUNCTION__, "(from=", handler.qualifiedName(), ", to=", fullyQualifiedName!T, ")");
-
-                    ConvertHandler cvh;
-                    if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
-                    {
-                        if (cvh.canImplicit && cvh.doCoerce(handler.valuePointer(size, pointer), cast(void*)&result))
-                            return result;
-                    }
+                    (cast(UT*)&result).handler = cast(Handler!void*)this.handler;
+                    return result;
                 }
-
-                throw new VariantException(typeInfo, typeid(T), "get()");
             }
+
+            if (handler.tryGet(size, pointer, T.sizeof, cast(void*)(cast(UT*)&result), typeid(T)))
+                return result;
+
+            // Implicit conversion?
+            if (!isNull)
+            {
+                debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(this.qualifiedName=", handler.qualifiedName(), ", T.qualifiedName=", fullyQualifiedName!T, ")");
+
+                ConvertHandler cvh;
+                if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
+                {
+                    if (cvh.canImplicit && cvh.doCoerce(handler.valuePointer(size, pointer), cast(void*)&result))
+                        return result;
+                }
+            }
+
+            throw new VariantException(typeInfo, typeid(T), "get()");
         }
     }
 
@@ -854,26 +884,50 @@ public:
     bool tryGet(T)(ref T value) nothrow @trusted
     if (!is(T == const) && !is(T == immutable) && !is(T == shared))
     {
-        T tempValue = void;
+        static if (hasElaborateDestructor!T || is(typeof(T.isAnyVariantNType)))
+            T tempValue;
+        else
+            T tempValue = void;
+
+        static if (is(typeof(T.isAnyVariantNType)) && T.AllowedTypes.length == 0)
+        {
+            if (handler.tryGet(size, pointer, T.size, tempValue.pointer, this.typeInfo))
+            {
+                tempValue.handler = this.handler;
+                value = tempValue;
+                return true;
+            }
+        }
+
         if (handler.tryGet(size, pointer, T.sizeof, cast(void*)cast(T*)&tempValue, typeid(T)))
         {
             value = tempValue;
             return true;
         }
-        else
-        {
-            // Value type will invoke destructor with garbage -> access violation
-            static if (hasElaborateDestructor!T)
-                memset(cast(void*)&tempValue, 0, T.sizeof);
 
-            return false;
+        // Implicit conversion?
+        if (!isNull)
+        {
+            debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(this.qualifiedName=", handler.qualifiedName(), ", T.qualifiedName=", fullyQualifiedName!T, ")");
+
+            ConvertHandler cvh;
+            if (ConvertHandler.find(handler.qualifiedName(), fullyQualifiedName!T, cvh))
+            {
+                if (cvh.canImplicit && cvh.doCoerce(handler.valuePointer(size, pointer), cast(void*)&tempValue))
+                {
+                    value = tempValue;
+                    return true;
+                }
+            }
         }
+
+        return false;
     }
 
     /**
      * Returns true if `Variant` held value of type void or null or unassign
      */
-    @property bool isNull() const nothrow pure @safe
+    @property bool isNull() const nothrow @safe
     {
         return handler.nullType(size, pointer) != NullType.value;
     }
@@ -892,7 +946,7 @@ public:
      */
     @property bool isVoid() const nothrow pure @safe
     {
-        return handler.nullType(size, pointer) == NullType.void_;
+        return handler.nullTypeOf(size, pointer) == NullType.void_;
     }
 
     /**
@@ -931,11 +985,11 @@ public:
     alias variantType = varType;
 
     /**
-     * Constructs and returns instance Variant with null value
+     * Constructs and returns instance VariantN with null value
      */
-    @property static Variant varNull() nothrow @safe
+    @property static VariantN varNull() nothrow @safe
     {
-        return Variant.init;
+        return VariantN.init;
     }
 
     /**
@@ -1033,30 +1087,42 @@ private:
      */
     void doAssign(T, bool Assign)(T rhs) nothrow @trusted
     {
+        debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(Assign=", Assign, "\n",
+            ", this.stringof=", typeof(this).stringof, ", this.typeInfo=", this.typeInfo.toString, "\n",
+            ", T.stringof=", T.stringof, ")");
+
         // Assignment must destruct previous value
         static if (Assign)
         {
-            handler.destruct(size, pointer);
+            this.handler.destruct(size, pointer);
         }
         // In case of failed initialization
-        handler = Handler!void.getHandler();
+        this.handler = Handler!void.getHandler();
 
         static if (is(T == void))
         {
             // Do nothing for void type
         }
-        else static if (is(T : VariantN))
+        else static if (is(T : VariantN) || (is(typeof(T.isAnyVariantNType)) && !is(T : const(VariantN))))
         {
-            if (rhs.typeInfo !is typeid(void))
+            debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(Assign=", Assign, "\n",
+                ", this.stringof=", typeof(this).stringof, ", this.typeInfo=", this.typeInfo.toString, "\n",
+                ", T.stringof=", T.stringof, ", rhs.typeInfo=", rhs.typeInfo.toString, ")");
+
+            if (!rhs.isVoid)
             {
                 auto setHandler = rhs.handler;
-                setHandler.assignSelf(rhs.size, rhs.pointer, size, pointer);
+                setHandler.assignSelf(rhs.size, rhs.pointer, size, pointer, rhs.typeInfo);
                 setHandler.construct(size, pointer); // PostBlit after copy
-                handler = setHandler;
+                this.handler = setHandler;
             }
+
+            debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(Assign=", Assign, "\n",
+                ", this.stringof=", typeof(this).stringof, ", this.typeInfo=", this.typeInfo.toString, "\n",
+                ", T.stringof=", T.stringof, ", rhs.typeInfo=", rhs.typeInfo.toString, ")");
         }
-        else static if (is(T : const(VariantN)))
-            static assert(false, "Unsupport assigning `Variant` from `const Variant`");
+        //else static if (is(T : const(VariantN)))
+        //    static assert(false, "Unsupport assigning `Variant` from `const Variant`");
         else
         {
             static if (T.sizeof <= size)
@@ -1085,7 +1151,7 @@ private:
                 *(cast(T**)pointer) = prhs;
             }
 
-            handler = cast(Handler!void*)(Handler!T.getHandler());
+            this.handler = cast(Handler!void*)(Handler!T.getHandler());
         }
     }
 
@@ -1248,6 +1314,7 @@ private:
     }
 
 private:
+    enum bool isAnyVariantNType = true;
     alias DefaultHandler = Handler!void*;
 
     // Compute the largest practical storage size from MaxDataSize
@@ -1266,7 +1333,7 @@ private:
 
         // Conservatively mark the region as pointers?
         static if (size >= (void*).sizeof && elaborateIndirection)
-        void*[size / (void*).sizeof] dummy;
+            void*[size / (void*).sizeof] dummy;
     }
 }
 
@@ -1278,7 +1345,7 @@ private:
  * `Variant` directly with a different maximum size either for
  * storing larger types unboxed, or for saving memory.
  */
-alias Variant = VariantN!(maxSize!(long, real, char[], void delegate(), double[2]));
+alias Variant = VariantN!(maxSize!(size_t, long, real, char[], void delegate(), double[2]));
 
 enum isVariant(T) = is(T == Variant) || is(Unqual!T == Variant);
 
@@ -1371,7 +1438,8 @@ template mapArguments(alias T)
  */
 template Algebraic(Ts...)
 {
-    alias Algebraic = VariantN!(maxSize!Ts, Ts);
+    import std.algorithm.comparison : max;
+    alias Algebraic = VariantN!(max(maxSize!Ts, size_t.sizeof), Ts);
 }
 
 /**
@@ -1489,21 +1557,6 @@ enum NullType : ubyte
     value,
 }
 
-/*
-pragma(inline, true)
-ptrdiff_t coerceSizeof(T)() @nogc nothrow pure @safe
-{
-    static if (isUnsigned!T || isFloatingPoint!T)
-        return T.sizeof;
-    else static if (isIntegral!T)
-        return T.sizeof;
-    else static if (isSomeString!T)
-        return T.init[0].sizeof;
-    else
-        return T.sizeof;
-}
-*/
-
 pragma(inline, true)
 NullType nullTypeOf(T)() @nogc nothrow pure @safe
 {
@@ -1537,7 +1590,7 @@ public:
 public:
     bool function(size_t size, scope void* store, scope void* value) @trusted
         append = &hAppend;
-    void function(size_t srcSize, scope void* srcStore, size_t dstSize, scope void* dstStore) nothrow @safe
+    void function(size_t srcSize, scope void* srcStore, size_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo) nothrow @safe
         assignSelf = &hAssignSelf;
     bool function(size_t size, scope void* store, ref bool result) nothrow pure @safe
         boolCast = &hBoolCast;
@@ -1571,9 +1624,11 @@ public:
         isCompatibleArrayComparison = &hIsCompatibleArrayComparison;
     ptrdiff_t function(size_t size, scope void* store) @nogc nothrow pure @safe
         length = &hLength;
-    NullType function(size_t size, scope void* store) @nogc nothrow pure @safe
+    NullType function(size_t size, scope void* store) nothrow @safe
         nullType = &hNullType;
-    void function(size_t size, scope void* store, scope void* tempStore) nothrow @safe
+    NullType function(size_t size, scope void* store) @nogc nothrow pure @safe
+        nullTypeOf = &hNullTypeOf;
+    void function(size_t size, scope void* store, scope TypeInfo typeInfo) nothrow @safe
         postblit = &hPostblit;
     string function() @nogc nothrow pure @safe
         qualifiedName = &hQualifiedName;
@@ -1616,7 +1671,7 @@ private:
     }
 
     static void hAssignSelf(size_t srcSize, scope void* srcStore,
-        size_t dstSize, scope void* dstStore) nothrow @trusted
+        size_t dstSize, scope void* dstStore, scope TypeInfo dstTypeInfo) nothrow @trusted
     {
         // Should handle by the caller
         static if (is(T == void))
@@ -1626,7 +1681,7 @@ private:
             if (T.sizeof > dstSize)
                 allocate(dstStore);
 
-            tryPut(hValuePointer(srcSize, srcStore), T.sizeof, cast(void*)hValuePointer(dstSize, dstStore), typeid(T)) || assert(0);
+            tryPut(hValuePointer(srcSize, srcStore), T.sizeof, cast(void*)hValuePointer(dstSize, dstStore), dstTypeInfo) || assert(0);
         }
     }
 
@@ -1949,9 +2004,9 @@ private:
             return variantNoLengthMarker;
     }
 
-    static NullType hNullType(size_t size, scope void* store) @nogc nothrow pure @safe
+    static NullType hNullType(size_t size, scope void* store) nothrow @safe
     {
-        auto result = nullTypeOf!T();
+        auto result = .nullTypeOf!T();
         static if (__traits(compiles, () => T.init == null))
         {
             if (result == NullType.value && *hValuePointer(size, store) == null)
@@ -1965,12 +2020,18 @@ private:
         return result;
     }
 
-    static void hPostblit(size_t size, scope void* store, scope void* tempStore) nothrow @trusted
+    static NullType hNullTypeOf(size_t size, scope void* store) @nogc nothrow pure @safe
     {
-        if (T.sizeof > size)
+        return .nullTypeOf!T();
+    }
+
+    static void hPostblit(size_t size, scope void* store, scope TypeInfo typeInfo) nothrow @trusted
+    {
+        if (size && T.sizeof > size)
         {
-            hAssignSelf(size, store, size, tempStore);
-            memcpy(store, tempStore, size);
+            auto tempStore = new ubyte[size];
+            hAssignSelf(size, store, size, &tempStore[0], typeInfo);
+            memcpy(store, &tempStore[0], size);
         }
 
         static if (hasElaborateCopyConstructor!T)
@@ -2130,6 +2191,12 @@ private:
 
             foreach (dstT; AllTypes)
             {
+                alias dstUT = Unqual!dstT;
+
+                /*
+                debug(debug_pham_var_var_variant) debug writelnIf(__FUNCTION__, "(TU.stringof=", UT.stringof, ", dstUT.stringof=", dstUT.stringof, ")");
+                */
+
                 if (typeid(dstT) !is dstTypeInfo)
                     continue;
 
@@ -2152,15 +2219,14 @@ private:
                         if (dst is null)
                             return true;
 
-                        alias UDT = Unqual!dstT;
                         static if (isStaticArray!T && isDynamicArray!dstT)
                         {
                             auto src2 = (*src)[];
-                            emplace(cast(UDT*)dst, cast(UDT)src2);
+                            emplace(cast(dstUT*)dst, cast(dstUT)src2);
                         }
-                        else static if (!is(Unqual!dstT == void))
+                        else static if (!is(dstUT == void))
                         {
-                            emplace(cast(UDT*)dst, *cast(UT*)src);
+                            emplace(cast(dstUT*)dst, *cast(UT*)src);
                         }
                         else
                             assert(0, fullyQualifiedName!dstT); // type T is not constructible from src
@@ -2250,7 +2316,7 @@ nothrow @safe:
 
     string toString() const pure
     {
-        return "Variant.Unassign";
+        return fullyQualifiedName!Unassign;
     }
 
 private:
@@ -5909,4 +5975,34 @@ unittest // Tuple
     v[1] = 10;
     assert(v[1] == 10);
     assert(v[0] == 1);
+}
+
+unittest // https://github.com/dlang/phobos/issues/10926
+{
+    //import pham.var.var_debug;
+
+    auto a = Variant(Variant(4));
+    assert(a.get!int() == 4);
+
+    alias Restricted = VariantN!(16, int, string);
+    auto b = Restricted(5);
+    assert(b.get!int() == 5);
+
+    //debugVariantHandler++;
+    //scope (exit)
+    //    debugVariantHandler--;
+
+    //writeln("\n", "CASE 1:");
+    auto c = Variant(b);
+    //writeln("c.typeInfo=", c.typeInfo.toString());
+    assert(c.get!int() == 5);
+
+    //writeln("\n", "CASE 2:");
+    alias V16 = VariantN!16;
+    alias V8 = VariantN!8;
+    auto d = V16(V8(5));
+    //writeln("d.typeInfo=", d.typeInfo.toString());
+    assert(d.get!int() == 5);
+    //writeln("\n", "CASE 2B:");
+    assert(d.get!V8.get!int() == 5);
 }

@@ -165,7 +165,7 @@ public:
         return (_type & DbType.array) != 0;
     }
 
-    @property bool isNull() const nothrow pure @safe
+    @property bool isNull() const nothrow @safe
     {
         return _value.isNull || (isDbTypeHasZeroSizeAsNull(_type) && size == 0);
     }

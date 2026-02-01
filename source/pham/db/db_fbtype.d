@@ -2207,6 +2207,7 @@ FbIscBlobSize parseBlobSize(scope const(ubyte)[] data)
     return result;
 }
 
+pragma(inline, true)
 bool parseBool(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
 {
     uint bytes;
@@ -2218,6 +2219,7 @@ bool parseBool(scope const(ubyte)[] data, ref size_t index, out uint bytes, int 
     return parseInteger!int32(data, index, bytes, type, lengthBytes) != 0;
 }
 
+pragma(inline, true)
 const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
 {
     uint bytes;
@@ -2310,6 +2312,7 @@ FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data) pure
     return result;
 }
 
+pragma(inline, true)
 T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
 if (isIntegral!T)
 {
@@ -2368,7 +2371,7 @@ do
 		result += cast(uint)data[index++] << shift;
 		shift += 8;
 	}
-    
+
     parseCheckLength(data, index, result, type);
     return result;
 }
@@ -2503,6 +2506,7 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 	return result;
 }
 
+pragma(inline, true)
 const(char)[] parseString(return const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
 {
     uint bytes;
