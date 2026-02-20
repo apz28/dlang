@@ -39,6 +39,13 @@ static immutable string pgAuthClearTextName = "ClearText";
 static immutable string pgAuthMD5Name = "MD5";
 static immutable string pgAuthScram256Name = "SCRAM-SHA-256";
 
+static immutable string[DbIntegratedSecurityConnection.max + 1] pgAuthIntegratedSecurityNames = [
+    pgAuthMD5Name, // legacy
+    pgAuthScram256Name, // srp1
+    pgAuthScram256Name, // srp256
+    "Not supported SSPI", // sspi
+    ];
+
 alias PgDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
 static immutable PgDefaultConnectionParameterValues pgDefaultConnectionParameterValues;
 
@@ -1067,4 +1074,12 @@ unittest // PgOIdScramSHA256FirstMessage
     assert(r.nonce == "0q15f5EH1d/h/12XcNOHZ+71ROAIV6CI/2+5xcDQkVSN1znl");
     assert(r.salt == "EnRa3zGhX0F/FJbabyhVUQ==");
     assert(r.getSalt() == bytesFromHexs("12745ADF31A15F417F1496DA6F285551"), r.getSalt().bytesToHexs());
+}
+
+unittest // pgAuthIntegratedSecurityNames
+{
+    assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.legacy] == pgAuthMD5Name);
+    assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp1] == pgAuthScram256Name);
+    assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp256] == pgAuthScram256Name);
+    //assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.sspi] == "Not supported SSPI");
 }

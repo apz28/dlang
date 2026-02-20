@@ -97,7 +97,7 @@ public:
                 case AuthKind.change:
                     if (packageData.isLastPacket())
                     {
-                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage("Old password");
+                        auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
                         throw new MyException(DbErrorCode.connect, msg);
                     }
                     const indicator = reader.readUInt8();
@@ -129,7 +129,11 @@ public:
         if (stateInfo.authMethod.length != 0)
         {
             stateInfo.auth = createAuth(stateInfo);
-            stateInfo.auth.getPassword(useCSB.userName, useCSB.userPassword, stateInfo.authData);
+            if (!stateInfo.auth.getPassword(useCSB.userName, useCSB.userPassword, stateInfo.authData).isOK)
+            {
+                auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
+                throw new MyException(DbErrorCode.connect, msg);
+            }
         }
 
         writer.beginPackage(++sequenceByte);

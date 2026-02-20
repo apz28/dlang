@@ -28,9 +28,16 @@ static immutable string myAuthDefault = myAuthNativeName;
 static immutable string myAuthNativeName = "mysql_native_password";
 static immutable string myAuthScramSha1Name = "SCRAM-SHA-1";
 static immutable string myAuthScramSha256Name = "SCRAM-SHA-256";
-static immutable string myAuthSha256Mem = "SHA256_MEMORY";
+//static immutable string myAuthSha256Mem = "SHA256_MEMORY";
 static immutable string myAuthSha2Caching = "caching_sha2_password";
 static immutable string myAuthSSPIName = "authentication_windows_client";
+
+static immutable string[DbIntegratedSecurityConnection.max + 1] myAuthIntegratedSecurityNames = [
+    myAuthNativeName, // legacy
+    myAuthScramSha1Name, // srp1
+    myAuthSha2Caching, // srp256 - can be myAuthScramSha256Name
+    myAuthSSPIName, // sspi
+    ];
 
 static immutable string[] myCiphers = [
     // Blocked
@@ -682,4 +689,12 @@ shared static this() nothrow @safe
 
         return cast(immutable(MySimpleTypes))result;
     }();
+}
+
+unittest // myAuthIntegratedSecurityNames
+{
+    assert(myAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.legacy] == myAuthNativeName);
+    assert(myAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp1] == myAuthScramSha1Name);
+    assert(myAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp256] == myAuthSha2Caching);
+    assert(myAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.sspi] == myAuthSSPIName);
 }

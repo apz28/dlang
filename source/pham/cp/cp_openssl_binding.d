@@ -1372,7 +1372,7 @@ shared static this() nothrow @trusted
         ? ResultStatus.error(0, "Failed to load libcrypto")
         : ResultStatus.ok();
 
-    if (opensslApi.status().isError)
+    if (opensslApi._loadSslStatus.isError || opensslApi._loadCryptoStatus.isError)
         return;
 
     mixin(SSL_Function_set!("SSL_library_init", int));

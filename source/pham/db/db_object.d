@@ -1725,7 +1725,7 @@ unittest // DbIdentitierValueList
     assert(list.get("x") is null);
 
     static immutable delimiterText = "a=1,bcd=2, user id = 3, x=4 ";
-    list.setDelimiterText(delimiterText, ",", '=');
+    assert(list.setDelimiterText(delimiterText, ",", '=').isOK);
     assert(list.length == 4, list.getDelimiterText(',', '='));
     assert(list.get("a") == "1", list.get("a"));
     assert(list.get("bcd") == "2", list.get("bcd"));

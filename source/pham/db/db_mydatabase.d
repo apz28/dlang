@@ -23,6 +23,7 @@ import pham.utl.utl_enum_set;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortFunctionName;
 import pham.utl.utl_version : VersionString;
+
 import pham.db.db_buffer;
 import pham.db.db_database;
 import pham.db.db_exception;
@@ -32,6 +33,13 @@ import pham.db.db_skdatabase;
 import pham.db.db_type;
 import pham.db.db_util;
 import pham.db.db_value;
+
+// Import those modules so that DbAuth.registerAuthMap being called in module constructor
+import pham.db.db_myauth_native;
+import pham.db.db_myauth_scram;
+import pham.db.db_myauth_sha;
+version(Windows) import pham.db.db_myauth_sspi;
+
 import pham.db.db_mybuffer;
 import pham.db.db_myexception;
 import pham.db.db_myoid;
@@ -990,17 +998,7 @@ public:
 
     final string integratedSecurityName() const nothrow
     {
-        final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
-        {
-            case legacy:
-                return myAuthNativeName;
-            case srp1:
-                return myAuthScramSha1Name;
-            case srp256:
-                return myAuthSha2Caching; //myAuthScramSha256Name;
-            case sspi:
-                return myAuthSSPIName;
-        }
+        return myAuthIntegratedSecurityNames[integratedSecurity];
     }
 
     final override const(string[]) parameterNames() const nothrow

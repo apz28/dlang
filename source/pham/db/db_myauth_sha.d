@@ -19,7 +19,7 @@ import pham.db.db_auth;
 import pham.db.db_message;
 import pham.db.db_type : DbScheme;
 import pham.db.db_myauth;
-import pham.db.db_mytype : myAuthSha256Mem, myAuthSha2Caching;
+import pham.db.db_mytype : myAuthSha2Caching; // myAuthSha256Mem
 
 nothrow @safe:
 
@@ -125,6 +125,7 @@ protected:
 }
 
 version(none)
+{
 class MyAuthSha256Mem : MyAuthSha
 {
 nothrow @safe:
@@ -146,6 +147,7 @@ public:
     {
         return myAuthSha256Mem;
     }
+}
 }
 
 class MyAuthSha2Caching : MyAuthSha

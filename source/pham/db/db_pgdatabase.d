@@ -22,6 +22,7 @@ import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortFunctionName;
 import pham.utl.utl_version : VersionString;
+
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -31,6 +32,12 @@ import pham.db.db_skdatabase;
 import pham.db.db_type;
 import pham.db.db_util;
 import pham.db.db_value;
+
+// Import those modules so that DbAuth.registerAuthMap being called in module constructor
+import pham.db.db_pgauth_cleartext;
+import pham.db.db_pgauth_md5;
+import pham.db.db_pgauth_scram;
+
 import pham.db.db_pgbuffer;
 import pham.db.db_pgexception;
 import pham.db.db_pgoid;
@@ -1482,16 +1489,7 @@ public:
 
     final string integratedSecurityName() const nothrow
     {
-        final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
-        {
-            case legacy:
-                return pgAuthMD5Name;
-            case srp1:
-            case srp256:
-                return pgAuthScram256Name;
-            case sspi:
-                return "Not supported SSPI";
-        }
+        return pgAuthIntegratedSecurityNames[integratedSecurity];
     }
 
     final override const(string[]) parameterNames() const nothrow

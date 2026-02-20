@@ -29,6 +29,7 @@ import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortFunctionName;
 import pham.utl.utl_version : VersionString;
+
 import pham.db.db_buffer;
 import pham.db.db_convert;
 import pham.db.db_database;
@@ -42,6 +43,12 @@ import pham.db.db_value;
 import pham.db.db_fbbuffer;
 import pham.db.db_fbexception;
 import pham.db.db_fbisc;
+
+// Import those modules so that DbAuth.registerAuthMap being called in module constructor
+import pham.db.db_fbauth_legacy;
+import pham.db.db_fbauth_srp;
+version(Windows) import pham.db.db_fbauth_sspi;
+
 public import pham.db.db_fbisc : FbIsc;
 import pham.db.db_fbprotocol;
 import pham.db.db_fbservice_info;
@@ -2493,17 +2500,7 @@ public:
 
     final string integratedSecurityName() const nothrow
     {
-        final switch (integratedSecurity) with (DbIntegratedSecurityConnection)
-        {
-            case legacy:
-                return FbIscText.authLegacyName;
-            case srp1:
-                return FbIscText.authSrp1Name;
-            case srp256:
-                return FbIscText.authSrp256Name;
-            case sspi:
-                return FbIscText.authSspiName;
-        }
+        return fbAuthIntegratedSecurityNames[integratedSecurity];
     }
 
     final override const(string[]) parameterNames() const nothrow

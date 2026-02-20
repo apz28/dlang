@@ -11,6 +11,7 @@
 
 module pham.utl.utl_result;
 
+import core.attribute : mustuse;
 import std.conv : to;
 import std.math.traits : isNaN;
 import std.traits : fullyQualifiedName, isFloatingPoint, isIntegral, isScalarType;
@@ -386,6 +387,7 @@ if (isIntegral!LHS && isIntegral!RHS)
     return lhsP && rhsP ? 1 : (!lhsP && !rhsP ? -1 : 0);
 }
 
+@mustuse
 struct CmpResult
 {
 nothrow @safe:
@@ -499,6 +501,7 @@ private:
 /**
  * Simple aggregate to indicate if function result is an error or intended value
  */
+// @mustuse - not working in ternary assignment - still bug
 struct ResultIf(T)
 {
 @safe:
@@ -611,6 +614,7 @@ enum resultUnsupported = ResultCode.unsupported;
 deprecated("please use " ~ fullyQualifiedName!(ResultCode.uninitialized))
 enum resultUninitialized = ResultCode.uninitialized;
 
+// @mustuse - not working in ternary assignment - still bug
 struct ResultStatus
 {
 @safe:
@@ -631,10 +635,9 @@ public:
         return isOK;
     }
 
-    ref typeof(this) addMessageIf(string errorLine) nothrow pure return
+    void addMessageIf(string errorLine) nothrow pure return
     {
         addLineIf(this.errorMessage, errorLine);
-        return this;
     }
 
     int clone(ResultStatus source, const(int) resultCode) @nogc nothrow pure
@@ -778,7 +781,7 @@ public:
     pragma(inline, true)
     @property bool isError() const @nogc nothrow pure scope
     {
-        return errorCode != 0 || errorMessage.length != 0;
+        return !isOK;
     }
 
     /**
@@ -815,12 +818,14 @@ public:
         this._count = 0;
     }
 
-    bool incOverLimit() pure
+    bool incCount() pure
     {
         _count++;
         return isOverLimit;
     }
 
+    alias incOverLimit = incCount;
+    
     void reset() pure
     {
         _count = 0;
@@ -837,6 +842,7 @@ public:
         return _count > maxCount && maxCount >= 0;
     }
 
+    pragma(inline, true)
     @property bool isUnlimit() const pure
     {
         return maxCount < 0;

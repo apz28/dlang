@@ -459,7 +459,7 @@ public:
 
     void uninitialize()
     {
-        close();
+        cast(void)close();
         disposeSSLResources();
     }
 
@@ -609,7 +609,7 @@ private:
     {
         if (_ssl !is null)
         {
-            close();
+            cast(void)close();
 
             opensslApi.SSL_free(_ssl);
             _ssl = null;

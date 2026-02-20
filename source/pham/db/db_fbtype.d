@@ -59,6 +59,13 @@ enum FbIscCommandType : int32
 	savePoint = FbIsc.isc_info_sql_stmt_savepoint,
 }
 
+static immutable string[DbIntegratedSecurityConnection.max + 1] fbAuthIntegratedSecurityNames = [
+    FbIscText.authLegacyName, // legacy
+    FbIscText.authSrp1Name, // srp1
+    FbIscText.authSrp256Name, // srp256
+    FbIscText.authSspiName, // sspi
+    ];
+
 alias FbDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
 static immutable FbDefaultConnectionParameterValues fbDefaultConnectionParameterValues;
 
@@ -2754,4 +2761,12 @@ unittest // FbCreateDatabaseInfo.toKnownPageSize
     // Future value - return as is
     assert(FbCreateDatabaseInfo.toKnownPageSize(65_536) == 65_536);
     assert(FbCreateDatabaseInfo.toKnownPageSize(131_073) == 131_073);
+}
+
+unittest // fbAuthIntegratedSecurityNames
+{
+    assert(fbAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.legacy] == FbIscText.authLegacyName);
+    assert(fbAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp1] == FbIscText.authSrp1Name);
+    assert(fbAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp256] == FbIscText.authSrp256Name);
+    assert(fbAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.sspi] == FbIscText.authSspiName);
 }
