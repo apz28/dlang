@@ -2518,9 +2518,11 @@ public:
         return getString(DbConnectionParameterIdentifier.fbCryptAlgorithm);
     }
 
-    @property final typeof(this) cryptAlgorithm(string value) nothrow
+    @property final typeof(this) cryptAlgorithm(string value)
     {
-        put(DbConnectionParameterIdentifier.fbCryptAlgorithm, value.length != 0 ? value : FbIscText.filterCryptDefault);
+        const s = value.length != 0 ? value : FbIscText.filterCryptDefault;
+        validatePropertyValue(DbConnectionParameterIdentifier.fbCryptAlgorithm, s, value);
+        put(DbConnectionParameterIdentifier.fbCryptAlgorithm, s);
         return this;
     }
 
@@ -2529,8 +2531,9 @@ public:
         return bytesFromBase64s(getString(DbConnectionParameterIdentifier.fbCryptKey));
     }
 
-    @property final typeof(this) cryptKey(scope const(ubyte)[] value) nothrow
+    @property final typeof(this) cryptKey(scope const(ubyte)[] value) @trusted
     {
+        validatePropertyValue(DbConnectionParameterIdentifier.fbCryptKey, cast(string)value);
         put(DbConnectionParameterIdentifier.fbCryptKey, bytesToBase64s(value));
         return this;
     }

@@ -3381,13 +3381,9 @@ public:
 
     @property final typeof(this) applicationName(string value)
     {
-        if (customAttributeInfo.isValidValue(value) == DbNameValueValidated.ok)
-        {
-            customAttributes.put(DbConnectionCustomIdentifier.applicationName, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionCustomIdentifier.applicationName, value);
+        validateCustomPropertyValue(DbConnectionCustomIdentifier.applicationName, value);
+        customAttributes.put(DbConnectionCustomIdentifier.applicationName, value);
+        return this;
     }
 
     @property final string applicationVersion() const nothrow
@@ -3397,13 +3393,9 @@ public:
 
     @property final typeof(this) applicationVersion(string value)
     {
-        if (customAttributeInfo.isValidValue(value) == DbNameValueValidated.ok)
-        {
-            customAttributes.put(DbConnectionCustomIdentifier.applicationVersion, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionCustomIdentifier.applicationVersion, value);
+        validateCustomPropertyValue(DbConnectionCustomIdentifier.applicationVersion, value);
+        customAttributes.put(DbConnectionCustomIdentifier.applicationVersion, value);
+        return this;
     }
 
     @property final string charset() const nothrow
@@ -3413,15 +3405,9 @@ public:
 
     @property final typeof(this) charset(string value)
     {
-        auto k = DbConnectionParameterIdentifier.charset in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.charset, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.charset, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.charset, value);
+        put(DbConnectionParameterIdentifier.charset, value);
+        return this;
     }
 
     /**
@@ -3437,16 +3423,11 @@ public:
 
     @property final typeof(this) commandTimeout(scope const(Duration) value)
     {
-        auto s = cvtConnectionParameterDuration(value);
-        auto k = DbConnectionParameterIdentifier.commandTimeout in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.commandTimeout, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.commandTimeout, value.toString());
+        const vs = value.toString();
+        const s = cvtConnectionParameterDuration(value);
+        validatePropertyValue(DbConnectionParameterIdentifier.commandTimeout, s, vs);
+        put(DbConnectionParameterIdentifier.commandTimeout, s);
+        return this;
     }
 
     @property final DbCompressConnection compress() const nothrow
@@ -3510,16 +3491,11 @@ public:
 
     @property final typeof(this) connectionTimeout(scope const(Duration) value)
     {
-        auto s = value != Duration.zero ? cvtConnectionParameterDuration(value) : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
-        auto k = DbConnectionParameterIdentifier.connectionTimeout in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.connectionTimeout, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.connectionTimeout, value.toString());
+        const vs = value.toString();
+        const s = value != Duration.zero ? cvtConnectionParameterDuration(value) : getDefault(DbConnectionParameterIdentifier.connectionTimeout);
+        validatePropertyValue(DbConnectionParameterIdentifier.connectionTimeout, s, vs);
+        put(DbConnectionParameterIdentifier.connectionTimeout, s);
+        return this;
     }
 
     @property final DbDatabase database() nothrow pure
@@ -3537,17 +3513,9 @@ public:
 
     @property final typeof(this) databaseName(string value)
     {
-        auto k = DbConnectionParameterIdentifier.databaseName in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(value=", value, ", min=", (*k).min, ", max=", (*k).max, ")");
-
-            put(DbConnectionParameterIdentifier.databaseName, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.databaseName, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.databaseName, value);
+        put(DbConnectionParameterIdentifier.databaseName, value);
+        return this;
     }
 
     /**
@@ -3560,15 +3528,9 @@ public:
 
     @property final typeof(this) databaseFileName(string value)
     {
-        auto k = DbConnectionParameterIdentifier.databaseFileName in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.databaseFileName, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.databaseFileName, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.databaseFileName, value);
+        put(DbConnectionParameterIdentifier.databaseFileName, value);
+        return this;
     }
 
     @property final string elementSeparators() const nothrow
@@ -3603,16 +3565,11 @@ public:
 
     @property final typeof(this) fetchRecordCount(int32 value)
     {
-        auto s = value != 0 ? value.to!string : getDefault(DbConnectionParameterIdentifier.fetchRecordCount);
-        auto k = DbConnectionParameterIdentifier.fetchRecordCount in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.fetchRecordCount, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.fetchRecordCount, value.to!string);
+        const vs = value.to!string;
+        const s = value != 0 ? vs : getDefault(DbConnectionParameterIdentifier.fetchRecordCount);
+        validatePropertyValue(DbConnectionParameterIdentifier.fetchRecordCount, s, vs);
+        put(DbConnectionParameterIdentifier.fetchRecordCount, s);
+        return this;
     }
 
     @property final DbIntegratedSecurityConnection integratedSecurity() const nothrow
@@ -3641,16 +3598,11 @@ public:
 
     @property final typeof(this) packageSize(uint32 value)
     {
-        auto s = value != 0 ? value.to!string : getDefault(DbConnectionParameterIdentifier.packageSize);
-        auto k = DbConnectionParameterIdentifier.packageSize in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.packageSize, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.packageSize, value.to!string);
+        const vs = value.to!string;
+        const s = value != 0 ? vs : getDefault(DbConnectionParameterIdentifier.packageSize);
+        validatePropertyValue(DbConnectionParameterIdentifier.packageSize, s, vs);
+        put(DbConnectionParameterIdentifier.packageSize, s);
+        return this;
     }
 
     @property final bool pooling() const nothrow
@@ -3674,16 +3626,11 @@ public:
 
     @property final typeof(this) poolIdleTimeout(scope const(Duration) value)
     {
-        auto s = cvtConnectionParameterDuration(value);
-        auto k = DbConnectionParameterIdentifier.poolIdleTimeout in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.poolIdleTimeout, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolIdleTimeout, value.toString());
+        const vs = value.toString();
+        const s = cvtConnectionParameterDuration(value);
+        validatePropertyValue(DbConnectionParameterIdentifier.poolIdleTimeout, s, vs);
+        put(DbConnectionParameterIdentifier.poolIdleTimeout, s);
+        return this;
     }
 
     @property final uint32 poolMaxCount() const nothrow
@@ -3697,16 +3644,11 @@ public:
 
     @property final typeof(this) poolMaxCount(uint32 value)
     {
-        auto s = value != 0 ? value.to!string : getDefault(DbConnectionParameterIdentifier.poolMaxCount);
-        auto k = DbConnectionParameterIdentifier.poolMaxCount in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.poolMaxCount, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolMaxCount, value.to!string);
+        const vs = value.to!string();
+        const s = value != 0 ? vs : getDefault(DbConnectionParameterIdentifier.poolMaxCount);
+        validatePropertyValue(DbConnectionParameterIdentifier.poolMaxCount, s, vs);
+        put(DbConnectionParameterIdentifier.poolMaxCount, s);
+        return this;
     }
 
     @property final uint32 poolMinCount() const nothrow
@@ -3718,16 +3660,10 @@ public:
 
     @property final typeof(this) poolMinCount(uint32 value)
     {
-        auto s = value.to!string();
-        auto k = DbConnectionParameterIdentifier.poolMinCount in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.poolMinCount, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.poolMinCount, value.to!string);
+        const s = value.to!string();
+        validatePropertyValue(DbConnectionParameterIdentifier.poolMinCount, s);
+        put(DbConnectionParameterIdentifier.poolMinCount, s);
+        return this;
     }
 
     /**
@@ -3744,16 +3680,11 @@ public:
 
     @property final typeof(this) receiveTimeout(scope const(Duration) value)
     {
-        auto s = cvtConnectionParameterDuration(value);
-        auto k = DbConnectionParameterIdentifier.receiveTimeout in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.receiveTimeout, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.receiveTimeout, value.toString());
+        const vs = value.toString();
+        const s = cvtConnectionParameterDuration(value);
+        validatePropertyValue(DbConnectionParameterIdentifier.receiveTimeout, s, vs);
+        put(DbConnectionParameterIdentifier.receiveTimeout, s);
+        return this;
     }
 
     @property final string roleName() const nothrow
@@ -3763,15 +3694,9 @@ public:
 
     @property final typeof(this) roleName(string value)
     {
-        auto k = DbConnectionParameterIdentifier.roleName in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.roleName, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.roleName, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.roleName, value);
+        put(DbConnectionParameterIdentifier.roleName, value);
+        return this;
     }
 
     @property abstract DbScheme scheme() const nothrow pure;
@@ -3790,16 +3715,11 @@ public:
 
     @property final typeof(this) sendTimeout(scope const(Duration) value)
     {
-        auto s = cvtConnectionParameterDuration(value);
-        auto k = DbConnectionParameterIdentifier.sendTimeout in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.sendTimeout, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.sendTimeout, value.toString());
+        const vs = value.toString();
+        const s = cvtConnectionParameterDuration(value);
+        validatePropertyValue(DbConnectionParameterIdentifier.sendTimeout, s, vs);
+        put(DbConnectionParameterIdentifier.sendTimeout, s);
+        return this;
     }
 
     /**
@@ -3812,15 +3732,9 @@ public:
 
     @property final typeof(this) serverName(string value)
     {
-        auto k = DbConnectionParameterIdentifier.serverName in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.serverName, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.serverName, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.serverName, value);
+        put(DbConnectionParameterIdentifier.serverName, value);
+        return this;
     }
 
     @property final uint16 serverPort() const nothrow
@@ -3832,16 +3746,11 @@ public:
 
     @property final typeof(this) serverPort(uint16 value)
     {
-        auto s = value != 0 ? value.to!string() : getDefault(DbConnectionParameterIdentifier.serverPort);
-        auto k = DbConnectionParameterIdentifier.serverPort in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(s) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.serverPort, s);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.serverPort, value.to!string);
+        const vs = value.to!string();
+        const s = value != 0 ? vs : getDefault(DbConnectionParameterIdentifier.serverPort);
+        validatePropertyValue(DbConnectionParameterIdentifier.serverPort, s, vs);
+        put(DbConnectionParameterIdentifier.serverPort, s);
+        return this;
     }
 
     /**
@@ -3854,15 +3763,9 @@ public:
 
     @property final typeof(this) userName(string value)
     {
-        auto k = DbConnectionParameterIdentifier.userName in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.userName, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.userName, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.userName, value);
+        put(DbConnectionParameterIdentifier.userName, value);
+        return this;
     }
 
     /**
@@ -3875,15 +3778,9 @@ public:
 
     @property final typeof(this) userPassword(string value)
     {
-        auto k = DbConnectionParameterIdentifier.userPassword in dbDefaultConnectionParameterValues;
-        assert(k !is null);
-        if ((*k).isValidValue(value) == DbNameValueValidated.ok)
-        {
-            put(DbConnectionParameterIdentifier.userPassword, value);
-            return this;
-        }
-        else
-            throwInvalidPropertyValue(DbConnectionParameterIdentifier.userPassword, value);
+        validatePropertyValue(DbConnectionParameterIdentifier.userPassword, value);
+        put(DbConnectionParameterIdentifier.userPassword, value);
+        return this;
     }
 
     @property final char valueSeparator() const nothrow
@@ -3994,6 +3891,21 @@ protected:
     {
         auto msg = DbMessage.eInvalidConnectionStringValue.fmtMessage(scheme, name, value);
         throw new DbException(DbErrorCode.parse, msg, null, funcName, file, line);
+    }
+
+    final void validateCustomPropertyValue(string name, string value, string displayValue = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+    {
+        if (customAttributeInfo.isValidValue(value) != DbNameValueValidated.ok)
+            throwInvalidPropertyValue(name, displayValue.length ? displayValue : value, funcName, file, line);
+    }
+
+    final void validatePropertyValue(string name, string value, string displayValue = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+    {
+        auto k = DbConnectionParameterIdentifier.userPassword in dbDefaultConnectionParameterValues;
+        if (k is null || (*k).isValidValue(value) != DbNameValueValidated.ok)
+            throwInvalidPropertyValue(name, displayValue.length ? displayValue : value, funcName, file, line);
     }
 
 protected:
