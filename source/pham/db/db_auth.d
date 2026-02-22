@@ -24,6 +24,13 @@ import pham.db.db_type : DbScheme;
 
 nothrow @safe:
 
+enum DbAuthState : int
+{
+    initial = 0,
+    continue_ = 1,
+    final_ = 2,
+}
+
 abstract class DbAuth : DbDisposableObject
 {
 @safe:
@@ -143,7 +150,7 @@ protected:
         isSSLConnection = false;
         _serverPublicKey.dispose(disposingReason);
         _serverSalt.dispose(disposingReason);
-        _nextState = 0;
+        _nextState = DbAuthState.initial;
         return ResultCode.ok;
     }
 

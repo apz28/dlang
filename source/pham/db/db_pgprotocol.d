@@ -24,6 +24,8 @@ import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortClassName;
+
+import pham.db.db_auth : DbAuthState;
 import pham.db.db_buffer;
 import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
@@ -72,28 +74,28 @@ public:
         auto reader = PgReader(connection);
         switch (reader.messageType)
         {
-            case '2': // BindComplete
-            case '3': // CloseComplete
-                goto receiveAgain;
-
-            case 'T': // RowDescription (response to Describe)
+            case PgOIdResponeMsg.rowDescription: // T (response to Describe)
                 return readRowDescription(reader);
 
-            case 'n': // NoData (response to Describe)
+            case PgOIdResponeMsg.bindComplete: // 2
+            case PgOIdResponeMsg.closeComplete: // 3
+                goto receiveAgain;
+
+            case PgOIdResponeMsg.noData: // n (response to Describe)
                 return PgOIdRowDescription.init;
 
-            case 'E': // ErrorResponse
+            case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
                 writeSignal(PgOIdDescribeType.sync);
                 throw new PgException(EResponse);
 
-            case 'N': // NoticeResponse
+            case PgOIdResponeMsg.noticeResponse: // N
                 auto NResponse = readGenericResponse(reader);
                 NResponse.getWarn(command.notificationMessages);
                 goto receiveAgain;
 
             /*
-            case 'A': // NotificationResponse
+            case PgOIdResponeMsg.notificationResponse: // A
                 auto AResponse = readNotificationResponse(reader);
                 goto receiveAgain;
             */
@@ -132,52 +134,45 @@ public:
         auto reader = PgReader(connection);
         switch (reader.messageType)
         {
-            case 'K': // BackendKeyData
-                stateInfo.serverProcessId = reader.readInt32();
-                stateInfo.serverSecretKey = reader.readInt32();
-                connection.serverInfo[DbServerIdentifier.protocolProcessId] = stateInfo.serverProcessId.to!string();
-                connection.serverInfo[DbServerIdentifier.protocolSecretKey] = stateInfo.serverSecretKey.to!string();
-                goto receiveAgain;
-
-            case 'R': // AuthenticationXXXX
+            case PgOIdResponeMsg.authenticationRequest: // R
                 stateInfo.authType = reader.readInt32();
                 debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "authType=", stateInfo.authType);
                 switch (stateInfo.authType)
                 {
-                    case 0: // authentication successful, now wait for another messages
+                    case PgOIdAuth.ok: // authentication successful, now wait for another messages
                         goto receiveAgain;
 
-                    case 3: // clear-text password is required
+                    case PgOIdAuth.password: // clear-text password is required
                         stateInfo.authMethod = pgAuthClearTextName;
                         stateInfo.authData = null;
-                        stateInfo.nextAuthState = 0;
+                        stateInfo.nextAuthState = DbAuthState.initial;
                         connectAuthenticationProcess(stateInfo, null);
                         goto receiveAgain;
 
-                    case 5: // MD5
+                    case PgOIdAuth.md5: // MD5
                         stateInfo.authMethod = pgAuthMD5Name;
                         stateInfo.authData = null;
-                        stateInfo.nextAuthState = 0;
+                        stateInfo.nextAuthState = DbAuthState.initial;
                         const md5Salt = reader.readBytes(4);
                         connectAuthenticationProcess(stateInfo, md5Salt);
                         goto receiveAgain;
 
-                    case 10: // HMAC - SCRAM-SHA-256
+                    case PgOIdAuth.sasl: // HMAC - SCRAM-SHA-256
                         stateInfo.authMethod = pgAuthScram256Name;
                         stateInfo.authData = null;
-                        stateInfo.nextAuthState = 0;
+                        stateInfo.nextAuthState = DbAuthState.initial;
                         connectAuthenticationProcess(stateInfo, null);
                         goto receiveAgain;
 
-                    case 11: // HMAC - SCRAM-SHA-256 - Send proof
+                    case PgOIdAuth.saslContinue: // HMAC - SCRAM-SHA-256 - Send proof
                         const continuePayload = reader.readBytes(reader.messageLength - int32.sizeof); // Exclude type type indicator size
-                        stateInfo.nextAuthState = 1;
+                        stateInfo.nextAuthState = DbAuthState.continue_;
                         connectAuthenticationProcess(stateInfo, continuePayload);
                         goto receiveAgain;
 
-                    case 12: // HMAC - SCRAM-SHA-256 - Verification
+                    case PgOIdAuth.saslFinal: // HMAC - SCRAM-SHA-256 - Verification
                         const verifyPayload = reader.readBytes(reader.messageLength - int32.sizeof); // Exclude type type indicator size
-                        stateInfo.nextAuthState = 2;
+                        stateInfo.nextAuthState = DbAuthState.final_;
                         connectAuthenticationProcess(stateInfo, verifyPayload);
                         goto receiveAgain;
 
@@ -186,14 +181,21 @@ public:
                         throw new PgException(DbErrorCode.read, msg);
                 }
 
-            case 'S': // ParameterStatus
+            case PgOIdResponeMsg.backendKeyData: // K
+                stateInfo.serverProcessId = reader.readInt32();
+                stateInfo.serverSecretKey = reader.readInt32();
+                connection.serverInfo[DbServerIdentifier.protocolProcessId] = stateInfo.serverProcessId.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolSecretKey] = stateInfo.serverSecretKey.to!string();
+                goto receiveAgain;
+
+            case PgOIdResponeMsg.parameterStatus: // S
                 const name = reader.readCString();
                 const value = reader.readCString();
                 debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "name=", name, ", value=", value);
                 connection.serverInfo[name] = value;
                 goto receiveAgain;
 
-            case 'Z': // ReadyForQuery
+            case PgOIdResponeMsg.readyForQuery: // Z
                 stateInfo.trStatus = reader.readChar();
                 debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "trStatus=", stateInfo.trStatus);
                 switch (stateInfo.trStatus) // check for validity
@@ -210,17 +212,17 @@ public:
                 // connection is opened and now it's possible to send queries
                 return;
 
-            case 'E': // ErrorResponse
+            case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
                 throw new PgException(EResponse);
 
-            case 'N': // NoticeResponse
+            case PgOIdResponeMsg.noticeResponse: // N
                 auto NResponse = readGenericResponse(reader);
                 NResponse.getWarn(connection.notificationMessages);
                 goto receiveAgain;
 
             /*
-            case 'A': // NotificationResponse
+            case PgOIdResponeMsg.notificationResponse: // A
                 auto AResponse = readNotificationResponse(reader);
                 goto receiveAgain;
             */
@@ -293,13 +295,6 @@ public:
         const messageType = socketReader.readChar();
         switch (messageType)
         {
-            case 'N':
-                if (stateInfo.canCryptedConnection == DbEncryptedConnection.required)
-                {
-                    auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
-                    throw new PgException(DbErrorCode.connect, msg);
-                }
-                break;
             case 'S':
                 debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "Bind SSL");
                 auto rs = connection.doOpenSSL();
@@ -312,6 +307,15 @@ public:
                 connection.serverInfo[DbServerIdentifier.protocolEncrypted] = toName(stateInfo.canCryptedConnection);
                 socketBuffer.reset(); // Reset to empty after reading single SSL char
                 break;
+
+            case 'N':
+                if (stateInfo.canCryptedConnection == DbEncryptedConnection.required)
+                {
+                    auto msg = DbMessage.eInvalidConnectionRequiredEncryption.fmtMessage(connection.connectionStringBuilder.forErrorInfo);
+                    throw new PgException(DbErrorCode.connect, msg);
+                }
+                break;
+
             default:
                 auto msg = DbMessage.eUnhandleStrOperation.fmtMessage(to!string(messageType), "SSLRequest (N or S)");
                 throw new PgException(DbErrorCode.connect, msg);
@@ -336,22 +340,22 @@ public:
         auto reader = PgReader(connection);
         switch (reader.messageType)
         {
-            case '3': // CloseComplete
+            case PgOIdResponeMsg.closeComplete: // 3
                 return;
 
-            case 'E': // ErrorResponse
+            case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
                 throw new PgException(EResponse);
 
             /* No need to process on shutdown
-            case 'N': // NoticeResponse
+            case PgOIdResponeMsg.noticeResponse: // N
                 auto NResponse = readGenericResponse(reader);
                 NResponse.getWarn(command.notificationMessages);
                 goto receiveAgain;
             */
 
             /*
-            case 'A': // NotificationResponse
+            case PgOIdResponeMsg.notificationResponse: // A
                 auto AResponse = readNotificationResponse(reader);
                 goto receiveAgain;
             */
@@ -394,7 +398,7 @@ public:
 
 		switch (reader.messageType)
         {
-            case 'C': // CommandComplete
+            case PgOIdResponeMsg.commandComplete: // C
                 auto tag = reader.readCString();
                 const b1 = indexOf(tag, ' ');
                 if (b1 >= 0)
@@ -428,29 +432,29 @@ public:
                     result.dmlName = tag;
                 break;
 
-            case 'D': // DataRow - Let the caller to read row result
+            case PgOIdResponeMsg.dataRow: // D - Let the caller to read row result
                 break;
 
-            case 'I': // EmptyQueryResponse
+            case PgOIdResponeMsg.emptyQueryResponse: // I
                 throw new PgException(DbErrorCode.read, DbMessage.eInvalidCommandText);
 
-            case 'Z': // ReadyForQuery - done
+            case PgOIdResponeMsg.readyForQuery: // Z - done
                 break;
 
-            case 's': // PortalSuspended
+            case PgOIdResponeMsg.portalSuspended: // s
                 throw new PgException(DbErrorCode.read, DbMessage.eInvalidCommandSuspended);
 
-            case 'E': // ErrorResponse
+            case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
                 throw new PgException(EResponse);
 
-            case 'N': // NoticeResponse
+            case PgOIdResponeMsg.noticeResponse: // N
                 auto NResponse = readGenericResponse(reader);
                 NResponse.getWarn(command.notificationMessages);
                 goto receiveAgain;
 
             /*
-            case 'A': // NotificationResponse
+            case PgOIdResponeMsg.notificationResponse: // A
                 auto AResponse = readNotificationResponse(reader);
                 goto receiveAgain;
             */
@@ -491,27 +495,27 @@ public:
         result.messageType = reader.messageType;
 		switch (reader.messageType)
         {
-            case 'D': // DataRow - Let caller to read the row result
+            case PgOIdResponeMsg.dataRow: // D - Let caller to read the row result
                 break;
 
-            case 'Z': // ReadyForQuery - done
+            case PgOIdResponeMsg.readyForQuery: // Z - done
                 break;
 
-            case 's': // PortalSuspended
+            case PgOIdResponeMsg.portalSuspended: // s
                 isSuspended = true;
                 goto receiveAgain;
 
-            case 'E': // ErrorResponse
+            case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
                 throw new PgException(EResponse);
 
-            case 'N': // NoticeResponse
+            case PgOIdResponeMsg.noticeResponse: // N
                 auto NResponse = readGenericResponse(reader);
                 NResponse.getWarn(command.notificationMessages);
                 goto receiveAgain;
 
             /*
-            case 'A': // NotificationResponse
+            case PgOIdResponeMsg.notificationResponse: // A
                 auto AResponse = readNotificationResponse(reader);
                 goto receiveAgain;
             */
@@ -531,21 +535,21 @@ public:
         auto reader = PgReader(connection);
 		switch (reader.messageType)
         {
-            case '1': // ParseComplete
+            case PgOIdResponeMsg.parseComplete: // 1
                 return;
 
-            case 'E': // ErrorResponse
+            case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
                 writeSignal(PgOIdDescribeType.sync);
                 throw new PgException(EResponse);
 
-            case 'N': // NoticeResponse
+            case PgOIdResponeMsg.noticeResponse: // N
                 auto NResponse = readGenericResponse(reader);
                 NResponse.getWarn(command.notificationMessages);
                 goto receiveAgain;
 
             /*
-            case 'A': // NotificationResponse
+            case PgOIdResponeMsg.notificationResponse: // A
                 auto AResponse = readNotificationResponse(reader);
                 goto receiveAgain;
             */
@@ -921,7 +925,7 @@ protected:
 
         auto useCSB = connection.pgConnectionStringBuilder;
 
-        if (stateInfo.nextAuthState == 0)
+        if (stateInfo.nextAuthState == DbAuthState.initial)
             stateInfo.auth = createAuth(stateInfo.authMethod);
         if (stateInfo.auth is null)
         {
@@ -934,11 +938,11 @@ protected:
         if (status.isError)
             throw new PgException(DbErrorCode.read, status.errorMessage);
 
-        if (stateInfo.authData.length || stateInfo.nextAuthState == 0)
+        if (stateInfo.authData.length || stateInfo.nextAuthState == DbAuthState.initial)
         {
             auto writer = PgWriter(connection);
-            writer.beginMessage('p');
-            if (stateInfo.nextAuthState == 0)
+            writer.beginMessage(PgOIdRequestMsg.saslInitialResponse);
+            if (stateInfo.nextAuthState == DbAuthState.initial)
             {
                 if (stateInfo.auth.multiStates == 1)
                     writer.writeCChars(cast(const(char)[])stateInfo.authData[]);

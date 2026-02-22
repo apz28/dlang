@@ -18,9 +18,91 @@ enum PgDefaultSize
      */
     oneK = 1_000,
     maxSegmentLength = oneK * 16,
-	messageReadBufferLength = oneK * 64,
+    messageReadBufferLength = oneK * 64,
     socketReadBufferLength = messageReadBufferLength + (oneK * 2),
     socketWriteBufferLength = messageReadBufferLength + oneK,
+}
+
+/* protocol.h */
+/* These are the authentication request codes sent by the backend. */
+enum PgOIdAuth : int
+{
+    ok = 0, /* User is authenticated  */
+    krb4 = 1, /* Kerberos V4. Not supported any more. */
+    ktn5 = 2, /* Kerberos V5. Not supported any more. */
+    password = 3, /* Password */
+    cryptPassword = 4, /* crypt password. Not supported any more. */
+    md5 = 5, /* md5 password */
+    /* 6 is available.  It was used for SCM creds, not supported any more. */
+    gss = 7, /* GSSAPI without wrap() */
+    gssContinue = 8, /* Continue GSS exchanges */
+    sspi = 9, /* SSPI negotiate without wrap() */
+    sasl = 10, /* Begin SASL authentication */
+    saslContinue = 11, /* Continue SASL authentication */
+    saslFinal = 12, /* Final SASL message */
+}
+
+/* protocol.h */
+/* These are the request codes sent by the frontend. */
+enum PgOIdRequestMsg : char
+{
+    bind = 'B',
+    close = 'C',
+    copyFail = 'f',
+    describe = 'D',
+    execute = 'E',
+    functionCall = 'F',
+    flush = 'H',
+    gssResponse = 'p', // lowercase p password
+    parse = 'P',
+    passwordMessage = 'p', // lowercase p password
+    query = 'Q',
+    saslInitialResponse = 'p', // lowercase p password
+    saslResponse = 'p', // lowercase p password
+    sync = 'S',
+    terminate = 'X',
+}
+
+/* protocol.h */
+/* These are the response codes sent by the backend. */
+enum PgOIdResponeMsg : char
+{
+    authenticationRequest = 'R',
+    backendKeyData = 'K',
+    bindComplete = '2',
+    closeComplete = '3',
+    commandComplete = 'C',
+    copyBothResponse = 'W',
+    copyInResponse = 'G',
+    copyOutResponse = 'H',
+    dataRow = 'D',
+    emptyQueryResponse = 'I',
+    errorResponse = 'E',
+    functionCallResponse = 'V',
+    negotiateProtocolVersion = 'v',
+    noData = 'n',
+    noticeResponse = 'N',
+    notificationResponse = 'A',
+    parameterDescription = 't',
+    parameterStatus = 'S',
+    parseComplete = '1',
+    portalSuspended = 's',
+    readyForQuery = 'Z',
+    rowDescription = 'T',
+}
+
+enum PgOIdDescribeType : char
+{
+    bindStatement = PgOIdRequestMsg.bind,
+    close = PgOIdRequestMsg.close,
+    describeStatement = PgOIdRequestMsg.describe,
+    disconnect = PgOIdRequestMsg.terminate,
+    executeStatement = PgOIdRequestMsg.execute,
+    flush = PgOIdRequestMsg.flush,
+    parseStatement = PgOIdRequestMsg.parse,
+    portal = PgOIdRequestMsg.parse,
+    statement = PgOIdRequestMsg.sync,
+    sync = PgOIdRequestMsg.sync,
 }
 
 enum PgOIdDiag : char
@@ -43,20 +125,6 @@ enum PgOIdDiag : char
     sqlState = 'C',
     statementPosition = 'P',
     tableName = 't',
-}
-
-enum PgOIdDescribeType : char
-{
-    bindStatement = 'B',
-    close = 'C',
-    describeStatement = 'D',
-    disconnect = 'X',
-    executeStatement = 'E',
-    flush = 'H',
-    parseStatement = 'P',
-    portal = 'P',
-    statement = 'S',
-    sync = 'S',
 }
 
 enum PgOIdOther : int

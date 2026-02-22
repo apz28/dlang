@@ -26,6 +26,8 @@ import pham.utl.utl_enum_set : EnumSet, toName;
 import pham.utl.utl_object : InitializedValue;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
+
+import pham.db.db_auth : DbAuthState;
 import pham.db.db_buffer_filter;
 import pham.db.db_buffer_filter_cipher;
 import pham.db.db_buffer_filter_compressor;
@@ -1586,7 +1588,7 @@ protected:
 
             if (stateInfo.authMethod != contAuth.name)
             {
-                stateInfo.nextAuthState = 0;
+                stateInfo.nextAuthState = DbAuthState.initial;
                 stateInfo.authMethod = contAuth.name;
                 stateInfo.auth = createAuth(stateInfo.authMethod);
             }
@@ -1847,7 +1849,7 @@ protected:
 
         auto useCSB = connection.fbConnectionStringBuilder;
 
-        stateInfo.nextAuthState = 0;
+        stateInfo.nextAuthState = DbAuthState.initial;
         stateInfo.authData = null;
         stateInfo.authMethod = useCSB.integratedSecurityName;
         stateInfo.auth = createAuth(stateInfo.authMethod);
@@ -2148,7 +2150,7 @@ protected:
 
         auto useCSB = connection.fbConnectionStringBuilder;
 
-        stateInfo.nextAuthState = 0;
+        stateInfo.nextAuthState = DbAuthState.initial;
         stateInfo.authData = null;
         stateInfo.authMethod = useCSB.integratedSecurityName;
         stateInfo.auth = createAuth(stateInfo.authMethod);
