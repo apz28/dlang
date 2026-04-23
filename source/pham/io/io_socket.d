@@ -364,7 +364,7 @@ public:
             ? inet_addr(ipv6LoopbackAddress.ptr)
             : inet_addr(ipv4LoopbackAddress.ptr);
         service.sin_port = 0;
-        if (bindSocket(socketHandle, cast(SOCKADDR*)&service, cast(SocketLength)service.sizeof) == errorSocketResult)
+        if (bindSocket(socketHandle, cast(sockaddr*)&service, cast(SocketLength)service.sizeof) == errorSocketResult)
             return 0;
 
         auto address = getSocketAddress(socketHandle);
