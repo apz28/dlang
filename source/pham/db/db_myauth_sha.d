@@ -61,7 +61,7 @@ public:
         return getPasswordEx(userName, userPassword, true, authData);
     }
 
-    final override DbAuth setServerSalt(scope const(ubyte)[] serverSalt) pure
+    final override DbAuth setServerSalt(const(ubyte)[] serverSalt) pure
     {
         debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(serverSalt=", serverSalt.dgToHex(), ")");
 
@@ -132,7 +132,7 @@ nothrow @safe:
 
 public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         authData.clear();
         return ResultStatus.ok();
@@ -159,7 +159,7 @@ nothrow @safe:
 
 public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
 

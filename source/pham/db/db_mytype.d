@@ -37,6 +37,7 @@ static immutable string[DbIntegratedSecurityConnection.max + 1] myAuthIntegrated
     myAuthScramSha1Name, // srp1
     myAuthSha2Caching, // srp256 - can be myAuthScramSha256Name
     myAuthSSPIName, // sspi
+    "Not supported OAUTH", // oauth
     ];
 
 static immutable string[] myCiphers = [

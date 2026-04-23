@@ -25,6 +25,7 @@ import pham.dtm.dtm_time_zone_default;
 /*
  * A map struct to hold equivalent zone names between IANA & Windows
  * https://github.com/unicode-org/cldr/blob/main/common/supplemental/windowsZones.xml
+ * For Windows, should look at C:\Windows\Globalization\Time Zone\timezoneMapping.xml & timezones.xml
  *
  */
 struct IanaWindowNameMap

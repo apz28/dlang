@@ -27,12 +27,14 @@ version(Posix)
     import core.sys.posix.netinet.tcp;
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
-    public import pham.io.io_socket_posix;
+    import pham.io.io_socket_posix : interfaceNameToIndex;
+    public import pham.io.io_socket_posix : FDSet, Linger, PollFD, POLLRead, POLLWrite, SocketHandle, TimeVal;
 }
 else version(Windows)
 {
     import core.sys.windows.winsock2;
-    public import pham.io.io_socket_windows;
+    import pham.io.io_socket_windows : interfaceNameToIndex;
+    public import pham.io.io_socket_windows : FDSet, Linger, PollFD, POLLRead, POLLWrite, SocketHandle, TimeVal;
 }
 else
     pragma(msg, "Unsupported system for " ~ __MODULE__);
@@ -116,12 +118,14 @@ enum ShutdownReason : int
     both = SD_BOTH,         /// both RECEIVE and SEND
 }
 
+alias SocketPort = ushort;
+
 struct AddressInfo
 {
 nothrow @safe:
 
 public:
-    static AddressInfo bindHints(ushort port,
+    static AddressInfo bindHints(SocketPort port,
         AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
@@ -135,7 +139,7 @@ public:
         return result;
     }
 
-    static AddressInfo connectHints(ushort port,
+    static AddressInfo connectHints(SocketPort port,
         AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
@@ -175,7 +179,7 @@ public:
     SocketType type;
     Protocol protocol;
     int flags;
-    ushort port;
+    SocketPort port;
 }
 
 struct BindInfo
@@ -183,7 +187,7 @@ struct BindInfo
 nothrow @safe:
 
 public:
-    this(IPSocketAddress address, ushort port,
+    this(IPSocketAddress address, SocketPort port,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
     {
@@ -195,7 +199,7 @@ public:
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay, Flags.reuseAddress]);
     }
 
-    this(string hostName, ushort port,
+    this(string hostName, SocketPort port,
         AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
@@ -337,7 +341,7 @@ public:
     IPSocketAddress address;
     SocketType type;
     Protocol protocol;
-    ushort port;
+    SocketPort port;
     Linger linger;
     uint backLog;
     EnumSet!Flags flags;
@@ -360,12 +364,10 @@ private:
 
 struct ConnectInfo
 {
-    import core.time : seconds;
-
 nothrow @safe:
 
 public:
-    this(IPSocketAddress address, ushort port,
+    this(IPSocketAddress address, SocketPort port,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
     {
@@ -373,11 +375,11 @@ public:
         this.port = port;
         this.protocol = protocol;
         this.type = type;
-        this.connectTimeout = 5.seconds;
+        this.connectTimeout = dur!"seconds"(5);
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
     }
 
-    this(string hostName, ushort port,
+    this(string hostName, SocketPort port,
         AddressFamily family = AddressFamily.ipv4,
         SocketType type = SocketType.stream,
         Protocol protocol = Protocol.tcp) pure
@@ -387,7 +389,7 @@ public:
         this.protocol = protocol;
         this.type = type;
         this.address = IPSocketAddress(family);
-        this.connectTimeout = 5.seconds;
+        this.connectTimeout = dur!"seconds"(5);
         this.flags = EnumSet!Flags([Flags.blocking, Flags.noDelay]);
         this.resolveHostHints = AddressInfo.connectHints(port, family, type, protocol);
     }
@@ -521,7 +523,7 @@ public:
     IPSocketAddress address;
     SocketType type;
     Protocol protocol;
-    ushort port;
+    SocketPort port;
     Duration connectTimeout;
     Duration readTimeout;
     Duration writeTimeout;
@@ -694,7 +696,7 @@ public:
             : (isIPv6 ? _ipvNumbers[0..maxIPv6AddressBytes] : null);
     }
 
-    SocketAddress toSocketAddress(ushort port) @nogc nothrow pure
+    SocketAddress toSocketAddress(SocketPort port) @nogc nothrow pure
     {
         return SocketAddress(this, port);
     }
@@ -753,8 +755,8 @@ public:
     alias maxIPvBytes = maxIPv6AddressBytes;
 
     static immutable IPSocketAddress ipv4Any = IPSocketAddress([0, 0, 0, 0]);
-    static immutable IPSocketAddress ipv4Loopback = IPSocketAddress([127, 0, 0, 1]);
     static immutable IPSocketAddress ipv4Broadcast = IPSocketAddress([255, 255, 255, 255]);
+    static immutable IPSocketAddress ipv4Loopback = IPSocketAddress([127, 0, 0, 1]);
     alias ipv4None = ipv4Broadcast;
 
     static immutable IPSocketAddress ipv6Any = IPSocketAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);
@@ -963,7 +965,7 @@ struct SocketAddress
 nothrow @safe:
 
 public:
-    this(scope const(IPSocketAddress) address, const(ushort) port) @nogc pure
+    this(scope const(IPSocketAddress) address, const(SocketPort) port) @nogc pure
     {
         if (address.isIPv4)
         {
@@ -1046,7 +1048,7 @@ public:
                 : null);
     }
 
-    @property int slen() @nogc pure
+    @property int slen() const @nogc pure
     {
         return cast(int)_slen;
     }
@@ -1075,7 +1077,7 @@ public:
         return _slen == _sin6.sizeof;
     }
 
-    @property ushort port() const @nogc nothrow pure
+    @property SocketPort port() const @nogc nothrow pure
     {
         return isIPv4
             ? ntohs(_sin.sin_port)
@@ -1156,6 +1158,23 @@ pragma(inline, true)
 bool isSelectMode(SelectMode modes, SelectMode mode) @nogc nothrow pure
 {
     return (modes & mode) != 0;
+}
+
+pragma(inline, true)
+bool isTimeout(scope const(Duration) timeout) @nogc nothrow pure
+{
+    return timeout > Duration.zero;
+}
+
+pragma(inline, true)
+short pollEventOf(const(SelectMode) modes) @nogc nothrow pure @safe
+{
+    short result = 0;
+    if (isSelectMode(modes, SelectMode.read))
+        result |= POLLRead;
+    if (isSelectMode(modes, SelectMode.write))
+        result |= POLLWrite;
+    return result;
 }
 
 string toErrorInfo(AddressFamily family, SocketType type, Protocol protocol) nothrow pure
@@ -1409,7 +1428,7 @@ public:
         return ResultIf!(ubyte[IPSocketAddress.maxIPv4AddressBytes]).ok(result);
     }
 
-    static string toString(scope const(ubyte)[] ipv4Address, ushort port) nothrow pure
+    static string toString(scope const(ubyte)[] ipv4Address, SocketPort port) nothrow pure
     in
     {
         assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
@@ -1437,7 +1456,7 @@ do
         .putNumber(ipv4Address[3]);
 }
 
-static ref Appender!string putIpv4Address(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, ushort port) nothrow pure @safe
+static ref Appender!string putIpv4Address(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, SocketPort port) nothrow pure @safe
 in
 {
     assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
@@ -1722,7 +1741,7 @@ public:
         return ipv6Address[4] == 0 && ipv6Address[5] == 0x5EFE;
     }
 
-    static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+    static string toString(scope const(ubyte)[] ipv6Address, uint scopeId, SocketPort port) nothrow pure
     in
     {
         assert(ipv6Address.length >= IPSocketAddress.maxIPv6AddressBytes);
@@ -1778,7 +1797,7 @@ do
     return destination;
 }
 
-static ref Appender!string putIpv6Address(return ref Appender!string destination, scope const(ushort)[] ipv6Address, uint scopeId, ushort port) nothrow pure
+static ref Appender!string putIpv6Address(return ref Appender!string destination, scope const(ushort)[] ipv6Address, uint scopeId, SocketPort port) nothrow pure
 in
 {
     assert(ipv6Address.length >= IPv6AddressHelper.maxIPv6AddressShorts);

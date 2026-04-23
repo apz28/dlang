@@ -18,6 +18,11 @@ import core.sys.windows.windef : BOOL, HANDLE, DWORD, MAKEWORD;
 import core.sys.windows.winerror : ERROR_INVALID_HANDLE, WAIT_TIMEOUT;
 import core.sys.windows.winsock2;
 
+import pham.utl.utl_result : ResultCode;
+import pham.io.io_socket_error : lastSocketError;
+import pham.io.io_socket_type : PollFDSet, PollResult,
+    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, isSelectMode, toSocketTimeMSecs, toSocketTimeVal;
+
 pragma(lib, "Iphlpapi");
 pragma(lib, "Ws2_32");
 
@@ -126,23 +131,19 @@ extern(Windows)
     DWORD WSAWaitForMultipleEvents(DWORD cEvents, const WSAEVENT* lphEvents, BOOL fWaitAll, DWORD dwTimeout, BOOL fAlertable); // Ws2_32.lib
 }
 
-enum eHandleReset = WSAECONNRESET; // 10054
-enum eInvalidHandle = WSA_INVALID_HANDLE; // 6
-enum eTimeout = ETIMEDOUT; // 10060
-
 alias FDSet = fd_set;
 alias Linger = linger;
 alias PollFD = WSAPOLLFD;
 alias SocketHandle = SOCKET;
+alias SocketLength = int;
 alias TimeVal = timeval;
-alias socklen_t = int;
 
 enum errorSocketResult = SOCKET_ERROR;
 enum invalidSocketHandle = INVALID_SOCKET;
 
-import pham.utl.utl_result : ResultCode;
-import pham.io.io_socket_type : PollFDSet, PollResult,
-    SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems, isSelectMode, toSocketTimeMSecs, toSocketTimeVal;
+enum eHandleReset = WSAECONNRESET; // 10054
+enum eInvalidHandle = WSA_INVALID_HANDLE; // 6
+enum eTimeout = ETIMEDOUT; // 10060
 
 struct WSAStartupResult
 {
@@ -151,7 +152,7 @@ struct WSAStartupResult
 }
 
 pragma(inline, true)
-SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope socklen_t* nameLen) nothrow @trusted
+SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope SocketLength* nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -162,7 +163,7 @@ do
 }
 
 pragma(inline, true)
-int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen) nothrow @trusted
+int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, SocketLength nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -184,7 +185,7 @@ do
 }
 
 pragma(inline, true)
-int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen, bool blocking) nothrow @trusted
+int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, SocketLength nameLen, bool blocking) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -273,19 +274,6 @@ uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
     return if_nametoindex(lpscopeId);
 }
 
-pragma(inline, true)
-int lastSocketError() nothrow @trusted
-{
-    return WSAGetLastError();
-}
-
-pragma(inline, true)
-int lastSocketError(int errorCode) nothrow @trusted
-{
-    WSASetLastError(errorCode);
-    return errorCode;
-}
-
 int lastSocketErrorOf(SocketHandle handle) nothrow @trusted
 in
 {
@@ -307,17 +295,6 @@ in
 do
 {
     return listen(handle, backLog);
-}
-
-pragma(inline, true)
-short pollEventOf(const(SelectMode) modes) @nogc nothrow pure @safe
-{
-    short result = 0;
-    if (isSelectMode(modes, SelectMode.read))
-        result |= POLLRead;
-    if (isSelectMode(modes, SelectMode.write))
-        result |= POLLWrite;
-    return result;
 }
 
 int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted

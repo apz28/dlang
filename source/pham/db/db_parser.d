@@ -879,7 +879,7 @@ ResultIf!(DbURL!S) parseDbURL(S)(S dbURL)
     if (!parseDatabase())
         return returnResult();
 
-    bool parsedOption(size_t index, ResultIf!(C[]) name, ResultIf!(C[]) value) nothrow @safe
+    bool parsedOption(size_t count, ResultIf!(C[]) name, ResultIf!(C[]) value) nothrow @safe
     {
         if (name && value)
         {

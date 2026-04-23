@@ -30,6 +30,7 @@ public import pham.dtm.dtm_time_zone : ZoneOffset;
 import pham.dtm.dtm_time_zone_map : TimeZoneInfoMap;
 public import pham.external.dec.dec_decimal : Decimal32, Decimal64, Decimal128, isDecimal,
     Precision, RoundingMode;
+import pham.io.io_socket_type : SocketPort;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_array_static : ShortStringBuffer;
 public import pham.utl.utl_big_integer : BigInteger;
@@ -224,9 +225,10 @@ alias DbFieldIdType = DbColumnIdType;
 /**
  * Describes how to client send authenticated data to server
  * $(DbIntegratedSecurityConnection.legacy) name and password
- * $(DbIntegratedSecurityConnection.srp1)
- * $(DbIntegratedSecurityConnection.srp256)
- * $(DbIntegratedSecurityConnection.sspi)
+ * $(DbIntegratedSecurityConnection.srp1) SASL SCRAM-SHA-1 mechanism
+ * $(DbIntegratedSecurityConnection.srp256) SASL SCRAM-SHA-256 mechanism
+ * $(DbIntegratedSecurityConnection.sspi) Windows Security Support Provider Interface authentication
+ * $(DbIntegratedSecurityConnection.oauth) SASL OAUTHBEARER mechanism
  */
 enum DbIntegratedSecurityConnection : ubyte
 {
@@ -234,6 +236,7 @@ enum DbIntegratedSecurityConnection : ubyte
     srp1,
     srp256,
     sspi,
+    oauth,
 }
 
 /**
@@ -322,9 +325,20 @@ enum DbConnectionParameterIdentifier : string
     userName = "user", /// string
     userPassword = "password", /// string
 
+    // For OAuth2 authentication
+    oauthAuthorizerURL = "oauthAuthorizerURL", /// string - The system which receives requests from, and issues access tokens to - ex: https://your-provider.com
+    oauthClientId = "oauthClientId", /// string - ex: your-client-id
+    oauthIssuerURL = "oauthIssuerURL", /// string - - An identifier for an authorization server - ex: https://your-provider.com
+    oauthProviderName = "oauthProviderName", /// string - The organization, product vendor - ex: google, yahoo, github ...
+    oauthScopes = "oauthScopes", /// string - A space-separated list of the OAuth scopes - ex: openid profile
+    // oauthAccessToken = /// string - your-bearer-token
+    // oauthExpiredIn /// integer - in seconds
+    // oauthRefreshToken = /// string - When an access token expires, a client typically uses a refresh_token (if provided) to obtain a new access token
+
     // For socket
     socketBlocking = "blocking", /// bool
     socketNoDelay = "noDelay", /// bool
+
     socketSslCa = "sslCa", /// string
     socketSslCaDir = "sslCaDir", /// string
     socketSslCert = "sslCert", /// string
@@ -636,16 +650,29 @@ struct DbConnectionParameterInfo
 nothrow @safe:
 
 public:
+    pragma(inline, true)
     bool hasDef() const pure
     {
         return def.length != 0;
     }
 
+    pragma(inline, true)
     bool hasRange() const pure
     {
         return min != 0 || max != 0;
     }
 
+    pragma(inline, true)
+    bool isScheme(string checkingScheme) const
+    {
+        import pham.utl.utl_text : simpleIndexOf;
+
+        return schemes.length == 0
+            || schemes == checkingScheme
+            || schemes.simpleIndexOf(checkingScheme) >= 0;
+    }
+
+    pragma(inline, true)
     DbNameValueValidated isValidValue(string value) const
     {
         assert(isValidValueHandler !is null);
@@ -660,7 +687,7 @@ public:
     string def;
     int32 min;
     int32 max;
-    string scheme; // Blank means for all
+    string schemes; // Blank means for all, use ',' for separator if multiple schemes
 }
 
 alias DbDate = Date;
@@ -1921,6 +1948,8 @@ struct DbTypeInfo
 
 struct DbHost(S)
 {
+    import pham.io.io_socket_type : SocketPort;
+
 nothrow @safe:
 
 public:
@@ -1931,7 +1960,7 @@ public:
 
 public:
     S name;
-    ushort port;
+    SocketPort port;
 }
 
 struct DbURL(S)
@@ -2104,7 +2133,17 @@ do
     return decimalType;
 }
 
-enum InputDirectionOnly
+pragma(inline, true)
+EnumSet!DbParameterDirection inputOutputDirections() @nogc pure
+{
+    return EnumSet!DbParameterDirection([
+        DbParameterDirection.input,
+        DbParameterDirection.inputOutput,
+        DbParameterDirection.output,
+        DbParameterDirection.returnValue]);
+}
+
+enum InputDirectionOnly : ubyte
 {
     no,
     yes,
@@ -2118,7 +2157,7 @@ EnumSet!DbParameterDirection inputDirections(InputDirectionOnly inputOnly) @nogc
         : EnumSet!DbParameterDirection([DbParameterDirection.input, DbParameterDirection.inputOutput]);
 }
 
-enum OutputDirectionOnly
+enum OutputDirectionOnly : ubyte
 {
     no,
     yes,
@@ -2540,6 +2579,22 @@ DbNameValueValidated isConnectionParameterUBytes(scope const(DbConnectionParamet
         : DbNameValueValidated.invalidValue;
 }
 
+DbNameValueValidated isConnectionParameterUrl(scope const(DbConnectionParameterInfo) info, string v)
+{
+    import pham.utl.utl_html : URL, parseURL;
+
+    debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(v=", v, ", info.min=", info.min, ", info.max=", info.max, ")");
+
+    if (v.length < info.min || v.length > info.max)
+        return DbNameValueValidated.invalidValue;
+
+    URL url;
+    if (!url.parseURL(v))
+        return DbNameValueValidated.invalidValue;
+
+    return url.isValidFQDN() ? DbNameValueValidated.ok : DbNameValueValidated.invalidValue;
+}
+
 
 // Any below codes are private
 private:
@@ -2636,9 +2691,16 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.roleName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
         result[DbConnectionParameterIdentifier.sendTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000 msecs", 0, int32.max);
         result[DbConnectionParameterIdentifier.serverName] = DbConnectionParameterInfo(&isConnectionParameterString, "localhost", 1, dbConnectionParameterMaxName);
-        result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, uint16.max);
+        result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, SocketPort.max);
         result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
         result[DbConnectionParameterIdentifier.userPassword] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
+
+        // OAuth2
+        result[DbConnectionParameterIdentifier.oauthAuthorizerURL] = DbConnectionParameterInfo(&isConnectionParameterUrl, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.pg);
+        result[DbConnectionParameterIdentifier.oauthClientId] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.pg);
+        result[DbConnectionParameterIdentifier.oauthIssuerURL] = DbConnectionParameterInfo(&isConnectionParameterUrl, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.pg);
+        result[DbConnectionParameterIdentifier.oauthProviderName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.pg);
+        result[DbConnectionParameterIdentifier.oauthScopes] = DbConnectionParameterInfo(&isConnectionParameterString, "openid profile", 0, dbConnectionParameterMaxName, DbScheme.pg);
 
         // Socket
         result[DbConnectionParameterIdentifier.socketBlocking] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
@@ -2874,6 +2936,6 @@ unittest // DbConnectionParameterIdentifier & dbDefaultConnectionParameterValues
     foreach (e; EnumMembers!DbConnectionParameterIdentifier)
     {
         auto f = e in dbDefaultConnectionParameterValues;
-        assert(f !is null);
+        assert(f !is null, e);
     }
 }

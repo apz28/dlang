@@ -18,6 +18,7 @@ import core.sys.windows.winsock2;
 import std.algorithm : remove;
 
 import pham.utl.utl_result : ResultCode;
+import pham.io.io_socket_error : lastSocketError;
 import pham.io.io_socket_windows;
 
 enum // EPOLL_EVENTS - Posix

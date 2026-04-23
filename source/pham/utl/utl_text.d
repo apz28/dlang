@@ -16,40 +16,58 @@ import std.traits : Unqual, isFloatingPoint, isIntegral, isSomeChar, isSomeStrin
 
 public import pham.utl.utl_result : ResultIf;
 
-struct NamedValue(S)
+struct NamedValue(String = string)
 {
-    S name;
-    S value;
+    String name;
+    String value;
+}
+
+/**
+ * Returns true if `startWidth` is starting with `startWidth`
+ * ignoring the case of the strings
+ * Params:
+ *  s1 = a string that being looked into
+ *  startWidth = a substring to compare for start with
+ */
+pragma(inline, true)
+bool caseInsentiveStartWidth(scope const(char)[] s1, scope const(char)[] startWidth) nothrow pure @safe
+{
+    import std.uni : sicmp;
+
+    return s1.length >= startWidth.length
+        && sicmp(s1[0..startWidth.length], startWidth) == 0;
 }
 
 /**
  * Returns the class-name of object. If it is null, returns "null"
  * Params:
- *   object = the object to get the class-name from
+ *  object = the object to get the class-name from
  */
 string className(const(Object) object) nothrow pure @safe
 {
     return object is null ? "null" : typeid(object).name;
 }
 
-string concateLineIf(string lines, string addedLine) nothrow @safe
+string concateLineIf(string lines, string addingLine) nothrow @safe
 {
-    if (addedLine.length == 0)
+    import std.ascii : newline;
+
+    if (addingLine.length == 0)
         return lines;
     else if (lines.length == 0)
-        return addedLine;
+        return addingLine;
     else
-        return lines ~ "\n" ~ addedLine;
+        return lines ~ newline ~ addingLine;
 }
 
-ResultIf!(Char[]) decodeFormValue(Char)(return Char[] encodedFormValue,
+ResultIf!(Char[]) decodeFormValue(Char = char)(return Char[] encodedFormValue,
     const(Char) invalidReplacementChar = '?') nothrow pure @safe
 if (isSomeChar!Char)
 {
     import pham.utl.utl_array_append : Appender;
     import pham.utl.utl_numeric_parser : NumericParsedKind, parseHexDigits;
 
-    if (encodedFormValue.simpleIndexOfAny("%+") < 0)
+    if (!encodedFormValue.simpleIndexOfAny("%+").found)
         return ResultIf!(Char[]).ok(encodedFormValue);
 
     Char[] firstErrorText;
@@ -92,10 +110,12 @@ if (isSomeChar!Char)
                 }
 				i += 2;
 				break;
+
             // Relax decoding
 			case '+':
                 result.put(' ');
                 break;
+
 			default:
 				result.put(c);
 				break;
@@ -106,7 +126,7 @@ if (isSomeChar!Char)
         : ResultIf!(Char[]).error(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
 }
 
-ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) nothrow pure @safe
+ptrdiff_t indexOf(String = string)(scope const(NamedValue!String)[] values, scope const(String) name) nothrow pure @safe
 {
     foreach (i, ref v; values)
     {
@@ -121,7 +141,8 @@ ptrdiff_t indexOf(S)(scope const(NamedValue!S)[] values, scope const(S) name) no
  * Params:
  *   chars = the list of characters to test
  */
-bool isAllSimpleChar(scope const(char)[] chars) @nogc nothrow pure @safe
+bool isAllSimpleChar(Char = char)(scope const(Char)[] chars) @nogc nothrow pure @safe
+if (isSomeChar!Char || isIntegral!Char)
 {
     foreach (i; 0..chars.length)
     {
@@ -134,12 +155,36 @@ bool isAllSimpleChar(scope const(char)[] chars) @nogc nothrow pure @safe
 /**
  * Returns true if `c` is in the range 0..0x7F
  * Params:
+ *  c = the character to test
+ */
+pragma(inline, true)
+bool isSimpleChar(Char = char)(const(Char) c) @nogc nothrow pure @safe
+if (isSomeChar!Char || isIntegral!Char)
+{
+    return c <= 0x7F;
+}
+
+/**
+ * Returns true if `c` is a digit (0..9).
+ * Params:
  *   c = the character to test
  */
 pragma(inline, true)
-bool isSimpleChar(const(char) c) @nogc nothrow pure @safe
+bool isSimpleDigit(const(dchar) c) @nogc nothrow pure @safe
 {
-    return c <= 0x7F;
+    return '0' <= c && c <= '9';
+}
+
+/**
+ * Returns true if `c` is a digit in base 16 (0..9, A..F, a..f)
+ * Params:
+ *  c = the character to test
+ */
+pragma(inline, true)
+bool isSimpleHexDigit(const(dchar) c) @nogc nothrow pure @safe
+{
+    const hc = c | 0x20;
+    return ('0' <= c && c <= '9') || ('a' <= hc && hc <= 'f');
 }
 
 /**
@@ -153,8 +198,8 @@ bool isSimpleChar(const(char) c) @nogc nothrow pure @safe
  * Returns:
  *   a string with proper padded character(s)
  */
-S pad(S, Char)(S value, const(ptrdiff_t) size, Char c) nothrow pure @safe
-if (isSomeString!S && isSomeChar!Char && is(Unqual!(typeof(S.init[0])) == Char))
+String pad(String, Char)(String value, const(ptrdiff_t) size, Char c) nothrow pure @safe
+if (isSomeString!String && isSomeChar!Char && is(Unqual!(typeof(String.init[0])) == Char))
 {
     import std.math : abs;
 
@@ -175,29 +220,32 @@ if (isSomeChar!Char)
         : stringOfChar!(Char, Writer)(sink, size - length, c);
 }
 
-void parseFormEncodedValues(Char)(return Char[] formEncodedValues,
-    bool delegate(size_t index, return ResultIf!(Char[]) name, return ResultIf!(Char[]) value) nothrow @safe valueCallBack,
+void parseFormEncodedValues(Char = char)(return Char[] formEncodedValues,
+    bool delegate(size_t count, return ResultIf!(Char[]) name, return ResultIf!(Char[]) value) nothrow @safe valueCallBack,
     const(Char) invalidReplacementChar = '?') nothrow @safe
 if (isSomeChar!Char)
 {
     size_t counter;
     foreach (formEncodedValue; formEncodedValues.simpleSplitter("&;"))
     {
-        const i = formEncodedValue.simpleIndexOf('=');
-        if (i >= 0)
+        //import std.stdio : writeln; debug writeln("counter=", counter, ", formEncodedValue=", formEncodedValue);
+
+        counter++;
+
+        if (formEncodedValue.length == 0)
         {
-            if (!valueCallBack(counter++,
-                    decodeFormValue!Char(formEncodedValue[0..i], invalidReplacementChar),
-                    decodeFormValue!Char(formEncodedValue[(i + 1)..$], invalidReplacementChar)))
+            if (!valueCallBack(counter,
+                    ResultIf!(Char[]).error(-1, null),
+                    ResultIf!(Char[]).error(-1, null)))
                 break;
+            continue;
         }
-        else
-        {
-            if (!valueCallBack(counter++,
-                    decodeFormValue!Char(formEncodedValue, invalidReplacementChar),
-                    ResultIf!(Char[]).ok(null)))
-                break;
-        }
+
+        auto pair = formEncodedValue.simpleSplitter('=').pair();
+        if (!valueCallBack(counter,
+                decodeFormValue!Char(pair.name, invalidReplacementChar),
+                decodeFormValue!Char(pair.value, invalidReplacementChar)))
+            break;
     }
 }
 
@@ -259,6 +307,60 @@ string shortenTypeNameTemplate(string fullName) nothrow pure @safe
 }
 
 /**
+ * Count the occurrence of element `c` in an element array `str` and returns the number of matched elements found
+ * Params:
+ *  str = element array
+ *  c = an element to count of
+ */
+size_t simpleCount(E = char)(scope const(E)[] str, const(E) c) nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
+{
+    size_t result;
+    foreach (i; 0..str.length)
+    {
+        if (str[i] == c)
+            result++;
+    }
+    return result;
+}
+
+/**
+ * Returns true if str is ending with `c`
+ * Params:
+ *  str = a character/element array to look into
+ *  c = a character/element to test
+ */
+pragma(inline, true)
+bool simpleEndWith(E = char)(scope const(E)[] str, const(E) c) @nogc nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
+{
+    return str.length && str[$ - 1] == c;
+}
+
+/**
+ * Returns index of matched element of `cs` if str is ending with one of `cs` element
+ * -1 is returned if there is no matched
+ * Params:
+ *  str = a character/element array to look into
+ *  cs = any characters/elements to test for
+ */
+ptrdiff_t simpleEndWithAny(E = char)(scope const(E)[] str, scope const(E)[] cs) @nogc nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
+{
+    if (str.length == 0 || cs.length == 0)
+        return -1;
+
+    const end = str[$ - 1];
+	foreach (i; 0..cs.length)
+    {
+		if (end == cs[i])
+			return i;
+    }
+
+	return -1;
+}
+
+/**
  * Returns FormatSpec!char with `f` format specifier
  * Params:
  *   precision = optional precision of formated string
@@ -278,82 +380,119 @@ if (isSomeChar!Char)
 }
 
 /**
- * Finds the first occurence of character `c` in string `str` and returns its index.
- * No auto decode
+ * Finds the first occurence of element `c` in an element array `str` and returns matched index.
+ * For a string, no auto decode
  * Params:
- *   str = string
- *   c = a character to look for
+ *   str = element array
+ *   c = an element to look for
  * Returns:
  *   index of `c` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, const(Char) c) @nogc nothrow pure @safe
-if (isSomeChar!Char)
+ptrdiff_t simpleIndexOf(E = char)(scope const(E)[] str, const(E) c, size_t fromIndex = 0) @nogc nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
 {
-	foreach (i; 0..str.length)
+    if (fromIndex >= str.length)
+        return -1;
+
+	foreach (i; fromIndex..str.length)
     {
 		if (str[i] == c)
 			return i;
     }
+
 	return -1;
 }
 
 /**
- * Finds the first occurence of sub-string `subStr` in string `str` and returns its index.
- * No auto decode
+ * Finds the first occurence of sub-element array `subStr` in element array `str` and returns matched index.
+ * For a string, no auto decode
  * Params:
- *   str = string
- *   subStr = a sub-string to look for
+ *   str = element array
+ *   subStr = a sub-element array to look for
  * Returns:
  *   index of `subStr` in `str` if found
  *   -1 if not found
  */
-ptrdiff_t simpleIndexOf(Char)(scope const(Char)[] str, scope const(Char)[] subStr) @nogc nothrow pure @safe
-if (isSomeChar!Char)
+ptrdiff_t simpleIndexOf(E = char)(scope const(E)[] str, scope const(E)[] subStr, size_t fromIndex = 0) @nogc nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
 {
-    if (str.length < subStr.length || subStr.length == 0)
+    if (fromIndex >= str.length || str.length - fromIndex < subStr.length || subStr.length == 0)
         return -1;
 
     const c0 = subStr[0];
-	foreach (i; 0..(str.length - subStr.length + 1))
+	foreach (i; fromIndex..(str.length - subStr.length + 1))
     {
-		if (str[i] == c0)
+		if (str[i] != c0)
+            continue;
+
+        bool m = true;
+        foreach (j; 1..subStr.length)
         {
-            bool m = true;
-            foreach (j; 1..subStr.length)
+            if (str[i + j] != subStr[j])
             {
-                if (str[i + j] != subStr[j])
-                {
-                    m = false;
-                    break;
-                }
+                m = false;
+                break;
             }
-            if (m)
-                return i;
         }
+        if (m)
+            return i;
     }
 	return -1;
 }
 
 /**
- * Finds the first occurence of any character `chars` in `str` and returns its index.
- * No auto decode
+ * Finds the first occurence of any element of `chars` in `str` and returns its index.
+ * For a string, no auto decode
  * Params:
- *   str = string
- *   chars = list of characters to look for
+ *   str = element array
+ *   chars = list of elements to look for
  * Returns:
- *   index of any `chars` in `str`
- *   -1 if not found
+ *   pair of indexes where SimpleIndexOfAny.index = found index in str and SimpleIndexOfAny.indexOfChar = index of chars
+ *   SimpleIndexOfAny.index = -1 and SimpleIndexOfAny.indexOfChar = -1 if not found
  */
-ptrdiff_t simpleIndexOfAny(Char)(scope const(Char)[] str, scope const(Char)[] chars) @nogc nothrow pure @safe
-if (isSomeChar!Char)
+struct SimpleIndexOfAny
 {
-	foreach (i; 0..str.length)
+nothrow @safe:
+
+    ptrdiff_t index;
+    ptrdiff_t indexOfChar;
+
+    bool opCast(C: bool)() const pure
     {
-		if (simpleIndexOf(chars, str[i]) >= 0)
-			return i;
+        return found;
     }
-	return -1;
+
+    string toString() const pure
+    {
+        import std.conv : text;
+
+        return text(index, ":", indexOfChar);
+    }
+
+    pragma(inline, true)
+    @property bool found() const pure
+    {
+        return index >= 0;
+    }
+}
+SimpleIndexOfAny simpleIndexOfAny(E = char)(scope const(E)[] str, scope const(E)[] chars, size_t fromIndex = 0) @nogc nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
+{
+    if (fromIndex >= str.length || chars.length == 0)
+        return SimpleIndexOfAny(-1, -1);
+
+	foreach (i; fromIndex..str.length)
+    {
+        const c = str[i];
+        foreach (j; 0..chars.length)
+        {
+            if (chars[j] == c)
+                return SimpleIndexOfAny(i, j);
+        }
+    }
+
+	return SimpleIndexOfAny(-1, -1);
 }
 
 /**
@@ -371,18 +510,35 @@ if (isSomeChar!Char)
     return result;
 }
 
-auto simpleSplitter(S, Separator)(S str, Separator separator) nothrow @safe
+auto simpleSplitter(String = string, Separator = char)(String str, Separator separator) nothrow @safe
 {
-    static struct Result
+    static struct RangeResult
     {
     nothrow @safe:
 
     public:
-        this(S input, Separator separator)
+        this(String input, Separator separator)
         {
             this._input = input;
             this._separator = separator;
             this._frontLength = input.length == 0 ? atEnd : unComputed;
+        }
+
+        NamedValue!String pair()
+        in
+        {
+            assert(!empty, "Attempting to fetch the name-value pair of an empty simpleSplitter.");
+        }
+        do
+        {
+            auto name = front;
+            popFront();
+            if (empty)
+                return NamedValue!String(name, null);
+
+            auto value = front;
+            popFront();
+            return NamedValue!String(name, value);
         }
 
         void popFront()
@@ -410,7 +566,7 @@ auto simpleSplitter(S, Separator)(S str, Separator separator) nothrow @safe
             return _frontLength == atEnd;
         }
 
-        @property S front()
+        @property String front()
         in
         {
             assert(!empty, "Attempting to fetch the front of an empty simpleSplitter.");
@@ -441,20 +597,68 @@ auto simpleSplitter(S, Separator)(S str, Separator separator) nothrow @safe
         bool isSeparator(const(size_t) i) const
         {
             static if (isSomeChar!Separator)
-                return _separator == _input[i];
+                return _input[i] == _separator;
             else
-                return simpleIndexOf(_separator, _input[i]) >= 0;
+                return _separator.simpleIndexOf(_input[i]) >= 0;
         }
 
     private:
         enum size_t unComputed = size_t.max - 1, atEnd = size_t.max;
 
-        S _input;
-        Separator _separator;
+        String _input;
         size_t _frontLength;
+        Separator _separator;
     }
 
-    return Result(str, separator);
+    return RangeResult(str, separator);
+}
+
+bool simpleStartWith(E = char)(scope const(E)[] str, scope const(E)[] chars) @nogc nothrow pure @safe
+if (isSomeChar!E || isIntegral!E)
+{
+    return str.length >= chars.length && chars.length != 0
+        ? str[0..chars.length] == chars
+        : false;
+}
+
+String simpleTrim(String = string)(return String str) nothrow @safe
+{
+    return str.simpleTrimLeft().simpleTrimRight();
+}
+
+String simpleTrimLeft(String = string)(return String str) nothrow @safe
+{
+    while (str.length && str[0] <= ' ')
+        str = str[1..$];
+    return str;
+}
+
+String simpleTrimRight(String = string)(return String str) nothrow @safe
+{
+    while (str.length && str[$ - 1] <= ' ')
+        str = str[0..$ - 1];
+    return str;
+}
+
+String toString(String = string)(const(NamedValue!String) nv) nothrow @safe
+{
+    return nv.name ~ "=" ~ nv.value;
+}
+
+String toString(String = string)(const(NamedValue!String)[] nvs) nothrow @safe
+{
+    if (nvs.length == 0)
+        return "[]";
+
+    String result = "[";
+    foreach (i, ref nv; nvs)
+    {
+        if (i)
+            result ~= ",{" ~ nv.name ~ "=" ~ nv.value ~ "}";
+        else
+            result ~= "{" ~ nv.name ~ "=" ~ nv.value ~ "}";
+    }
+    return result ~ "]";
 }
 
 /**
@@ -484,6 +688,18 @@ if (isSomeChar!Char)
         sink.put(c);
         count--;
     }
+    return sink;
+}
+
+ref Writer stringOfNumber(Writer, T, Char = char)(return ref Writer sink, T number) nothrow pure @safe
+if ((isFloatingPoint!T || isIntegral!T) && isSomeChar!Char)
+{
+    import std.format.write : formatValue;
+
+    scope (failure) assert(0, "Assume nothrow failed");
+
+    static immutable spec = simpleIntegerFmt!Char();
+    formatValue(sink, number, spec);
     return sink;
 }
 
@@ -526,7 +742,8 @@ if ((isFloatingPoint!T || isIntegral!T) && isSomeChar!Char)
     return buffer[0..sink.i];
 }
 
-S valueOf(S)(NamedValue!S[] values, scope const(S) name, S notFound = S.init) nothrow pure @safe
+String valueOf(String = string)(NamedValue!String[] values, scope const(String) name, String notFound = null) nothrow pure @safe
+if (isSomeString!String)
 {
     foreach (ref v; values)
     {
@@ -576,10 +793,12 @@ nothrow @safe unittest // className
 
 nothrow @safe unittest // concateLineIf
 {
+    import std.ascii : newline;
+
     assert(concateLineIf("", "") == "");
     assert(concateLineIf("a", "") == "a");
     assert(concateLineIf("", "bc") == "bc");
-    assert(concateLineIf("a", "bc") == "a\nbc");
+    assert(concateLineIf("a", "bc") == "a" ~ newline ~ "bc");
 }
 
 nothrow @safe unittest // decodeFormValue
@@ -634,7 +853,7 @@ nothrow @safe unittest // parseFormEncodedValues
 {
     string[string] values;
 
-    bool parsedValue(size_t index, ResultIf!string name, ResultIf!string value) nothrow @safe
+    bool parsedValue(size_t count, ResultIf!string name, ResultIf!string value) nothrow @safe
     {
         values[name] = value;
         return true;
@@ -698,6 +917,14 @@ nothrow @safe unittest // shortenTypeNameTemplate
     assert(shortenTypeNameTemplate("utl_text.TestClassTemplate!int.TestClassTemplate") == "utl_text.TestClassTemplate");
 }
 
+nothrow @safe unittest // simpleCount
+{
+    assert("".simpleCount('=') == 0);
+    assert("abc".simpleCount('=') == 0);
+    assert("abc=123".simpleCount('=') == 1);
+    assert("abc=123=xy".simpleCount('=') == 2);
+}
+
 nothrow @safe unittest // simpleIndexOf
 {
     string s = "Hello World";
@@ -720,9 +947,9 @@ nothrow @safe unittest // simpleIndexOf
 nothrow @safe unittest // simpleIndexOfAny
 {
     string s = "Hello World";
-    assert(simpleIndexOfAny(s, "Wr") == 6);
-    assert(simpleIndexOfAny(s, "or") == 4);
-    assert(simpleIndexOfAny(s, "zx") == -1);
+    assert(simpleIndexOfAny(s, "xW").index == 6, simpleIndexOfAny(s, "rW").toString());
+    assert(simpleIndexOfAny(s, "or").index == 4, simpleIndexOfAny(s, "or").toString());
+    assert(simpleIndexOfAny(s, "zx").index == -1, simpleIndexOfAny(s, "zx").toString());
 }
 
 nothrow @safe unittest  // simpleSplitter
@@ -736,6 +963,21 @@ nothrow @safe unittest  // simpleSplitter
     assert("||".simpleSplitter('|').equal(["", "", ""]));
     assert("|a|bc|def|".simpleSplitter('|').equal(["", "a", "bc", "def", ""]));
     assert("a|bc|def".simpleSplitter('|').equal(["a", "bc", "def"]));
+
+    auto nv = "ab=123".simpleSplitter('=');
+    assert(nv.pair() == NamedValue!string("ab", "123"));
+
+    nv = "ab=".simpleSplitter('=');
+    assert(nv.pair() == NamedValue!string("ab", ""));
+
+    nv = "ab".simpleSplitter('=');
+    assert(nv.pair() == NamedValue!string("ab", null));
+
+    assert("".simpleSplitter("?|").equal(empty));
+    assert("|".simpleSplitter("?|").equal(["", ""]));
+    assert("||".simpleSplitter("?|").equal(["", "", ""]));
+    assert("|a|bc|def|".simpleSplitter("?|").equal(["", "a", "bc", "def", ""]));
+    assert("a|bc|def".simpleSplitter("?|").equal(["a", "bc", "def"]));
 }
 
 nothrow @safe unittest // stringOfChar (string)
@@ -768,4 +1010,47 @@ unittest // stringOfNumber
     assert(stringOfNumber(buffer[], 1.0, simpleFloatFmt(10)) == "1.0000000000");
     assert(stringOfNumber(buffer[], 0.1, simpleFloatFmt(10)) == "0.1000000000", stringOfNumber(buffer[], 0.1, simpleFloatFmt(10)).idup);
     assert(stringOfNumber(buffer[], -0.1, simpleFloatFmt(10)) == "-0.1000000000", stringOfNumber(buffer[], -0.1, simpleFloatFmt(10)).idup);
+}
+
+@nogc nothrow pure @safe unittest // isSimpleDigit
+{
+    static immutable string fullDigits  = "0123456789";
+    foreach (i; 0..fullDigits.length)
+        assert(isSimpleDigit(fullDigits[i]));
+
+    assert(!isSimpleDigit('B'));
+    assert(!isSimpleDigit('#'));
+
+    // N.B.: does not return true for non-ASCII Unicode numbers
+    assert(!isSimpleDigit('\uFF10')); // full-width digit zero (U+FF10)
+    assert(!isSimpleDigit('\uFF14')); // full-width digit four (U+FF14)
+}
+
+@nogc nothrow pure @safe unittest // isSimpleHexDigit
+{
+    static immutable string fullHexDigits  = "0123456789ABCDEFabcdef";
+    foreach (i; 0..fullHexDigits.length)
+        assert(isSimpleHexDigit(fullHexDigits[i]));
+
+    assert(!isSimpleHexDigit('\uFF10')); // full-width digit zero (U+FF10)
+    assert(!isSimpleHexDigit('\uFF14')); // full-width digit four (U+FF14)
+    assert(!isSimpleHexDigit('g'));
+    assert(!isSimpleHexDigit('G'));
+    assert(!isSimpleHexDigit('#'));
+}
+
+@nogc nothrow pure @safe unittest // simpleEndWith
+{
+    assert("abc".simpleEndWith('c'));
+    assert(!"abc".simpleEndWith('a'));
+    assert(!"abc".simpleEndWith('b'));
+    assert(!"".simpleEndWith('a'));
+}
+
+@nogc nothrow pure @safe unittest // simpleEndWithAny
+{
+    assert("abc".simpleEndWithAny("c") == 0);
+    assert("abc".simpleEndWithAny("dc") == 1);
+    assert("abc".simpleEndWithAny("ab") == -1);
+    assert("".simpleEndWithAny("a") == -1);
 }

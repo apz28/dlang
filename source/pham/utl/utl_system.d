@@ -11,11 +11,13 @@
 
 module pham.utl.utl_system;
 
+import core.time : Duration;
+import std.process : Pid;
 import std.traits : isIntegral;
 
 import pham.utl.utl_disposable : DisposingReason;
 import pham.utl.utl_result : osCharToString, osWCharToString;
-public import pham.utl.utl_result : ResultCode, ResultStatus, errorCodeToString;
+public import pham.utl.utl_result : ResultCode, ResultIf, ResultStatus, errorCodeToString;
 
 /**
  * Represents a wrapper struct for operating system handles
@@ -24,7 +26,7 @@ struct SafeHandle(Handle, alias doClose, Handle invalidHandle = Handle.init)
 if (isIntegral!Handle || is(Handle == void*))
 {
     import std.traits : ReturnType;
-    
+
 nothrow @safe:
 
 public:
@@ -76,7 +78,7 @@ public:
     {
         return doDispose(DisposingReason.other);
     }
-    
+
     /**
      * Freeing/Releases resources
      */
@@ -126,7 +128,7 @@ private:
         else
             return lhs == rhs;
     }
-    
+
 private:
     Handle _handle = invalidHandle;
 }
@@ -136,18 +138,7 @@ private:
  */
 string currentComputerName() nothrow @trusted
 {
-    version(Windows)
-    {
-        import core.sys.windows.winbase : GetComputerNameW;
-
-        wchar[1_000] result = '\0';
-        uint len = result.length - 1;
-        if (GetComputerNameW(&result[0], &len))
-            return osWCharToString(result[0..len]);
-        else
-            return null;
-    }
-    else version(Posix)
+    version(Posix)
     {
         import core.sys.posix.unistd : gethostname;
 
@@ -160,10 +151,21 @@ string currentComputerName() nothrow @trusted
         else
             return null;
     }
+    else version(Windows)
+    {
+        import core.sys.windows.winbase : GetComputerNameW;
+
+        wchar[1_000] result = '\0';
+        uint len = result.length - 1;
+        if (GetComputerNameW(&result[0], &len))
+            return osWCharToString(result[0..len]);
+        else
+            return null;
+    }
     else
     {
         pragma(msg, __FUNCTION__ ~ "() not supported");
-        return null;
+        assert(0, __FUNCTION__ ~ "() not supported");
     }
 }
 
@@ -182,15 +184,7 @@ uint currentProcessId() nothrow @safe
  */
 string currentProcessName() nothrow @trusted
 {
-    version(Windows)
-    {
-        import core.sys.windows.winbase : GetModuleFileNameW;
-
-        wchar[1_000] result = '\0';
-        const readLen = GetModuleFileNameW(null, &result[0], result.length - 1);
-        return readLen != 0 ? osWCharToString(result[0..readLen]) : null;
-    }
-    else version(Posix)
+    version(Posix)
     {
         import core.sys.posix.unistd : readlink;
 
@@ -198,10 +192,18 @@ string currentProcessName() nothrow @trusted
         const readLen = readlink("/proc/self/exe".ptr, &result[0], result.length - 1);
         return readLen != -1 ? osCharToString(result[0..readLen]) : null;
     }
+    else version(Windows)
+    {
+        import core.sys.windows.winbase : GetModuleFileNameW;
+
+        wchar[1_000] result = '\0';
+        const readLen = GetModuleFileNameW(null, &result[0], result.length - 1);
+        return readLen != 0 ? osWCharToString(result[0..readLen]) : null;
+    }
     else
     {
         pragma(msg, __FUNCTION__ ~ "() not supported");
-        return null;
+        assert(0, __FUNCTION__ ~ "() not supported");
     }
 }
 
@@ -210,18 +212,7 @@ string currentProcessName() nothrow @trusted
  */
 string currentUserName() nothrow @trusted
 {
-    version(Windows)
-    {
-        import core.sys.windows.winbase : GetUserNameW;
-
-        wchar[1_000] result = '\0';
-        uint len = result.length - 1;
-        if (GetUserNameW(&result[0], &len))
-            return osWCharToString(result[0..len]);
-        else
-            return null;
-    }
-    else version(Posix)
+    version(Posix)
     {
         import core.sys.posix.unistd : getlogin_r;
 
@@ -232,29 +223,83 @@ string currentUserName() nothrow @trusted
         else
             return null;
     }
+    else version(Windows)
+    {
+        import core.sys.windows.winbase : GetUserNameW;
+
+        wchar[1_000] result = '\0';
+        uint len = result.length - 1;
+        if (GetUserNameW(&result[0], &len))
+            return osWCharToString(result[0..len]);
+        else
+            return null;
+    }
     else
     {
         pragma(msg, __FUNCTION__ ~ "() not supported");
-        return null;
+        assert(0, __FUNCTION__ ~ "() not supported");
     }
 }
 
-void sleep(uint milliseconds) nothrow @trusted
+ResultIf!Pid runDefaultBrowser(string url)
 {
-    version(Windows)
-    {
-        import core.sys.windows.winbase : winSleep = Sleep;
+    import std.process : Config, spawnProcess;
 
-        winSleep(milliseconds);
+    version(linux)
+    {
+        // On Linux, 'xdg-open' or 'sensible-browser' are standard tools
+        string[] arguments = ["xdg-open", url];
+    }
+    else version(OSX)
+    {
+        // On macOS, 'open' command handles URLs
+        string[] arguments = ["open", url];
     }
     else version(Posix)
+    {
+        // Fallback for other POSIX systems or show an error
+        string[] arguments = ["sensible-browser", url];
+    }
+    else version(Windows)
+    {
+        // On Windows, 'cmd /c start' is a reliable way to open a URL
+        string[] arguments = ["cmd", "/c", "start", url];
+    }
+    else
+    {
+        pragma(msg, __FUNCTION__ ~ "() not supported");
+        assert(0, __FUNCTION__ ~ "() not supported");
+    }
+
+    try
+    {
+        auto pid = spawnProcess(arguments, null, Config.detached);
+        return ResultIf!Pid.ok(pid);
+    }
+    catch (Exception e)
+    {
+        return ResultIf!Pid.error(-1, e.msg);
+    }
+}
+
+void sleep(scope const(Duration) duration) nothrow @safe
+{
+    const totalMilliSeconds = duration.total!"msecs"();
+    return totalMilliSeconds > uint.max
+        ? sleep(uint.max)
+        : sleep(cast(uint)totalMilliSeconds);
+}
+
+void sleep(uint milliSeconds) nothrow @trusted
+{
+    version(Posix)
     {
         import core.stdc.errno : EINTR, errno;
         import core.sys.posix.time : nanosleep, timespec;
 
         timespec tin;
-        tin.tv_sec = milliseconds / 1_000;
-        tin.tv_nsec = (milliseconds % 1_000) * 1_000_000;
+        tin.tv_sec = milliSeconds / 1_000;
+        tin.tv_nsec = (milliSeconds % 1_000) * 1_000_000;
 
         do
         {
@@ -265,9 +310,135 @@ void sleep(uint milliseconds) nothrow @trusted
         }
         while (errno == EINTR && tin != timespec.init);
     }
+    else version(Windows)
+    {
+        import core.sys.windows.winbase : winSleep = Sleep;
+
+        winSleep(milliSeconds);
+    }
     else
     {
         pragma(msg, __FUNCTION__ ~ "() not supported");
+        assert(0, __FUNCTION__ ~ "() not supported");
+    }
+}
+
+alias WaitForCallbackEvent = int delegate(void* context, long elapsedMilliSeconds) nothrow;
+
+ResultCode waitFor(Pid pid, Duration timeOut, WaitForCallbackEvent queryCallback, void* queryContext,
+    const(ushort) milliSecondIntervals = 200) nothrow @trusted
+in
+{
+    assert(milliSecondIntervals > 0 && milliSecondIntervals <= 60_000);
+}
+do
+{
+    uint exitCode;
+    return waitFor(pid, timeOut, queryCallback, queryContext, exitCode, milliSecondIntervals);
+}
+
+ResultCode waitFor(Pid pid, Duration timeOut, WaitForCallbackEvent queryCallback, void* queryContext,
+    out uint exitCode,
+    const(ushort) milliSecondIntervals = 200) nothrow @trusted
+in
+{
+    assert(milliSecondIntervals > 0 && milliSecondIntervals <= 60_000);
+}
+do
+{
+    exitCode = 0;
+    const totalMilliSeconds = timeOut.total!"msecs"();
+    long elapsedMilliSeconds;
+
+    version(Posix)
+    {
+        import core.sys.posix.sys.wait : WIFEXITED, WTERMSIG, WIFSIGNALED, WEXITSTATUS, waitpid;
+        import core.stdc.errno : ECHILD, EINTR, errno;
+
+        while (true)
+        {
+            elapsedMilliSeconds += milliSecondIntervals;
+            int status;
+            const wr = waitpid(pid.osHandle, &status, 0);
+
+            if (wr == -1)
+            {
+                if (errno == ECHILD)
+                    return ResultCode.ok;
+
+                if (errno == EINTR)
+                {
+                    elapsedMilliSeconds -= milliSecondIntervals;
+                    continue;
+                }
+            }
+
+            if (WIFEXITED(status))
+            {
+                exitCode = WEXITSTATUS(status);
+                return ResultCode.ok;
+            }
+
+            if (WIFSIGNALED(status))
+            {
+                exitCode = WTERMSIG(status);
+                return ResultCode.ok;
+            }
+
+            if (totalMilliSeconds > 0 && elapsedMilliSeconds >= totalMilliSeconds)
+                return ResultCode.timeOut;
+
+            if (queryCallback !is null)
+            {
+                const qr = queryCallback(queryContext, elapsedMilliSeconds);
+                if (qr != 0)
+                    return ResultCode.canceled;
+            }
+        }
+    }
+    else version(Windows)
+    {
+        import core.sys.windows.winbase : STILL_ACTIVE, WAIT_ABANDONED, WAIT_FAILED,
+            GetExitCodeProcess, WaitForSingleObject;
+        import core.sys.windows.windef : DWORD;
+        import core.sys.windows.winerror : WAIT_TIMEOUT;
+
+        while (true)
+        {
+            elapsedMilliSeconds += milliSecondIntervals;
+            const wr = WaitForSingleObject(pid.osHandle, milliSecondIntervals);
+
+            if (wr == WAIT_ABANDONED)
+                return ResultCode.ok;
+
+            if (wr != WAIT_TIMEOUT)
+            {
+                DWORD osExitCode;
+                if (GetExitCodeProcess(pid.osHandle, &osExitCode))
+                {
+                    exitCode = osExitCode;
+                    if (osExitCode != STILL_ACTIVE)
+                        return ResultCode.ok;
+                }
+                else if (wr == WAIT_FAILED)
+                    return ResultCode.error;
+            }
+
+            if (totalMilliSeconds > 0 && elapsedMilliSeconds >= totalMilliSeconds)
+                return ResultCode.timeOut;
+
+            if (queryCallback !is null)
+            {
+                const qr = queryCallback(queryContext, elapsedMilliSeconds);
+                if (qr != 0)
+                    return ResultCode.canceled;
+            }
+        }
+    }
+    else
+    {
+        pragma(msg, __FUNCTION__ ~ "() not supported");
+        assert(0, __FUNCTION__ ~ "() not supported");
     }
 }
 

@@ -53,14 +53,14 @@ static immutable DbDefaultConnectionParameterValues skDefaultConnectionParameter
 class SkCommand : DbCommand
 {
 public:
-    this(DbDatabase database, SkConnection connection, string name = null) nothrow @safe
+    this(DbDatabase database, SkConnection connection) nothrow @safe
     {
-        super(database, connection, name);
+        super(database, connection);
     }
 
-    this(DbDatabase database, SkConnection connection, DbTransaction transaction, string name = null) nothrow @safe
+    this(DbDatabase database, SkConnection connection, DbTransaction transaction) nothrow @safe
     {
-        super(database, connection, transaction, name);
+        super(database, connection, transaction);
     }
 }
 
@@ -247,8 +247,8 @@ package(pham.db):
                     throwReadDataError(_socket.lastError.errorCode, msg);
                 }
 
-                result += cast(size_t)rs;
-                if (canReadAgain(cast(size_t)rs, result))
+                result += rs;
+                if (canReadAgain(rs, result))
                     goto receiveAgainSocket;
             }
             else
@@ -263,8 +263,8 @@ package(pham.db):
                     throwReadDataError(status.errorCode, status.errorMessage);
                 }
 
-                result += cast(size_t)rs;
-                if (canReadAgain(cast(size_t)rs, result))
+                result += rs;
+                if (canReadAgain(rs, result))
                     goto receiveAgainSocket;
             }
         }
@@ -369,7 +369,7 @@ package(pham.db):
                         msg = DbMessage.eNoSendingData.fmtMessage(cast(int)sendingData.length);
                     throwWriteDataError(_socket.lastError.errorCode, msg);
                 }
-                result = cast(size_t)(rs);
+                result = rs;
             }
             else
             {
@@ -600,7 +600,9 @@ protected:
             debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "()");
 
             auto useCSB = skConnectionStringBuilder;
-            if (auto n = useCSB.connectionTimeout)
+            
+            auto timeout = useCSB.connectionTimeout;
+            if (timeout.isTimeout())
             {
                 auto writeSet = new SocketSet();
                 writeSet.add(socket.handle);
@@ -623,10 +625,14 @@ protected:
 
             socket.blocking = useCSB.blocking;
             socket.setOption(SocketOptionLevel.SOCKET, SocketOption.TCP_NODELAY, useCSB.noDelay ? 1 : 0);
-            if (auto n = useCSB.receiveTimeout)
-                socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, n);
-            if (auto n = useCSB.sendTimeout)
-                socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, n);
+            
+            auto timeout = useCSB.receiveTimeout;
+            if (timeout.isTimeout())
+                socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, timeout);
+                
+            timeout = useCSB.sendTimeout;
+            if (timeout.isTimeout())
+                socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, timeout);
         }
     }
 

@@ -53,7 +53,7 @@ public:
     }
 
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
             ", serverAuthData=", serverAuthData.dgToHex(), ")");
@@ -131,7 +131,7 @@ protected:
 
         const clientInitialRequestBare = initialRequestBare();
         const clientFinalMessageWithoutProof = finalRequestWithoutProof(firstMessage.nonce);
-        scope const serverMessage = firstMessage.getMessage();
+        const serverMessage = firstMessage.getMessage();
         setServerSalt(firstMessage.getSalt());
         _saltedPassword = computeScramSHA256HashPassword(userPassword, serverSalt, firstMessage.iteration);
 

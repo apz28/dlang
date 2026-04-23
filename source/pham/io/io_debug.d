@@ -3,13 +3,13 @@
  * License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * Authors: An Pham
  *
- * Copyright An Pham 2024 - xxxx.
+ * Copyright An Pham 2026 - xxxx.
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
 */
 
-module pham.db.db_debug;
+module pham.io.io_debug;
 
 import std.traits : isIntegral;
 
@@ -34,7 +34,6 @@ string dgLimitString(scope const(char)[] chars, size_t limit = 100) nothrow pure
 string dgToString(scope const(ubyte)[] bytes) nothrow pure @safe
 {
     import std.digest : toHexString;
-    
     debug return bytes.length == 0 ? "" : dgLimitString(toHexString(bytes));
 }
 
@@ -47,11 +46,10 @@ string dgToString(T)(const(T) n) nothrow pure @safe
 if (isIntegral!T)
 {
     import std.conv : to;
-    
     debug return n.to!string;
 }
 
-void writeln(S...)(S args) nothrow @safe
+void writeln(S...)(S args)
 {
     import std.stdio : stdout, write;
 
@@ -59,7 +57,7 @@ void writeln(S...)(S args) nothrow @safe
     debug stdout.flush();
 }
 
-void writelnFor(scope string[] lines, const(uint) beginCount, const(uint) endCount) nothrow @safe
+void writelnFor(scope string[] lines, const(uint) beginCount, const(uint) endCount)
 {
     size_t i = 0;
     uint count = beginCount;
@@ -87,24 +85,4 @@ void writelnFor(scope string[] lines, const(uint) beginCount, const(uint) endCou
             count--;
         }
     }
-}
-
-struct DgMarker
-{
-nothrow @safe:
-
-    static immutable string sep = "----------";
-
-    this(string marker)
-    {
-        this.marker = marker;
-        debug writeln("\n", "BEG", sep, "\n", marker, "\n", sep, "---\n");
-    }
-
-    ~this()
-    {
-        debug writeln("\n", sep, "---", "\n", marker, "\n", "END", sep, "\n");
-    }
-
-    string marker;
 }

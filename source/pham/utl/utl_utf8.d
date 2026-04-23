@@ -17,7 +17,7 @@ import std.traits : isSomeChar;
 nothrow @safe:
 
 // http://en.wikipedia.org/wiki/Replacement_character#Replacement_character
-//enum dchar replacementUtf8Char = '\uFFFD';
+enum dchar replacementUtf8Char = '\uFFFD';
 
 struct UTF8Iterator
 {
@@ -88,7 +88,7 @@ wchar[] encodeUTF16(return ref wchar[encodeUTF16MaxLength] buffer, const(dchar) 
         buffer[0] = cast(wchar)c;
         return buffer[0..1];
     }
-    
+
     if (c <= 0x10FFFF)
     {
         buffer[0] = cast(wchar)((((c - 0x10000) >> 10) & 0x3FF) + 0xD800);
@@ -103,8 +103,7 @@ bool nextUTF8Char(scope const(ubyte)[] str, size_t pos, out dchar cCode, out uby
 {
     if (pos >= str.length)
     {
-        cCount = 0;
-        cCode = 0;
+        cCode = cCount = 0;
         return false;
     }
 
@@ -222,6 +221,15 @@ bool nextUTF8Char(scope const(char)[] str, size_t pos, out dchar cCode, out ubyt
     return nextUTF8Char(str.representation, pos, cCode, cCount);
 }
 
+pragma(inline, true)
+bool nextUTF8Char(scope const(char)[] str, ref size_t pos, out dchar cCode) @nogc pure
+{
+    ubyte cCount = void;
+    const result = nextUTF8Char(str, pos, cCode, cCount);
+    pos += cCount;
+    return result;
+}
+
 version(none)
 pragma(inline, true)
 bool isUTF16SurrogateHigh(const(wchar) c) @nogc pure
@@ -244,8 +252,7 @@ bool nextUTF16Char(scope const(ushort)[] str, size_t pos, out dchar cCode, out u
 {
     if (pos >= str.length)
     {
-        cCount = 0;
-        cCode = 0;
+        cCode = cCount = 0;
         return false;
     }
 
@@ -287,6 +294,15 @@ pragma(inline, true)
 bool nextUTF16Char(scope const(wchar)[] str, size_t pos, out dchar cCode, out ubyte cCount) @nogc pure
 {
     return nextUTF16Char(str.representation, pos, cCode, cCount);
+}
+
+pragma(inline, true)
+bool nextUTF16Char(scope const(wchar)[] str, ref size_t pos, out dchar cCode) @nogc pure
+{
+    ubyte cCount = void;
+    const result = nextUTF16Char(str, pos, cCode, cCount);
+    pos += cCount;
+    return result;
 }
 
 struct NoDecodeInputRange(alias s, V)
@@ -379,7 +395,7 @@ struct UTF8CharRange
 @nogc nothrow @safe:
 
 public:
-    dchar replacementChar = dchar.max;
+    dchar replacementChar = replacementUtf8Char;
 
 public:
     this(return scope const(char)[] source) pure

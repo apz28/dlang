@@ -116,14 +116,14 @@ protected:
 class MyCommand : SkCommand
 {
 public:
-    this(MyDatabase database, MyConnection connection, string name = null) nothrow @safe
+    this(MyDatabase database, MyConnection connection) nothrow @safe
     {
-        super(database, connection, name);
+        super(database, connection);
     }
 
-    this(MyDatabase database, MyConnection connection, MyTransaction transaction, string name = null) nothrow @safe
+    this(MyDatabase database, MyConnection connection, MyTransaction transaction) nothrow @safe
     {
-        super(database, connection, transaction, name);
+        super(database, connection, transaction);
     }
 
     final override string getExecutionPlan(uint vendorMode = 0) @safe
@@ -337,7 +337,7 @@ protected:
 
         if (lhasOutputParameters && type != DbCommandExecuteType.reader)
         {
-            doFetch(true);
+            doFetch(isScalar:type == DbCommandExecuteType.scalar, isNext:false);
             if (_fetchedRows)
             {
                 auto row = _fetchedRows.front;
@@ -358,20 +358,21 @@ protected:
         return super.doExecuteCommandNeedPrepare(type) || (!parameterCount && isStoredProcedure) || hasParameters(inOutFlags);
     }
 
-    final override void doFetch(const(bool) isScalar) @safe
+    final override void doFetch(const(bool) isScalar, const(bool) isNext) @safe
     in
     {
         assert(!allRowsFetched);
     }
     do
     {
-        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", fetchRecordCount=", fetchRecordCount, ")");
+        debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", isNext=", isNext, ", fetchRecordCount=", fetchRecordCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
+//TODO for next
         auto protocol = myConnection.protocol;
         auto continueFetchingCount = true;
         while (continueFetchingCount)
@@ -413,7 +414,7 @@ protected:
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(isPreparedError=", isPreparedError, ")");
 
-        if (!isPreparedError && !connection.isFatalError)
+        if (!isPreparedError && connection.isActive && !connection.isFatalError)
             purgePendingRows();
 
         if (_handle && !_handle.isDummy && !connection.isFatalError)
@@ -580,7 +581,8 @@ protected:
     {
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "()");
 
-        purgePendingRows();
+        if (connection.isActive && !connection.isFatalError)
+            purgePendingRows();
         super.removeReaderCompleted(implicitTransaction);
     }
 }
@@ -794,7 +796,7 @@ protected:
         auto myData = cast(MyCancelCommandData)data;
         auto cancelCommandText = "KILL QUERY " ~ myData.serverProcessId.to!string();
 
-        auto command = createCommand(null);
+        auto command = createCommand();
         scope (exit)
             command.dispose();
 
@@ -1120,19 +1122,17 @@ public:
         return new MyColumnList(this, cast(MyCommand)command);
     }
 
-    override DbCommand createCommand(DbConnection connection,
-        string name = null) nothrow
+    override DbCommand createCommand(DbConnection connection) nothrow
     in
     {
         assert((cast(MyConnection)connection) !is null);
     }
     do
     {
-        return new MyCommand(this, cast(MyConnection)connection, name);
+        return new MyCommand(this, cast(MyConnection)connection);
     }
 
-    override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null) nothrow
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction) nothrow
     in
     {
         assert((cast(MyConnection)connection) !is null);
@@ -1140,7 +1140,7 @@ public:
     }
     do
     {
-        return new MyCommand(this, cast(MyConnection)connection, cast(MyTransaction)transaction, name);
+        return new MyCommand(this, cast(MyConnection)connection, cast(MyTransaction)transaction);
     }
 
     override DbConnection createConnection(string connectionString)
@@ -1443,7 +1443,13 @@ pragma(inline, true)
     return _myDB;
 }
 
+
 version(UnitTestMYDatabase)
+    version = UnitTestMYDatabaseHelper;
+else version(UnitTestPerfMYDatabase)
+    version = UnitTestMYDatabaseHelper;
+
+version(UnitTestMYDatabaseHelper)
 {
     MyConnection createUnitTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
@@ -2387,12 +2393,12 @@ unittest // blob
 
 version(UnitTestPerfMYDatabase)
 {
+    import core.time;
+    import std.conv : to;
     import pham.utl.utl_test : PerfTestResult;
 
     PerfTestResult unitTestPerfMYDatabase()
     {
-        import core.time;
-
         static struct Data
         {
             long Foo1;
@@ -2479,33 +2485,83 @@ version(UnitTestPerfMYDatabase)
             }
         }
 
+        enum recordCount = 100_000;
+
+        version(UnitTestMYCollectData)
+            auto datas = new Data[](recordCount);
+        else
+            Data data;
+
         auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
         connection.open();
 
-        auto command = connection.createCommand();
+        auto command = connection.createCommandText("select * from foo limit 100000");
         scope (exit)
             command.dispose();
 
-        enum maxRecordCount = 100_000;
-        command.commandText = "select * from foo limit 100000";
+        auto result = PerfTestResult.create();
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-
-        version(UnitTestMYCollectData) auto datas = new Data[](maxRecordCount);
-        else Data data;
-        assert(reader.hasRows());
-
-        auto result = PerfTestResult.create();
-        while (result.count < maxRecordCount && reader.read())
+        while (result.count < recordCount && reader.read())
         {
-            version(UnitTestMYCollectData) datas[result.count++] = Data(reader);
-            else { data.readData(reader); result.count++; }
+            version(UnitTestMYCollectData)
+                datas[result.count++] = Data(reader);
+            else
+            {
+                data.readData(reader);
+                result.count++;
+            }
         }
         result.end();
-        assert(result.count > 0);
+        assert(result.count == recordCount, result.count.to!string());
+        return result;
+    }
+
+    PerfTestResult unitTestPerfMYDatabase2()
+    {
+        enum recordCount = 10_000_000;
+
+        auto connection = createUnitTestConnection();
+        connection.open();
+        scope (exit)
+            connection.dispose();
+
+        // Create table if not existed
+        if (!connection.existTable("unitTestPerfMYDatabase2"))
+            connection.executeNonQuery("create table unitTestPerfMYDatabase2(iFld int)");
+
+        // Insert data
+        auto dbCnt = connection.executeScalar("select count(*) from unitTestPerfMYDatabase2");
+        auto cnt = dbCnt.isNull ? 0 : dbCnt.get!int();
+        if (cnt < recordCount)
+        {
+            auto command = connection.createCommandText("insert into unitTestPerfMYDatabase2(iFld) values(@iFld)");
+            command.prepare();
+            scope (exit)
+                command.dispose();
+
+            auto iFld = command.parameters["iFld"];
+            foreach (i; cnt..recordCount)
+            {
+                iFld.value = cast(int)(i + 1);
+                command.executeNonQuery();
+            }
+        }
+
+        auto result = PerfTestResult.create();
+        auto reader = connection.executeReader("select iFld from unitTestPerfMYDatabase2");
+        scope (exit)
+            reader.dispose();
+        while (reader.read())
+        {
+            auto _ = reader.getDbValue(0);
+            result.count++;
+        }
+        result.end();
+        assert(result.count == recordCount, result.count.to!string());
         return result;
     }
 }
@@ -2516,8 +2572,20 @@ unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
     import std.format : format;
     import pham.db.db_debug;
 
+    debug writeln("unitTestPerfMYDatabase...");
     const perfResult = unitTestPerfMYDatabase();
-    debug writeln("MY-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+    debug writeln("unitTestPerfMYDatabase-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+version(UnitTestPerfMYDatabase)
+unittest // MyCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/1235
+{
+    import std.format : format;
+    import pham.db.db_debug;
+
+    debug writeln("unitTestPerfMYDatabase2...");
+    const perfResult = unitTestPerfMYDatabase2();
+    debug writeln("unitTestPerfMYDatabase2-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }
 
 version(UnitTestMYDatabase)

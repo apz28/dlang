@@ -2280,8 +2280,10 @@ protected:
             case srp1:
             case srp256:
                 break;
+
             case legacy:
             case sspi:
+            case oauth:
                 return FbIsc.cnct_client_crypt_disabled;
         }
 

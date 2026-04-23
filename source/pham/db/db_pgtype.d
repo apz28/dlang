@@ -38,12 +38,14 @@ enum pgNullValueLength = -1;
 static immutable string pgAuthClearTextName = "ClearText";
 static immutable string pgAuthMD5Name = "MD5";
 static immutable string pgAuthScram256Name = "SCRAM-SHA-256";
+static immutable string pgAuthOAuthName = "OAUTHBEARER"; // OAUTHBEARER_NAME
 
 static immutable string[DbIntegratedSecurityConnection.max + 1] pgAuthIntegratedSecurityNames = [
     pgAuthMD5Name, // legacy
     pgAuthScram256Name, // srp1
     pgAuthScram256Name, // srp256
     "Not supported SSPI", // sspi
+    pgAuthOAuthName,
     ];
 
 alias PgDefaultConnectionParameterValues = Dictionary!(string, DbConnectionParameterInfo);
@@ -311,9 +313,9 @@ nothrow @safe:
 public:
     DbFetchResultStatus fetchStatus() const
     {
-		if (messageType == 'D')
+		if (messageType == PgOIdResponeMsg.dataRow) // D
             return DbFetchResultStatus.hasData;
-        else if (messageType == 'C')
+        else if (messageType == PgOIdResponeMsg.commandComplete) // C
             return DbFetchResultStatus.ready;
         else
             return DbFetchResultStatus.completed;
@@ -333,17 +335,17 @@ nothrow @safe:
 public:
     DbFetchResultStatus fetchStatus() const
     {
-        if (messageType == 'Z')
-            return DbFetchResultStatus.completed;
-		else if (messageType == 'D')
+		if (messageType == PgOIdResponeMsg.dataRow) // D
             return DbFetchResultStatus.hasData;
-        else
+        else if (messageType == PgOIdResponeMsg.portalSuspended) // s
             return DbFetchResultStatus.ready;
+        else
+            return DbFetchResultStatus.completed;
     }
 
     bool needFetchAgain(bool isSuspended) const
     {
-        return isSuspended && messageType == 'Z';
+        return isSuspended && messageType == PgOIdResponeMsg.portalSuspended;
     }
 
 public:

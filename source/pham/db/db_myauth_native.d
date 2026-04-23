@@ -29,7 +29,7 @@ nothrow @safe:
 
 public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         debug(debug_pham_db_db_myauth_native) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
             ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
@@ -79,7 +79,7 @@ public:
         return ResultStatus.ok();
     }
 
-    final override DbAuth setServerSalt(scope const(ubyte)[] serverSalt) pure
+    final override DbAuth setServerSalt(const(ubyte)[] serverSalt) pure
     {
         // if the data given to us is a null terminated string,
         // we need to trim off the trailing zero

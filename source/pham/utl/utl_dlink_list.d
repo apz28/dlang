@@ -322,7 +322,7 @@ unittest
         typeof(this) _prev;
     }
 
-    mixin DLinkTypes!(X) DLinkXTypes;
+    mixin DLinkTypes!X DLinkXTypes;
 
     string getStrings(ref DLinkXTypes.DLinkList list)
     {

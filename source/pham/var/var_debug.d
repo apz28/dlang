@@ -13,7 +13,7 @@ module pham.var.var_debug;
 
 int debugVariantHandler;
 
-void writeln(S...)(S args)
+void writeln(S...)(S args) nothrow @safe
 {
     import std.stdio : stdout, write;
 
@@ -21,8 +21,8 @@ void writeln(S...)(S args)
     debug stdout.flush();
 }
 
-void writelnIf(S...)(S args)
+void writelnIf(S...)(S args) nothrow @safe
 {
     if (debugVariantHandler)
-        writeln(args);
+        debug writeln(args);
 }

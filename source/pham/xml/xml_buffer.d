@@ -471,7 +471,7 @@ class XmlBufferList(S = string, Flag!"CheckEncoded" CheckEncoded = No.CheckEncod
 
 public:
     alias XmlBufferElement = XmlBuffer!(S, CheckEncoded);
-    mixin DLinkTypes!(XmlBufferElement) DLinkXmlBufferElementTypes;
+    mixin DLinkTypes!XmlBufferElement DLinkXmlBufferElementTypes;
 
 public:
     final XmlBufferElement acquire() nothrow

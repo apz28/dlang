@@ -534,10 +534,19 @@ public:
     }
 
     pragma(inline, true)
-    static typeof(this) error(T value, uint errorCode, string errorMessage,
+    static typeof(this) error(T value, uint errorCode, string errorMessage, 
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
+    }
+
+    /**
+     * Create this result-type without error
+     */
+    pragma(inline, true)
+    static typeof(this) ok(T value) nothrow
+    {
+        return typeof(this)(value, ResultStatus.ok());
     }
 
     static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
@@ -550,15 +559,6 @@ public:
         string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
         return typeof(this)(value, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
-    }
-
-    /**
-     * Create this result-type without error
-     */
-    pragma(inline, true)
-    static typeof(this) ok(T value) nothrow
-    {
-        return typeof(this)(value, ResultStatus.ok());
     }
 
     pragma(inline, true)
@@ -603,6 +603,8 @@ enum ResultCode : int
     error = -1,
     unsupported = -2,
     uninitialized = -3,
+    canceled = -4,
+    timeOut = -5,
 }
 
 deprecated("please use " ~ fullyQualifiedName!(ResultCode.ok))
@@ -756,7 +758,7 @@ public:
             throw new E(errorMessage, file, line, next);
     }
 
-    string toString() const pure
+    string toString() const nothrow pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
 

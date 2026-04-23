@@ -37,22 +37,22 @@ abstract class DbAuth : DbDisposableObject
 
 public:
     ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData) nothrow;
+        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData) nothrow;
 
     CipherRawKey!ubyte sessionKey() nothrow
     {
         return CipherRawKey!ubyte.init;
     }
 
-    DbAuth setServerPublicKey(scope const(ubyte)[] serverPublicKey) nothrow pure
+    DbAuth setServerPublicKey(const(ubyte)[] serverPublicKey) nothrow pure
     {
         debug(debug_pham_db_db_auth) debug writeln(__FUNCTION__, "(serverPublicKey=", serverPublicKey.dgToHex(), ")");
 
-        this._serverPublicKey = serverPublicKey; 
+        this._serverPublicKey = serverPublicKey;
         return this;
     }
 
-    DbAuth setServerSalt(scope const(ubyte)[] serverSalt) nothrow pure
+    DbAuth setServerSalt(const(ubyte)[] serverSalt) nothrow pure
     {
         debug(debug_pham_db_db_auth) debug writeln(__FUNCTION__, "(serverSalt=", serverSalt.dgToHex(), ")");
 
@@ -134,9 +134,12 @@ protected:
     final ResultStatus checkAdvanceState(const(int) state) nothrow pure
     {
         scope (failure) assert(0, "Assume nothrow failed");
-        
+
         if (state != _nextState || state >= multiStates)
-            return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ state.to!string()));
+        {
+            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ state.to!string());
+            return ResultStatus.error(state + 1, msg);
+        }
         else
         {
             _nextState++;
@@ -172,11 +175,13 @@ struct DbAuthMap
 nothrow @safe:
 
 public:
+    pragma(inline, true)
     bool isEqual(scope const(char)[] otherName, scope const(DbScheme) otherScheme) const pure
     {
         return name == otherName && scheme == otherScheme;
     }
 
+    pragma(inline, true)
     bool isValid() const pure
     {
         return name.length != 0 && scheme.length != 0 && createAuth !is null;

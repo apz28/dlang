@@ -27,7 +27,7 @@ nothrow @safe:
 
 public:
     final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
     {
         debug(debug_pham_db_db_fbauth_legacy) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
             ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");

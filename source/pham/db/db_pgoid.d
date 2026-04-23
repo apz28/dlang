@@ -100,8 +100,8 @@ enum PgOIdDescribeType : char
     executeStatement = PgOIdRequestMsg.execute,
     flush = PgOIdRequestMsg.flush,
     parseStatement = PgOIdRequestMsg.parse,
-    portal = PgOIdRequestMsg.parse,
-    statement = PgOIdRequestMsg.sync,
+    portal = 'P',
+    statement = 'S',
     sync = PgOIdRequestMsg.sync,
 }
 

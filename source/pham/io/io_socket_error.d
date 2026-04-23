@@ -15,6 +15,13 @@ import pham.utl.utl_array_dictionary;
 import pham.utl.utl_result : ResultStatus,
     genericErrorMessage, getSystemErrorMessage;
 
+version(Windows)
+{
+    pragma(lib, "ws2_32");
+    extern(Windows) int WSAGetLastError() @nogc nothrow @trusted;
+    extern(Windows) void WSASetLastError(int) @nogc nothrow @trusted;
+}
+
 @safe:
 
 string getSocketAPIName(scope const(char)[] mapFunctionName) nothrow pure
@@ -26,19 +33,17 @@ string getSocketAPIName(scope const(char)[] mapFunctionName) nothrow pure
 }
 
 pragma(inline, true)
-int lastSocketError() @nogc nothrow @trusted
+int lastSocketError() nothrow @trusted
 {
-    version(Windows)
-    {
-        import core.sys.windows.winsock2 : WSAGetLastError;
-
-        return WSAGetLastError();
-    }
-    else version(Posix)
+    version(Posix)
     {
         import core.stdc.errno : errno;
 
         return errno;
+    }
+    else version(Windows)
+    {
+        return WSAGetLastError();
     }
     else
     {
@@ -46,6 +51,25 @@ int lastSocketError() @nogc nothrow @trusted
         return 0;
     }
 }
+
+pragma(inline, true)
+int lastSocketError(int errorCode) nothrow @trusted
+{
+    version(Posix)
+    {
+        import core.stdc.errno : errno;
+
+        errno = errorCode;
+    }
+    else version(Windows)
+    {
+        WSASetLastError(errorCode);
+    }
+    else
+        pragma(msg, __FUNCTION__ ~ "() not supported");
+    return errorCode;
+}
+
 
 ResultStatus lastSocketError(string apiName, string defaultMessage = null,
     string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
@@ -57,7 +81,29 @@ ResultStatus lastSocketError(string apiName, string defaultMessage = null,
 
 bool needResetSocket(int errorCode) @nogc nothrow pure @safe
 {
-    version(Windows)
+    version(Posix)
+    {
+        import core.stdc.errno;
+        //import core.sys.posix.sys.socket;
+
+        // https://linux.die.net/man/2/recv
+        // https://linux.die.net/man/2/send
+        switch (errorCode)
+        {
+            case EBADF:
+            case ECONNREFUSED:
+            case ENOTCONN:
+            case ENOTSOCK:
+            // Addition from send
+            case ECONNRESET:
+            case EDESTADDRREQ:
+            case EPIPE:
+                return true;
+            default:
+                return false;
+        }
+    }
+    else version(Windows)
     {
         //import core.sys.windows.winerror;
         import core.sys.windows.winsock2;
@@ -75,28 +121,6 @@ bool needResetSocket(int errorCode) @nogc nothrow pure @safe
             // Addition from send
             case WSAENOTCONN:
             case WSAEHOSTUNREACH:
-                return true;
-            default:
-                return false;
-        }
-    }
-    else version(Posix)
-    {
-        import core.stdc.errno;
-        //import core.sys.posix.sys.socket;
-
-        // https://linux.die.net/man/2/recv
-        // https://linux.die.net/man/2/send
-        switch (errorCode)
-        {
-            case EBADF:
-            case ECONNREFUSED:
-            case ENOTCONN:
-            case ENOTSOCK:
-            // Addition from send
-            case ECONNRESET:
-            case EDESTADDRREQ:
-            case EPIPE:
                 return true;
             default:
                 return false;

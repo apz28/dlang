@@ -7,7 +7,7 @@
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
-*/
+ */
 
 module pham.db.db_pgprotocol;
 
@@ -107,16 +107,23 @@ public:
 
     final void bindCommandParameterWrite(PgCommand command)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(command.executedCount=", command.executedCount, ")");
 
         auto inputParameters = command.pgInputParameters();
 
         auto writer = PgWriter(connection);
+
         // Close previous cursor
-        if (command.executedCount > 1)
-            writeCloseMessage(writer, PgOIdDescribeType.portal, command.name);
+        if (command.executedCount > 0)
+        {
+            writeCloseMessage(writer, PgOIdDescribeType.portal, command.portalName);
+            writeSignal(writer, PgOIdDescribeType.sync);
+        }
+
         writeBindMessage(writer, command, inputParameters);
-        writeDescribeMessage(writer, command);
+        //writeDescribeStatementMessage(writer, command);
+        writeDescribePortalMessage(writer, command);
+        //writeSignal(writer, PgOIdDescribeType.sync);
         writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
@@ -370,7 +377,8 @@ public:
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
         auto writer = PgWriter(connection);
-        writeCloseMessage(writer, PgOIdDescribeType.statement, command.name);
+        writeCloseMessage(writer, PgOIdDescribeType.portal, command.portalName);
+        writeCloseMessage(writer, PgOIdDescribeType.statement, command.commandName); // statementName
         writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
@@ -394,12 +402,13 @@ public:
         reader = PgReader(connection);
         result.messageType = reader.messageType;
 
-        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "reader.messageType=", reader.messageType, ", result.messageType=", result.messageType);
+        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "reader.messageType=", reader.messageType);
 
 		switch (reader.messageType)
         {
             case PgOIdResponeMsg.commandComplete: // C
                 auto tag = reader.readCString();
+                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "tag=", tag);
                 const b1 = indexOf(tag, ' ');
                 if (b1 >= 0)
                 {
@@ -435,11 +444,15 @@ public:
             case PgOIdResponeMsg.dataRow: // D - Let the caller to read row result
                 break;
 
+            case PgOIdResponeMsg.readyForQuery: // Z - done
+                break;
+
             case PgOIdResponeMsg.emptyQueryResponse: // I
                 throw new PgException(DbErrorCode.read, DbMessage.eInvalidCommandText);
 
-            case PgOIdResponeMsg.readyForQuery: // Z - done
-                break;
+            //Ignore - use from bind
+            //case PgOIdResponeMsg.rowDescription: // T
+            //    break;
 
             case PgOIdResponeMsg.portalSuspended: // s
                 throw new PgException(DbErrorCode.read, DbMessage.eInvalidCommandSuspended);
@@ -468,11 +481,12 @@ public:
 
     final void executeCommandWrite(PgCommand command, const(DbCommandExecuteType) type, int32 fetchRecordCount)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(type=", type, ", fetchRecordCount=", fetchRecordCount, ")");
 
         auto writer = PgWriter(connection);
-        writeExecuteMessage(writer, command, fetchRecordCount > 0 ? fetchRecordCount : int32.max);
-        writeSignal(writer, PgOIdDescribeType.sync);
+        writeExecuteMessage(writer, command, fetchRecordCount);
+        if (type == DbCommandExecuteType.nonQuery || type == DbCommandExecuteType.scalar || command.portalName.length == 0)
+            writeSignal(writer, PgOIdDescribeType.sync);
         writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
@@ -493,17 +507,21 @@ public:
 	receiveAgain:
         reader = PgReader(connection);
         result.messageType = reader.messageType;
+
+        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "reader.messageType=", reader.messageType);
+
 		switch (reader.messageType)
         {
             case PgOIdResponeMsg.dataRow: // D - Let caller to read the row result
                 break;
 
-            case PgOIdResponeMsg.readyForQuery: // Z - done
+            case PgOIdResponeMsg.portalSuspended: // s - Caller needs to call executeCommandWrite to fetch next block of rows
+                isSuspended = true;
                 break;
 
-            case PgOIdResponeMsg.portalSuspended: // s
-                isSuspended = true;
-                goto receiveAgain;
+            case PgOIdResponeMsg.commandComplete: // C
+            case PgOIdResponeMsg.readyForQuery: // Z - done
+                break;
 
             case PgOIdResponeMsg.errorResponse: // E
                 auto EResponse = readGenericResponse(reader);
@@ -533,6 +551,9 @@ public:
 
 	receiveAgain:
         auto reader = PgReader(connection);
+
+        debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "reader.messageType=", reader.messageType);
+
 		switch (reader.messageType)
         {
             case PgOIdResponeMsg.parseComplete: // 1
@@ -563,10 +584,10 @@ public:
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(sql=", sql, ")");
 
-        auto inputParameters = command.pgInputParameters();
+        auto parameters = command.pgInputParameters();
 
         auto writer = PgWriter(connection);
-        writeParseMessage(writer, command, sql, inputParameters);
+        writeParseMessage(writer, command, sql, parameters);
         writeSignal(writer, PgOIdDescribeType.flush);
         writer.flush();
     }
@@ -871,6 +892,8 @@ public:
 
     final void writeSignal(const(PgOIdDescribeType) signalType, const(int32) signalId = 4)
     {
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(signalType=", cast(char)signalType, ")");
+
         auto writer = PgWriter(connection);
 		writeSignal(writer, signalType, signalId);
         writer.flush();
@@ -1000,13 +1023,13 @@ protected:
         return cast(PgAuth)authMap.createAuth();
     }
 
-    final void describeParameters(ref PgWriter writer, scope PgParameter[] inputParameters)
+    final void describeParameters(ref PgWriter writer, scope PgParameter[] parameters)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(inputParameters.length=", inputParameters.length, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(parameters.length=", parameters.length, ")");
 
-        writer.writeInt16(cast(int16)inputParameters.length);
-        foreach (parameter; inputParameters)
-            describeParameter(writer, parameter); // parameter.value);
+        writer.writeInt16(cast(int16)parameters.length);
+        foreach (parameter; parameters)
+            describeParameter(writer, parameter);
     }
 
     final void describeParameter(ref PgWriter writer, PgParameter parameter)
@@ -1401,18 +1424,18 @@ protected:
         throw new PgException(DbErrorCode.read, msg);
     }
 
-    final void writeBindMessage(ref PgWriter writer, PgCommand command, scope PgParameter[] inputParameters)
+    final void writeBindMessage(ref PgWriter writer, PgCommand command, scope PgParameter[] parameters)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
         writer.beginMessage(PgOIdDescribeType.bindStatement);
-        writer.writeCChars(command.name); // portalName
-        writer.writeCChars(command.name); // statementName
+        writer.writeCChars(command.portalName); // portalName
+        writer.writeCChars(command.commandName); // statementName
         writer.writeInt16(1); // only one parameter format code
         writer.writeInt16(1); // all binary format code
 
-        if (inputParameters.length)
-            describeParameters(writer, inputParameters);
+        if (parameters.length)
+            describeParameters(writer, parameters);
         else
             writer.writeInt16(0); // zero parameter length indicator
         writer.writeInt16(1); // only one result format code
@@ -1422,7 +1445,7 @@ protected:
 
     final void writeCloseMessage(ref PgWriter writer, const(PgOIdDescribeType) type, scope const(char)[] name)
 	{
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(type=", cast(char)type, ", name=", name, ")");
 
 		writer.beginMessage(PgOIdDescribeType.close);
         writer.writeChar(type);
@@ -1430,54 +1453,63 @@ protected:
         writer.endMessage();
     }
 
-    final void writeDescribeMessage(ref PgWriter writer, PgCommand command)
+    final void writeDescribePortalMessage(ref PgWriter writer, PgCommand command)
     {
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(command.portalName=", command.portalName, ")");
 
 		writer.beginMessage(PgOIdDescribeType.describeStatement);
         writer.writeChar(PgOIdDescribeType.portal);
-        writer.writeCChars(command.name);
+        writer.writeCChars(command.portalName);
+        writer.endMessage();
+    }
+
+    final void writeDescribeStatementMessage(ref PgWriter writer, PgCommand command)
+    {
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(command.commandName=", command.commandName, ")");
+
+		writer.beginMessage(PgOIdDescribeType.describeStatement);
+        writer.writeChar(PgOIdDescribeType.statement);
+        writer.writeCChars(command.commandName);
         writer.endMessage();
     }
 
     final void writeExecuteMessage(ref PgWriter writer, PgCommand command, int32 fetchRecordCount)
 	{
-        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(fetchRecordCount=", fetchRecordCount, ")");
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(command.portalName=", command.portalName, ", fetchRecordCount=", fetchRecordCount, ")");
 
 		writer.beginMessage(PgOIdDescribeType.executeStatement);
-        writer.writeCChars(command.name);
-        writer.writeInt32(fetchRecordCount > 0 ? fetchRecordCount : int32.max);
+        writer.writeCChars(command.portalName); // portalName
+        writer.writeInt32(fetchRecordCount > 0 ? fetchRecordCount : 0); // 0=Fetch all rows
         writer.endMessage();
     }
 
-    final void writeParseMessage(ref PgWriter writer, PgCommand command, scope const(char)[] sql,
-        scope PgParameter[] inputParameters)
+    final void writeParseMessage(ref PgWriter writer, PgCommand command, scope const(char)[] sql, scope PgParameter[] parameters)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "()");
 
         /*
-        size_t sendParameters = inputParameters.length;
-        foreach (inputParameter; inputParameters)
+        size_t sendParameters = parameters.length;
+        foreach (parameter; parameters)
         {
-            const baseTypeId = inputParameter.baseTypeId;
+            const baseTypeId = parameter.baseTypeId;
             if (baseTypeId == PgOIdType.void_ || baseTypeId == PgOIdType.unknown)
                 sendParameters--;
         }
         */
 
 		writer.beginMessage(PgOIdDescribeType.parseStatement);
-        writer.writeCChars(command.name);
+        writer.writeCChars(command.commandName); // statementName
         writer.writeCChars(sql);
-        if (inputParameters.length)
+        if (parameters.length)
         {
-            writer.writeInt16(cast(int16)inputParameters.length);
-            foreach (inputParameter; inputParameters)
+            writer.writeInt16(cast(int16)parameters.length);
+            foreach (parameter; parameters)
             {
-                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "inputParameter.name=", inputParameter.name,
-                    ", baseName=", inputParameter.baseName, ", baseTypeId=", inputParameter.baseTypeId);
+                debug(debug_pham_db_db_pgprotocol) debug writeln("\t", "parameter.name=", parameter.name,
+                    ", baseName=", parameter.baseName, ", baseTypeId=", parameter.baseTypeId);
 
                 // 54.2.3. Extended Query; PgOIdType.void_ is only being used for out parameter
-                const baseTypeId = inputParameter.baseTypeId;
+                const baseTypeId = parameter.baseTypeId;
                 writer.writeInt32(baseTypeId != PgOIdType.void_ ? baseTypeId : PgOIdType.unknown);
             }
         }
@@ -1488,6 +1520,8 @@ protected:
 
     final void writeSignal(ref PgWriter writer, const(PgOIdDescribeType) signalType, const(int32) signalId = 4)
     {
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(signalType=", cast(char)signalType, ", signalId=", signalId, ")");
+
         writer.writeSignal(signalType, signalId);
     }
 

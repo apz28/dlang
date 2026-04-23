@@ -24,6 +24,7 @@ import core.sys.posix.sys.time : timeval;
 import core.sys.posix.unistd : close, gethostname;
 
 import pham.utl.utl_result : ResultCode, TryLimit;
+import pham.io.io_socket_error : lastSocketError;
 import pham.io.io_socket_type : PollFDSet, PollResult,
     SelectFDSet, SelectMode, SocketOptionItem, SocketOptionItems,
     isSelectMode, toSocketTimeMSecs;
@@ -32,6 +33,7 @@ alias FDSet = fd_set;
 alias Linger = linger;
 alias PollFD = pollfd;
 alias SocketHandle = int;
+alias SocketLength = socklen_t;
 alias TimeVal = timeval;
 
 enum : int
@@ -48,6 +50,7 @@ enum : int
 
 enum errorSocketResult = -1;
 enum invalidSocketHandle = -1;
+
 enum POLLRead = POLLRDNORM | POLLRDBAND;
 enum POLLWrite = POLLWRNORM | POLLWRBAND;
 
@@ -56,7 +59,7 @@ enum eInvalidHandle = 6;
 enum eTimeout = 10060;
 
 pragma(inline, true)
-SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope socklen_t* nameLen) nothrow @trusted
+SocketHandle acceptSocket(SocketHandle handle, scope sockaddr* nameVal, scope SocketLength* nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -74,7 +77,7 @@ do
 }
 
 pragma(inline, true)
-int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen) nothrow @trusted
+int bindSocket(SocketHandle handle, scope const(sockaddr)* nameVal, SocketLength nameLen) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -102,7 +105,7 @@ do
 }
 
 pragma(inline, true)
-int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, socklen_t nameLen, bool blocking) nothrow @trusted
+int connectSocket(SocketHandle handle, scope const(sockaddr)* nameVal, SocketLength nameLen, bool blocking) nothrow @trusted
 in
 {
     assert(handle != invalidSocketHandle);
@@ -162,7 +165,7 @@ in
 do
 {
     buffer[] = '\0';
-    auto size = cast(socklen_t)(buffer.length - 1);
+    auto size = cast(SocketLength)(buffer.length - 1);
     if (gethostname(&buffer[0], size) == 0)
     {
         foreach (i; 0..buffer.length)
@@ -184,7 +187,7 @@ in
 do
 {
     optVal = T.init;
-    socklen_t optLen = T.sizeof;
+    SocketLength optLen = T.sizeof;
     return getsockopt(handle, optInd.level, optInd.name, &optVal, &optLen);
 }
 
@@ -217,19 +220,6 @@ uint interfaceNameToIndex(scope const(char)[] scopeId) nothrow @trusted
     return if_nametoindex(lpscopeId);
 }
 
-pragma(inline, true)
-int lastSocketError() nothrow @trusted
-{
-    return errno;
-}
-
-pragma(inline, true)
-int lastSocketError(int errorCode) nothrow @trusted
-{
-    errno = errorCode;
-    return errorCode;
-}
-
 int lastSocketErrorOf(SocketHandle handle) nothrow @trusted
 in
 {
@@ -251,17 +241,6 @@ in
 do
 {
     return listen(handle, backLog);
-}
-
-pragma(inline, true)
-short pollEventOf(const(SelectMode) modes) @nogc nothrow pure @safe
-{
-    short result = 0;
-    if (isSelectMode(modes, SelectMode.read))
-        result |= POLLRead;
-    if (isSelectMode(modes, SelectMode.write))
-        result |= POLLWrite;
-    return result;
 }
 
 int pollSocket(ref PollFDSet pollSets, TimeVal timeout) nothrow @trusted

@@ -1119,15 +1119,15 @@ protected:
 class FbCommand : SkCommand
 {
 public:
-    this(FbDatabase database, FbConnection connection, string name = null) nothrow @safe
+    this(FbDatabase database, FbConnection connection) nothrow @safe
     {
-        super(database, connection, name);
+        super(database, connection);
         this._flags.include(DbCommandFlag.transactionRequired);
     }
 
-    this(FbDatabase database, FbConnection connection, FbTransaction transaction, string name = null) nothrow @safe
+    this(FbDatabase database, FbConnection connection, FbTransaction transaction) nothrow @safe
     {
-        super(database, connection, transaction, name);
+        super(database, connection, transaction);
         this._flags.include(DbCommandFlag.transactionRequired);
     }
 
@@ -1443,14 +1443,14 @@ protected:
         return true; // Need to do directExecute in order to return false
     }
 
-    final override void doFetch(const(bool) isScalar) @safe
+    final override void doFetch(const(bool) isScalar, const(bool) isNext) @safe
     in
     {
         assert(!allRowsFetched);
     }
     do
     {
-        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ")");
+        debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", isNext=", isNext, ", fetchRecordCount=", fetchRecordCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
@@ -2631,19 +2631,17 @@ public:
         return new FbColumnList(this, cast(FbCommand)command);
     }
 
-    override DbCommand createCommand(DbConnection connection,
-        string name = null) nothrow
+    override DbCommand createCommand(DbConnection connection) nothrow
     in
     {
         assert((cast(FbConnection)connection) !is null);
     }
     do
     {
-        return new FbCommand(this, cast(FbConnection)connection, name);
+        return new FbCommand(this, cast(FbConnection)connection);
     }
 
-    override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null) nothrow
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction) nothrow
     in
     {
         assert((cast(FbConnection)connection) !is null);
@@ -2651,7 +2649,7 @@ public:
     }
     do
     {
-        return new FbCommand(this, cast(FbConnection)connection, cast(FbTransaction)transaction, name);
+        return new FbCommand(this, cast(FbConnection)connection, cast(FbTransaction)transaction);
     }
 
     override DbConnection createConnection(string connectionString)
@@ -3673,7 +3671,13 @@ pragma(inline, true)
     return _fbDB;
 }
 
+
 version(UnitTestFBDatabase)
+    version = UnitTestFBDatabaseHelper;
+else version(UnitTestPerfFBDatabase)
+    version = UnitTestFBDatabaseHelper;
+
+version(UnitTestFBDatabaseHelper)
 {
     FbConnectionStringBuilder setUnitTestConnectionString(FbConnectionStringBuilder csb,
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
@@ -5076,6 +5080,8 @@ unittest // FbCommandBatch
 	{
         assert(iv.length == 4);
 		auto command = connection.createCommandBatch("insert into batch(i, t) values(@i, @t)");
+        scope (exit)
+            command.dispose();
 
         // Test first block
         foreach (i; 0..2)
@@ -5702,12 +5708,12 @@ unittest // FbService.user...
 
 version(UnitTestPerfFBDatabase)
 {
+    import core.time;
+    import std.conv : to;
     import pham.utl.utl_test : PerfTestResult;
 
     PerfTestResult unitTestPerfFBDatabase()
     {
-        import core.time;
-
         static struct Data
         {
             long Foo1;
@@ -5794,35 +5800,83 @@ version(UnitTestPerfFBDatabase)
             }
         }
 
-        bool failed = true;
+        enum recordCount = 100_000;
+
+        version(UnitTestFBCollectData)
+            auto datas = new Data[](recordCount);
+        else
+            Data data;
+
         auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
         connection.open();
 
-        auto command = connection.createCommand();
+        auto command = connection.createCommandText("select first(100000) * from foo");
         scope (exit)
             command.dispose();
 
-        enum maxRecordCount = 100_000;
-        command.commandText = "select first(100000) * from foo";
+        auto result = PerfTestResult.create();
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-
-        version(UnitTestFBCollectData) auto datas = new Data[](maxRecordCount);
-        else Data data;
-        assert(reader.hasRows());
-
-        auto result = PerfTestResult.create();
-        while (result.count < maxRecordCount && reader.read())
+        while (result.count < recordCount && reader.read())
         {
-            version(UnitTestFBCollectData) datas[result.count++] = Data(reader);
-            else { data.readData(reader); result.count++; }
+            version(UnitTestFBCollectData)
+                datas[result.count++] = Data(reader);
+            else
+            {
+                data.readData(reader);
+                result.count++;
+            }
         }
         result.end();
-        assert(result.count > 0);
-        failed = false;
+        assert(result.count == recordCount, result.count.to!string());
+        return result;
+    }
+
+    PerfTestResult unitTestPerfFBDatabase2()
+    {
+        enum recordCount = 10_000_000;
+
+        auto connection = createUnitTestConnection();
+        connection.open();
+        scope (exit)
+            connection.dispose();
+
+        // Create table if not existed
+        if (!connection.existTable("unitTestPerfFBDatabase2"))
+            connection.executeNonQuery("create table unitTestPerfFBDatabase2(iFld integer)");
+
+        // Insert data
+        auto dbCnt = connection.executeScalar("select count(*) from unitTestPerfFBDatabase2");
+        auto cnt = dbCnt.isNull ? 0 : dbCnt.get!int();
+        if (cnt < recordCount)
+        {
+            auto command = connection.createCommandText("insert into unitTestPerfFBDatabase2(iFld) values(@iFld)");
+            command.prepare();
+            scope (exit)
+                command.dispose();
+
+            auto iFld = command.parameters["iFld"];
+            foreach (i; cnt..recordCount)
+            {
+                iFld.value = cast(int)(i + 1);
+                command.executeNonQuery();
+            }
+        }
+
+        auto result = PerfTestResult.create();
+        auto reader = connection.executeReader("select iFld from unitTestPerfFBDatabase2");
+        scope (exit)
+            reader.dispose();
+        while (reader.read())
+        {
+            auto _ = reader.getDbValue(0);
+            result.count++;
+        }
+        result.end();
+        assert(result.count == recordCount, result.count.to!string());
         return result;
     }
 }
@@ -5833,8 +5887,20 @@ unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
     import std.format : format;
     import pham.db.db_debug;
 
+    debug writeln("unitTestPerfFBDatabase...");
     const perfResult = unitTestPerfFBDatabase();
-    debug writeln("FB-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+    debug writeln("unitTestPerfFBDatabase-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+version(UnitTestPerfFBDatabase)
+unittest // FbCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/1235
+{
+    import std.format : format;
+    import pham.db.db_debug;
+
+    debug writeln("unitTestPerfFBDatabase2...");
+    const perfResult = unitTestPerfFBDatabase2();
+    debug writeln("unitTestPerfFBDatabase2-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }
 
 version(UnitTestFBDatabase) version(UnitTestSocketFailure)

@@ -13,25 +13,31 @@ module pham.io.io_socket;
 
 import core.time : Duration, dur;
 
-debug(debug_pham_io_io_socket) import std.stdio : stdout, writeln;
+debug(debug_pham_io_io_socket) import pham.io.io_debug;
 import pham.utl.utl_disposable;
-public import pham.utl.utl_result : ResultCode, ResultIf, ResultStatus;
 import pham.utl.utl_system : SafeHandle, currentComputerName;
-import pham.io.io_socket_error : getSocketAPIName, needResetSocket;
-public import pham.io.io_socket_type;
 import pham.io.io_stream : Stream;
+
+public import pham.utl.utl_result : ResultCode, ResultIf, ResultStatus;
+public import pham.io.io_socket_error;
+public import pham.io.io_socket_type;
 public import pham.io.io_type;
+
 version(Posix)
 {
     import core.stdc.errno;
     import core.sys.posix.netdb;
     import core.sys.posix.sys.socket;
     import pham.io.io_socket_posix;
+
+    public import pham.io.io_socket_posix : eHandleReset, eInvalidHandle, eTimeout;
 }
 else version(Windows)
 {
     import core.sys.windows.winsock2;
     import pham.io.io_socket_windows;
+
+    public import pham.io.io_socket_windows : eHandleReset, eInvalidHandle, eTimeout;
 }
 else
 {
@@ -39,6 +45,10 @@ else
 }
 
 @safe:
+
+immutable string loopbackHost = "LOCALHOST";
+immutable string ipv4LoopbackAddress = "127.0.0.1";
+immutable string ipv6LoopbackAddress = "::1";
 
 ResultIf!(AddressInfo[]) getAddressInfo(scope const(char)[] hostNameOrAddress, scope const(char)[] serviceNameOrPort,
     AddressInfo hints) nothrow @trusted
@@ -110,16 +120,17 @@ public:
         this.connect(connectInfo);
     }
 
-    this(SocketHandle handle, IPSocketAddress address, ushort port) nothrow
+    this(SocketHandle handle, IPSocketAddress address, SocketPort port) nothrow
     {
         this._safeSocketHandle = SafeSocketHandle(handle);
         this._address = address;
         this._port = port;
     }
 
-    final int accept(out SocketHandle peerHandle, out SocketAddress peerAddress) nothrow @trusted
+    final int accept(out SocketHandle peerHandle, out SocketAddress peerAddress,
+        Duration timeout = Duration.zero) nothrow @trusted
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "()"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(timeout=", timeout.toString(), ")");
 
         if (!active)
         {
@@ -128,8 +139,21 @@ public:
             return lastError.setError(ENOTCONN, " inactive - need bind() and listen()");
         }
 
+        if (timeout.isTimeout())
+        {
+            const resultModes = select(SelectMode.read, timeout);
+            if (!active)
+                return lastError.setError(ENOTCONN, " closed while waiting for accept");
+
+            if (resultModes & SelectMode.error)
+                return lastError.errorCode;
+
+            if (!(resultModes & SelectMode.read))
+                return eTimeout;
+        }
+
         ubyte[SocketAddress.sizeof] addrBuffer;
-        socklen_t addrLength = SocketAddress.sizeof;
+        SocketLength addrLength = SocketAddress.sizeof;
         peerHandle = acceptSocket(_safeSocketHandle.handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (peerHandle == invalidSocketHandle)
         {
@@ -142,13 +166,14 @@ public:
         return ResultCode.ok;
     }
 
-    final int accept(out Socket peerSocket) nothrow
+    final int accept(out Socket peerSocket,
+        Duration timeout = Duration.zero) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "()"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "()");
 
         SocketHandle peerHandle;
         SocketAddress peerAddress;
-        const result = accept(peerHandle, peerAddress);
+        const result = accept(peerHandle, peerAddress, timeout);
         peerSocket = result == ResultCode.ok
             ? new Socket(peerHandle, peerAddress.toIPAddress(), peerAddress.port)
             : null;
@@ -168,7 +193,7 @@ public:
 
     final int bind(BindInfo bindInfo) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(address=", bindInfo.address.toString(), ", port=", bindInfo.port, ", isBlocking=", bindInfo.isBlocking(), ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(address=", bindInfo.address.toString(), ", port=", bindInfo.port, ", isBlocking=", bindInfo.isBlocking(), ")");
 
         if (active && port != 0)
             return lastError.setError(EISCONN, " already active");
@@ -207,13 +232,13 @@ public:
         }
     }
 
-    final int bind(IPSocketAddress address, ushort port) nothrow
+    final int bind(IPSocketAddress address, SocketPort port) nothrow
     {
         auto bindInfo = BindInfo(address, port);
         return bind(bindInfo);
     }
 
-    final int bind(string hostName, ushort port) nothrow
+    final int bind(string hostName, SocketPort port) nothrow
     {
         auto bindInfo = BindInfo(hostName, port);
         return bind(bindInfo);
@@ -221,7 +246,7 @@ public:
 
     final int close() nothrow scope
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "()"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "()");
 
         if (!_safeSocketHandle.isValid)
             return ResultCode.ok;
@@ -232,50 +257,48 @@ public:
 
     final int connect(ConnectInfo connectInfo) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(hostname=", connectInfo.hostName, ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(hostname=", connectInfo.hostName, ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")");
 
         if (active && port != 0)
             return lastError.setError(EISCONN, " already active");
 
-        if (connectInfo.needResolveHostName)
+        if (!connectInfo.needResolveHostName)
+            return connectImpl(connectInfo);
+
+        auto addressInfos = getAddressInfo(connectInfo.resolveHostName(),
+            connectInfo.resolveServiceName(), connectInfo.resolveHostHints);
+        if (addressInfos.isError)
         {
-            auto addressInfos = getAddressInfo(connectInfo.resolveHostName(),
-                connectInfo.resolveServiceName(), connectInfo.resolveHostHints);
-            if (addressInfos.isError)
-            {
-                this._safeSocketHandle.dispose();
-                this.lastError = addressInfos.status;
-                return ResultCode.error;
-            }
-            foreach (ref ai; addressInfos.value)
-            {
-                ConnectInfo ci = connectInfo;
-                ci.address = ai.address;
-                if (ci.type == SocketType.unspecified)
-                    ci.type = ai.type;
-                if (ci.port == 0)
-                    ci.port = ai.port;
-                if (connectImpl(ci) == ResultCode.ok)
-                {
-                    lastError.reset();
-                    return ResultCode.ok;
-                }
-            }
+            this._safeSocketHandle.dispose();
+            this.lastError = addressInfos.status;
             return ResultCode.error;
         }
-        else
+
+        foreach (ref ai; addressInfos.value)
         {
-            return connectImpl(connectInfo);
+            ConnectInfo ci = connectInfo;
+            ci.address = ai.address;
+            if (ci.type == SocketType.unspecified)
+                ci.type = ai.type;
+            if (ci.port == 0)
+                ci.port = ai.port;
+            if (connectImpl(ci) == ResultCode.ok)
+            {
+                lastError.reset();
+                return ResultCode.ok;
+            }
         }
+
+        return ResultCode.error;
     }
 
-    final int connect(IPSocketAddress address, ushort port) nothrow
+    final int connect(IPSocketAddress address, SocketPort port) nothrow
     {
         auto connectInfo = ConnectInfo(address, port);
         return connect(connectInfo);
     }
 
-    final int connect(IPSocketAddress[] addresses, ushort port) nothrow
+    final int connect(IPSocketAddress[] addresses, SocketPort port) nothrow
     {
         if (active && port != 0)
             return lastError.setError(EISCONN, " already active");
@@ -293,7 +316,7 @@ public:
         return lastError.setError(0, " missing IPSocketAddress");
     }
 
-    final int connect(string hostName, ushort port) nothrow
+    final int connect(string hostName, SocketPort port) nothrow
     {
         auto connectInfo = ConnectInfo(hostName, port);
         return connect(connectInfo);
@@ -314,6 +337,40 @@ public:
         return ResultCode.ok;
     }
 
+    static SocketAddress getSocketAddress(const(SocketHandle) socketHandle) nothrow @trusted
+    {
+        if (socketHandle == invalidSocketHandle)
+            return SocketAddress.init;
+
+        ubyte[SocketAddress.sizeof] addrBuffer;
+        SocketLength addrLength = SocketAddress.sizeof;
+        const r = getsockname(socketHandle, cast(sockaddr*)&addrBuffer[0], &addrLength);
+        return r == ResultCode.ok
+            ? SocketAddress(addrBuffer[0..addrLength])
+            : SocketAddress.init;
+    }
+
+    static SocketPort getUnusedPort(const(AddressFamily) family = AddressFamily.ipv4) nothrow @trusted
+    {
+        auto socketHandle = createSocket(family, SocketType.stream, Protocol.tcp);
+        if (socketHandle == invalidSocketHandle)
+            return 0;
+        scope (exit)
+            closeSocket(socketHandle);
+
+        sockaddr_in service;
+        service.sin_family = family;
+        service.sin_addr.s_addr = family == AddressFamily.ipv6
+            ? inet_addr(ipv6LoopbackAddress.ptr)
+            : inet_addr(ipv4LoopbackAddress.ptr);
+        service.sin_port = 0;
+        if (bindSocket(socketHandle, cast(SOCKADDR*)&service, cast(SocketLength)service.sizeof) == errorSocketResult)
+            return 0;
+
+        auto address = getSocketAddress(socketHandle);
+        return address.port;
+    }
+
     final bool isAlive() nothrow
     {
         int type;
@@ -323,7 +380,7 @@ public:
     pragma(inline, true)
     static bool isErrorResult(int r) nothrow pure
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(r=", r, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(r=", r, ")");
 
         return r < 0;
     }
@@ -331,7 +388,7 @@ public:
     pragma(inline, true)
     static bool isErrorResult(long r) nothrow pure
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(r=", r, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(r=", r, ")");
 
         return r < 0;
     }
@@ -363,7 +420,7 @@ public:
 
     final int listen(uint backLog) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(backLog=", backLog, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(backLog=", backLog, ")");
 
         if (!active)
             return lastError.setError(ENOTCONN, " inactive - need bind()");
@@ -373,7 +430,7 @@ public:
             : lastError.setSystemError(getSocketAPIName("listenSocket"), lastSocketError());
     }
 
-    final SocketAddress localAddress() nothrow @trusted
+    final SocketAddress localAddress() nothrow
     {
         if (!active)
         {
@@ -381,14 +438,10 @@ public:
             return SocketAddress.init;
         }
 
-        ubyte[SocketAddress.sizeof] addrBuffer;
-        socklen_t addrLength = SocketAddress.sizeof;
-        const r = getsockname(_safeSocketHandle.handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
-        if (r == ResultCode.ok)
-            return SocketAddress(addrBuffer[0..addrLength]);
-
-        lastError.setSystemError("getsockname", lastSocketError());
-        return SocketAddress.init;
+        auto result = getSocketAddress(_safeSocketHandle.handle);
+        if (result.slen == 0)
+            lastError.setSystemError("getsockname", lastSocketError());
+        return result;
     }
 
     final SocketAddress remoteAddress() nothrow @trusted
@@ -400,7 +453,7 @@ public:
         }
 
         ubyte[SocketAddress.sizeof] addrBuffer;
-        socklen_t addrLength = SocketAddress.sizeof;
+        SocketLength addrLength = SocketAddress.sizeof;
         const r = getpeername(_safeSocketHandle.handle, cast(sockaddr*)&addrBuffer[0], &addrLength);
         if (r == ResultCode.ok)
             return SocketAddress(addrBuffer[0..addrLength]);
@@ -409,7 +462,7 @@ public:
         return SocketAddress.init;
     }
 
-    final long receive(scope ubyte[] bytes, int flags = 0) nothrow
+    final ptrdiff_t receive(scope ubyte[] bytes, int flags = 0) nothrow
     {
         if (const r = checkActive())
             return r;
@@ -419,7 +472,7 @@ public:
 
     final SelectMode select(SelectMode modes, Duration timeout) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(modes=", modes, ", timeout=", timeout, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(modes=", modes, ", timeout=", timeout, ")");
 
         SelectMode resultModes;
         selectSocket(_safeSocketHandle.handle, modes, toSocketTimeVal(timeout), resultModes);
@@ -428,7 +481,7 @@ public:
         return resultModes;
     }
 
-    final long send(scope const(ubyte)[] bytes, int flags = 0) nothrow
+    final ptrdiff_t send(scope const(ubyte)[] bytes, int flags = 0) nothrow
     {
         if (const r = checkActive())
             return r;
@@ -438,7 +491,7 @@ public:
 
     final int setBlocking(bool state) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(state=", state, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(state=", state, ")");
 
         const r = setBlockingSocket(_safeSocketHandle.handle, state);
         version(Windows)
@@ -497,7 +550,7 @@ public:
 
     final int setNoDelay(bool state) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(state=", state, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(state=", state, ")");
 
         uint v = state ? 1 : 0;
         const r = setOptionSocket(_safeSocketHandle.handle, SocketOptionItems.noDelay, v);
@@ -508,7 +561,7 @@ public:
 
     final int setReadTimeout(Duration duration) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(duration=", duration, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(duration=", duration, ")");
 
         const r = setReadTimeoutSocket(_safeSocketHandle.handle, toSocketTimeVal(duration));
         return r == ResultCode.ok
@@ -552,7 +605,7 @@ public:
 
     final int setWriteTimeout(Duration duration) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(duration=", duration, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(duration=", duration, ")");
 
         const r = setWriteTimeoutSocket(_safeSocketHandle.handle, toSocketTimeVal(duration));
         return r == ResultCode.ok
@@ -562,7 +615,7 @@ public:
 
     final int shutdown(ShutdownReason reason = ShutdownReason.both) nothrow scope
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "()"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "()");
 
         if (!_safeSocketHandle.isValid)
             return ResultCode.ok;
@@ -603,7 +656,7 @@ public:
         return _safeSocketHandle.handle;
     }
 
-    @property final ushort port() const @nogc nothrow
+    @property final SocketPort port() const @nogc nothrow
     {
         return _port;
     }
@@ -634,7 +687,7 @@ public:
 protected:
     final int bindImpl(BindInfo bindInfo) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(address=", bindInfo.address.toString(), ", port=", bindInfo.port, ", isBlocking=", bindInfo.isBlocking(), ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(address=", bindInfo.address.toString(), ", port=", bindInfo.port, ", isBlocking=", bindInfo.isBlocking(), ")");
 
         version(Windows) this._blocking = bindInfo.isBlocking();
         this._address = bindInfo.address;
@@ -724,7 +777,7 @@ protected:
     pragma(inline, true)
     final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(active=", active, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(active=", active, ")");
 
         // WSAENOTCONN=10057=Socket is not connected
         return active
@@ -734,7 +787,7 @@ protected:
 
     final int connectImpl(ConnectInfo connectInfo) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")");
 
         version(Windows) this._blocking = connectInfo.isBlocking();
         this._address = connectInfo.address;
@@ -821,21 +874,21 @@ protected:
                 return resultCode;
         }
 
-        if (cast(bool)connectInfo.readTimeout)
+        if (connectInfo.readTimeout.isTimeout())
         {
             resultCode = connectFailedIf(setReadTimeout(connectInfo.readTimeout));
             if (resultCode != ResultCode.ok)
                 return resultCode;
         }
 
-        if (cast(bool)connectInfo.writeTimeout)
+        if (connectInfo.writeTimeout.isTimeout())
         {
             resultCode = connectFailedIf(setWriteTimeout(connectInfo.writeTimeout));
             if (resultCode != ResultCode.ok)
                 return resultCode;
         }
 
-        const r = connectInfo.isBlocking() && cast(bool)connectInfo.connectTimeout
+        const r = connectInfo.isBlocking() && connectInfo.connectTimeout.isTimeout()
             ? connectWithTimeout(connectInfo)
             : connectWithoutTimeout(connectInfo);
         if (r != ResultCode.ok)
@@ -845,7 +898,7 @@ protected:
 
     final int connectWithoutTimeout(ConnectInfo connectInfo) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")");
 
         auto sa = connectInfo.address.toSocketAddress(connectInfo.port);
         const r = connectSocket(_safeSocketHandle.handle, sa.sval, sa.slen, connectInfo.isBlocking());
@@ -856,7 +909,7 @@ protected:
 
     final int connectWithTimeout(ConnectInfo connectInfo) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(address=", connectInfo.address.toString(), ", port=", connectInfo.port, ", isBlocking=", connectInfo.isBlocking(), ")");
 
         const isBlocking = connectInfo.isBlocking();
 
@@ -901,9 +954,9 @@ protected:
             : (setFailed ? lastError.setSystemError(getSocketAPIName("closeSocket"), lastSocketError()) : ResultCode.error);
     }
 
-    final long receiveImpl(scope ubyte[] bytes, int flags) nothrow
+    final ptrdiff_t receiveImpl(scope ubyte[] bytes, int flags) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")");
 
         if (bytes.length == 0)
         {
@@ -911,7 +964,7 @@ protected:
             if (isErrorResult(rr))
                 return lastError.setSystemError(getSocketAPIName("receiveSocket"), lastSocketError());
 
-            debug(debug_pham_io_io_socket) { debug writeln("\t", "receiveCheck.length=", rr); debug stdout.flush(); }
+            debug(debug_pham_io_io_socket) debug writeln("\t", "receiveCheck.length=", rr);
 
             return rr;
         }
@@ -929,14 +982,14 @@ protected:
                 break;
         }
 
-        debug(debug_pham_io_io_socket) { debug writeln("\t", "receive.length=", offset); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln("\t", "receive.length=", offset);
 
-        return cast(long)offset;
+        return offset;
     }
 
-    final long sendImpl(scope const(ubyte)[] bytes, int flags) nothrow
+    final ptrdiff_t sendImpl(scope const(ubyte)[] bytes, int flags) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")");
 
         if (bytes.length == 0)
         {
@@ -944,7 +997,7 @@ protected:
             if (isErrorResult(wr))
                 return lastError.setSystemError(getSocketAPIName("sendSocket"), lastSocketError());
 
-            debug(debug_pham_io_io_socket) { debug writeln("\t", "sendCheck.length=", wr); debug stdout.flush(); }
+            debug(debug_pham_io_io_socket) debug writeln("\t", "sendCheck.length=", wr);
 
             return wr;
         }
@@ -962,15 +1015,15 @@ protected:
                 break;
         }
 
-        debug(debug_pham_io_io_socket) { debug writeln("\t", "send.length=", offset); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln("\t", "send.length=", offset);
 
-        return cast(long)offset;
+        return offset;
     }
 
 private:
     SafeSocketHandle _safeSocketHandle;
     IPSocketAddress _address;
-    ushort _port;
+    SocketPort _port;
     version(Windows) bool _blocking; // Windows api does not have a function to query blocking state from socket handle
 }
 
@@ -1082,7 +1135,7 @@ protected:
 
     final override long readImpl(scope ubyte[] bytes) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")");
 
         return _socket.receive(bytes);
     }
@@ -1109,7 +1162,7 @@ protected:
 
     final override long writeImpl(scope const(ubyte)[] bytes) nothrow
     {
-        debug(debug_pham_io_io_socket) { debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")"); debug stdout.flush(); }
+        debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(bytes.length=", bytes.length, ")");
 
         return _socket.send(bytes);
     }
@@ -1238,7 +1291,7 @@ unittest // Connect using machine name
     serverSocket.listen(bindInfo.backLog);
     assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
 
-    ConnectInfo connectInfo = ConnectInfo("localhost", 30_000);
+    ConnectInfo connectInfo = ConnectInfo(loopbackHost, 30_000);
     auto clientSocket = new Socket(connectInfo);
     assert(clientSocket.lastError.isOK, clientSocket.lastError.errorMessage);
     scope (exit)
@@ -1264,12 +1317,13 @@ unittest // Connect using machine name
 
 @trusted unittest // Bind & Connect using machine name
 {
-    import core.atomic, core.thread;
+    import core.atomic : atomicFetchAdd, atomicLoad;
+    import core.thread;
     import std.random : Random, uniform;
-    import std.stdio : writeln;
+    //import std.stdio : writeln;
 
     enum testCount = 2;
-    __gshared ubyte[][testCount] testDatas;
+    ubyte[][testCount] testDatas;
     //writeln("testDatas[0].length=", testDatas[0].length);
     Random rnd;
     testDatas[0] = new ubyte[](500);
@@ -1278,13 +1332,17 @@ unittest // Connect using machine name
     testDatas[1] = new ubyte[](5_000);
     foreach (i; 0..testDatas[1].length)
         testDatas[1][i] = cast(ubyte)uniform(1, 255, rnd);
-    __gshared size_t serverCount, clientCount;
+    size_t serverCount, clientCount;
+
+    SocketPort port = Socket.getUnusedPort();
+    if (port == 0)
+        port = 30_000;
 
     class Server
     {
         void run()
         {
-            BindInfo bindInfo = BindInfo("localhost", 30_000);
+            BindInfo bindInfo = BindInfo(loopbackHost, port);
             auto serverSocket = new Socket(bindInfo);
             assert(serverSocket.lastError.isOK, serverSocket.lastError.errorMessage);
             scope (exit)
@@ -1298,7 +1356,7 @@ unittest // Connect using machine name
             scope (exit)
                 peerSocket.close();
 
-            while (serverCount < testCount)
+            while (atomicLoad(serverCount) < testCount)
             {
                 {
                     auto readBuffer = new ubyte[](testDatas[serverCount].length);
@@ -1308,7 +1366,7 @@ unittest // Connect using machine name
                     assert(readBuffer == testDatas[serverCount]);
                 }
 
-                serverCount++;
+                atomicFetchAdd(serverCount, 1);
             }
         }
     }
@@ -1317,12 +1375,12 @@ unittest // Connect using machine name
     {
         void run()
         {
-            ConnectInfo connectInfo = ConnectInfo("localhost", 30_000);
+            ConnectInfo connectInfo = ConnectInfo(loopbackHost, port);
             auto clientSocket = new Socket(connectInfo);
             assert(clientSocket.lastError.isOK, clientSocket.lastError.errorMessage);
             scope (exit)
                 clientSocket.close();
-            while (clientCount < testCount)
+            while (atomicLoad(clientCount) < testCount)
             {
                 {
                     auto writeBuffer = testDatas[clientCount];
@@ -1331,28 +1389,34 @@ unittest // Connect using machine name
                     assert(w == writeBuffer.length);
                 }
 
-                clientCount++;
+                atomicFetchAdd(clientCount, 1);
             }
         }
     }
 
     serverCount = clientCount = 0;
-    auto serverThread = new Thread
-    ({
+    auto serverThread = new Thread(
+    {
         auto server = new Server();
         server.run();
     });
     serverThread.start();
-    Thread.sleep(dur!("seconds")(1));
 
-    auto clientThread = new Thread
-    ({
+    auto clientThread = new Thread(
+    {
         auto client = new Client();
         client.run();
     });
     clientThread.start();
-    Thread.sleep(dur!("seconds")(1));
 
     serverThread.join();
     clientThread.join();
+}
+
+unittest // Socket.getUnusedPort
+{
+    //import std.stdio : writeln;
+    auto unusedPort = Socket.getUnusedPort();
+    //writeln("getUnusedPort()=", unusedPort); // 60519...
+    assert(unusedPort > 0);
 }

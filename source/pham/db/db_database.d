@@ -21,6 +21,7 @@ import std.traits : FieldNameTuple, Unqual;
 debug(debug_pham_db_db_database) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
+import pham.io.io_socket_type : SocketPort;
 import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_delegate_list;
@@ -342,8 +343,7 @@ package(pham.db) enum ResetStatementKind : ubyte
 abstract class DbCommand : DbDisposableObject
 {
 public:
-    this(DbDatabase database, DbConnection connection,
-        string name = null) nothrow @safe
+    this(DbDatabase database, DbConnection connection) nothrow @safe
     in
     {
         assert(connection !is null);
@@ -352,7 +352,6 @@ public:
     {
         this._database = database;
         this._connection = connection;
-        this._name = name;
         this._commandTimeout = connection.connectionStringBuilder.commandTimeout;
         this._fetchRecordCount = connection.connectionStringBuilder.fetchRecordCount;
         this._flags.parametersCheck = true;
@@ -361,15 +360,14 @@ public:
         this.notifyMessageEvents.opAssign(connection.notifyMessageEvents);
     }
 
-    this(DbDatabase database, DbConnection connection, DbTransaction transaction,
-        string name = null) nothrow @safe
+    this(DbDatabase database, DbConnection connection, DbTransaction transaction) nothrow @safe
     in
     {
         assert(connection !is null);
     }
     do
     {
-        this(database, connection, name);
+        this(database, connection);
         this._transaction = transaction;
         this._flags.set(DbCommandFlag.implicitTransaction, transaction is null);
     }
@@ -502,7 +500,7 @@ public:
             executePrep.reset(true);
 
         doExecuteCommand(DbCommandExecuteType.scalar);
-        auto values = fetch(true);
+        auto values = fetch(isScalar:true, isNext:false);
         return values ? values[0] : DbValue.dbUnassign();
     }
 
@@ -514,27 +512,31 @@ public:
      *  A row being requested. Incase of no result left to be returned,
      *  a DbRowValue with zero column-length being returned.
      */
-    final DbRowValue fetch(bool isScalar) @safe
+    final DbRowValue fetch(bool isScalar, bool isNext) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", _fetchedRowCount=", _fetchedRowCount,
-            ", columnCount=", columnCount, ", isStoredProcedure=", isStoredProcedure, ", isSelectCommandType=", isSelectCommandType(), ")");
+            ", columnCount=", columnCount, ", isStoredProcedure=", isStoredProcedure, ", isSelectCommandType=", isSelectCommandType(),
+            ", allRowsFetched=", allRowsFetched, ", _fetchedRows.empty=", _fetchedRows.empty, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         if (auto log = canTraceLog())
             log.tracef("%s.%s()%s%s", forLogInfo(), shortFunctionName(2), newline, commandText);
 
+        if (_fetchedRows)
+            return _fetchedRows.dequeue();
+
         checkActive();
 
 		if (hasStoredProcedureFetched())
-            return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0, 0);
+            return DbRowValue(0, 0);
 
-        if (_fetchedRows.empty && !allRowsFetched && isSelectCommandType())
+        if (!allRowsFetched && isSelectCommandType())
         {
             resetStatement(ResetStatementKind.fetching);
             scope (exit)
                 resetStatement(ResetStatementKind.fetched);
 
-            doFetch(isScalar);
+            doFetch(isScalar, isNext);
         }
 
         return _fetchedRows ? _fetchedRows.dequeue() : DbRowValue(0, 0);
@@ -559,7 +561,14 @@ public:
         return parameterCount ? parameters.inputs!T(inputOnly) : null;
     }
 
-    final T[] outParameters(T : DbParameter)(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) nothrow @safe
+    final T[] inputOutputParameters(T : DbParameter)() nothrow @safe
+    {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+
+        return parameterCount ? parameters.inputOutputs!T() : null;
+    }
+
+    final T[] outputParameters(T : DbParameter)(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) nothrow @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
@@ -894,14 +903,6 @@ public:
     }
 
     /**
-     * Returns name of this DbCommand if supplied
-     */
-    @property final string name() const nothrow @safe
-    {
-        return _name;
-    }
-
-    /**
      * Returns number of defining parameters of this DbCommand
      */
     @property final size_t parameterCount() const nothrow @safe
@@ -1124,7 +1125,7 @@ package(pham.db):
     {
         return commandType == DbCommandType.storedProcedure;
     }
-
+    
     @property final void transactionRequired(bool value) nothrow @safe
     {
         _flags.set(DbCommandFlag.transactionRequired, value);
@@ -1351,7 +1352,7 @@ protected:
         _parameters = null;
         _transaction = null;
         _commandState = DbCommandState.closed;
-        _commandText = _executeCommandText = _name = null;
+        _commandText = _executeCommandText = null;
         _commandType = DbCommandType.text;
         _baseCommandType = 0;
         _handle.reset();
@@ -1659,7 +1660,7 @@ protected:
     }
 
     abstract void doExecuteCommand(const(DbCommandExecuteType) type) @safe;
-    abstract void doFetch(const(bool) isScalar) @safe;
+    abstract void doFetch(const(bool) isScalar, const(bool) isNext) @safe;
     abstract void doPrepare() @safe;
     abstract void doUnprepare(const(bool) isPreparedError) @safe;
 
@@ -1670,7 +1671,6 @@ protected:
     DbParameterList _parameters;
     DbTransaction _transaction;
     string _commandText, _executeCommandText;
-    string _name;
     DbRecordsAffected _lastInsertedId;
     DbRecordsAffected _recordsAffected;
     DbHandle _handle;
@@ -1690,7 +1690,7 @@ private:
     DbCommand _prev;
 }
 
-mixin DLinkTypes!(DbCommand) DLinkDbCommandTypes;
+mixin DLinkTypes!DbCommand DLinkDbCommandTypes;
 
 abstract class DbConnection : DbDisposableObject
 {
@@ -1828,30 +1828,28 @@ public:
 
     abstract DbCancelCommandData createCancelCommandData(DbCommand command) @safe;
 
-    final DbCommand createCommand(string name = null) @safe
+    final DbCommand createCommand() @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
         checkActive();
-        return _commands.insertEnd(database.createCommand(this, name));
+        return _commands.insertEnd(database.createCommand(this));
     }
 
-    final DbCommand createCommandDDL(string commandDDL,
-        string name = null) @safe
+    final DbCommand createCommandDDL(string commandDDL) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandDDL=", commandDDL, ")");
 
-        auto result = createCommand(name);
+        auto result = createCommand();
         result.commandDDL = commandDDL;
         return result;
     }
 
-    final DbCommand createCommandText(string commandText,
-        string name = null) @safe
+    final DbCommand createCommandText(string commandText) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(commandText=", commandText, ")");
 
-        auto result = createCommand(name);
+        auto result = createCommand();
         result.commandText = commandText;
         return result;
     }
@@ -1860,6 +1858,9 @@ public:
     final bool createTableOrEmpty(string tableName, string createCommandText,
         string schema = null) @safe
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(tableName=", tableName,
+            ", createCommandText=", createCommandText, ", schema=", schema, ")");
+
         if (existTable(tableName, schema))
         {
             executeNonQuery("delete from " ~ combineSymbol(schema, tableName));
@@ -1876,7 +1877,7 @@ public:
 
     final DbTransaction createTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isolationLevel=", isolationLevel, ")");
 
         checkActive();
         return createTransactionImpl(isolationLevel, false);
@@ -1884,13 +1885,15 @@ public:
 
     DbValue currentTimeStamp(const(uint) precision) @safe
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(precision=", precision, ")");
+
         auto commandText = "SELECT " ~ database.currentTimeStamp(precision);
         return executeScalar(commandText);
     }
 
     final DbTransaction defaultTransaction(DbIsolationLevel isolationLevel = DbIsolationLevel.readCommitted) @safe
     {
-        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(isolationLevel=", isolationLevel, ")");
 
         checkActive();
 
@@ -2079,6 +2082,9 @@ public:
     bool existRoutine(string routineName, string type,
         string schema = null) @safe
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(routineName=", routineName,
+            ", type=", type, ", schema=", schema, ")");
+
         static immutable string SQL = "select 1" ~
             " from INFORMATION_SCHEMA.ROUTINES" ~
             " where ROUTINE_NAME = @routineName and ROUTINE_TYPE = @type";
@@ -2122,6 +2128,8 @@ public:
     bool existTable(string tableName,
         string schema = null) @safe
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(tableName=", tableName, ", schema=", schema, ")");
+
         static immutable string SQL = "select 1" ~
             " from INFORMATION_SCHEMA.TABLES" ~
             " where TABLE_NAME = @tableName";
@@ -2152,6 +2160,8 @@ public:
     bool existView(string viewName,
         string schema = null) @safe
     {
+        debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(viewName=", viewName, ", schema=", schema, ")");
+
         static immutable string SQL = "select 1" ~
             " from INFORMATION_SCHEMA.VIEWS" ~
             " where TABLE_NAME = @viewName";
@@ -2749,7 +2759,7 @@ private:
     DbConnection _prev;
 }
 
-mixin DLinkTypes!(DbConnection) DLinkDbConnectionTypes;
+mixin DLinkTypes!DbConnection DLinkDbConnectionTypes;
 
 class DbConnectionList : DbDisposableObject
 {
@@ -3737,14 +3747,14 @@ public:
         return this;
     }
 
-    @property final uint16 serverPort() const nothrow
+    @property final SocketPort serverPort() const nothrow
     {
         int32 result;
         cvtConnectionParameterInt32(result, getString(DbConnectionParameterIdentifier.serverPort));
-        return cast(uint16)result;
+        return cast(SocketPort)result;
     }
 
-    @property final typeof(this) serverPort(uint16 value)
+    @property final typeof(this) serverPort(SocketPort value)
     {
         const vs = value.to!string();
         const s = value != 0 ? vs : getDefault(DbConnectionParameterIdentifier.serverPort);
@@ -3805,8 +3815,7 @@ protected:
         if (k is null)
             return null;
 
-        auto sch = (*k).scheme;
-        return sch.length == 0 || sch == scheme ? (*k).def : null;
+        return (*k).isScheme(scheme) ? (*k).def : null;
     }
 
     final string getString(string name) const nothrow
@@ -3880,8 +3889,7 @@ protected:
         foreach (ref dpv; dbDefaultConnectionParameterValues.byKeyValue)
         {
             auto def = dpv.value.def;
-            auto sch = dpv.value.scheme;
-            if (def.length && (sch.length == 0 || sch == scheme))
+            if (def.length && dpv.value.isScheme(scheme))
                 putIf(dpv.key, def);
         }
     }
@@ -3980,10 +3988,8 @@ public:
     abstract const(string[]) connectionStringParameterNames() const nothrow pure;
     abstract DbColumn createColumn(DbCommand command, DbIdentitier name) nothrow;
     abstract DbColumnList createColumnList(DbCommand command) nothrow;
-    abstract DbCommand createCommand(DbConnection connection,
-        string name = null) nothrow;
-    abstract DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null) nothrow;
+    abstract DbCommand createCommand(DbConnection connection) nothrow;
+    abstract DbCommand createCommand(DbConnection connection, DbTransaction transaction) nothrow;
     abstract DbConnection createConnection(string connectionString);
     abstract DbConnection createConnection(DbConnectionStringBuilder connectionString) nothrow;
     abstract DbConnection createConnection(DbURL!string connectionString);
@@ -5275,6 +5281,11 @@ public:
         return parameterOfs!T(inputDirections(inputOnly));
     }
 
+    final T[] inputOutputs(T : DbParameter)() nothrow @safe
+    {
+        return parameterOfs!T(inputOutputDirections());
+    }
+
     final size_t outputCount(OutputDirectionOnly outputOnly = OutputDirectionOnly.no) const nothrow @safe
     {
         return parameterCountOfs(outputDirections(outputOnly));
@@ -5906,7 +5917,7 @@ private:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(checking=", checking, ")");
 
-        _currentRow = _command.fetch(false);
+        _currentRow = _command.fetch(isScalar:false, isNext:false);
         _flags.checkRow = false;
         const hasRow = _currentRow.length != 0;
         if (hasRow)
@@ -5938,7 +5949,7 @@ private:
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "()");
 
-        _currentRow = _command.fetch(false);
+        _currentRow = _command.fetch(isScalar:false, isNext:true);
         const hasRow = _currentRow.length != 0;
         if (hasRow)
         {

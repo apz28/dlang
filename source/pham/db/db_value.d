@@ -107,6 +107,11 @@ public:
         return DbValue(value, type);
     }
 
+    inout(T) get(T)() inout
+    {
+        return _value.get!T();
+    }
+    
     // Replace type with dbType
     void nullify(DbType typeIf = DbType.unknown) nothrow @safe
     {

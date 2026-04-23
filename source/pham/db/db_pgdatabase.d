@@ -7,7 +7,7 @@
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
-*/
+ */
 
 module pham.db.db_pgdatabase;
 
@@ -683,7 +683,7 @@ private:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ")");
 
-        auto result = pgConnection.createCommand(storedProcedureName);
+        auto result = pgConnection.createCommand();
         result.commandStoredProcedure = storedProcedureName;
         PgOIdColumnInfo info;
         foreach (ref argument; arguments)
@@ -789,14 +789,14 @@ protected:
 class PgCommand : SkCommand
 {
 public:
-    this(PgDatabase database, PgConnection connection, string name = null) nothrow @safe
+    this(PgDatabase database, PgConnection connection) nothrow @safe
     {
-        super(database, connection, name);
+        super(database, connection);
     }
 
-    this(PgDatabase database, PgConnection connection, PgTransaction transaction, string name = null) nothrow @safe
+    this(PgDatabase database, PgConnection connection, PgTransaction transaction) nothrow @safe
     {
-        super(database, connection, transaction, name);
+        super(database, connection, transaction);
     }
 
 	final override string getExecutionPlan(uint vendorMode = 0) @safe
@@ -826,6 +826,11 @@ public:
             result.put(planReader.getValue!string(0));
         }
         return result.data;
+    }
+
+    final PgParameter[] pgInputOutputParameters() nothrow @safe
+    {
+        return inputOutputParameters!PgParameter();
     }
 
     final PgParameter[] pgInputParameters(InputDirectionOnly inputOnly = InputDirectionOnly.no) nothrow @safe
@@ -881,6 +886,17 @@ public:
         return cast(PgConnection)connection;
     }
 
+package(pham.db):
+    final string commandName() nothrow pure @safe
+    {
+        return _name;
+    }
+
+    final string portalName() nothrow pure @safe
+    {
+        return _name.length ? (_name ~ "_p") : null;
+    }
+
 protected:
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
@@ -928,6 +944,19 @@ protected:
         return result.data;
     }
 
+    final void checkSetName() @safe
+    {
+        import pham.utl.utl_object : asSizeT;
+
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
+
+        if (!(commandType == DbCommandType.text || commandType == DbCommandType.table))
+            return;
+
+        const counter = connection.nextCounter();
+        _name = "command_" ~ asSizeT(this).to!string() ~ "_" ~ counter.to!string();
+    }
+
     final void deallocateHandle() @safe
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
@@ -955,17 +984,20 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
+        if (_name.length == 0 && type != DbCommandExecuteType.scalar)
+            checkSetName();
+
         auto protocol = pgConnection.protocol;
         protocol.bindCommandParameterWrite(this);
         processBindResponse(protocol.bindCommandParameterRead(this));
         resetStatement(ResetStatementKind.executed);
 
-        const fcs = doExecuteCommandFetch(type, false);
+        const fcs = doExecuteCommandFetch(type, isNext:false);
 
         if (isStoredProcedure)
         {
             if (fcs == DbFetchResultStatus.ready && _fetchedRows.empty)
-                doFetch(true);
+                doFetch(isScalar:true, isNext:false);
 
             if (_fetchedRows && parameterCount)
             {
@@ -982,20 +1014,19 @@ protected:
         return true; // Need to do directExecute in order to return false
     }
 
-    final DbFetchResultStatus doExecuteCommandFetch(const(DbCommandExecuteType) type, const(bool) fetchAgain) @safe
+    final DbFetchResultStatus doExecuteCommandFetch(const(DbCommandExecuteType) type, const(bool) isNext) @safe
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ", fetchAgain=", fetchAgain, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(type=", type, ", isNext=", isNext, ")");
 
         auto logTimming = canTimeLog() !is null
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
-        const fetchRecordCount = type == DbCommandExecuteType.scalar ? 1 : fetchRecordCount;
         auto protocol = pgConnection.protocol;
-        protocol.executeCommandWrite(this, type, fetchRecordCount);
+        protocol.executeCommandWrite(this, type, type == DbCommandExecuteType.scalar ? 1 : fetchRecordCount);
         PgReader reader;  // Since it is package message, need reader to continue reading row values
         auto executeResponse = protocol.executeCommandRead(this, type, reader);
-        if (!fetchAgain)
+        if (!isNext)
         {
             _recordsAffected = executeResponse.recordsAffected;
             debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "_recordsAffected=", _recordsAffected);
@@ -1008,19 +1039,25 @@ protected:
         return executeResponse.fetchStatus();
     }
 
-    final override void doFetch(const(bool) isScalar) @safe
+    final override void doFetch(const(bool) isScalar, const(bool) isNext) @safe
     in
     {
         assert(!allRowsFetched);
     }
     do
     {
-        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", fetchRecordCount=", fetchRecordCount, ")");
+        debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "(isScalar=", isScalar, ", isNext=", isNext, ", fetchRecordCount=", fetchRecordCount, ")");
         version(profile) debug auto p = PerfFunction.create();
 
         auto logTimming = canTimeLog() !is null
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
+
+        if (isNext)
+        {
+            doExecuteCommandFetch(DbCommandExecuteType.reader, isNext);
+            return;
+        }
 
         PgReader reader; // Since it is package message, need reader to continue reading row values
         bool isSuspended = false;
@@ -1054,30 +1091,8 @@ protected:
                 case DbFetchResultStatus.completed:
                     debug(debug_pham_db_db_pgdatabase) debug writeln("\t", "allRowsFetched=true");
                     allRowsFetched = true;
-                    continueFetchingCount = false;
-
-                    version(none) // Only valid if there is portal name
-                    if (!isScalar && response.needFetchAgain(isSuspended))
-                    {
-                        final switch (doExecuteCommandFetch(DbCommandExecuteType.reader, true))
-                        {
-                            case DbFetchResultStatus.hasData:
-                                allRowsFetched = false;
-                                continueFetchingCount = true;
-                                break;
-
-                            case DbFetchResultStatus.completed:
-                                allRowsFetched = true;
-                                continueFetchingCount = false;
-                                break;
-
-                            case DbFetchResultStatus.ready:
-                                continueFetchingCount = false;
-                                break;
-                        }
-                    }
-
                     isSuspended = false;
+                    continueFetchingCount = false;
                     break;
 
                 // Wait for next fetch call
@@ -1092,6 +1107,9 @@ protected:
     {
         debug(debug_pham_db_db_pgdatabase) debug writeln(__FUNCTION__, "()");
         version(profile) debug auto p = PerfFunction.create();
+
+        if (_name.length == 0)
+            checkSetName();
 
         auto sql = executeCommandText(BuildCommandTextState.prepare); // Make sure statement is constructed before doing other tasks
 
@@ -1179,6 +1197,9 @@ protected:
         auto protocol = pgConnection.protocol;
         return protocol.readValues(reader, cast(PgColumnList)columns, _fetchedRowCount);
     }
+
+private:
+    string _name;
 }
 
 class PgConnection : SkConnection
@@ -1565,19 +1586,17 @@ public:
         return new PgColumnList(this, cast(PgCommand)command);
     }
 
-    override DbCommand createCommand(DbConnection connection,
-        string name = null) nothrow
+    override DbCommand createCommand(DbConnection connection) nothrow
     in
     {
         assert((cast(PgConnection)connection) !is null);
     }
     do
     {
-        return new PgCommand(this, cast(PgConnection)connection, name);
+        return new PgCommand(this, cast(PgConnection)connection);
     }
 
-    override DbCommand createCommand(DbConnection connection, DbTransaction transaction,
-        string name = null) nothrow
+    override DbCommand createCommand(DbConnection connection, DbTransaction transaction) nothrow
     in
     {
         assert((cast(PgConnection)connection) !is null);
@@ -1585,7 +1604,7 @@ public:
     }
     do
     {
-        return new PgCommand(this, cast(PgConnection)connection, cast(PgTransaction)transaction, name);
+        return new PgCommand(this, cast(PgConnection)connection, cast(PgTransaction)transaction);
     }
 
     override DbConnection createConnection(string connectionString)
@@ -1899,7 +1918,13 @@ pragma(inline, true)
     return _pgDB;
 }
 
+
 version(UnitTestPGDatabase)
+    version = UnitTestPGDatabaseHelper;
+else version(UnitTestPerfPGDatabase)
+    version = UnitTestPGDatabaseHelper;
+
+version(UnitTestPGDatabaseHelper)
 {
     PgConnection createUnitTestConnection(
         DbEncryptedConnection encrypt = DbEncryptedConnection.disabled,
@@ -2991,12 +3016,12 @@ unittest // blob
 
 version(UnitTestPerfPGDatabase)
 {
+    import core.time;
+    import std.conv : to;
     import pham.utl.utl_test : PerfTestResult;
 
     PerfTestResult unitTestPerfPGDatabase()
     {
-        import core.time;
-
         static struct Data
         {
             long Foo1;
@@ -3083,33 +3108,85 @@ version(UnitTestPerfPGDatabase)
             }
         }
 
+        enum recordCount = 100_000;
+
+        version(UnitTestPGCollectData)
+            auto datas = new Data[](recordCount);
+        else
+            Data data;
+
         auto connection = createUnitTestConnection();
         scope (exit)
             connection.dispose();
         connection.open();
 
-        auto command = connection.createCommand();
+        auto command = connection.createCommandText("select * from foo limit 100000");
         scope (exit)
             command.dispose();
 
-        enum maxRecordCount = 100_000;
-        command.commandText = "select * from foo limit 100000";
+        auto result = PerfTestResult.create();
         auto reader = command.executeReader();
         scope (exit)
             reader.dispose();
-
-        version(UnitTestPGCollectData) auto datas = new Data[](maxRecordCount);
-        else Data data;
-        assert(reader.hasRows());
-
-        auto result = PerfTestResult.create();
-        while (result.count < maxRecordCount && reader.read())
+        while (result.count < recordCount && reader.read())
         {
-            version(UnitTestPGCollectData) datas[result.count++] = Data(reader);
-            else { data.readData(reader); result.count++; }
+            version(UnitTestPGCollectData)
+                datas[result.count++] = Data(reader);
+            else
+            {
+                data.readData(reader);
+                result.count++;
+            }
         }
         result.end();
-        assert(result.count > 0);
+        assert(result.count == recordCount, result.count.to!string());
+        return result;
+    }
+
+    PerfTestResult unitTestPerfPGDatabase2()
+    {
+        enum recordCount = 10_000_000;
+
+        auto connection = createUnitTestConnection();
+        connection.open();
+        scope (exit)
+            connection.dispose();
+
+        // Create table if not existed
+        if (!connection.existTable("unittestperfpgdatabase2"))
+            connection.executeNonQuery("create table public.unittestperfpgdatabase2(iFld integer)");
+
+        // Insert data
+        auto dbCnt = connection.executeScalar("select count(*) from unittestperfpgdatabase2");
+        auto cnt = dbCnt.isNull ? 0 : dbCnt.get!int();
+        if (cnt < recordCount)
+        {
+            auto command = connection.createCommandText("insert into unittestperfpgdatabase2(iFld) values(@iFld)");
+            command.parameters.add("iFld", DbType.int32);
+            command.prepare();
+            scope (exit)
+                command.dispose();
+
+            auto iFld = command.parameters["iFld"];
+            foreach (i; cnt..recordCount)
+            {
+                iFld.value = cast(int)(i + 1);
+                command.executeNonQuery();
+            }
+        }
+
+        auto reader = connection.executeReader("select iFld from unittestperfpgdatabase2");
+        scope (exit)
+            reader.dispose();
+
+        auto result = PerfTestResult.create();
+        while (reader.read())
+        {
+            auto _ = reader.getDbValue(0);
+            result.count++;
+        }
+        result.end();
+        assert(result.count == recordCount, result.count.to!string());
         return result;
     }
 }
@@ -3120,8 +3197,20 @@ unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvid
     import std.format : format;
     import pham.db.db_debug;
 
+    debug writeln("unitTestPerfPGDatabase...");
     const perfResult = unitTestPerfPGDatabase();
-    debug writeln("PG-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+    debug writeln("unitTestPerfPGDatabase-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
+}
+
+version(UnitTestPerfPGDatabase)
+unittest // PgCommand.DML.Performance - https://github.com/FirebirdSQL/NETProvider/issues/1235
+{
+    import std.format : format;
+    import pham.db.db_debug;
+
+    debug writeln("unitTestPerfPGDatabase2...");
+    const perfResult = unitTestPerfPGDatabase2();
+    debug writeln("unitTestPerfPGDatabase2-Count: ", format!"%,3?d"('_', perfResult.count), ", Elapsed in msecs: ", format!"%,3?d"('_', perfResult.elapsedTimeMsecs()));
 }
 
 version(UnitTestPGDatabase)
