@@ -27,7 +27,7 @@ version(Posix)
     import core.sys.posix.netinet.tcp;
     import core.sys.posix.sys.select;
     import core.sys.posix.sys.socket;
-    import pham.io.io_socket_posix : interfaceNameToIndex;
+    import pham.io.io_socket_posix : SO_USELOOPBACK, SD_BOTH, SD_RECEIVE, SD_SEND, interfaceNameToIndex;
     public import pham.io.io_socket_posix : FDSet, Linger, PollFD, POLLRead, POLLWrite, SocketHandle, TimeVal;
 }
 else version(Windows)
