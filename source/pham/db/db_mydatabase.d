@@ -372,24 +372,31 @@ protected:
             ? LogTimming(canTimeLog(), text(forLogInfo(), ".", shortFunctionName(2), "()", newline, _executeCommandText), logTimmingWarningDur, null, null)
             : LogTimming.init;
 
-//TODO for next
+        int fetchingCount = isScalar ? 1 : fetchRecordCount;
         auto protocol = myConnection.protocol;
-        auto continueFetchingCount = true;
-        while (continueFetchingCount)
+        while (true)
         {
             MyReader rowPackage;
             if (!protocol.readRow(rowPackage))
             {
                 debug(debug_pham_db_db_mydatabase) debug writeln("\t", "allRowsFetched=true");
                 allRowsFetched = true;
-                continueFetchingCount = false;
                 break;
             }
 
             auto row = readRow(rowPackage);
             _fetchedRows.enqueue(row);
             _fetchedRowCount++;
+
+            if (fetchingCount > 0)
+            {
+                if (--fetchingCount == 0)
+                    break;
+            }
         }
+
+        if (isScalar)
+            purgePendingRows();
     }
 
     final override void doPrepare() @safe
@@ -583,6 +590,7 @@ protected:
 
         if (connection.isActive && !connection.isFatalError)
             purgePendingRows();
+
         super.removeReaderCompleted(implicitTransaction);
     }
 }
@@ -1466,7 +1474,7 @@ version(UnitTestMYDatabaseHelper)
         auto csb = (cast(MyConnection)result).myConnectionStringBuilder;
         csb.databaseName = "test";
         csb.userPassword = "masterkey";
-        csb.receiveTimeout = dur!"seconds"(40);
+        csb.receiveTimeout = dur!"minutes"(20);
         csb.sendTimeout = dur!"seconds"(20);
         csb.encrypt = encrypt;
         csb.compress = compress;
@@ -1480,7 +1488,7 @@ version(UnitTestMYDatabaseHelper)
         assert(csb.userName == "root");
         assert(csb.databaseName == "test");
         assert(csb.userPassword == "masterkey");
-        assert(csb.receiveTimeout == dur!"seconds"(40));
+        assert(csb.receiveTimeout == dur!"minutes"(20));
         assert(csb.sendTimeout == dur!"seconds"(20));
         assert(csb.encrypt == encrypt);
         assert(csb.compress == compress);

@@ -489,6 +489,9 @@ public:
                 break;
             result++;
         }
+
+        debug(debug_pham_db_db_myprotocol) debug writeln("\t", "result=", result);
+
         return result;
     }
 

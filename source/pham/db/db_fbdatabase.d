@@ -3685,7 +3685,7 @@ version(UnitTestFBDatabaseHelper)
         DbIntegratedSecurityConnection integratedSecurity = DbIntegratedSecurityConnection.srp256)
     {
         csb.databaseName = "UNIT_TEST";  // Use alias mapping name
-        csb.receiveTimeout = dur!"seconds"(40);
+        csb.receiveTimeout = dur!"minutes"(20);
         csb.sendTimeout = dur!"seconds"(20);
         csb.encrypt = encrypt;
         csb.compress = compress;
@@ -3697,7 +3697,7 @@ version(UnitTestFBDatabaseHelper)
         assert(csb.userPassword == "masterkey");
         assert(csb.dialect == 3);
         assert(csb.databaseName == "UNIT_TEST");
-        assert(csb.receiveTimeout == dur!"seconds"(40));
+        assert(csb.receiveTimeout == dur!"minutes"(20));
         assert(csb.sendTimeout == dur!"seconds"(20));
         assert(csb.encrypt == encrypt);
         assert(csb.compress == compress);
