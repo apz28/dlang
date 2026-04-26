@@ -81,6 +81,7 @@ static immutable string[] fbValidConnectionParameterNames = [
     DbConnectionParameterIdentifier.compress,
     DbConnectionParameterIdentifier.encrypt,
     DbConnectionParameterIdentifier.integratedSecurity,
+    DbConnectionParameterIdentifier.timeZone,
 
     // Other
     DbConnectionParameterIdentifier.commandTimeout,
@@ -641,6 +642,11 @@ public
     uint32 size;
 }
 
+
+alias FbBlrIscTypeMap = Dictionary!(int32, int32);
+static immutable FbBlrIscTypeMap fbBlrToIscMap;
+static immutable FbBlrIscTypeMap fbIscToBlrMap;
+
 struct FbIscColumnInfo
 {
 nothrow @safe:
@@ -677,59 +683,10 @@ public:
 
 	static FbIscType blrTypeToFbType(int32 blrType) @nogc pure
 	{
-		switch (blrType)
-		{
-			case FbBlrType.blr_short:
-				return FbIscType.sql_short;
-			case FbBlrType.blr_long:
-				return FbIscType.sql_long;
-			case FbBlrType.blr_quad:
-				return FbIscType.sql_quad;
-			case FbBlrType.blr_float:
-				return FbIscType.sql_float;
-			case FbBlrType.blr_d_float:
-				return FbIscType.sql_d_float;
-			case FbBlrType.blr_date:
-				return FbIscType.sql_date;
-			case FbBlrType.blr_time:
-				return FbIscType.sql_time;
-			case FbBlrType.blr_text:
-			case FbBlrType.blr_text2:
-			case FbBlrType.blr_cstring:
-			case FbBlrType.blr_cstring2:
-				return FbIscType.sql_text;
-			case FbBlrType.blr_int64:
-			case FbBlrType.blr_blob_id:
-				return FbIscType.sql_int64;
-			case FbBlrType.blr_blob2:
-			case FbBlrType.blr_blob:
-				return FbIscType.sql_blob;
-			case FbBlrType.blr_bool:
-				return FbIscType.sql_boolean;
-			case FbBlrType.blr_dec16:
-				return FbIscType.sql_dec16;
-			case FbBlrType.blr_dec34:
-				return FbIscType.sql_dec34;
-			case FbBlrType.blr_int128:
-				return FbIscType.sql_int128;
-			case FbBlrType.blr_double:
-				return FbIscType.sql_double;
-            case FbBlrType.blr_time_tz:
-				return FbIscType.sql_time_tz;
-	        case FbBlrType.blr_timestamp_tz:
-				return FbIscType.sql_timestamp_tz;
-	        case FbBlrType.blr_ex_time_tz:
-				return FbIscType.sql_time_tz_ex;
-	        case FbBlrType.blr_ex_timestamp_tz:
-				return FbIscType.sql_timestamp_tz_ex;
-			case FbBlrType.blr_timestamp:
-				return FbIscType.sql_timestamp;
-			case FbBlrType.blr_varying:
-			case FbBlrType.blr_varying2:
-				return FbIscType.sql_varying;
-			default:
-                return FbIscType.sql_null; // Unknown
-		}
+        if (auto e = blrType in fbBlrToIscMap)
+            return cast(FbIscType)*e;
+        else
+            return FbIscType.sql_null; // Unknown
 	}
 
     void reset() pure
@@ -840,59 +797,10 @@ public:
 
     static FbBlrType fbTypeToBlrType(const(FbIscType) fbType) @nogc pure
     {
-	    final switch (fbType)
-	    {
-		    case FbIscType.sql_varying:
-			    return FbBlrType.blr_varying2; // FbBlrType.blr_varying;
-		    case FbIscType.sql_text:
-			    return FbBlrType.blr_text2; // FbBlrType.blr_text;
-		    case FbIscType.sql_double:
-			    return FbBlrType.blr_double;
-		    case FbIscType.sql_float:
-			    return FbBlrType.blr_float;
-		    case FbIscType.sql_long:
-			    return FbBlrType.blr_long;
-		    case FbIscType.sql_short:
-			    return FbBlrType.blr_short;
-		    case FbIscType.sql_timestamp:
-			    return FbBlrType.blr_timestamp;
-		    case FbIscType.sql_blob:
-                return FbBlrType.blr_blob2; // FbBlrType.blr_quad;
-		    case FbIscType.sql_d_float:
-			    return FbBlrType.blr_d_float;
-		    case FbIscType.sql_array:
-			    return FbBlrType.blr_quad;
-		    case FbIscType.sql_quad:
-			    return FbBlrType.blr_quad;
-		    case FbIscType.sql_time:
-			    return FbBlrType.blr_time;
-		    case FbIscType.sql_date:
-			    return FbBlrType.blr_date;
-		    case FbIscType.sql_int64:
-			    return FbBlrType.blr_int64;
-		    case FbIscType.sql_int128:
-			    return FbBlrType.blr_int128;
-		    case FbIscType.sql_timestamp_tz:
-			    return FbBlrType.blr_timestamp_tz;
-		    case FbIscType.sql_timestamp_tz_ex:
-			    return FbBlrType.blr_ex_timestamp_tz;
-		    case FbIscType.sql_time_tz:
-			    return FbBlrType.blr_time_tz;
-		    case FbIscType.sql_time_tz_ex:
-			    return FbBlrType.blr_ex_time_tz;
-		    /*
-            case FbIscType.SQL_DEC_FIXED:
-			    return FbBlrType.blr_int128;
-            */
-		    case FbIscType.sql_dec16:
-			    return FbBlrType.blr_dec16;
-		    case FbIscType.sql_dec34:
-			    return FbBlrType.blr_dec34;
-		    case FbIscType.sql_boolean:
-			    return FbBlrType.blr_bool;
-		    case FbIscType.sql_null:
-			    return FbBlrType.blr_text;
-	    }
+        if (auto e = fbType in fbIscToBlrMap)
+            return cast(FbBlrType)*e;
+        else
+            return FbBlrType.blr_text;
     }
 
     string fbTypeName() const pure
@@ -2647,7 +2555,7 @@ shared static this() nothrow @safe
 
     fbDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        auto result = FbDefaultConnectionParameterValues(5, 4);
+        auto result = FbDefaultConnectionParameterValues(5);
 
         result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, "3_050", 0, uint16.max, DbScheme.fb);
         result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, "SYSDBA", 0, dbConnectionParameterMaxId, DbScheme.fb);
@@ -2660,7 +2568,7 @@ shared static this() nothrow @safe
         return cast(immutable(FbDefaultConnectionParameterValues))result;
     }();
 
-    fbDbIdToDbTypeInfos = () nothrow pure @trusted
+    fbDbIdToDbTypeInfos = () nothrow pure @trusted // @trusted=cast()
     {
         auto result = FbDbIdToDbTypeInfos(fbNativeTypes.length + 1, fbNativeTypes.length, DictionaryHashMix.murmurHash3);
 
@@ -2675,6 +2583,79 @@ shared static this() nothrow @safe
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(FbDbIdToDbTypeInfos))result;
+    }();
+
+    fbBlrToIscMap = () nothrow pure @trusted // @trusted=cast()
+    {
+        auto result = FbBlrIscTypeMap(30);
+
+		result[FbBlrType.blr_short] = FbIscType.sql_short;
+		result[FbBlrType.blr_long] = FbIscType.sql_long;
+		result[FbBlrType.blr_quad] = FbIscType.sql_quad;
+		result[FbBlrType.blr_float] = FbIscType.sql_float;
+		result[FbBlrType.blr_d_float] = FbIscType.sql_d_float;
+		result[FbBlrType.blr_date] = FbIscType.sql_date;
+		result[FbBlrType.blr_time] = FbIscType.sql_time;
+		result[FbBlrType.blr_text] = FbIscType.sql_text;
+		result[FbBlrType.blr_text2] = FbIscType.sql_text;
+		result[FbBlrType.blr_cstring] = FbIscType.sql_text;
+		result[FbBlrType.blr_cstring2] = FbIscType.sql_text;
+		result[FbBlrType.blr_int64] = FbIscType.sql_int64;
+		result[FbBlrType.blr_blob_id] = FbIscType.sql_int64;
+		result[FbBlrType.blr_blob] = FbIscType.sql_blob;
+		result[FbBlrType.blr_blob2] = FbIscType.sql_blob;
+		result[FbBlrType.blr_bool] = FbIscType.sql_boolean;
+		result[FbBlrType.blr_dec16] = FbIscType.sql_dec16;
+		result[FbBlrType.blr_dec34] = FbIscType.sql_dec34;
+		result[FbBlrType.blr_int128] = FbIscType.sql_int128;
+		result[FbBlrType.blr_double] = FbIscType.sql_double;
+        result[FbBlrType.blr_time_tz] = FbIscType.sql_time_tz;
+	    result[FbBlrType.blr_timestamp_tz] = FbIscType.sql_timestamp_tz;
+	    result[FbBlrType.blr_ex_time_tz] = FbIscType.sql_time_tz_ex;
+	    result[FbBlrType.blr_ex_timestamp_tz] = FbIscType.sql_timestamp_tz_ex;
+		result[FbBlrType.blr_timestamp] = FbIscType.sql_timestamp;
+		result[FbBlrType.blr_varying] = FbIscType.sql_varying;
+		result[FbBlrType.blr_varying2] = FbIscType.sql_varying;
+
+        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(FbBlrIscTypeMap))result;
+    }();
+
+    fbIscToBlrMap = () nothrow pure @trusted // @trusted=cast()
+    {
+        auto result = FbBlrIscTypeMap(25);
+
+		result[FbIscType.sql_varying] = FbBlrType.blr_varying2; // FbBlrType.blr_varying;
+		result[FbIscType.sql_text] = FbBlrType.blr_text2; // FbBlrType.blr_text;
+		result[FbIscType.sql_double] = FbBlrType.blr_double;
+		result[FbIscType.sql_float] = FbBlrType.blr_float;
+		result[FbIscType.sql_long] = FbBlrType.blr_long;
+		result[FbIscType.sql_short] = FbBlrType.blr_short;
+		result[FbIscType.sql_timestamp] = FbBlrType.blr_timestamp;
+		result[FbIscType.sql_blob] = FbBlrType.blr_blob2; // FbBlrType.blr_quad;
+		result[FbIscType.sql_d_float] = FbBlrType.blr_d_float;
+		result[FbIscType.sql_array] = FbBlrType.blr_quad;
+		result[FbIscType.sql_quad] = FbBlrType.blr_quad;
+		result[FbIscType.sql_time] = FbBlrType.blr_time;
+		result[FbIscType.sql_date] = FbBlrType.blr_date;
+		result[FbIscType.sql_int64] = FbBlrType.blr_int64;
+		result[FbIscType.sql_int128] = FbBlrType.blr_int128;
+		result[FbIscType.sql_timestamp_tz] = FbBlrType.blr_timestamp_tz;
+		result[FbIscType.sql_timestamp_tz_ex] = FbBlrType.blr_ex_timestamp_tz;
+		result[FbIscType.sql_time_tz] = FbBlrType.blr_time_tz;
+		result[FbIscType.sql_time_tz_ex] = FbBlrType.blr_ex_time_tz;
+        //result[FbIscType.SQL_DEC_FIXED] = FbBlrType.blr_int128;
+		result[FbIscType.sql_dec16] = FbBlrType.blr_dec16;
+		result[FbIscType.sql_dec34] = FbBlrType.blr_dec34;
+		result[FbIscType.sql_boolean] = FbBlrType.blr_bool;
+		result[FbIscType.sql_null] = FbBlrType.blr_text;
+
+        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+            ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
+
+        return cast(immutable(FbBlrIscTypeMap))result;
     }();
 }
 

@@ -158,7 +158,7 @@ enum DbConnectionType : ubyte
     service,
 }
 
-enum DbDefault
+enum DbDefault : int
 {
     /**
      * Default maximum number of connections being in pool
@@ -321,7 +321,8 @@ enum DbConnectionParameterIdentifier : string
     roleName = "role", /// string
     sendTimeout = "sendTimeout", /// Duration in milliseconds
     serverName = "server", /// string
-    serverPort = "port", // uint16
+    serverPort = "port", /// uint16
+    timeZone = "timeZone", /// string - session time zone ('-02:00', 'America/Sao_Paulo')
     userName = "user", /// string
     userPassword = "password", /// string
 
@@ -2670,7 +2671,7 @@ shared static this() nothrow @safe
 
     dbDefaultConnectionParameterValues = () nothrow pure @trusted
     {
-        auto result = DbDefaultConnectionParameterValues(100, 75);
+        auto result = DbDefaultConnectionParameterValues(100);
 
         result[DbConnectionParameterIdentifier.allowBatch] = DbConnectionParameterInfo(&isConnectionParameterBool, dbConnectionParameterNullDef, dbConnectionParameterNullMin, dbConnectionParameterNullMax),
         result[DbConnectionParameterIdentifier.charset] = DbConnectionParameterInfo(&isConnectionParameterCharset, "UTF8", dbConnectionParameterNullMin, dbConnectionParameterNullMax),
@@ -2692,6 +2693,7 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.sendTimeout] = DbConnectionParameterInfo(&isConnectionParameterDuration, "60_000 msecs", 0, int32.max);
         result[DbConnectionParameterIdentifier.serverName] = DbConnectionParameterInfo(&isConnectionParameterString, "localhost", 1, dbConnectionParameterMaxName);
         result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, dbConnectionParameterNullDef, 0, SocketPort.max);
+        result[DbConnectionParameterIdentifier.timeZone] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.pg ~ "," ~ DbScheme.fb);
         result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
         result[DbConnectionParameterIdentifier.userPassword] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId);
 

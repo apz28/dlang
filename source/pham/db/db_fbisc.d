@@ -721,7 +721,7 @@ enum FbBlrType
     blr_timestamp = 35,
     blr_varying = 37, // Should use blr_varying2
     blr_varying2 = 38,
-    blr_cstring = 40,
+    blr_cstring = 40, // Should use blr_cstring2
     blr_cstring2 = 41,
     blr_blob_id = 45,
     blr_blob = 261,

@@ -61,9 +61,9 @@ static immutable string[] pgValidConnectionParameterNames = [
     DbConnectionParameterIdentifier.roleName,
     DbConnectionParameterIdentifier.encrypt,
     DbConnectionParameterIdentifier.charset,
-    //DbConnectionParameterIdentifier.compress,
     DbConnectionParameterIdentifier.encrypt,
     DbConnectionParameterIdentifier.integratedSecurity,
+    DbConnectionParameterIdentifier.timeZone,
 
     // Other
     DbConnectionParameterIdentifier.connectionTimeout,
@@ -985,7 +985,7 @@ shared static this() nothrow @safe
     // https://www.postgresql.org/docs/12/libpq-connect.html#LIBPQ-PARAMKEYWORDS
     pgMappedParameterNames = () nothrow pure @trusted // @trusted=cast()
     {
-        auto result = PgMappedParameterNames(30, 22);
+        auto result = PgMappedParameterNames(30);
 
         // Map to blank - skip sending over
         // Map to leading '?' - need special conversion
@@ -1007,10 +1007,12 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.sendTimeout] = "";
         result[DbConnectionParameterIdentifier.serverName] = ""; // host - ignore sending over
         result[DbConnectionParameterIdentifier.serverPort] = ""; // port - ignore sending over
+        result[DbConnectionParameterIdentifier.timeZone] = "TimeZone";
         result[DbConnectionParameterIdentifier.userName] = "user";
         result[DbConnectionParameterIdentifier.userPassword] = ""; // password - special handling
         result[DbConnectionParameterIdentifier.socketBlocking] = "";
         result[DbConnectionParameterIdentifier.socketNoDelay] = "";
+        
         /*
         result[DbConnectionParameterIdentifier.pgOptions] = DbConnectionParameterIdentifier.pgOptions,
         result[DbConnectionParameterIdentifier.pgPassFile] = DbConnectionParameterIdentifier.pgPassFile,

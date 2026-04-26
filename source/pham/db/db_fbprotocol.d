@@ -866,9 +866,10 @@ public:
     {
         string sqlLog() nothrow @safe
         {
-            return sql.length > 50 ? sql[0..50].idup : sql.idup;
+            return sql.length > 50 ? (sql[0..50].idup ~ "...") : sql.idup;
         }
-        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", command.fbTransaction.fbHandle, ", command.handle=", command.fbHandle, ", sql=", sqlLog, ")");
+        debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "(transaction.handle=", command.fbTransaction.fbHandle,
+            ", command.handle=", command.fbHandle, ", sql=", sqlLog, ")");
 
         auto bindItems = describeStatementInfoAndBindInfoItems;
 
@@ -1574,7 +1575,8 @@ protected:
         return op;
     }
 
-    final FbOperation contAuthResponse(ref FbXdrReader reader, ref FbConnectingStateInfo stateInfo, ref FbIscOPResponse opResponse, ref FbIscContAuthResponse contAuth)
+    final FbOperation contAuthResponse(ref FbXdrReader reader, ref FbConnectingStateInfo stateInfo, ref FbIscOPResponse opResponse,
+        ref FbIscContAuthResponse contAuth)
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
@@ -1803,8 +1805,9 @@ protected:
 		writer.writeInt32(FbIsc.isc_dpb_process_id, currentProcessId());
 		writer.writeChars(FbIsc.isc_dpb_process_name, currentProcessName());
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
-		writer.writeChars(FbIsc.isc_dpb_host_name, currentComputerName());
-		writer.writeChars(FbIsc.isc_dpb_os_user, currentUserName());
+		writer.writeCharsIf(FbIsc.isc_dpb_host_name, currentComputerName());
+		writer.writeCharsIf(FbIsc.isc_dpb_os_user, currentUserName());
+		writer.writeCharsIf(FbIsc.isc_dpb_session_time_zone, useCSB.timeZone);
         writer.writeBytes(FbIsc.isc_spb_utf8_filename, [0x1]);
 
 		if (useCSB.cachePages)
@@ -1990,7 +1993,7 @@ protected:
         {
             if (!parameter.isNull)
             {
-                (cast(FbParameter)parameter).prepareParameter(command);
+                parameter.prepareParameter(command);
                 describeValue(writer, parameter, parameter.value);
             }
         }

@@ -1125,7 +1125,7 @@ package(pham.db):
     {
         return commandType == DbCommandType.storedProcedure;
     }
-    
+
     @property final void transactionRequired(bool value) nothrow @safe
     {
         _flags.set(DbCommandFlag.transactionRequired, value);
@@ -3514,7 +3514,8 @@ public:
     }
 
     /**
-     * The name of the database; value of "database"
+     * Get/Set database name
+     * Same as "database" from other frame work
      */
     @property final DbIdentitier databaseName() const nothrow
     {
@@ -3529,7 +3530,7 @@ public:
     }
 
     /**
-     * The file-name of the database; value of "databaseFileName"
+     * Get/Set database file-name
      */
     @property final string databaseFileName() const nothrow
     {
@@ -3562,7 +3563,7 @@ public:
     }
 
     /**
-     * Gets or sets number of records of each fetch call.
+     * Get/Set number of records of each fetch call.
      * Use -1 to fetch all
      * Default value is 200
      */
@@ -3596,7 +3597,7 @@ public:
     }
 
     /**
-     * Gets or sets transport package size in bytes.
+     * Get/Set transport package size in bytes.
      * Default value is 8_192
      */
     @property final uint32 packageSize() const nothrow
@@ -3677,7 +3678,7 @@ public:
     }
 
     /**
-     * Gets or sets the time (value based in milliseconds) to wait for a server to send back request's result.
+     * Get/Set the time (value based in milliseconds) to wait for a server to send back request's result.
      * The default value is 3_600 seconds (1 hour).
      * Set to zero to disable the setting.
      */
@@ -3697,6 +3698,10 @@ public:
         return this;
     }
 
+    /**
+     * Get/Set connection sql role name
+     * Same as "role" from other frame work
+     */
     @property final string roleName() const nothrow
     {
         return getString(DbConnectionParameterIdentifier.roleName);
@@ -3712,7 +3717,7 @@ public:
     @property abstract DbScheme scheme() const nothrow pure;
 
     /**
-     * Gets or sets the time (value based in milliseconds) to wait for a request to completely send to server.
+     * Get/Set the time (value based in milliseconds) to wait for a request to completely send to server.
      * The default value is 60 seconds.
      * Set to zero to disable the setting.
      */
@@ -3733,7 +3738,8 @@ public:
     }
 
     /**
-     * The name of the database server; value of "server"
+     * Get/Set database server name
+     * Same as "server" from other frame work
      */
     @property final string serverName() const nothrow
     {
@@ -3763,8 +3769,24 @@ public:
         return this;
     }
 
+    /***
+     * Get/Set connection time-zone
+     */
+    @property final string timeZone() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.timeZone);
+    }
+
+    @property final typeof(this) timeZone(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.timeZone, value);
+        put(DbConnectionParameterIdentifier.timeZone, value);
+        return this;
+    }
+
     /**
-     * Returns value of "user"
+     * Get/Set value of user connecting to database
+     * Same as "user" from other frame work
      */
     @property final string userName() const nothrow
     {
@@ -3779,7 +3801,8 @@ public:
     }
 
     /**
-     * Returns value of "password"
+     * Get/Set value of user password connecting to database
+     * Same as "password" from other frame work
      */
     @property final string userPassword() const nothrow
     {

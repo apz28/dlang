@@ -1494,6 +1494,11 @@ public:
     }
 
     void writeBytes(scope const(ubyte)[] v) nothrow
+    in
+    {
+        assert(v.length <= int32.max);
+    }
+    do
     {
         const nBytes = cast(int32)v.length;
         _writer.writeInt32(nBytes);

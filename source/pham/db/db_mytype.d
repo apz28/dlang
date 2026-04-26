@@ -645,7 +645,7 @@ shared static this() nothrow @safe
 
     mySimpleTypes = () nothrow pure @trusted
     {
-        auto result = MySimpleTypes(38, 37);
+        auto result = MySimpleTypes(40);
 
         result["tinyint"] = DbType.int8;
         result["mediumint"] = DbType.int16;
