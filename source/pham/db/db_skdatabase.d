@@ -1036,7 +1036,7 @@ shared static this() nothrow @safe
 {
     skDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        auto result = DbDefaultConnectionParameterValues(10, 5);
+        auto result = DbDefaultConnectionParameterValues(5);
 
         result[DbConnectionParameterIdentifier.packageSize] = DbConnectionParameterInfo(&isConnectionParameterComputingSize, "16_384", 4_096, 4_096*64);
         result[DbConnectionParameterIdentifier.socketBlocking] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
@@ -1044,7 +1044,7 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.socketSslVerificationHost] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolFalse, dbConnectionParameterNullMin, dbConnectionParameterNullMax);
         result[DbConnectionParameterIdentifier.socketSslVerificationMode] = DbConnectionParameterInfo(&isConnectionParameterInt32, "-1", -1, 100); // -1=Ignore
 
-        debug(debug_pham_db_db_skdatabase) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(DbDefaultConnectionParameterValues))result;

@@ -2504,7 +2504,7 @@ protected:
         static immutable XPathResultType[] paramType2Text = [XPathResultType.text, XPathResultType.text];
         static immutable XPathResultType[] paramType3Text = [XPathResultType.text, XPathResultType.text, XPathResultType.text];
 
-        auto result = Dictionary!(S, XPathParamInfo!S)(50, 30);
+        auto result = Dictionary!(S, XPathParamInfo!S)(30);
 
         result[functionTypeName(XPathFunctionType.boolean)] = new XPathParamInfo!S(XPathFunctionType.boolean, 1, 1, paramType1Any);
         result[functionTypeName(XPathFunctionType.ceiling)] = new XPathParamInfo!S(XPathFunctionType.ceiling, 1, 1, paramType1Number);
@@ -2534,7 +2534,7 @@ protected:
         result[functionTypeName(XPathFunctionType.translate)] = new XPathParamInfo!S(XPathFunctionType.translate, 3, 3, paramType3Text);
         result[functionTypeName(XPathFunctionType.true_)] = new XPathParamInfo!S(XPathFunctionType.true_, 0, 0, paramType1Boolean);
 
-        debug(debug_pham_xml_xml_xpath) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_xml_xml_xpath) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return result;

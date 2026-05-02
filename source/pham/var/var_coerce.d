@@ -572,7 +572,7 @@ shared static this() nothrow @trusted
         }
     }
 
-    debug(debug_pham_var_var_coerce) if (convertHandlers.maxCollision) debug writeln(__FUNCTION__, "(convertHandlers.maxCollision=", convertHandlers.maxCollision,
+    debug(debug_pham_var_var_coerce) debug writeln(__FUNCTION__, "(convertHandlers.maxCollisionChain=", convertHandlers.maxCollisionChain,
         ", convertHandlers.collisionCount=", convertHandlers.collisionCount, ", convertHandlers.capacity=", convertHandlers.capacity, ", convertHandlers.length=", convertHandlers.length, ")");
 }
 

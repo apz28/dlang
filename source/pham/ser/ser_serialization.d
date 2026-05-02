@@ -877,7 +877,7 @@ public:
             result = *f;
         customDSSerializedFunctions[type] = serializers;
 
-        debug(pham_ser_ser_serialization) if (customDSSerializedFunctions.maxCollision) debug writeln(__FUNCTION__, "(customDSSerializedFunctions.maxCollision=", customDSSerializedFunctions.maxCollision,
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(customDSSerializedFunctions.maxCollisionChain=", customDSSerializedFunctions.maxCollisionChain,
             ", customDSSerializedFunctions.collisionCount=", customDSSerializedFunctions.collisionCount, ", customDSSerializedFunctions.capacity=", customDSSerializedFunctions.capacity, ", customDSSerializedFunctions.length=", customDSSerializedFunctions.length, ")");
 
         return result;
@@ -2743,7 +2743,7 @@ shared static this() nothrow @trusted
         result["Infinite"] = IsFloatLiteral.pinf; // dlang.std.json
         result["-Infinite"] = IsFloatLiteral.ninf; // dlang.std.json
 
-        debug(pham_ser_ser_serialization) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(pham_ser_ser_serialization) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return result;

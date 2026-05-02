@@ -500,9 +500,9 @@ private:
         }
          
         debug(debug_pham_dtm_dtm_time_zone_map) debug writeln(__FUNCTION__, "(_zoneInfos.length=", _zoneInfos.length, ")");
-        debug(debug_pham_dtm_dtm_time_zone_map) if (ids.maxCollision) debug writeln(__FUNCTION__, "(ids.maxCollision=", ids.maxCollision,
+        debug(debug_pham_dtm_dtm_time_zone_map) debug writeln(__FUNCTION__, "(ids.maxCollisionChain=", ids.maxCollisionChain,
             ", ids.collisionCount=", ids.collisionCount, ", ids.capacity=", ids.capacity, ", ids.length=", ids.length, ")");            
-        debug(debug_pham_dtm_dtm_time_zone_map) if (zoneIdOrNames.maxCollision) debug writeln(__FUNCTION__, "(zoneIdOrNames.maxCollision=", zoneIdOrNames.maxCollision,
+        debug(debug_pham_dtm_dtm_time_zone_map) debug writeln(__FUNCTION__, "(zoneIdOrNames.maxCollisionChain=", zoneIdOrNames.maxCollisionChain,
             ", zoneIdOrNames.collisionCount=", zoneIdOrNames.collisionCount, ", zoneIdOrNames.capacity=", zoneIdOrNames.capacity, ", zoneIdOrNames.length=", zoneIdOrNames.length, ")");        
     }
 
@@ -605,12 +605,12 @@ public:
 
 	static Dictionary!(string, immutable(TimeZoneNameMap)*) tzNameDict() pure @trusted
     {
-		auto result = Dictionary!(string, immutable(TimeZoneNameMap)*)(timeZoneNameMaps.length + 1, timeZoneNameMaps.length);
+		auto result = Dictionary!(string, immutable(TimeZoneNameMap)*)(timeZoneNameMaps.length);
         
         foreach (i; 0..timeZoneNameMaps.length)
             result[timeZoneNameMaps[i].tzName] = &timeZoneNameMaps[i];
             
-        debug(debug_pham_dtm_dtm_time_zone_map) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_dtm_dtm_time_zone_map) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
             
 		return result;

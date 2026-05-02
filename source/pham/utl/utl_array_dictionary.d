@@ -237,7 +237,7 @@ public:
     {
         static if (is(OK == K) && is(OV == V))
         {
-            if (rhs.aa && rhs.aa.hashMix == hashMix && rhs.aa.customHashOf is customHashOf)
+            if (rhs.aa && rhs.aa.hashMix == hashMix && rhs.aa._customHashOf is customHashOf)
             {
                 this.aa = rhs.aa;
                 return;
@@ -395,7 +395,7 @@ public:
         if (len == 0)
             return typeof(this).init;
 
-        auto result = typeof(this)(len + collisionCount + bucketInflated, len, this.aa.hashMix, this.aa.customHashOf);
+        auto result = typeof(this)(len + collisionCount + bucketInflated, len, this.aa.hashMix, this.aa._customHashOf);
         foreach (ref e; this.aa.entries)
             result.aa.add(e.hash, e._key, e.value);
         return result;
@@ -716,12 +716,15 @@ public:
     }
 
     /**
-     * The maximum collision that a lookup needs to travel to find a key (hash collision)
+     * The maximum collision chaing that a lookup needs to travel to find a duplicate key (hash collision)
      */
-    @property uint maxCollision() const @nogc nothrow pure @safe
+    @property uint maxCollisionChain() const @nogc nothrow pure @safe
     {
-        return aa ? aa.maxCollision : 0;
+        return aa ? aa.maxCollisionChain : 0;
     }
+
+    deprecated("please use maxCollisionChain")
+    alias maxCollision = maxCollisionChain;
 
     /**
      * Returns the value array
@@ -742,7 +745,7 @@ private:
             DictionaryHashMix hashMix, CustomHashOf customHashOf) nothrow
         {
             this._hashMix = hashMix;
-            this.customHashOf = customHashOf;
+            this._customHashOf = customHashOf;
             this.buckets = allocBuckets(calcDim(bucketCapacity, 0));
             if (entryCapacity)
                 this.entries.reserve(entryCapacity);
@@ -778,7 +781,7 @@ private:
         }
 
         pragma(inline, true)
-        void attachEntryToBucket(const(Index) bucket, const(Index) entryPos, const(uint) collision) nothrow @safe
+        void attachEntryToBucket(const(Index) bucket, const(Index) entryPos, const(uint) collisionChain) nothrow @safe
         in
         {
             assert(entries[entryPos - 1].hash != 0);
@@ -791,14 +794,14 @@ private:
             entries[entryPos - 1].nextCollision = buckets[bucket] - 1;
             buckets[bucket] = entryPos;
 
-            if (collision)
+            if (collisionChain)
             {
                 debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe && aaCanLog) debug writeln(__FUNCTION__,
                     ".", K.stringof, "(buckets.length=", buckets.length, ", entries.length=", entries.length,
-                    ", collision=", collision, ", collisionCount=", collisionCount+1, ")");
+                    ", collisionChain=", collisionChain, ", collisionCount=", collisionCount+1, ")");
 
-                if (this.maxCollision < collision)
-                    this.maxCollision = collision;
+                if (this.maxCollisionChain < collisionChain)
+                    this.maxCollisionChain = collisionChain;
 
                 this.collisionCount++;
             }
@@ -813,8 +816,8 @@ private:
         pragma(inline, true)
         size_t calcHash(ref const(K) key) const nothrow @safe
         {
-            if (customHashOf)
-                return customHashOf(key);
+            if (_customHashOf)
+                return _customHashOf(key);
             else
             {
                 static if (__traits(compiles, { size_t _ = K.init.toHash(); }))
@@ -830,8 +833,8 @@ private:
             pragma(inline, true)
             size_t calcHash(scope const(KE)[] key) const nothrow pure @safe
             {
-                if (customHashOf)
-                    return customHashOf(key);
+                if (_customHashOf)
+                    return _customHashOf(key);
                 else
                 {
                     const size_t hash = hashOf(key);
@@ -855,7 +858,7 @@ private:
             // clear all data, but don't change bucket array length
             arrayZeroInit(buckets);
             entries = [];
-            collisionCount = maxCollision = 0;
+            collisionCount = maxCollisionChain = 0;
         }
 
         inout(V)* find(ref const(K) key) inout return
@@ -1028,7 +1031,7 @@ private:
 
         void refill() nothrow @safe
         {
-            collisionCount = maxCollision = 0;
+            collisionCount = maxCollisionChain = 0;
             foreach (ei, ref e; entries)
             {
                 uint keyCollision;
@@ -1330,8 +1333,8 @@ private:
 
         Index[] buckets; // Based 1 index
         Entry[] entries;
-        CustomHashOf customHashOf;
-        uint collisionCount, maxCollision;
+        CustomHashOf _customHashOf;
+        uint collisionCount, maxCollisionChain;
         DictionaryHashMix _hashMix;
     }
 

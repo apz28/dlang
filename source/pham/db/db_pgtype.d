@@ -971,12 +971,12 @@ shared static this() nothrow @safe
 {
     pgDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        auto result = PgDefaultConnectionParameterValues(3, 2);
+        auto result = PgDefaultConnectionParameterValues(3);
 
         result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, "5_432", 0, uint16.max, DbScheme.pg);
         result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, "postgres", 0, dbConnectionParameterMaxId, DbScheme.pg);
 
-        debug(debug_pham_db_db_pgtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(PgDefaultConnectionParameterValues))result;
@@ -1035,7 +1035,7 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.pgTargetSessionAttrs] = DbConnectionParameterIdentifier.pgTargetSessionAttrs,
         */
 
-        debug(debug_pham_db_db_pgtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(PgMappedParameterNames))result;
@@ -1043,7 +1043,7 @@ shared static this() nothrow @safe
 
     pgDbIdToDbTypeInfos = () nothrow pure @trusted
     {
-        auto result = PgDbIdToDbTypeInfos(pgNativeTypes.length + 1, pgNativeTypes.length, DictionaryHashMix.murmurHash3);
+        auto result = PgDbIdToDbTypeInfos(pgNativeTypes.length);
 
         foreach (i; 0..pgNativeTypes.length)
         {
@@ -1052,7 +1052,7 @@ shared static this() nothrow @safe
                 result[dbId] = &pgNativeTypes[i];
         }
 
-        debug(debug_pham_db_db_pgtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_pgtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(PgDbIdToDbTypeInfos))result;

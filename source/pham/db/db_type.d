@@ -2755,7 +2755,7 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.msUID] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.ms);
         result[DbConnectionParameterIdentifier.msWSID] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.ms);
 
-        debug(debug_pham_db_db_type) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(DbDefaultConnectionParameterValues))result;
@@ -2763,7 +2763,7 @@ shared static this() nothrow @safe
 
     dbTypeToDbTypeInfos = () nothrow pure @trusted
     {
-        auto result = DbTypeToDbTypeInfos(dbNativeTypes.length + 1, dbNativeTypes.length, DictionaryHashMix.murmurHash3);
+        auto result = DbTypeToDbTypeInfos(dbNativeTypes.length);
         //pragma(msg, DbTypeToDbTypeInfos.stringof);
 
         foreach (i; 0..dbNativeTypes.length)
@@ -2773,7 +2773,7 @@ shared static this() nothrow @safe
                 result[dbType] = &dbNativeTypes[i];
         }
 
-        debug(debug_pham_db_db_type) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(DbTypeToDbTypeInfos))result;
@@ -2781,7 +2781,7 @@ shared static this() nothrow @safe
 
     nativeNameToDbTypeInfos = () nothrow pure @trusted
     {
-        auto result = NativeNameToDbTypeInfos(dbNativeTypes.length + 1, dbNativeTypes.length);
+        auto result = NativeNameToDbTypeInfos(dbNativeTypes.length);
         //pragma(msg, NativeNameToDbTypeInfos.stringof);
 
         foreach (i; 0..dbNativeTypes.length)
@@ -2791,7 +2791,7 @@ shared static this() nothrow @safe
                 result[nativeName] = &dbNativeTypes[i];
         }
 
-        debug(debug_pham_db_db_type) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(NativeNameToDbTypeInfos))result;

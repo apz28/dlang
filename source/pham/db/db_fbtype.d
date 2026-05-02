@@ -1638,40 +1638,43 @@ nothrow @safe:
     {
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(op=", op, ")");
 
-        switch (op)
+        if (op)
         {
-            case FbIsc.op_accept:
-                accept.reset();
-                break;
+            // Likely case should be on top
+            switch (op)
+            {
+                case FbIsc.op_response:
+                    generic.reset();
+                    break;
 
-            case FbIsc.op_accept_data:
-            case FbIsc.op_cond_accept:
-                acceptData.reset();
-                break;
+                case FbIsc.op_accept_data:
+                case FbIsc.op_cond_accept:
+                    acceptData.reset();
+                    break;
 
-            case FbIsc.op_cont_auth:
-                contAuth.reset();
-                break;
+                case FbIsc.op_accept:
+                    accept.reset();
+                    break;
 
-            case FbIsc.op_crypt_key_callback:
-                cryptKeyCallback.reset();
-                break;
+                case FbIsc.op_cont_auth:
+                    contAuth.reset();
+                    break;
 
-            case FbIsc.op_response:
-                generic.reset();
-                break;
+                case FbIsc.op_crypt_key_callback:
+                    cryptKeyCallback.reset();
+                    break;
 
-            case FbIsc.op_trusted_auth:
-                trustedAuth.reset();
-                break;
+                case FbIsc.op_trusted_auth:
+                    trustedAuth.reset();
+                    break;
 
-            default:
-                if (op != 0)
-                    assert(0);
-                break;
+                default:
+                    assert(op == 0);
+                    break;
+            }
+
+            op = 0;
         }
-
-        op = 0;
     }
 
     FbOperation op;
@@ -1875,6 +1878,10 @@ public:
     int getWarn(ref DbNotificationMessage[] messages)
     {
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "()");
+
+        // Mostly empty, so check and returns early
+        if (errors.length == 0)
+            return 0;
 
         string warnMessage;
         int32 warnCode;
@@ -2562,7 +2569,7 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.userPassword] = DbConnectionParameterInfo(&isConnectionParameterString, "masterkey", 0, dbConnectionParameterMaxId, DbScheme.fb);
         result[DbConnectionParameterIdentifier.fbCryptAlgorithm] = DbConnectionParameterInfo(&isConnectionParameterFBCryptAlgorithm, FbIscText.filterCryptDefault, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.fb);
 
-        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(FbDefaultConnectionParameterValues))result;
@@ -2570,7 +2577,7 @@ shared static this() nothrow @safe
 
     fbDbIdToDbTypeInfos = () nothrow pure @trusted // @trusted=cast()
     {
-        auto result = FbDbIdToDbTypeInfos(fbNativeTypes.length + 1, fbNativeTypes.length, DictionaryHashMix.murmurHash3);
+        auto result = FbDbIdToDbTypeInfos(fbNativeTypes.length);
 
         foreach (i; 0..fbNativeTypes.length)
         {
@@ -2579,7 +2586,7 @@ shared static this() nothrow @safe
                 result[dbId] = &fbNativeTypes[i];
         }
 
-        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(FbDbIdToDbTypeInfos))result;
@@ -2617,7 +2624,7 @@ shared static this() nothrow @safe
 		result[FbBlrType.blr_varying] = FbIscType.sql_varying;
 		result[FbBlrType.blr_varying2] = FbIscType.sql_varying;
 
-        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(FbBlrIscTypeMap))result;
@@ -2652,7 +2659,7 @@ shared static this() nothrow @safe
 		result[FbIscType.sql_boolean] = FbBlrType.blr_bool;
 		result[FbIscType.sql_null] = FbBlrType.blr_text;
 
-        debug(debug_pham_db_db_fbtype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(FbBlrIscTypeMap))result;

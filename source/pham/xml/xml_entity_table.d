@@ -76,7 +76,7 @@ protected:
 
     static Dictionary!(S, S) initDefault() nothrow pure
     {
-        auto result = Dictionary!(S, S)(7, 6);
+        auto result = Dictionary!(S, S)(6);
 
         result["&amp;"] = "&";
         result["&apos;"] = "'";
@@ -84,7 +84,7 @@ protected:
         result["&lt;"] = "<";
         result["&quot;"] = `"`;
 
-        debug(debug_pham_xml_xml_entity_table) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_xml_xml_entity_table) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return result;

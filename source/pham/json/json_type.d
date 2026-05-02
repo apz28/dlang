@@ -240,7 +240,7 @@ shared static this() nothrow @trusted
         result["Infinite"] = JSONFloatLiteralType.pinf; // dlang.std.json
         result["-Infinite"] = JSONFloatLiteralType.ninf; // dlang.std.json
 
-        debug(debug_pham_utl_utl_json) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return result;

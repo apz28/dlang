@@ -175,7 +175,7 @@ do
         if (tryExtendBlock)
         {
             // Extend worked?
-            if (const extendSize = GC.extend(array.ptr, additionalLength * T.sizeof, (allocCapacity - currentLength) * T.sizeof))
+            if (const extendSize = GC.extend(array.ptr, additionalLength * T.sizeof, (allocCapacity - currentLength) * T.sizeof, typeid(T)))
             {
                 debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "(currentLength=", currentLength, ", allocCapacity=", allocCapacity
                     , ", allocSize=", allocSize, ", extendSize=", extendSize, ", T.sizeof=", T.sizeof, ")");
@@ -192,7 +192,7 @@ do
             }
         }
 
-        auto bi = GC.qalloc(allocSize, finalAttribute | scanAttribute);
+        auto bi = GC.qalloc(allocSize, finalAttribute | scanAttribute, typeid(T));
         debug(debug_pham_utl_utl_array) debug writeln(__FUNCTION__, "(currentLength=", currentLength, ", allocCapacity=", allocCapacity
             , ", allocSize=", allocSize, ", bi.size=", bi.size, ", T.sizeof=", T.sizeof, ")");
 
@@ -210,7 +210,7 @@ do
             memcpy(bi.base, array.ptr, currentLength * T.sizeof);
 
             // Avoid double destructor
-            static if (arrayZeroNeeded!T)
+            if (zeroInit)
                 arrayZeroInit!T(array[0..currentLength]);
         }
 
@@ -317,7 +317,7 @@ do
         if (newLength >= 8 && newLength < currentLength / 2)
         {
             const allocSize = arrayMallocSize(newLength, T.sizeof);
-            auto bi = GC.qalloc(allocSize, blockAttribute);
+            auto bi = GC.qalloc(allocSize, blockAttribute, typeid(T));
             static if (arrayZeroNeeded!T)
             {
                 if (bi.size > allocSize)

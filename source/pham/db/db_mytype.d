@@ -613,14 +613,14 @@ shared static this() nothrow @safe
 {
     myDefaultConnectionParameterValues = () nothrow pure @trusted // @trusted=cast()
     {
-        auto result = MyDefaultConnectionParameterValues(7, 4);
+        auto result = MyDefaultConnectionParameterValues(5);
 
         result[DbConnectionParameterIdentifier.allowBatch] = DbConnectionParameterInfo(&isConnectionParameterBool, dbBoolTrue, dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my);
         result[DbConnectionParameterIdentifier.integratedSecurity] = DbConnectionParameterInfo(&isConnectionParameterIntegratedSecurity, toName(DbIntegratedSecurityConnection.legacy), dbConnectionParameterNullMin, dbConnectionParameterNullMax, DbScheme.my);
         result[DbConnectionParameterIdentifier.serverPort] = DbConnectionParameterInfo(&isConnectionParameterInt32, "3_306", 0, uint16.max, DbScheme.my); // x_protocol=33060
         result[DbConnectionParameterIdentifier.userName] = DbConnectionParameterInfo(&isConnectionParameterString, "root", 0, dbConnectionParameterMaxId, DbScheme.my);
 
-        debug(debug_pham_db_db_mytype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_mytype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(MyDefaultConnectionParameterValues))result;
@@ -628,7 +628,7 @@ shared static this() nothrow @safe
 
     myDbIdToDbTypeInfos = () nothrow pure @trusted
     {
-        auto result = MyDbIdToDbTypeInfos(myNativeTypes.length + 1, myNativeTypes.length, DictionaryHashMix.murmurHash3);
+        auto result = MyDbIdToDbTypeInfos(myNativeTypes.length);
 
         foreach (i; 0..myNativeTypes.length)
         {
@@ -637,7 +637,7 @@ shared static this() nothrow @safe
                 result[dbId] = &myNativeTypes[i];
         }
 
-        debug(debug_pham_db_db_mytype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_mytype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(MyDbIdToDbTypeInfos))result;
@@ -685,7 +685,7 @@ shared static this() nothrow @safe
         result["json"] = DbType.json;
         //result[""] = DbType.;
 
-        debug(debug_pham_db_db_mytype) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_mytype) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return cast(immutable(MySimpleTypes))result;

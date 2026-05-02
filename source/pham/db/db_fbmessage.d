@@ -1470,7 +1470,7 @@ protected:
         result[337182759] = "parameter \"@1\" is incompatible with action \"@2\""; /* trace_param_act_notcompat */
         result[337182760] = "mandatory switch \"@1\" is missing"; /* trace_mandatory_switch_miss */
 
-        debug(debug_pham_db_db_fbmessage) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_fbmessage) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return result;
@@ -2963,7 +2963,7 @@ protected:
         result[337182759] = "00000"; //  39 trace_param_act_notcompat
         result[337182760] = "00000"; //  40 trace_mandatory_switch_miss
 
-        debug(debug_pham_db_db_fbmessage) if (result.maxCollision) debug writeln(__FUNCTION__, "(result.maxCollision=", result.maxCollision,
+        debug(debug_pham_db_db_fbmessage) debug writeln(__FUNCTION__, "(result.maxCollisionChain=", result.maxCollisionChain,
             ", result.collisionCount=", result.collisionCount, ", result.capacity=", result.capacity, ", result.length=", result.length, ")");
 
         return result;
