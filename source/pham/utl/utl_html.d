@@ -140,7 +140,8 @@ HtmlEncodeChar htmlEncode(const(dchar) c) @nogc nothrow pure
         return HtmlEncodeChar.none;
 }
 
-string htmlEncode(string str) nothrow pure
+String htmlEncode(String)(String str) nothrow pure
+if (is(String == string) || is(String == const(char)[]) || is(String == char[]))
 {
     import std.algorithm.comparison : min;
     import pham.utl.utl_utf8 : nextUTF8Char;
@@ -489,7 +490,7 @@ bool parseURL(out URL url, string urlString) nothrow pure
 }
 
 pragma(inline, true)
-bool sameName(scope const(char)[] name1, scope const(char)[] name2) pure
+bool sameName(scope const(char)[] name1, scope const(char)[] name2) nothrow pure
 {
     return sicmp(name1, name2) == 0;
 }
@@ -540,7 +541,8 @@ immutable ubyte[128] uriFlags = (
     return result;
 })();
 
-string uriEncode(string str) nothrow pure
+String uriEncode(String)(String str) nothrow pure
+if (is(String == string) || is(String == const(char)[]) || is(String == char[]))
 {
     import std.algorithm.comparison : min;
     import pham.utl.utl_utf8 : nextUTF8Char;

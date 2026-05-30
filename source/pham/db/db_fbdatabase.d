@@ -1737,7 +1737,7 @@ protected:
             }
             else
             {
-                assert(false, "Unknown binding type: " ~ iscBindInfo.selectOrBind.to!string());
+                assert(0, "Unknown binding type: " ~ iscBindInfo.selectOrBind.to!string());
             }
         }
 

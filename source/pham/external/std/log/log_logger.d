@@ -4690,7 +4690,7 @@ void testFuncNames(Logger logger) @safe
     protected:
         final override void writeLog(ref LogEntry payload) nothrow @safe
         {
-            assert(false);
+            assert(0);
         }
     }
 

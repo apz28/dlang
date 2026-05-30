@@ -40,45 +40,21 @@ public:
         this._remotePrincipal = remotePrincipal;
     }
 
-    final ResultStatus calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        ubyte[] result;
-        RequestSecResult errorStatus;
-        if (!_secClient.init(secPackage, remotePrincipal, errorStatus, result))
-            return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthClientData.fmtMessage(name, errorStatus.message));
-        authData = result;
-        return ResultStatus.ok();
-    }
-
-    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
-    {
-        debug(debug_pham_db_db_myauth_sspi) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
-
-        ubyte[] result;
-        RequestSecResult errorStatus;
-        if (!_secClient.authenticate(remotePrincipal, serverAuthData, errorStatus, result))
-            return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, errorStatus.message));
-        authData = result;
-        return ResultStatus.ok();
-    }
-
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
-    {
-        debug(debug_pham_db_db_myauth_sspi) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
-            ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_myauth_sspi) debug writeln(__FUNCTION__, "(_nextState=", _nextState,
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
             return status;
 
         if (state == 0)
-            return calculateAuth(userName, userPassword, authData);
+            return calculateAuth(stateData.userName[], stateData.userPassword[], stateData.authData);
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData, authData);
+            return calculateProof(stateData.userName[], stateData.userPassword[], stateData.serverAuthData[], stateData.authData);
         else
-            assert(0);
+            return invalidAuthState(state);
     }
 
     @property final override int multiStates() const @nogc pure
@@ -102,6 +78,29 @@ public:
     }
 
 protected:
+    final ResultStatus calculateAuth(scope const(char)[] userName, scope const(char)[] userPassword, ref CipherRawKey!ubyte authData)
+    {
+        ubyte[] result;
+        RequestSecResult errorStatus;
+        if (!_secClient.init(secPackage, remotePrincipal, errorStatus, result))
+            return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthClientData.fmtMessage(name, errorStatus.message));
+        authData = result;
+        return ResultStatus.ok();
+    }
+
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherRawKey!ubyte authData)
+    {
+        debug(debug_pham_db_db_myauth_sspi) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+
+        ubyte[] result;
+        RequestSecResult errorStatus;
+        if (!_secClient.authenticate(remotePrincipal, serverAuthData, errorStatus, result))
+            return ResultStatus.error(errorStatus.status, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, errorStatus.message));
+        authData = result;
+        return ResultStatus.ok();
+    }
+
     override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         _secClient.dispose(disposingReason);

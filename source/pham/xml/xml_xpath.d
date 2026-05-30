@@ -1710,7 +1710,7 @@ public:
                     vB = true; // Save all from input
                     break;
                 case XPathDataType.empty:
-                    assert(false); // Already checked above
+                    assert(0); // Already checked above
             }
             if (vB)
                 outputContext.putRes(e);

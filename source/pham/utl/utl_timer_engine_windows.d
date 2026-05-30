@@ -32,13 +32,30 @@ else
     import core.sys.windows.winnt : BOOLEAN, PVOID;
 }
 
+alias TimerEngineCallback = void delegate(void* data) nothrow @safe;
+
 version(WindowsSetTimer)
     // 10=https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-settimer
     enum minResolutionInterval = dur!"msecs"(10);
 else
     enum minResolutionInterval = dur!"msecs"(1);
 
-alias TimerEngineCallback = void delegate(void* data) nothrow @safe;
+enum maxResolutionInterval = dur!"msecs"(uint.max);
+
+uint toEngineInterval(const(Duration) interval) @nogc nothrow pure @safe
+{
+    const validInterval = toValidResolutionInterval(interval);
+    return cast(uint)validInterval.total!"msecs"();
+}
+
+Duration toValidResolutionInterval(const(Duration) resolutionInterval) @nogc nothrow pure @safe
+{
+    return resolutionInterval < minResolutionInterval
+        ? minResolutionInterval
+        : (resolutionInterval > maxResolutionInterval
+            ? maxResolutionInterval
+            : resolutionInterval);
+}
 
 struct TimerEngine
 {
@@ -53,14 +70,14 @@ public:
         this.state = State.initial;
     }
 
-    int start(scope const(Duration) interval) nothrow @trusted
+    int start(const(Duration) interval) nothrow @trusted
     {
         debug(debug_pham_utl_utl_timer_engine_windows) debug writeln("TimerEngine.start()");
 
         atomicStore(state, State.start);
 
-        const msecs = cast(uint)interval.total!"msecs";
-        
+        const msecs = toEngineInterval(interval);
+
         version(WindowsSetTimer)
         {
             hTimer = SetTimer(null, cast(UINT_PTR)&this, msecs, &timerRun);
@@ -156,7 +173,8 @@ private:
             assert(ptr != 0);
 
             auto engine = cast(TimerEngine*)ptr;
-            engine.callback(engine.callbackData);
+            if (engine.isRunning)
+                engine.callback(engine.callbackData);
         }
     }
     else
@@ -171,7 +189,8 @@ private:
             assert(lpParam !is null);
 
             auto engine = cast(TimerEngine*)lpParam;
-            engine.callback(engine.callbackData);
+            if (engine.isRunning)
+                engine.callback(engine.callbackData);
         }
     }
 }

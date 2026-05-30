@@ -16,8 +16,9 @@ import std.process : Pid;
 import std.traits : isIntegral;
 
 import pham.utl.utl_disposable : DisposingReason;
-import pham.utl.utl_result : osCharToString, osWCharToString;
-public import pham.utl.utl_result : ResultCode, ResultIf, ResultStatus, errorCodeToString;
+import pham.utl.utl_result : lastSystemError, osCharToString, osWCharToString;
+public import pham.utl.utl_result : ResultCode, ResultIf, ResultStatus,
+    errorCodeToString;
 
 /**
  * Represents a wrapper struct for operating system handles
@@ -241,7 +242,7 @@ string currentUserName() nothrow @trusted
     }
 }
 
-ResultIf!Pid runDefaultBrowser(string url)
+ResultIf!Pid runDefaultBrowser(string url) nothrow @trusted
 {
     import std.process : Config, spawnProcess;
 
@@ -325,7 +326,7 @@ void sleep(uint milliSeconds) nothrow @trusted
 
 alias WaitForCallbackEvent = int delegate(void* context, long elapsedMilliSeconds) nothrow;
 
-ResultCode waitFor(Pid pid, Duration timeOut, WaitForCallbackEvent queryCallback, void* queryContext,
+ResultIf!uint waitFor(Pid pid, Duration timeOut, WaitForCallbackEvent queryCallback, void* queryContext,
     const(ushort) milliSecondIntervals = 200) nothrow @trusted
 in
 {
@@ -333,20 +334,6 @@ in
 }
 do
 {
-    uint exitCode;
-    return waitFor(pid, timeOut, queryCallback, queryContext, exitCode, milliSecondIntervals);
-}
-
-ResultCode waitFor(Pid pid, Duration timeOut, WaitForCallbackEvent queryCallback, void* queryContext,
-    out uint exitCode,
-    const(ushort) milliSecondIntervals = 200) nothrow @trusted
-in
-{
-    assert(milliSecondIntervals > 0 && milliSecondIntervals <= 60_000);
-}
-do
-{
-    exitCode = 0;
     const totalMilliSeconds = timeOut.total!"msecs"();
     long elapsedMilliSeconds;
 
@@ -364,7 +351,7 @@ do
             if (wr == -1)
             {
                 if (errno == ECHILD)
-                    return ResultCode.ok;
+                    return ResultIf!uint.ok(errno);
 
                 if (errno == EINTR)
                 {
@@ -375,24 +362,24 @@ do
 
             if (WIFEXITED(status))
             {
-                exitCode = WEXITSTATUS(status);
-                return ResultCode.ok;
+                const exitCode = WEXITSTATUS(status);
+                return ResultIf!uint.ok(exitCode);
             }
 
             if (WIFSIGNALED(status))
             {
-                exitCode = WTERMSIG(status);
-                return ResultCode.ok;
+                const exitCode = WTERMSIG(status);
+                return ResultIf!uint.ok(exitCode);
             }
 
             if (totalMilliSeconds > 0 && elapsedMilliSeconds >= totalMilliSeconds)
-                return ResultCode.timeOut;
+                return ResultIf!uint.error(ResultCode.timeOut, "TimeOut");
 
             if (queryCallback !is null)
             {
                 const qr = queryCallback(queryContext, elapsedMilliSeconds);
                 if (qr != 0)
-                    return ResultCode.canceled;
+                    return ResultIf!uint.error(ResultCode.canceled, "Canceled");
             }
         }
     }
@@ -409,29 +396,28 @@ do
             const wr = WaitForSingleObject(pid.osHandle, milliSecondIntervals);
 
             if (wr == WAIT_ABANDONED)
-                return ResultCode.ok;
+                return ResultIf!uint.ok(wr);
 
             if (wr != WAIT_TIMEOUT)
             {
                 DWORD osExitCode;
                 if (GetExitCodeProcess(pid.osHandle, &osExitCode))
                 {
-                    exitCode = osExitCode;
                     if (osExitCode != STILL_ACTIVE)
-                        return ResultCode.ok;
+                        return ResultIf!uint.ok(osExitCode);
                 }
                 else if (wr == WAIT_FAILED)
-                    return ResultCode.error;
+                    return ResultIf!uint.error(lastSystemError(), "Failed");
             }
 
             if (totalMilliSeconds > 0 && elapsedMilliSeconds >= totalMilliSeconds)
-                return ResultCode.timeOut;
+                return ResultIf!uint.error(ResultCode.timeOut, "TimeOut");
 
             if (queryCallback !is null)
             {
                 const qr = queryCallback(queryContext, elapsedMilliSeconds);
                 if (qr != 0)
-                    return ResultCode.canceled;
+                    return ResultIf!uint.error(ResultCode.canceled, "Canceled");
             }
         }
     }

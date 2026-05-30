@@ -12,7 +12,6 @@
 module pham.xml.xml_reader;
 
 import std.range.primitives : back, empty, front, popFront;
-import std.traits : hasMember;
 import std.typecons : Flag, No, Yes;
 
 debug(debug_pham_xml_xml_reader) import std.stdio : writeln;
@@ -38,7 +37,7 @@ abstract class XmlReader(S = string) : XmlObject!S
 @safe:
 
 public:
-    enum isBlockReader = hasMember!(typeof(this), "nextBlock");
+    enum isBlockReader = __traits(hasMember, typeof(this), "nextBlock");
 
 public:
     final dchar moveFront()

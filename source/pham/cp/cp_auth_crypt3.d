@@ -11,8 +11,6 @@
 
 module pham.cp.cp_auth_crypt3;
 
-public import pham.cp.cp_cipher : CipherBuffer;
-
 nothrow @safe:
 
 /**************************************************************************
@@ -28,7 +26,7 @@ nothrow @safe:
 * Returns:     string containing the salt concatenated
 *              on to the encrypted results. Same as stored in passwd file.
 **************************************************************************/
-ref CipherBuffer!ubyte crypt3(return ref CipherBuffer!ubyte cryptResult, scope const(char)[] pw, scope const(char)[2] salt)
+ref CipherBuffer crypt3(CipherBuffer)(return ref CipherBuffer cryptResult, scope const(char)[] pw, scope const(char)[2] salt)
 in
 {
     assert(pw.length > 0);
@@ -439,8 +437,9 @@ struct Crypt3Key
 @safe unittest // crypt3
 {
     import std.string : representation;
+    import pham.cp.cp_cipher_buffer : CipherRawKey;
 
-    CipherBuffer!ubyte e;
+    CipherRawKey!ubyte e;
     auto er = crypt3(e, "test", "PQ")[];
     assert(er == "PQl1.p7BcJRuM".representation(), "PQl1.p7BcJRuM ? '" ~ cast(const(char)[])er ~ "'");
 

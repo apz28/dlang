@@ -16,8 +16,9 @@ version(TraceFunction)
 else version(TraceUnitTest)
     version = TraceLog;
 
-import core.time : Duration, MonoTime, dur;
 import core.sync.mutex : Mutex;
+import core.time : Duration, MonoTime, dur;
+
 version(TraceLog)
 {
     import pham.external.std.log.log_logger : FileLogger, FileLoggerOption, LoggerOption,
@@ -80,7 +81,7 @@ public:
             return result;
 	    }
         else
-            static assert(false, "Platform not implemented");
+            static assert(0, "Platform not implemented");
     }
 
 public:
@@ -104,11 +105,13 @@ public:
         return result;
     }
 
-    version(profile)
-    ~this() pure
+    version(Profile)
     {
-        if (name.length)
-            debug PerfFunctionCounter.profile(name, elapsedTime());
+        ~this() pure
+        {
+            if (name.length)
+                debug PerfFunctionCounter.profile(name, elapsedTime());
+        }
     }
 
     Duration elapsedTime() const @nogc
@@ -133,26 +136,28 @@ public:
         this._elapsedTime = elapsedTime;
     }
 
-    version(profile)
-    static void profile(in string name, in Duration elapsedTime) @trusted
-    in
+    version(Profile)
     {
-        assert(name.length != 0);
-    }
-    do
-    {
-        import pham.utl.utl_object : RAIIMutex;
-
-        auto raiiMutex = RAIIMutex(countersMutex);
-        auto existedCounter = name in counters;
-        if (existedCounter !is null)
+        static void profile(in string name, in Duration elapsedTime) @trusted
+        in
         {
-            (*existedCounter)._count++;
-            (*existedCounter)._elapsedTime += elapsedTime;
+            assert(name.length != 0);
         }
-        else
+        do
         {
-            counters[name] = PerfFunctionCounter(name, elapsedTime);
+            import pham.utl.utl_object : RAIIMutex;
+
+            auto raiiMutex = RAIIMutex(countersMutex);
+            auto existedCounter = name in counters;
+            if (existedCounter !is null)
+            {
+                (*existedCounter)._count++;
+                (*existedCounter)._elapsedTime += elapsedTime;
+            }
+            else
+            {
+                counters[name] = PerfFunctionCounter(name, elapsedTime);
+            }
         }
     }
 
@@ -187,29 +192,31 @@ public:
     }
 
 private:
-    version(profile)
-    static void saveProfile(string fileName) @trusted
+    version(Profile)
     {
-        import std.algorithm : sort;
-        import std.format : format;
-        import std.stdio : File;
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        auto counterValues = counters.values;
-        counterValues.sort!("a.elapsedTime > b.elapsedTime"); // Sort in descending order
-
-        File file;
-        file.open(fileName, "w");
-        scope (exit)
-            file.close();
-        file.writeln("function,msecs,usecs,count,%");
-        foreach (ref value; counterValues)
+        static void saveProfile(string fileName) @trusted
         {
-            file.writeln(value.name,
-                ",", format!"%,3?d"('_', value.elapsedTimeMsecs()),
-                ",", format!"%,3?d"('_', value.elapsedTimeUsecs()),
-                ",", format!"%,3?d"('_', value.count),
-                ",", format!"%,3?.2f"('_', value.elapsedTimePercent()));
+            import std.algorithm : sort;
+            import std.format : format;
+            import std.stdio : File;
+            scope (failure) assert(0, "Assume nothrow failed");
+
+            auto counterValues = counters.values;
+            counterValues.sort!("a.elapsedTime > b.elapsedTime"); // Sort in descending order
+
+            File file;
+            file.open(fileName, "w");
+            scope (exit)
+                file.close();
+            file.writeln("function,msecs,usecs,count,%");
+            foreach (ref value; counterValues)
+            {
+                file.writeln(value.name,
+                    ",", format!"%,3?d"('_', value.elapsedTimeMsecs()),
+                    ",", format!"%,3?d"('_', value.elapsedTimeUsecs()),
+                    ",", format!"%,3?d"('_', value.count),
+                    ",", format!"%,3?.2f"('_', value.elapsedTimePercent()));
+            }
         }
     }
 
@@ -217,10 +224,10 @@ private:
     string _name;
     size_t _count;
     Duration _elapsedTime;
-    version(profile)
+    version(Profile)
     {
-        __gshared static PerfFunctionCounter[string] counters;
         __gshared static Mutex countersMutex;
+        __gshared static PerfFunctionCounter[string] counters;
     }
 }
 
@@ -456,11 +463,26 @@ void traceUnitTest(
 
 private:
 
-version(TraceLog) static __gshared FileLogger traceLogger;
+version(TraceLog)
+{
+    static __gshared FileLogger traceLogger;
+}
+
+version(unittest)
+{
+    // Embed GC options directly into the binary
+    extern(C) __gshared string[] rt_options = [
+        "gcopt=parallel:2" // Reduce marker thread count
+        ];
+}
 
 shared static this() nothrow @trusted
 {
-    version(profile) PerfFunctionCounter.countersMutex = new Mutex();
+    version(Profile)
+    {
+        PerfFunctionCounter.countersMutex = new Mutex();
+    }
+
     version(TraceLog)
     {
         traceLogger = new FileLogger("trace.log", FileLoggerOption(FileLoggerOption.overwriteMode),
@@ -470,7 +492,7 @@ shared static this() nothrow @trusted
 
 shared static ~this() nothrow @trusted
 {
-    version(profile)
+    version(Profile)
     {
         if (PerfFunctionCounter.countersMutex !is null)
         {
@@ -504,7 +526,7 @@ unittest // PerfCpuUsage
 
     void delay() nothrow @trusted
     {
-        Thread.sleep(dur!("msecs")(20));
+        Thread.sleep(dur!"msecs"(20));
     }
 
     delay();

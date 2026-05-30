@@ -40,23 +40,10 @@ public:
         reset();
     }
 
-    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
-
-        auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
-        if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
-            return ResultStatus.error(_nextState + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ _nextState.to!string()));
-        calculateProof(authData, userName, userPassword, firstMessage);
-        return ResultStatus.ok();
-    }
-
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
-    {
-        debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
-            ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState,
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -64,23 +51,24 @@ public:
 
         if (state == 0)
         {
-            initialRequest(authData);
+            initialRequest(stateData.authData);
             return ResultStatus.ok();
         }
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData, authData);
+            return calculateProof(stateData.userName[], stateData.userPassword[], stateData.serverAuthData[], stateData.authData);
         else if (state == 2)
         {
-            if (!verifyServerSignature(serverAuthData))
+            if (!verifyServerSignature(stateData.serverAuthData[]))
                 return ResultStatus.error(state + 1, DbMessage.eInvalidConnectionAuthVerificationFailed.fmtMessage(name));
-            authData.clear();
+
+            stateData.authData.clear();
             return ResultStatus.ok();
         }
         else
-            assert(0);
+            return invalidAuthState(state);
     }
 
-    final void initialRequest(ref CipherBuffer!ubyte authData) const pure scope
+    final void initialRequest(ref CipherRawKey!ubyte authData) const pure scope
     {
         authData = (_cbindFlag ~ ",,n=,r=" ~ _nonce).representation();
     }
@@ -124,8 +112,20 @@ public:
     }
 
 protected:
-    final void calculateProof(ref CipherBuffer!ubyte authData, scope const(char)[] userName, scope const(char)[] userPassword,
-        const ref PgOIdScramSHA256FirstMessage firstMessage)
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherRawKey!ubyte authData)
+    {
+        debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+
+        auto firstMessage = PgOIdScramSHA256FirstMessage(serverAuthData);
+        if (!firstMessage.isValid() || !firstMessage.nonce.startsWith(this.nonce))
+            return ResultStatus.error(_nextState + 1, DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ _nextState.to!string()));
+        calculateProof(userName, userPassword, firstMessage, authData);
+        return ResultStatus.ok();
+    }
+    
+    final void calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, 
+        const ref PgOIdScramSHA256FirstMessage firstMessage, ref CipherRawKey!ubyte authData)
     {
         debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 

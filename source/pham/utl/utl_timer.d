@@ -140,7 +140,7 @@ class Timer
 public:
     this(Duration resolutionInterval = dur!"msecs"(10)) nothrow @safe
     {
-        this._resolutionInterval = resolutionInterval >= minResolutionInterval ? resolutionInterval : minResolutionInterval;
+        this._resolutionInterval = toValidResolutionInterval(resolutionInterval);
         this._mutex = new Mutex();
         this._engine = TimerEngine(&notifyElapsed, null);
     }
@@ -250,7 +250,7 @@ package(pham.utl):
                 return;
         }
     }
-    
+
     final void resetNotifierElapsed() nothrow @safe
     {
         debug(debug_pham_utl_utl_timer) debug writeln("Timer.resetNotifierElapseds()");
@@ -259,7 +259,7 @@ package(pham.utl):
         foreach (ref notifier; _notifiers)
             notifier.elapsed = Duration.zero;
     }
-    
+
 protected:
     final bool canProcess() const nothrow @safe
     {

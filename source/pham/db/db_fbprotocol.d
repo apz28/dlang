@@ -27,7 +27,7 @@ import pham.utl.utl_object : InitializedValue;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 
-import pham.db.db_auth : DbAuthState;
+import pham.db.db_auth : DbAuthStateData, DbAuthState;
 import pham.db.db_buffer_filter;
 import pham.db.db_buffer_filter_cipher;
 import pham.db.db_buffer_filter_compressor;
@@ -50,18 +50,16 @@ struct FbConnectingStateInfo
 nothrow @safe:
 
     FbAuth auth;
-    CipherBuffer!ubyte authData;
-    const(char)[] authMethod;
-    CipherBuffer!ubyte serverAuthData;
-    CipherBuffer!ubyte serverAuthKey;
-    const(char)[] serverAuthMethod;
+    string authMethod;
+    DbAuthStateData authStateData;
+    string serverAuthMethod;
     FbIscServerKey[] serverAuthKeys;
     int32 serverAcceptType;
     int32 serverArchitecture;
     int32 serverVersion;
     int nextAuthState;
 
-protected:
+package:
     string forOP;
     int forOPCode;
     ushort callLimitCounter;
@@ -1446,9 +1444,9 @@ protected:
         stateInfo.serverAcceptType = acceptData.acceptType;
         stateInfo.serverArchitecture = acceptData.architecture;
         stateInfo.serverVersion = acceptData.version_;
-        stateInfo.serverAuthKey = acceptData.authKey;
-        stateInfo.serverAuthData = acceptData.authData;
-        stateInfo.serverAuthMethod = acceptData.authName;
+        stateInfo.authStateData.serverAuthKey = acceptData.authKey;
+        stateInfo.authStateData.serverAuthData = acceptData.authData;
+        stateInfo.serverAuthMethod = acceptData.authName.idup;
         stateInfo.serverAuthKeys = FbIscServerKey.parse(acceptData.authKey);
         this._serverVersion = stateInfo.serverVersion;
         connection.serverInfo[DbServerIdentifier.protocolAcceptType] = stateInfo.serverAcceptType.to!string();
@@ -1464,8 +1462,9 @@ protected:
             }
 
             auto useCSB = connection.fbConnectionStringBuilder;
-            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName,
-                useCSB.userPassword, stateInfo.serverAuthData[], stateInfo.authData);
+            stateInfo.authStateData.userName = useCSB.userName;
+            stateInfo.authStateData.userPassword = useCSB.userPassword;
+            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
                 throw new FbException(DbErrorCode.read, status.errorMessage, null, 0, stateInfo.forOPCode);
 		}
@@ -1559,7 +1558,7 @@ protected:
         switch (op)
         {
             case FbIsc.op_response:
-                stateInfo.serverAuthKey = opResponse.generic.data;
+                stateInfo.authStateData.serverAuthKey = opResponse.generic.data;
                 stateInfo.serverAuthKeys = FbIscServerKey.parse(opResponse.generic.data);
                 break;
 
@@ -1580,8 +1579,8 @@ protected:
     {
         debug(debug_pham_db_db_fbprotocol) debug writeln(__FUNCTION__, "()");
 
-        stateInfo.serverAuthMethod = contAuth.name;
-        stateInfo.serverAuthKey = contAuth.key;
+        stateInfo.serverAuthMethod = contAuth.name.idup;
+        stateInfo.authStateData.serverAuthKey = contAuth.key;
         stateInfo.serverAuthKeys = FbIscServerKey.parse(contAuth.key);
 
         if (contAuth.name.length)
@@ -1591,13 +1590,15 @@ protected:
             if (stateInfo.authMethod != contAuth.name)
             {
                 stateInfo.nextAuthState = DbAuthState.initial;
-                stateInfo.authMethod = contAuth.name;
+                stateInfo.authMethod = contAuth.name.idup;
                 stateInfo.auth = createAuth(stateInfo.authMethod);
             }
 
             auto useCSB = connection.fbConnectionStringBuilder;
-            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName,
-                useCSB.userPassword, contAuth.data, stateInfo.authData);
+            stateInfo.authStateData.userName = useCSB.userName;
+            stateInfo.authStateData.userPassword = useCSB.userPassword;
+            stateInfo.authStateData.serverAuthData = contAuth.data;
+            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
                 throw new FbException(DbErrorCode.read, status.errorMessage, null, 0, stateInfo.forOPCode);
         }
@@ -1612,10 +1613,10 @@ protected:
 
         auto writer = FbXdrWriter(connection);
 		writer.writeOperation(FbIsc.op_cont_auth);
-		writer.writeBytes(stateInfo.authData[]);
+		writer.writeBytes(stateInfo.authStateData.authData[]);
 		writer.writeChars(stateInfo.auth.name); // like CNCT_plugin_name
 		writer.writeChars(stateInfo.auth.name); // like CNCT_plugin_list
-		writer.writeBytes(stateInfo.serverAuthKey[]);
+		writer.writeBytes(stateInfo.authStateData.serverAuthKey[]);
 		writer.flush();
         stateInfo.nextAuthState++;
     }
@@ -1817,7 +1818,7 @@ protected:
 		if (!useCSB.garbageCollect)
 		    writer.writeInt32(FbIsc.isc_dpb_no_garbage_collect, 1);
 
-        writer.writeBytesIf(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
+        writer.writeBytesIf(FbIsc.isc_dpb_specific_auth_data, stateInfo.authStateData.authData[]);
 
         auto result = writer.peekBytes();
         debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "dpbValue.length=", result.length, ", dpbValue=", result.dgToString());
@@ -1853,18 +1854,19 @@ protected:
         auto useCSB = connection.fbConnectionStringBuilder;
 
         stateInfo.nextAuthState = DbAuthState.initial;
-        stateInfo.authData = null;
+        stateInfo.authStateData.authData = null;
         stateInfo.authMethod = useCSB.integratedSecurityName;
         stateInfo.auth = createAuth(stateInfo.authMethod);
         const isMultiStates = stateInfo.auth.multiStates > 1;
         if (isMultiStates)
         {
-            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, null, stateInfo.authData);
+            stateInfo.authStateData.serverAuthData = null;
+            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
                 throw new FbException(DbErrorCode.write, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
         }
 
-        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "stateInfo.authMethod=", stateInfo.authMethod, ", stateInfo.authData.length=", stateInfo.authData.length);
+        debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "stateInfo.authMethod=", stateInfo.authMethod, ", stateInfo.authStateData=", stateInfo.authStateData.toString());
 
 		writer.writePreamble();
 		writer.writeBytes1(FbIsc.isc_spb_dummy_packet_interval, writer.asBytes(useCSB.dummyPackageInterval.limitRangeTimeAsSecond()));
@@ -1878,11 +1880,11 @@ protected:
         writer.writeBytes1(FbIsc.isc_spb_utf8_filename, [0x1]);
 		writer.writeChars1(FbIsc.isc_spb_expected_db, useCSB.databaseName);
 
-        if (stateInfo.authData.length)
+        if (stateInfo.authStateData.authData.length)
         {
             writer.writeChars1(FbIsc.isc_spb_auth_plugin_name, stateInfo.authMethod);
             writer.writeChars1(FbIsc.isc_spb_auth_plugin_list, stateInfo.authMethod);
-            writer.writeBytes1(FbIsc.isc_spb_specific_auth_data, stateInfo.authData[]);
+            writer.writeBytes1(FbIsc.isc_spb_specific_auth_data, stateInfo.authStateData.authData[]);
         }
         else
             writer.writeChars1(FbIsc.isc_spb_password, useCSB.userPassword);
@@ -1936,7 +1938,7 @@ protected:
 		writer.writeCharsIf(FbIsc.isc_dpb_client_version, useCSB.applicationVersion);
 		writer.writeChars(FbIsc.isc_dpb_host_name, currentComputerName());
 		writer.writeChars(FbIsc.isc_dpb_os_user, currentUserName());
-        writer.writeBytesIf(FbIsc.isc_dpb_specific_auth_data, stateInfo.authData[]);
+        writer.writeBytesIf(FbIsc.isc_dpb_specific_auth_data, stateInfo.authStateData.authData[]);
         writer.writeCharsIf(FbIsc.isc_dpb_set_db_charset, createDatabaseInfo.defaultCharacterSet);
 		writer.writeInt32(FbIsc.isc_dpb_force_write, createDatabaseInfo.forcedWrite ? 1 : 0);
 		writer.writeInt32(FbIsc.isc_dpb_overwrite, createDatabaseInfo.overwrite ? 1 : 0);
@@ -2154,13 +2156,16 @@ protected:
         auto useCSB = connection.fbConnectionStringBuilder;
 
         stateInfo.nextAuthState = DbAuthState.initial;
-        stateInfo.authData = null;
+        stateInfo.authStateData.authData = null;
         stateInfo.authMethod = useCSB.integratedSecurityName;
         stateInfo.auth = createAuth(stateInfo.authMethod);
         const isMultiStates = stateInfo.auth.multiStates > 1;
         if (isMultiStates)
         {
-            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword, null, stateInfo.authData);
+            stateInfo.authStateData.serverAuthData = null;
+            stateInfo.authStateData.userName = useCSB.userName;
+            stateInfo.authStateData.userPassword = useCSB.userPassword;
+            auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
                 throw new FbException(DbErrorCode.write, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
         }
@@ -2174,12 +2179,12 @@ protected:
 
         if (isMultiStates)
         {
-            assert(stateInfo.authData.length);
+            assert(stateInfo.authStateData.authData.length);
 
-            writer.writeMultiParts(FbIsc.cnct_specific_data, stateInfo.authData[]);
+            writer.writeMultiParts(FbIsc.cnct_specific_data, stateInfo.authStateData.authData[]);
             stateInfo.nextAuthState++;
 
-            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "specificData=", stateInfo.authData.toString());
+            debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "specificData=", stateInfo.authStateData.authData.toString());
         }
 
         // Must be last because of wrong check order on server side if encounter earlier
@@ -2569,7 +2574,7 @@ protected:
                 opResponse.op = op;
                 opResponse.trustedAuth = trustedAuth;
 
-                stateInfo.serverAuthKey = trustedAuth.data;
+                stateInfo.authStateData.serverAuthKey = trustedAuth.data;
                 stateInfo.serverAuthKeys = FbIscServerKey.parse(trustedAuth.data);
 
                 break;
@@ -2611,7 +2616,7 @@ protected:
     final FbOperation setupEncryption(ref FbXdrReader reader, ref FbConnectingStateInfo stateInfo, ref FbIscOPResponse opResponse)
     {
         const canEncrypted = canCryptedConnection(stateInfo);
-        if (canEncrypted != DbEncryptedConnection.disabled && stateInfo.serverAuthKey.length)
+        if (canEncrypted != DbEncryptedConnection.disabled && stateInfo.authStateData.serverAuthKey.length)
         {
             connection.serverInfo[DbServerIdentifier.protocolEncrypted] = toName(canEncrypted);
             cryptWrite(stateInfo);

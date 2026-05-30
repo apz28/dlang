@@ -24,6 +24,7 @@ import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortClassName;
 import pham.utl.utl_version : VersionString;
+import pham.db.db_auth : DbAuthStateData;
 import pham.db.db_buffer;
 import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
@@ -45,9 +46,8 @@ struct MyConnectingStateInfo
 nothrow @safe:
 
     MyAuth auth;
-    CipherBuffer!ubyte authData;
-    CipherBuffer!ubyte serverAuthData;
     string authMethod;
+    DbAuthStateData authStateData;
     string serverVersion;
     uint32 connectionFlags;
     int32 protocolProcessId;
@@ -91,7 +91,7 @@ public:
 
                 case AuthKind.cont:
                     auto allData = reader.buffer.consumeAll();
-                    stateInfo.serverAuthData = allData[1..$];
+                    stateInfo.authStateData.serverAuthData = allData[1..$];
                     break;
 
                 case AuthKind.change:
@@ -103,7 +103,7 @@ public:
                     const indicator = reader.readUInt8();
                     assert(indicator == 0xfe);
                     const newAuthMethod = reader.readCString();
-                    stateInfo.serverAuthData = reader.buffer.consumeAll();
+                    stateInfo.authStateData.serverAuthData = reader.buffer.consumeAll();
                     debug(debug_pham_db_db_myprotocol) debug writeln("\t", "newAuthMethod=", newAuthMethod, ", stateInfo.authMethod=", stateInfo.authMethod);
                     if (stateInfo.authMethod != newAuthMethod)
                     {
@@ -129,7 +129,7 @@ public:
         if (stateInfo.authMethod.length != 0)
         {
             stateInfo.auth = createAuth(stateInfo);
-            if (!stateInfo.auth.getPassword(useCSB.userName, useCSB.userPassword, stateInfo.authData).isOK)
+            if (!stateInfo.auth.getPassword(useCSB.userName, useCSB.userPassword, stateInfo.authStateData.authData).isOK)
             {
                 auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
                 throw new MyException(DbErrorCode.connect, msg);
@@ -166,8 +166,8 @@ public:
 
         writer.writeCString(useCSB.userName);
 
-        if (stateInfo.authData.length)
-            writer.writeOpaqueBytes(stateInfo.authData[]);
+        if (stateInfo.authStateData.authData.length)
+            writer.writeOpaqueBytes(stateInfo.authStateData.authData[]);
         else
             writer.writeInt8(0);
 
@@ -228,7 +228,7 @@ public:
         reader.advance(11);
 
         ubyte[] seedPart2 = reader.readCBytes();
-        stateInfo.serverAuthData = seedPart1 ~ seedPart2;
+        stateInfo.authStateData.serverAuthData = seedPart1 ~ seedPart2;
 
         auto serverAuthMethod = (stateInfo.serverCapabilities & MyCapabilityFlags.pluginAuth) != 0
             ? reader.readCString()
@@ -921,7 +921,7 @@ protected:
         auto result = cast(MyAuth)authMap.createAuth();
         result.isSSLConnection = stateInfo.canCryptedConnection != DbEncryptedConnection.disabled;
         result.serverVersion = VersionString(stateInfo.serverVersion);
-        result.setServerSalt(stateInfo.serverAuthData[]);
+        result.setServerSalt(stateInfo.authStateData.serverAuthData[]);
         return result;
     }
 
@@ -1210,33 +1210,33 @@ protected:
     {
         debug(debug_pham_db_db_myprotocol) debug writeln(__FUNCTION__, "(authMethodChanged=", authMethodChanged, ", stateInfo.authMethod=", stateInfo.authMethod, ")");
 
-        auto useCSB = connection.myConnectionStringBuilder;
-        auto useUserName = useCSB.userName;
-        auto useUserPassword = useCSB.userPassword;
-        int authState = authMethodChanged ? 0 : 1;
-
 		if (stateInfo.auth is null)
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
             throw new MyException(DbErrorCode.read, msg);
         }
 
+        auto useCSB = connection.myConnectionStringBuilder;
+        stateInfo.authStateData.userName = useCSB.userName;
+        stateInfo.authStateData.userPassword = useCSB.userPassword;
+        int authState = authMethodChanged ? 0 : 1;
+
         {
-            auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword, stateInfo.serverAuthData[], stateInfo.authData);
+            auto status = stateInfo.auth.getAuthData(authState, stateInfo.authStateData);
             if (status.isError)
                 throw new MyException(DbErrorCode.read, status.errorMessage);
 
-            if (authMethodChanged && stateInfo.authData.length == 0)
-                stateInfo.authData.put(0x00);
+            if (authMethodChanged && stateInfo.authStateData.authData.length == 0)
+                stateInfo.authStateData.authData.put(0x00);
         }
 
-        while (stateInfo.authData.length)
+        while (stateInfo.authStateData.authData.length)
         {
             // Create writer scope
             {
                 auto writer = MyXdrWriter(connection, maxSinglePackage);
                 writer.beginPackage(++sequenceByte);
-                writer.writeOpaqueBytes(stateInfo.authData[]);
+                writer.writeOpaqueBytes(stateInfo.authStateData.authData[]);
                 writer.flush();
             }
 
@@ -1251,9 +1251,8 @@ protected:
                     return MyOkResponse.init;
 
                 authState++;
-                stateInfo.serverAuthData = allData[1..$];
-                auto status = stateInfo.auth.getAuthData(authState, useUserName, useUserPassword,
-                    stateInfo.serverAuthData[], stateInfo.authData);
+                stateInfo.authStateData.serverAuthData = allData[1..$];
+                auto status = stateInfo.auth.getAuthData(authState, stateInfo.authStateData);
                 if (status.isError)
                     throw new MyException(DbErrorCode.read, status.errorMessage);
             }

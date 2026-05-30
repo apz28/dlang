@@ -524,7 +524,7 @@ auto simpleSplitter(String = string, Separator = char)(String str, Separator sep
             this._frontLength = input.length == 0 ? atEnd : unComputed;
         }
 
-        NamedValue!String pair()
+        NamedValue!String pair() return scope
         in
         {
             assert(!empty, "Attempting to fetch the name-value pair of an empty simpleSplitter.");
@@ -541,7 +541,7 @@ auto simpleSplitter(String = string, Separator = char)(String str, Separator sep
             return NamedValue!String(name, value);
         }
 
-        void popFront()
+        void popFront() scope
         in
         {
             assert(!empty, "Attempting to fetch the front of an empty simpleSplitter.");
@@ -561,12 +561,12 @@ auto simpleSplitter(String = string, Separator = char)(String str, Separator sep
             }
         }
 
-        @property bool empty() const
+        @property bool empty() const @nogc scope
         {
             return _frontLength == atEnd;
         }
 
-        @property String front()
+        @property String front() return scope
         in
         {
             assert(!empty, "Attempting to fetch the front of an empty simpleSplitter.");
@@ -580,7 +580,7 @@ auto simpleSplitter(String = string, Separator = char)(String str, Separator sep
         }
 
     private:
-        void computeFrontLength()
+        void computeFrontLength() @nogc scope
         {
             foreach (i; 0.._input.length)
             {
@@ -594,7 +594,7 @@ auto simpleSplitter(String = string, Separator = char)(String str, Separator sep
         }
 
         pragma(inline, true)
-        bool isSeparator(const(size_t) i) const
+        bool isSeparator(const(size_t) i) const @nogc scope
         {
             static if (isSomeChar!Separator)
                 return _input[i] == _separator;
@@ -650,13 +650,10 @@ String toString(String = string)(const(NamedValue!String)[] nvs) nothrow @safe
     if (nvs.length == 0)
         return "[]";
 
-    String result = "[";
-    foreach (i, ref nv; nvs)
+    String result = "[" ~ nvs[0].name ~ "=" ~ nvs[0].value;
+    foreach (ref nv; nvs[1..$])
     {
-        if (i)
-            result ~= ",{" ~ nv.name ~ "=" ~ nv.value ~ "}";
-        else
-            result ~= "{" ~ nv.name ~ "=" ~ nv.value ~ "}";
+        result ~= ", " ~ nv.name ~ "=" ~ nv.value;
     }
     return result ~ "]";
 }
@@ -742,7 +739,8 @@ if ((isFloatingPoint!T || isIntegral!T) && isSomeChar!Char)
     return buffer[0..sink.i];
 }
 
-String valueOf(String = string)(NamedValue!String[] values, scope const(String) name, String notFound = null) nothrow pure @safe
+String valueOf(String = string)(NamedValue!String[] values, scope const(String) name,
+    String notFound = null) nothrow pure @safe
 if (isSomeString!String)
 {
     foreach (ref v; values)
@@ -1053,4 +1051,23 @@ unittest // stringOfNumber
     assert("abc".simpleEndWithAny("dc") == 1);
     assert("abc".simpleEndWithAny("ab") == -1);
     assert("".simpleEndWithAny("a") == -1);
+}
+
+unittest // toString
+{
+    NamedValue!string v;
+    v.name = "name";
+    v.value = "value";
+    assert(v.toString() == "name=value");
+
+    v.name = "namE";
+    v.value = "";
+    assert(v.toString() == "namE=");
+    
+    NamedValue!string[] vs;
+    vs = [NamedValue!string("name", "value"), NamedValue!string("namE", "")];
+    assert(vs.toString() == "[name=value, namE=]");
+    
+    vs = null;
+    assert(vs.toString() == "[]");
 }

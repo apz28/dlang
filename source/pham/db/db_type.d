@@ -327,12 +327,12 @@ enum DbConnectionParameterIdentifier : string
     userPassword = "password", /// string
 
     // For OAuth2 authentication
+    oauthAccessToken = "oauthAccessToken", /// string - your-bearer-token
     oauthAuthorizerURL = "oauthAuthorizerURL", /// string - The system which receives requests from, and issues access tokens to - ex: https://your-provider.com
     oauthClientId = "oauthClientId", /// string - ex: your-client-id
     oauthIssuerURL = "oauthIssuerURL", /// string - - An identifier for an authorization server - ex: https://your-provider.com
     oauthProviderName = "oauthProviderName", /// string - The organization, product vendor - ex: google, yahoo, github ...
     oauthScopes = "oauthScopes", /// string - A space-separated list of the OAuth scopes - ex: openid profile
-    // oauthAccessToken = /// string - your-bearer-token
     // oauthExpiredIn /// integer - in seconds
     // oauthRefreshToken = /// string - When an access token expires, a client typically uses a refresh_token (if provided) to obtain a new access token
 
@@ -2699,6 +2699,7 @@ shared static this() nothrow @safe
 
         // OAuth2
         result[DbConnectionParameterIdentifier.oauthAuthorizerURL] = DbConnectionParameterInfo(&isConnectionParameterUrl, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.pg);
+        result[DbConnectionParameterIdentifier.oauthAccessToken] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.pg);
         result[DbConnectionParameterIdentifier.oauthClientId] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.pg);
         result[DbConnectionParameterIdentifier.oauthIssuerURL] = DbConnectionParameterInfo(&isConnectionParameterUrl, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxName, DbScheme.pg);
         result[DbConnectionParameterIdentifier.oauthProviderName] = DbConnectionParameterInfo(&isConnectionParameterString, dbConnectionParameterNullDef, 0, dbConnectionParameterMaxId, DbScheme.pg);

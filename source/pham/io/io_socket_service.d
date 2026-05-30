@@ -55,7 +55,7 @@ public:
         this._mutex = new Mutex();
     }
 
-    void start() @trusted
+    void start() nothrow @trusted
     {
         debug(debug_pham_io_io_socket_service) debug writeln(__FUNCTION__, "()");
 
@@ -70,7 +70,7 @@ public:
         }
     }
 
-    void stop() nothrow
+    void stop() nothrow @trusted
     {
         debug(debug_pham_io_io_socket_service) debug writeln(__FUNCTION__, "()");
 

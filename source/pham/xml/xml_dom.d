@@ -4661,7 +4661,7 @@ protected:
 
 struct XmlNamespaceList(S = string)
 {
-    import pham.utl.utl_delegate_list : ApplyValue;
+    import pham.utl.utl_apply : ApplyValue;
 
 nothrow @safe:
 

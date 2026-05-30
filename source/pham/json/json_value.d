@@ -12,8 +12,8 @@ module pham.json.json_value;
 import std.conv : ConvException, text, to;
 import std.exception : enforce;
 import std.range : isSomeFiniteCharInputRange;
-import std.traits : fullyQualifiedName, isArray, isFloatingPoint, isIntegral, isSomeString,
-    isStaticArray, isUnsigned, Unqual;
+import std.traits : Unqual, fullyQualifiedName, isArray, isFloatingPoint, isIntegral,
+    isSomeString, isStaticArray, isUnsigned;
 import std.utf : byUTF;
 
 debug(debug_pham_utl_utl_json) import std.stdio : writeln;
@@ -134,7 +134,7 @@ public:
         }
         else
         {
-            static assert(false, "Argument is not an array or a JSONValue array");
+            static assert(0, "Argument is not an array or a JSONValue array");
         }
     }
 
@@ -289,7 +289,7 @@ public:
         else static if (is(T : JSONValue))
             _store.arr ~= arg.array;
         else
-            static assert(false, "Argument is not an array or a JSONValue array: " ~ fullyQualifiedName!T);
+            static assert(0, "Argument is not an array or a JSONValue array: " ~ fullyQualifiedName!T);
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(json=", toString(), ")");
     }
 
@@ -310,7 +310,7 @@ public:
      *  `JSONException` if `T` cannot hold the contents of this `JSONValue`
      *  or in case of integer overflow when converting to `T`
      */
-    inout(T) get(T)() const inout pure @safe
+    T get(T)() const inout pure @safe
     if (!is(T : JSONValue[string]))
     {
         alias UT = Unqual!T;
@@ -318,10 +318,6 @@ public:
         static if (is(immutable T == immutable string))
         {
             return str;
-        }
-        else static if (is(immutable T == immutable bool))
-        {
-            return boolean;
         }
         else static if (isFloatingPoint!T)
         {
@@ -349,9 +345,27 @@ public:
                     throw new JSONException("JSONValue is not an integral type: " ~ fullyQualifiedName!T);
             }
         }
+        else static if (is(immutable T == immutable bool))
+        {
+            return boolean;
+        }
+        else static if (is(T == E[], E) && (isSomeString!E || isFloatingPoint!E || isIntegral!E || is(E == bool)))
+        {
+            if (type != JSONType.array)
+                throw new JSONException("JSONValue is not an array type: " ~ fullyQualifiedName!T);
+
+            auto lArray = array;
+            T result;
+            result.length = lArray.length;
+            foreach (i, ref e; lArray)
+            {
+                result[i] = e.get!E();
+            }
+            return result;
+        }
         else
         {
-            static assert(false, "Unsupported get() for type: " ~ fullyQualifiedName!T);
+            static assert(0, "Unsupported get() for type: " ~ fullyQualifiedName!T);
         }
     }
 
@@ -729,7 +743,7 @@ private:
         }
         else
         {
-            static assert(false, `Unable to convert type "` ~ fullyQualifiedName!T ~ `" to json value`);
+            static assert(0, `Unable to convert type "` ~ fullyQualifiedName!T ~ `" to json value`);
         }
     }
 
@@ -1082,6 +1096,12 @@ unittest // emptyArray
     JSONValue j = JSONValue([42, 43, 44]);
     assert(j[0].integer == 42);
     assert(j[1].integer == 43);
+
+    auto unbox = j.get!(int[])();
+    assert(unbox.length == 3);
+    assert(unbox[0] == 42);
+    assert(unbox[1] == 43);
+    assert(unbox[2] == 44);
 }
 
 ///
@@ -1097,6 +1117,11 @@ unittest // emptyArray
     JSONValue j = JSONValue(["Perl", "C"]);
     j[1].str = "D";
     assert(j[1].str == "D");
+
+    auto unbox = j.get!(string[])();
+    assert(unbox.length == 2);
+    assert(unbox[0] == "Perl");
+    assert(unbox[1] == "D");
 }
 
 ///

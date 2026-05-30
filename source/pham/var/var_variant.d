@@ -21,7 +21,7 @@ import std.meta : AliasSeq, allSatisfy, anySatisfy, staticIndexOf;
 import std.range.primitives : ElementType;
 import std.traits : ConstOf, ImmutableOf, Parameters, ReturnType, SharedConstOf, SharedOf, Unqual,
     ImplicitConversionTargets = AllImplicitConversionTargets, fullyQualifiedName,
-    hasElaborateCopyConstructor, hasElaborateDestructor, hasIndirections, hasMember,
+    hasElaborateCopyConstructor, hasElaborateDestructor, hasIndirections,
     isArray, isAssociativeArray, isBasicType, isBoolean, isDelegate, isDynamicArray,
     isFloatingPoint, isFunctionPointer, isInstanceOf, isIntegral, isPointer,
     isSigned, isSomeChar, isSomeFunction, isSomeString, isStaticArray, isUnsigned,
@@ -1122,7 +1122,7 @@ private:
                 ", T.stringof=", T.stringof, ", rhs.typeInfo=", rhs.typeInfo.toString, ")");
         }
         //else static if (is(T : const(VariantN)))
-        //    static assert(false, "Unsupport assigning `Variant` from `const Variant`");
+        //    static assert(0, "Unsupport assigning `Variant` from `const Variant`");
         else
         {
             static if (T.sizeof <= size)
@@ -1133,7 +1133,7 @@ private:
             {
                 // Exclude compiler generated constructor
                 // https://issues.dlang.org/show_bug.cgi?id=21021
-                static if (hasMember!(T, "__ctor") && __traits(compiles, { T* _ = new T(T.init); }))
+                static if (__traits(hasMember, T, "__ctor") && __traits(compiles, { T* _ = new T(T.init); }))
                 {
                     T* prhs = new T(rhs);
                 }
@@ -3891,7 +3891,7 @@ nothrow @safe unittest // Variant.peek
         {
             T opCast(T)()
             {
-                assert(false);
+                assert(0);
             }
         }
         Variant v = SCast();

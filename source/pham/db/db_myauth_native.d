@@ -28,27 +28,27 @@ class MyAuthNative : MyAuth
 nothrow @safe:
 
 public:
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        debug(debug_pham_db_db_myauth_native) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
-            ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_myauth_native) debug writeln(__FUNCTION__, "(_nextState=", _nextState,
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         if (state == 0)
         {
-            if (serverAuthData.length)
-                setServerSalt(serverAuthData);
-            return getPassword(userName, userPassword, authData);
+            if (stateData.serverAuthData.length)
+                setServerSalt(stateData.serverAuthData[]);
+
+            return getPassword(stateData.userName[], stateData.userPassword[], stateData.authData);
         }
         else
         {
-            authData.clear();
+            stateData.authData.clear();
             return ResultStatus.ok();
         }
     }
 
     final override ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
-        ref CipherBuffer!ubyte authData)
+        ref CipherRawKey!ubyte authData)
     {
         debug(debug_pham_db_db_myauth_native) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 
@@ -116,10 +116,10 @@ DbAuth createAuthNative()
 unittest // MyAuthNative.getPassword
 {
     import pham.utl.utl_convert : bytesFromHexs;
-    
+
     auto auth = new MyAuthNative();
     auth.setServerSalt(bytesFromHexs("625A1C30712F1F333E6A732543335E6A5C252613"));
-    CipherBuffer!ubyte proof;
+    CipherRawKey!ubyte proof;
     assert(auth.getPassword("root", "masterkey", proof).isOK());
     assert(proof == bytesFromHexs("14578C3E295CC566EBD151EB8FB708A21972E80A6C"), proof.toString());
 }

@@ -18,6 +18,483 @@ import std.traits : fullyQualifiedName, isFloatingPoint, isIntegral, isScalarTyp
 
 @safe:
 
+@mustuse
+struct CmpResult
+{
+nothrow @safe:
+
+public:
+    enum unknownResult = float.nan;
+    enum unknownResultInt = int.max;
+
+public:
+    this(float state) @nogc pure
+    {
+        this._state = isNaN(state)
+            ? unknownResult
+            : (state > 0 ? 1 : (state < 0 ? -1 : 0));
+    }
+
+    this(int state) @nogc pure
+    {
+        this._state = state == unknownResultInt
+            ? unknownResult
+            : (state > 0 ? 1 : (state < 0 ? -1 : 0));
+    }
+
+    /**
+     * Construct logical order state of integral type values
+     * Params:
+     *   lhs = left hand side of integral value
+     *   rhs = right hand side of integral value
+     * Returns:
+     *   state = -1 if lhs is less than rhs
+     *   state = 0 if lhs is equal rhs
+     *   state = 1 if lhs is greater than rhs
+     */
+    this(T)(const(T) lhs, const(T) rhs) @nogc pure
+    if (isIntegral!T)
+    {
+        this._state = cmp(lhs, rhs);
+    }
+
+
+    /**
+     * Construct logical order state of floating point type values
+     * Params:
+     *   lhs = left hand side of floating point value
+     *   rhs = right hand side of floating point value
+     * Returns:
+     *   state = float.nan if either lhs or rhs is an NaN number
+     *           or float.nan if either lhs or rhs is an infinity number and same sign
+     *   state = -1 if lhs is less than rhs
+     *   state = 0 if lhs is equal rhs
+     *   state = 1 if lhs is greater than rhs
+     */
+    this(T)(const(T) lhs, const(T) rhs) @nogc pure
+    if (isFloatingPoint!T)
+    {
+        this._state = cmp(lhs, rhs);
+    }
+
+    pragma(inline, true)
+    C opCast(C: int)() const @nogc pure
+    {
+        return this.isValid ? cast(int)_state : unknownResultInt;
+    }
+
+    /**
+     * Return true based on pivot value, pivotValue, and the state is valid
+     */
+    pragma(inline, true)
+    bool isOp(string op)(const(int) pivotValue) const @nogc pure
+    if (op == "==" || op == "!=" || op == ">" || op == ">=" || op == "<" || op == "<=")
+    {
+        static if (op == "==")
+            return _state == pivotValue && isValid;
+        else static if (op == "!=")
+            return _state != pivotValue && isValid;
+        else static if (op == ">")
+            return _state > pivotValue && isValid;
+        else static if (op == ">=")
+            return _state >= pivotValue && isValid;
+        else static if (op == "<")
+            return _state < pivotValue && isValid;
+        else static if (op == "<=")
+            return _state <= pivotValue && isValid;
+        else
+            static assert(0);
+    }
+
+    static CmpResult unknown() @nogc pure
+    {
+        return CmpResult(unknownResult);
+    }
+
+    pragma(inline, true)
+    @property bool isValid() const @nogc pure
+    {
+        return !isNaN(_state);
+    }
+
+    pragma(inline, true)
+    @property float state() const @nogc pure
+    {
+        return _state;
+    }
+
+    alias this = state;
+
+private:
+    float _state = unknownResult;
+}
+
+enum ResultCode : int
+{
+    ok = 0,
+    error = -1,
+    unsupported = -2,
+    uninitialized = -3,
+    canceled = -4,
+    timeOut = -5,
+}
+
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.ok))
+enum resultOK = ResultCode.ok;
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.error))
+enum resultError = ResultCode.error;
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.unsupported))
+enum resultUnsupported = ResultCode.unsupported;
+deprecated("please use " ~ fullyQualifiedName!(ResultCode.uninitialized))
+enum resultUninitialized = ResultCode.uninitialized;
+
+/**
+ * Simple aggregate to indicate if function result is an error or intended value
+ */
+// @mustuse - not working in ternary assignment - still bug
+struct ResultIf(T)
+{
+@safe:
+
+public:
+    this(T value, ResultStatus status) nothrow
+    {
+        this.value = value;
+        this.status = status;
+    }
+
+    bool opCast(C: bool)() const @nogc nothrow pure scope
+    {
+        return isOK;
+    }
+
+    string getErrorString() const nothrow pure
+    {
+        return status.getErrorString();
+    }
+
+    /**
+     * Create this result-type as error
+     */
+    pragma(inline, true)
+    static typeof(this) error(uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        return typeof(this)(T.init, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
+    }
+
+    pragma(inline, true)
+    static typeof(this) error(T value, uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
+    }
+
+    pragma(inline, true)
+    static typeof(this) error(ResultStatus errorStatus) nothrow
+    {
+        return typeof(this)(T.init, errorStatus);
+    }
+
+    /**
+     * Create this result-type without error
+     */
+    pragma(inline, true)
+    static typeof(this) ok(T value) nothrow
+    {
+        return typeof(this)(value, ResultStatus.ok());
+    }
+
+    static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        return typeof(this)(T.init, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
+    }
+
+    static typeof(this) systemError(T value, string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        return typeof(this)(value, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
+    }
+
+    pragma(inline, true)
+    @property uint errorCode() const @nogc nothrow pure
+    {
+        return status.errorCode;
+    }
+
+    @property string errorMessage() const @nogc nothrow pure
+    {
+        return status.errorMessage;
+    }
+
+    /**
+     * Returns true if there is error-code or error-message
+     */
+    pragma(inline, true)
+    @property bool isError() const @nogc nothrow pure scope
+    {
+        return status.isError;
+    }
+
+    /**
+     * Returns true if there is no error-code and error-message
+     */
+    pragma(inline, true)
+    @property bool isOK() const @nogc nothrow pure scope
+    {
+        return status.isOK;
+    }
+
+public:
+    T value;
+    ResultStatus status = ResultStatus(ResultCode.uninitialized, null, null, null, 0);
+
+    alias this = value;
+}
+
+// @mustuse - not working in ternary assignment - still bug
+struct ResultStatus
+{
+@safe:
+
+public:
+    this(uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+    }
+
+    bool opCast(C: bool)() const @nogc nothrow pure scope
+    {
+        return isOK;
+    }
+
+    void addMessageIf(string errorLine) nothrow pure return
+    {
+        addLineIf(this.errorMessage, errorLine);
+    }
+
+    int clone(ResultStatus source, const(int) resultCode) @nogc nothrow pure
+    {
+        this.errorCode = source.errorCode;
+        this.errorMessage = source.errorMessage;
+        this.funcName = source.funcName;
+        this.file = source.file;
+        this.line = source.line;
+        return resultCode;
+    }
+
+    pragma(inline, true)
+    static typeof(this) error(uint errorCode, string errorMessage,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+    {
+        return typeof(this)(errorCode, errorMessage, funcName, file, line);
+    }
+
+    static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        typeof(this) result;
+        result.setSystemError(apiName, errorCode, postfixMessage, funcName, file, line);
+        return result;
+    }
+
+    static typeof(this) unsupportedError(uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        typeof(this) result;
+        result.setUnsupportedError(errorCode, postfixMessage, funcName, file, line);
+        return result;
+    }
+
+    string getErrorString() const nothrow pure
+    {
+        return errorMessage.length != 0
+            ? errorMessage
+            : (errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
+    }
+
+    pragma(inline, true)
+    static typeof(this) ok() @nogc nothrow pure
+    {
+        return typeof(this)(0, null, null, null, 0);
+    }
+
+    pragma(inline, true)
+    int reset(const(int) resultCode = ResultCode.ok) @nogc nothrow pure
+    {
+        this.errorMessage = this.file = this.funcName = null;
+        this.errorCode = this.line = 0;
+        return resultCode;
+    }
+
+    int set(uint errorCode, string errorMessage, const(int) resultCode = ResultCode.error,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        return resultCode;
+    }
+
+    int setError(uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = "Failed " ~ funcName ~ postfixMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
+        return ResultCode.error;
+    }
+
+    int setSystemError(string apiName, uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = "Failed " ~ apiName ~ postfixMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        this.addMessageIf(errorCode != 0 ? getSystemErrorMessage(errorCode) : null);
+        this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
+        return ResultCode.error;
+    }
+
+    int setUnsupportedError(uint errorCode, string postfixMessage = null,
+        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = "Unsupported " ~ funcName ~ postfixMessage;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+        return ResultCode.unsupported;
+    }
+
+    pragma(inline, true)
+    void throwIf(E : Exception = Exception)()
+    {
+        if (isError)
+            throwIt!E();
+    }
+
+    noreturn throwIt(E : Exception = Exception)(Throwable next = null)
+    {
+        static if (__traits(compiles, new E(errorCode, errorMessage, next, funcName, file, line)))
+            throw new E(errorCode, errorMessage, next, funcName, file, line);
+        else
+            throw new E(errorMessage, file, line, next);
+    }
+
+    string toString() const nothrow pure
+    {
+        scope (failure) assert(0, "Assume nothrow failed");
+
+        string result;
+
+        if (errorMessage.length != 0)
+            addLine(result, "Error message: " ~ errorMessage);
+        if (errorCode != 0)
+            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
+        if (file.length != 0)
+            addLine(result, "File: " ~ file ~ " at line# " ~ line.to!string());
+        if (funcName.length != 0)
+            addLine(result, "Function: " ~ funcName);
+
+        return result;
+    }
+
+    /**
+     * Returns true if this instant is an error status
+     * If errorCode != 0 or errorMessage.length != 0
+     */
+    pragma(inline, true)
+    @property bool isError() const @nogc nothrow pure scope
+    {
+        return !isOK;
+    }
+
+    /**
+     * Returns true if this instant is an OK status
+     * If errorCode == 0 and errorMessage.length == 0
+     */
+    pragma(inline, true)
+    @property bool isOK() const @nogc nothrow pure scope
+    {
+        return errorCode == 0 && errorMessage.length == 0;
+    }
+
+public:
+    string errorMessage;
+    string file;
+    string funcName;
+    uint errorCode;
+    uint line;
+}
+
+struct TryLimit
+{
+@nogc nothrow @safe:
+
+    static assert(ptrdiff_t.sizeof >= 4); // Must be atleast 4 bytes
+
+public:
+    @disable this(this);
+    @disable void opAssign(typeof(this));
+
+    this(ptrdiff_t maxCount) pure
+    {
+        this.maxCount = maxCount;
+        this._count = 0;
+    }
+
+    bool incCount() pure
+    {
+        _count++;
+        return isOverLimit;
+    }
+
+    alias incOverLimit = incCount;
+
+    void reset() pure
+    {
+        _count = 0;
+    }
+
+    @property ptrdiff_t count() const pure
+    {
+        return _count;
+    }
+
+    pragma(inline, true)
+    @property bool isOverLimit() const pure
+    {
+        return _count > maxCount && maxCount >= 0;
+    }
+
+    pragma(inline, true)
+    @property bool isUnlimit() const pure
+    {
+        return maxCount < 0;
+    }
+
+public:
+    enum defaultLimit = 3;
+    const(ptrdiff_t) maxCount = defaultLimit;
+
+private:
+    ptrdiff_t _count;
+}
+
 /**
  * Appending a 'line' to 'lines',
  * using std.ascii.newline as separator if lines is not empty
@@ -385,477 +862,6 @@ if (isIntegral!LHS && isIntegral!RHS)
     const rhsP = rhs >= 0;
 
     return lhsP && rhsP ? 1 : (!lhsP && !rhsP ? -1 : 0);
-}
-
-@mustuse
-struct CmpResult
-{
-nothrow @safe:
-
-public:
-    enum unknownResult = float.nan;
-    enum unknownResultInt = int.max;
-
-public:
-    this(float state) @nogc pure
-    {
-        this._state = isNaN(state)
-            ? unknownResult
-            : (state > 0 ? 1 : (state < 0 ? -1 : 0));
-    }
-
-    this(int state) @nogc pure
-    {
-        this._state = state == unknownResultInt
-            ? unknownResult
-            : (state > 0 ? 1 : (state < 0 ? -1 : 0));
-    }
-
-    /**
-     * Construct logical order state of integral type values
-     * Params:
-     *   lhs = left hand side of integral value
-     *   rhs = right hand side of integral value
-     * Returns:
-     *   state = -1 if lhs is less than rhs
-     *   state = 0 if lhs is equal rhs
-     *   state = 1 if lhs is greater than rhs
-     */
-    this(T)(const(T) lhs, const(T) rhs) @nogc pure
-    if (isIntegral!T)
-    {
-        this._state = cmp(lhs, rhs);
-    }
-
-
-    /**
-     * Construct logical order state of floating point type values
-     * Params:
-     *   lhs = left hand side of floating point value
-     *   rhs = right hand side of floating point value
-     * Returns:
-     *   state = float.nan if either lhs or rhs is an NaN number
-     *           or float.nan if either lhs or rhs is an infinity number and same sign
-     *   state = -1 if lhs is less than rhs
-     *   state = 0 if lhs is equal rhs
-     *   state = 1 if lhs is greater than rhs
-     */
-    this(T)(const(T) lhs, const(T) rhs) @nogc pure
-    if (isFloatingPoint!T)
-    {
-        this._state = cmp(lhs, rhs);
-    }
-
-    pragma(inline, true)
-    C opCast(C: int)() const @nogc pure
-    {
-        return this.isValid ? cast(int)_state : unknownResultInt;
-    }
-
-    /**
-     * Return true based on pivot value, pivotValue, and the state is valid
-     */
-    pragma(inline, true)
-    bool isOp(string op)(const(int) pivotValue) const @nogc pure
-    if (op == "==" || op == "!=" || op == ">" || op == ">=" || op == "<" || op == "<=")
-    {
-        static if (op == "==")
-            return _state == pivotValue && isValid;
-        else static if (op == "!=")
-            return _state != pivotValue && isValid;
-        else static if (op == ">")
-            return _state > pivotValue && isValid;
-        else static if (op == ">=")
-            return _state >= pivotValue && isValid;
-        else static if (op == "<")
-            return _state < pivotValue && isValid;
-        else static if (op == "<=")
-            return _state <= pivotValue && isValid;
-        else
-            static assert(0);
-    }
-
-    static CmpResult unknown() @nogc pure
-    {
-        return CmpResult(unknownResult);
-    }
-
-    pragma(inline, true)
-    @property bool isValid() const @nogc pure
-    {
-        return !isNaN(_state);
-    }
-
-    pragma(inline, true)
-    @property float state() const @nogc pure
-    {
-        return _state;
-    }
-
-    alias this = state;
-
-private:
-    float _state = unknownResult;
-}
-
-/**
- * Simple aggregate to indicate if function result is an error or intended value
- */
-// @mustuse - not working in ternary assignment - still bug
-struct ResultIf(T)
-{
-@safe:
-
-public:
-    this(T value, ResultStatus status) nothrow
-    {
-        this.value = value;
-        this.status = status;
-    }
-
-    bool opCast(C: bool)() const @nogc nothrow pure scope
-    {
-        return isOK;
-    }
-
-    string getErrorString() const nothrow pure
-    {
-        return status.getErrorString();
-    }
-
-    /**
-     * Create this result-type as error
-     */
-    pragma(inline, true)
-    static typeof(this) error(uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        return typeof(this)(T.init, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
-    }
-
-    pragma(inline, true)
-    static typeof(this) error(T value, uint errorCode, string errorMessage, 
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
-    }
-
-    /**
-     * Create this result-type without error
-     */
-    pragma(inline, true)
-    static typeof(this) ok(T value) nothrow
-    {
-        return typeof(this)(value, ResultStatus.ok());
-    }
-
-    static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        return typeof(this)(T.init, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
-    }
-
-    static typeof(this) systemError(T value, string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        return typeof(this)(value, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
-    }
-
-    pragma(inline, true)
-    @property uint errorCode() const @nogc nothrow pure
-    {
-        return status.errorCode;
-    }
-
-    @property string errorMessage() const @nogc nothrow pure
-    {
-        return status.errorMessage;
-    }
-
-    /**
-     * Returns true if there is error-code or error-message
-     */
-    pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure scope
-    {
-        return status.isError;
-    }
-
-    /**
-     * Returns true if there is no error-code and error-message
-     */
-    pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure scope
-    {
-        return status.isOK;
-    }
-
-public:
-    T value;
-    ResultStatus status = ResultStatus(ResultCode.uninitialized, null, null, null, 0);
-
-    alias this = value;
-}
-
-enum ResultCode : int
-{
-    ok = 0,
-    error = -1,
-    unsupported = -2,
-    uninitialized = -3,
-    canceled = -4,
-    timeOut = -5,
-}
-
-deprecated("please use " ~ fullyQualifiedName!(ResultCode.ok))
-enum resultOK = ResultCode.ok;
-deprecated("please use " ~ fullyQualifiedName!(ResultCode.error))
-enum resultError = ResultCode.error;
-deprecated("please use " ~ fullyQualifiedName!(ResultCode.unsupported))
-enum resultUnsupported = ResultCode.unsupported;
-deprecated("please use " ~ fullyQualifiedName!(ResultCode.uninitialized))
-enum resultUninitialized = ResultCode.uninitialized;
-
-// @mustuse - not working in ternary assignment - still bug
-struct ResultStatus
-{
-@safe:
-
-public:
-    this(uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = errorMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-    }
-
-    bool opCast(C: bool)() const @nogc nothrow pure scope
-    {
-        return isOK;
-    }
-
-    void addMessageIf(string errorLine) nothrow pure return
-    {
-        addLineIf(this.errorMessage, errorLine);
-    }
-
-    int clone(ResultStatus source, const(int) resultCode) @nogc nothrow pure
-    {
-        this.errorCode = source.errorCode;
-        this.errorMessage = source.errorMessage;
-        this.funcName = source.funcName;
-        this.file = source.file;
-        this.line = source.line;
-        return resultCode;
-    }
-
-    pragma(inline, true)
-    static typeof(this) error(uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
-    {
-        return typeof(this)(errorCode, errorMessage, funcName, file, line);
-    }
-
-    static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        typeof(this) result;
-        result.setSystemError(apiName, errorCode, postfixMessage, funcName, file, line);
-        return result;
-    }
-
-    static typeof(this) unsupportedError(uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        typeof(this) result;
-        result.setUnsupportedError(errorCode, postfixMessage, funcName, file, line);
-        return result;
-    }
-
-    string getErrorString() const nothrow pure
-    {
-        return errorMessage.length != 0
-            ? errorMessage
-            : (errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
-    }
-
-    pragma(inline, true)
-    static typeof(this) ok() @nogc nothrow pure
-    {
-        return typeof(this)(0, null, null, null, 0);
-    }
-
-    pragma(inline, true)
-    int reset(const(int) resultCode = ResultCode.ok) @nogc nothrow pure
-    {
-        this.errorMessage = this.file = this.funcName = null;
-        this.errorCode = this.line = 0;
-        return resultCode;
-    }
-
-    int set(uint errorCode, string errorMessage, const(int) resultCode = ResultCode.error,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = errorMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        return resultCode;
-    }
-
-    int setError(uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = "Failed " ~ funcName ~ postfixMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
-        return ResultCode.error;
-    }
-
-    int setSystemError(string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = "Failed " ~ apiName ~ postfixMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        this.addMessageIf(errorCode != 0 ? getSystemErrorMessage(errorCode) : null);
-        this.addMessageIf(errorCode != 0 ? ("Error code: " ~ errorCodeToString(errorCode)) : null);
-        return ResultCode.error;
-    }
-
-    int setUnsupportedError(uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = "Unsupported " ~ funcName ~ postfixMessage;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-        return ResultCode.unsupported;
-    }
-
-    pragma(inline, true)
-    void throwIf(E : Exception = Exception)()
-    {
-        if (isError)
-            throwIt!E();
-    }
-
-    noreturn throwIt(E : Exception = Exception)(Throwable next = null)
-    {
-        static if (__traits(compiles, new E(errorCode, errorMessage, next, funcName, file, line)))
-            throw new E(errorCode, errorMessage, next, funcName, file, line);
-        else
-            throw new E(errorMessage, file, line, next);
-    }
-
-    string toString() const nothrow pure
-    {
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        string result;
-
-        if (errorMessage.length != 0)
-            addLine(result, "Error message: " ~ errorMessage);
-        if (errorCode != 0)
-            addLine(result, "Error code: " ~ errorCodeToString(errorCode));
-        if (file.length != 0)
-            addLine(result, "File: " ~ file ~ " at line# " ~ line.to!string());
-        if (funcName.length != 0)
-            addLine(result, "Function: " ~ funcName);
-
-        return result;
-    }
-
-    /**
-     * Returns true if this instant is an error status
-     * If errorCode != 0 or errorMessage.length != 0
-     */
-    pragma(inline, true)
-    @property bool isError() const @nogc nothrow pure scope
-    {
-        return !isOK;
-    }
-
-    /**
-     * Returns true if this instant is an OK status
-     * If errorCode == 0 and errorMessage.length == 0
-     */
-    pragma(inline, true)
-    @property bool isOK() const @nogc nothrow pure scope
-    {
-        return errorCode == 0 && errorMessage.length == 0;
-    }
-
-public:
-    string errorMessage;
-    string file;
-    string funcName;
-    uint errorCode;
-    uint line;
-}
-
-struct TryLimit
-{
-@nogc nothrow @safe:
-
-    static assert(ptrdiff_t.sizeof >= 4); // Must be atleast 4 bytes
-
-public:
-    @disable this(this);
-    @disable void opAssign(typeof(this));
-
-    this(ptrdiff_t maxCount) pure
-    {
-        this.maxCount = maxCount;
-        this._count = 0;
-    }
-
-    bool incCount() pure
-    {
-        _count++;
-        return isOverLimit;
-    }
-
-    alias incOverLimit = incCount;
-    
-    void reset() pure
-    {
-        _count = 0;
-    }
-
-    @property ptrdiff_t count() const pure
-    {
-        return _count;
-    }
-
-    pragma(inline, true)
-    @property bool isOverLimit() const pure
-    {
-        return _count > maxCount && maxCount >= 0;
-    }
-
-    pragma(inline, true)
-    @property bool isUnlimit() const pure
-    {
-        return maxCount < 0;
-    }
-
-public:
-    enum defaultLimit = 3;
-    const(ptrdiff_t) maxCount = defaultLimit;
-
-private:
-    ptrdiff_t _count;
 }
 
 

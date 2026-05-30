@@ -11,7 +11,7 @@
 
 module pham.utl.utl_array_static;
 
-import std.traits : isIntegral, isSomeChar;
+import std.traits : isFloatingPoint, isIntegral, isSomeChar;
 
 debug(debug_pham_utl_utl_array_static) import std.stdio : writeln;
 import pham.utl.utl_array : arrayClear, arrayDestroy, arrayGrow, arrayShiftLeft, arrayShrink,
@@ -23,30 +23,41 @@ struct StaticArray(T, ushort StaticSize)
 if (StaticSize != 0)
 {
     import std.traits : hasElaborateDestructor;
-    import pham.utl.utl_delegate_list : ApplyAutoRef;
+    import pham.utl.utl_apply : ApplyAutoRef;
 
 public:
+    this(this) @nogc nothrow pure @safe
+    {
+        if (_length <= StaticSize && !staticUsed)
+            setStaticReference();
+    }
+
     /**
      * A copy constructor of StaticArray
      */
-    this(ref typeof(this) other) nothrow
+    this(ref typeof(this) source) nothrow
     {
-        if (const otherLength = other.length)
+        if (const rhsLength = source.length)
         {
-            reserveImpl(otherLength, otherLength, false);
-            this._items[0..otherLength] = other._items[0..otherLength];
-            this._length = otherLength;
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = source._items[0..rhsLength];
+            this._length = rhsLength;
         }
     }
 
     /**
-     * Constructs a StaticArray with a given items.
+     * Constructs a StaticArray with a given source.
      * Params:
-     *  items = array of elements for appending.
+     *  source = array of elements.
      */
-    this()(scope inout(T)[] items) nothrow
+    this()(scope inout(T)[] source) nothrow
     {
-        opAssign(items);
+        if (const rhsLength = source.length)
+        {
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = source[0..rhsLength];
+            this._length = rhsLength;
+        }
     }
 
     /**
@@ -67,40 +78,40 @@ public:
     mixin ApplyAutoRef!(T, opIndex);
 
     /**
-     * Reset this StaticArray instant from an other StaticArray
-     * Params:
-     *  rhs = source data from an other StaticArray
-     */
-    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow scope return
-    {
-        clear();
-        this._tryExtendBlock = false;
-        this._length = rhs._length;
-        if (rhs._length <= StaticSize)
-        {
-            this._staticItems = rhs._staticItems;
-            this.setStaticReference();
-        }
-        else
-            this._items = rhs._items;        
-        return this;
-    }
-
-    /**
      * Reset this StaticArray with a given rhs.
      * Params:
      *  rhs = source array data for copying
      */
     ref typeof(this) opAssign()(scope inout(T)[] rhs) nothrow return
     {
-        const newLength = rhs.length;
-        if (newLength)
+        clear();
+
+        if (const rhsLength = rhs.length)
         {
-            this.length = newLength;
-            this._items[0..newLength] = rhs[0..newLength];
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = rhs[0..rhsLength];
+            this._length = rhsLength;
         }
-        else
-            clear();
+
+        return this;
+    }
+
+    /**
+     * Reset this StaticArray instant from an other StaticArray
+     * Params:
+     *  rhs = source data from an other StaticArray
+     */
+    ref typeof(this) opAssign()(auto ref typeof(this) rhs) nothrow scope return
+    {
+        clear();
+
+        if (const rhsLength = rhs.length)
+        {
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = rhs._items[0..rhsLength];
+            this._length = rhsLength;
+        }
+
         return this;
     }
 
@@ -118,6 +129,30 @@ public:
             remove(item);
         else
             static assert(0);
+        return this;
+    }
+
+    /**
+     * Applies inplace logical operators of this StaticBuffer with rhs elements
+     * if the array element type is an integral
+     * Params:
+     *  rhs = an integral array of elements to applied logical operator with
+     */
+    static if (isIntegral!T)
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure return
+    if (op == "&" || op == "|" || op == "^")
+    {
+        const len = _length > rhs.length ? rhs.length : _length;
+
+        foreach (i; 0..len)
+            mixin("this._items[i] " ~ op ~ "= rhs[i];");
+
+        static if (op == "&")
+        {
+            if (len < _length)
+                this._items[len.._length] = 0;
+        }
+
         return this;
     }
 
@@ -186,10 +221,24 @@ public:
         return this;
     }
 
-    void opPostMove(const ref typeof(this) old) @nogc nothrow return @safe
+    /**
+     * Applies inplace logical operators of this StaticBuffer with rhs element
+     * if the array element type is an integral
+     * Params:
+     *  rhs = an integral element to applied logical operator with
+     *  index = the index of element to be applied to
+     */
+    static if (isIntegral!T)
+    ref typeof(this) opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow pure return
+    if (op == "&" || op == "|" || op == "^")
+    in
     {
-        if (_length <= StaticSize && !staticUsed)
-            setStaticReference();
+        assert(index < length);
+    }
+    do
+    {
+        mixin("this._items[index] " ~ op ~ "= rhs;");
+        return this;
     }
 
     /**
@@ -238,7 +287,7 @@ public:
     {
         if (_length)
             arrayClear!T(_items[0.._length]);
-            
+
         arrayZeroInit(_staticItems[]);
         _items = [];
         _length = 0;
@@ -392,28 +441,33 @@ public:
 
     /**
      * Removes the item from this StaticArray.
-     * If the item is not found/existed, a default value is returned
+     * Return true if the item is found/existed, false otherwise
      */
-    T remove(in T item)
+    bool remove(in T item)
     {
-        return removeAt(indexOf(item));
+        const i = indexOf(item);
+        if (i >= 0)
+        {
+            removeAt(i);
+            return true;
+        }
+        return false;
     }
 
     /**
      * Removes the item at index from this StaticArray.
-     * If index is out of range, a default value is returned
      */
     T removeAt(size_t index) nothrow
+    in
     {
-        if (index < _length)
-        {
-            auto result = _items[index];
-            arrayShiftLeft!T(_items, _length, index, 1);
-            changeLength(_length - 1);
-            return result;
-        }
-        else
-            return T.init;
+        assert(index < length);
+    }
+    do
+    {
+        auto result = _items[index];
+        arrayShiftLeft!T(_items, _length, index, 1);
+        changeLength(_length - 1);
+        return result;
     }
 
     /**
@@ -444,10 +498,10 @@ public:
 
         const thisLength = this._length;
         const otherLength = other._length;
-        T[StaticSize] staticTemp = void;
 
         if (this.staticUsed && other.staticUsed)
         {
+            T[StaticSize] staticTemp = void;
             moveTo(this._staticItems, staticTemp, thisLength);
 
             moveTo(other._staticItems, this._staticItems, otherLength);
@@ -461,6 +515,7 @@ public:
 
         if (this.staticUsed && !other.staticUsed)
         {
+            T[StaticSize] staticTemp = void;
             moveTo(this._staticItems, staticTemp, thisLength);
 
             this._length = otherLength;
@@ -477,6 +532,7 @@ public:
 
         if (!this.staticUsed && other.staticUsed)
         {
+            T[StaticSize] staticTemp = void;
             moveTo(other._staticItems, staticTemp, otherLength);
 
             other._length = thisLength;
@@ -546,7 +602,7 @@ public:
      * Returns true if this StaticArray is using stack storage
      */
     pragma(inline, true)
-    @property bool staticUsed() const @nogc nothrow
+    @property bool staticUsed() const @nogc nothrow @safe
     {
         return _items.ptr is _staticItems.ptr;
     }
@@ -578,35 +634,6 @@ private:
                 arrayShrink!T(_items, _length, _tryExtendBlock, newLength);
         }
         _length = newLength;
-    }
-
-    pragma(inline, true)
-    void reserve(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow
-    {
-        debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "(_length=", _length,
-            ", _items.length=", _items.length, ", additionalLength=", additionalLength, ")");
-
-        if (_length + additionalLength > _items.length)
-            reserveImpl(additionalLength, usingLength, zeroInit);
-    }
-
-    pragma(inline, false);
-    void reserveImpl(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow return
-    {
-        if (_length + additionalLength <= StaticSize)
-        {
-            if (_items.length == 0)
-                setStaticReference();
-            return;
-        }
-
-        arrayGrow!T(_items, _tryExtendBlock, additionalLength, usingLength, zeroInit);
-    }
-
-    void switchToStatic(const(size_t) newLength) nothrow return
-    {
-        moveTo(_items, _staticItems, newLength);
-        setStaticReference();
     }
 
     static void moveTo(T[] sources, ref T[StaticSize] destinations, const(size_t) length) nothrow @trusted
@@ -662,16 +689,48 @@ private:
     }
 
     pragma(inline, true)
+    void reserve(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow
+    {
+        debug(debug_pham_utl_utl_array_static) if (!__ctfe) debug writeln(__FUNCTION__, "(_length=", _length,
+            ", _items.length=", _items.length, ", additionalLength=", additionalLength, ")");
+
+        if (_length + additionalLength > _items.length)
+            reserveImpl(additionalLength, usingLength, zeroInit);
+    }
+
+    pragma(inline, false);
+    void reserveImpl(const(size_t) additionalLength, const(size_t) usingLength, bool zeroInit) nothrow return
+    {
+        if (_length + additionalLength <= StaticSize)
+        {
+            if (_items.length == 0)
+                setStaticReference();
+            return;
+        }
+
+        arrayGrow!T(_items, _tryExtendBlock, additionalLength, usingLength, zeroInit);
+    }
+
+    pragma(inline, true)
     void setStaticReference() @nogc nothrow pure return scope @trusted
     {
         _items = _staticItems[];
         _tryExtendBlock = false;
     }
 
+    void switchToStatic(const(size_t) newLength) nothrow return
+    {
+        moveTo(_items, _staticItems, newLength);
+        setStaticReference();
+    }
+
 private:
     size_t _length;
     T[] _items;
-    T[StaticSize] _staticItems;
+    static if (isFloatingPoint!T || isIntegral!T || isSomeChar!T)
+        T[StaticSize] _staticItems = 0;
+    else
+        T[StaticSize] _staticItems;
     bool _tryExtendBlock;
 }
 
@@ -681,27 +740,38 @@ if (StaticSize != 0 && (isSomeChar!T || isIntegral!T))
 @safe:
 
 public:
+    this(this) @nogc nothrow pure
+    {
+        if (_length <= StaticSize && !staticUsed)
+            setStaticReference();
+    }
+
     /**
      * A copy constructor of StaticStringBuffer
      */
-    this(ref typeof(this) rhs) nothrow pure
+    this(ref typeof(this) source) nothrow pure
     {
-        if (const rhsLength = rhs.length)
+        if (const rhsLength = source.length)
         {
             reserveImpl(rhsLength, rhsLength, false);
-            this._items[0..rhsLength] = rhs._items[0..rhsLength];
+            this._items[0..rhsLength] = source._items[0..rhsLength];
             this._length = rhsLength;
         }
     }
 
     /**
-     * Constructs a StaticStringBuffer with a given items.
+     * Constructs a StaticStringBuffer with a given source.
      * Params:
-     *  items = array of elements for appending.
+     *  source = array of elements.
      */
-    this(scope const(T)[] items) nothrow pure
+    this(scope const(T)[] source) nothrow pure
     {
-        opAssign(items);
+        if (const rhsLength = source.length)
+        {
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = source[0..rhsLength];
+            this._length = rhsLength;
+        }
     }
 
     /**
@@ -717,36 +787,40 @@ public:
     }
 
     /**
-     * Reset this StaticStringBuffer instant from an other StaticStringBuffer
-     * Params:
-     *  rhs = source data from an other StaticStringBuffer
-     */
-    ref typeof(this) opAssign(ref typeof(this) rhs) nothrow scope return
-    {
-        clear();
-        this._tryExtendBlock = false;
-        this._length = rhs._length;
-        if (rhs._length <= StaticSize)
-        {
-            this._staticItems = rhs._staticItems;
-            this.setStaticReference();
-        }
-        else
-            this._items = rhs._items;        
-        return this;
-    }
-
-    /**
      * Reset this StaticStringBuffer with a given rhs.
      * Params:
      *  rhs = source array data for copying
      */
     ref typeof(this) opAssign(scope const(T)[] rhs) nothrow return
     {
-        const newLength = rhs.length;
-        this.length = newLength;
-        if (newLength)
-            this._items[0..newLength] = rhs[0..newLength];
+        clear();
+
+        if (const rhsLength = rhs.length)
+        {
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = rhs[0..rhsLength];
+            this._length = rhsLength;
+        }
+
+        return this;
+    }
+
+    /**
+     * Reset this StaticStringBuffer instant from an other StaticStringBuffer
+     * Params:
+     *  rhs = source data from an other StaticStringBuffer
+     */
+    ref typeof(this) opAssign()(auto ref typeof(this) rhs) nothrow scope return
+    {
+        clear();
+
+        if (const rhsLength = rhs.length)
+        {
+            reserveImpl(rhsLength, rhsLength, false);
+            this._items[0..rhsLength] = rhs._items[0..rhsLength];
+            this._length = rhsLength;
+        }
+
         return this;
     }
 
@@ -781,7 +855,7 @@ public:
      *  rhs = an integral array of elements to applied logical operator with
      */
     static if (isIntegral!T)
-    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure return
     if (op == "&" || op == "|" || op == "^")
     {
         const len = _length > rhs.length ? rhs.length : _length;
@@ -790,8 +864,10 @@ public:
             mixin("this._items[i] " ~ op ~ "= rhs[i];");
 
         static if (op == "&")
-        if (len < _length)
-            this._items[len.._length] = 0;
+        {
+            if (len < _length)
+                this._items[len.._length] = 0;
+        }
 
         return this;
     }
@@ -882,7 +958,7 @@ public:
      *  index = the index of element to be applied to
      */
     static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow pure
+    ref typeof(this) opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow pure return
     if (op == "&" || op == "|" || op == "^")
     in
     {
@@ -892,12 +968,6 @@ public:
     {
         mixin("this._items[index] " ~ op ~ "= rhs;");
         return this;
-    }
-
-    void opPostMove(const ref typeof(this) old) @nogc nothrow return @safe
-    {
-        if (_length <= StaticSize && !staticUsed)
-            setStaticReference();
     }
 
     /**
@@ -914,12 +984,13 @@ public:
     }
     do
     {
-        if (endRange >= _length)
+        const len = length;
+        if (beginRange >= len)
             return [];
-        else
-            return endRange > _length
-                ? _items[beginRange.._length]
-                : _items[beginRange..endRange];
+
+        return endRange > len
+            ? _items[beginRange..len]
+            : _items[beginRange..endRange];
     }
 
     ref typeof(this) chopFront(size_t chopLength) nothrow pure return
@@ -968,7 +1039,7 @@ public:
         _items = [];
         _length = 0;
         _tryExtendBlock = false;
-        return result;               
+        return result;
     }
 
     int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
@@ -980,7 +1051,7 @@ public:
     {
         if (_length)
             _items[0.._length] = 0;
-            
+
         _staticItems[] = 0;
         _items = [];
         _length = 0;
@@ -1096,11 +1167,10 @@ public:
 
         const thisLength = this._length;
         const otherLength = other._length;
-        T[StaticSize] staticCopy = void;
 
         if (this.staticUsed && other.staticUsed)
         {
-            staticCopy = this._staticItems;
+            auto staticCopy = this._staticItems;
 
             this._staticItems = other._staticItems;
             this._length = otherLength;
@@ -1113,7 +1183,7 @@ public:
 
         if (this.staticUsed && !other.staticUsed)
         {
-            staticCopy = this._staticItems;
+            auto staticCopy = this._staticItems;
 
             this._staticItems[] = 0;
             this._length = otherLength;
@@ -1130,7 +1200,7 @@ public:
 
         if (!this.staticUsed && other.staticUsed)
         {
-            staticCopy = other._staticItems;
+            auto staticCopy = other._staticItems;
 
             other._staticItems[] = 0;
             other._length = thisLength;
@@ -1270,17 +1340,17 @@ private:
         arrayGrow!T(_items, _tryExtendBlock, additionalLength, usingLength, zeroInit);
     }
 
+    pragma(inline, true)
+    void setStaticReference() @nogc nothrow pure return scope
+    {
+        _items = _staticItems[];
+        _tryExtendBlock = false;
+    }
+
     void switchToStatic(const(size_t) newLength) nothrow return
     {
         _staticItems[0..newLength] = _items[0..newLength];
         setStaticReference();
-    }
-
-    pragma(inline, true)
-    void setStaticReference() @nogc nothrow pure return @safe scope
-    {
-        _items = _staticItems[];
-        _tryExtendBlock = false;
     }
 
 private:
@@ -1300,6 +1370,11 @@ if (isSomeChar!T || isIntegral!T)
 
 private:
 
+version(D_BetterC)
+{}
+else
+    version = FullUtlArrayStaticUnitTest;
+
 nothrow @safe unittest // StaticArray
 {
     alias IndexedArray2 = StaticArray!(int, 2);
@@ -1309,7 +1384,6 @@ nothrow @safe unittest // StaticArray
     assert(a.empty);
     assert(a.length == 0);
     assert(a.remove(1) == 0);
-    assert(a.removeAt(1) == 0);
 
     // Append element
     a.put(1);
@@ -1324,9 +1398,7 @@ nothrow @safe unittest // StaticArray
     assert(a.indexOf(2) == 1);
     assert(a[1] == 2);
 
-    version(D_BetterC)
-    {}
-    else
+    version(FullUtlArrayStaticUnitTest)
     {
         // Append third element & remove
         a += 10;
@@ -1360,13 +1432,13 @@ nothrow @safe unittest // StaticArray
 
         // Remove element
         auto r = a.remove(-1);
-        assert(r == -1);
+        assert(r == true);
         assert(a.length == 2);
         assert(a.indexOf(-1) == -1);
 
         // Remove element at
-        r = a.removeAt(0);
-        assert(r == 1);
+        auto ra = a.removeAt(0);
+        assert(ra == 1);
         assert(a.length == 1);
         assert(a.indexOf(1) == -1);
         assert(a[0] == 3);
@@ -1376,7 +1448,6 @@ nothrow @safe unittest // StaticArray
         assert(a.empty);
         assert(a.length == 0);
         assert(a.remove(1) == 0);
-        assert(a.removeAt(1) == 0);
 
         a.expand(1)[0] = 1;
         assert(!a.empty);
@@ -1386,7 +1457,6 @@ nothrow @safe unittest // StaticArray
         assert(a.empty);
         assert(a.length == 0);
         assert(a.remove(1) == 0);
-        assert(a.removeAt(1) == 0);
 
         a.put(1);
         a.fill(10);
@@ -1427,9 +1497,7 @@ nothrow unittest // StaticArray.reverse
     a.clear().put([1, 2]);
     assert(a.reverse()[] == [2, 1]);
 
-    version(D_BetterC)
-    {}
-    else
+    version(FullUtlArrayStaticUnitTest)
     {
         a.clear().put([1, 2, 3, 4, 5]);
         assert(a.reverse()[] == [5, 4, 3, 2, 1]);
@@ -1447,9 +1515,8 @@ nothrow unittest // StaticArray.reverse
     s.put("234");
     assert(s.length == 4);
     assert(s[] == "1234");
-    version(D_BetterC)
-    {}
-    else
+
+    version(FullUtlArrayStaticUnitTest)
     {
         assert(s.toString() == "1234");
         s.clear();
@@ -1482,85 +1549,81 @@ nothrow unittest // StaticArray.reverse
     }
 }
 
-version(D_BetterC)
-{}
-else
+version(FullUtlArrayStaticUnitTest)
+@safe unittest // StaticStringBuffer
 {
-    @safe unittest // StaticStringBuffer
-    {
-        alias TestBuffer5 = StaticStringBuffer!(char, 5);
-        TestBuffer5 s, s2;
+    alias TestBuffer5 = StaticStringBuffer!(char, 5);
+    TestBuffer5 s, s2;
 
-        assert(s.opAssign("123") == "123");
-        assert(s.opAssign("123") != "234");
-        assert(s.opAssign("123456") == "123456");
-        assert(s.opAssign("123456") == s2.opAssign("123456"));
-        assert(s.opAssign("123456") != s2.opAssign("345678"));
+    assert(s.opAssign("123") == "123");
+    assert(s.opAssign("123") != "234");
+    assert(s.opAssign("123456") == "123456");
+    assert(s.opAssign("123456") == s2.opAssign("123456"));
+    assert(s.opAssign("123456") != s2.opAssign("345678"));
 
-        // Over short length
-        s = "12345678";
-        assert(s[] == "12345678");
-        assert(s[2] == '3');
-        assert(s[10..20] == []);
-        s[2] = '?';
-        assert(s == "12?45678");
-        s.chopTail(1);
-        assert(s == "12?4567");
-        s.chopFront(1);
-        assert(s == "2?4567");
-        s.chopTail(2);
-        assert(s == "2?45");
-        s.chopFront(100);
-        assert(s.length == 0);
+    // Over short length
+    s = "12345678";
+    assert(s[] == "12345678");
+    assert(s[2] == '3');
+    assert(s[10..20] == []);
+    s[2] = '?';
+    assert(s == "12?45678");
+    s.chopTail(1);
+    assert(s == "12?4567");
+    s.chopFront(1);
+    assert(s == "2?4567");
+    s.chopTail(2);
+    assert(s == "2?45");
+    s.chopFront(100);
+    assert(s.length == 0);
 
-        s = "123456";
-        assert(s.consume() == "123456");
-        assert(s.length == 0);
+    s = "123456";
+    assert(s.consume() == "123456");
+    assert(s.length == 0);
 
-        s = "123456";
-        assert(s.consumeUnique() == "123456");
-        assert(s.length == 0);
+    s = "123456";
+    assert(s.consumeUnique() == "123456");
+    assert(s.length == 0);
 
-        s = "123456";
-        s.dispose();
-        assert(s.length == 0);
+    s = "123456";
+    s.dispose();
+    assert(s.length == 0);
 
-        s = "123456";
-        assert(s.removeFront('1') == "23456");
-        assert(s.removeTail('5') == "23456");
-        assert(s.removeTail('6') == "2345");
+    s = "123456";
+    assert(s.removeFront('1') == "23456");
+    assert(s.removeTail('5') == "23456");
+    assert(s.removeTail('6') == "2345");
 
-        // Within short length
-        s = "123";
-        assert(s[] == "123");
-        assert(s[2] == '3');
-        assert(s[7..10] == []);
-        s[2] = '?';
-        assert(s == "12?");
-        s.chopTail(1);
-        assert(s == "12");
-        s.chopFront(1);
-        assert(s == "2");
-        s.chopTail(100);
-        assert(s.length == 0);
+    // Within short length
+    s = "123";
+    assert(s[] == "123");
+    assert(s[2] == '3');
+    assert(s[7..10] == []);
+    s[2] = '?';
+    assert(s == "12?");
+    s.chopTail(1);
+    assert(s == "12");
+    s.chopFront(1);
+    assert(s == "2");
+    s.chopTail(100);
+    assert(s.length == 0);
 
-        s = "123";
-        assert(s.consume() == "123");
-        assert(s.length == 0);
+    s = "123";
+    assert(s.consume() == "123");
+    assert(s.length == 0);
 
-        s = "123";
-        assert(s.consumeUnique() == "123");
-        assert(s.length == 0);
+    s = "123";
+    assert(s.consumeUnique() == "123");
+    assert(s.length == 0);
 
-        s = "123";
-        s.dispose();
-        assert(s.length == 0);
+    s = "123";
+    s.dispose();
+    assert(s.length == 0);
 
-        s = "123";
-        assert(s.removeFront('1') == "23");
-        assert(s.removeTail('2') == "23");
-        assert(s.removeTail('3') == "2");
-    }
+    s = "123";
+    assert(s.removeFront('1') == "23");
+    assert(s.removeTail('2') == "23");
+    assert(s.removeTail('3') == "2");
 }
 
 nothrow @safe unittest // StaticStringBuffer.reverse
@@ -1570,11 +1633,234 @@ nothrow @safe unittest // StaticStringBuffer.reverse
     a.clear().put([1, 2]);
     assert(a.reverse()[] == [2, 1]);
 
-    version(D_BetterC)
-    {}
-    else
+    version(FullUtlArrayStaticUnitTest)
     {
         a.clear().put([1, 2, 3, 4, 5]);
         assert(a.reverse()[] == [5, 4, 3, 2, 1]);
     }
+}
+
+version(FullUtlArrayStaticUnitTest)
+unittest // StaticArray
+{
+    import std.algorithm : equal;
+
+    alias SA = StaticArray!(int, 4);
+
+    // Constructors
+    SA a1;
+    assert(a1.length == 0);
+
+    int[] arr = [1,2,3];
+    SA a2 = SA(arr);
+    assert(a2.length == 3 && a2[0] == 1 && a2[2] == 3);
+
+    SA a3 = a2;
+    assert(a3.length == 3 && a3[1] == 2);
+
+    SA a4 = SA(10);
+    assert(a4.length == 0);
+
+    // opAssign
+    SA a5;
+    a5 = a2;
+    assert(a5.length == 3 && a5[2] == 3);
+
+    a5 = [4,5];
+    assert(a5.length == 2 && a5[1] == 5);
+
+    // opOpAssign ~ + -
+    a5 ~= 6;
+    assert(a5[a5.length-1] == 6);
+    a5 += 7;
+    assert(a5[a5.length-1] == 7);
+    a5 -= 6;
+    assert(a5.indexOf(6) == -1);
+
+    // opOpAssign & | ^ (integral)
+    SA a6 = SA([1,2,3,4]);
+    a6 &= [0,1,2,3];
+    assert(a6[0] == 0 && a6[1] == 0 && a6[2] == 2 && a6[3] == 0);
+
+    a6 |= [1,2,4,8];
+    assert(a6[0] == 1 && a6[1] == 2 && a6[2] == 6 && a6[3] == 8);
+
+    a6 ^= [1,2,4,8];
+    assert(a6[0] == 0 && a6[1] == 0 && a6[2] == 2 && a6[3] == 0);
+
+    // opCast
+    assert(!SA().opCast!bool());
+    assert(a6.opCast!bool());
+
+    // opIndex, opIndexAssign
+    a6[0] = 42;
+    assert(a6[0] == 42);
+
+    a6[1] = [10,11];
+    assert(a6[1] == 10 && a6[2] == 11);
+
+    // opIndexOpAssign
+    a6[1] |= 1;
+    assert(a6[1] == 11);
+
+    // opSlice
+    assert(a6[1..3] == [11,11]);
+
+    // clear, expand, fill
+    a6.clear();
+    assert(a6.length == 0);
+    a6.expand(3);
+    assert(a6.length == 3);
+    a6.fill(9);
+    assert(a6[0] == 9 && a6[2] == 9);
+
+    // indexOf, ptr
+    a6[1] = 5;
+    assert(a6.indexOf(5) == 1);
+    assert(*a6.ptr(1) == 5);
+
+    // put (single, array)
+    a6.clear();
+    a6.put(1).put(2);
+    assert(a6.length == 2 && a6[1] == 2);
+    a6.put([3,4]);
+    assert(a6.length == 4 && a6[3] == 4);
+
+    // remove, removeAt
+    assert(a6.remove(2) == true);
+    assert(a6.removeAt(0) == 1);
+
+    // reverse
+    a6.clear().put([1,2,3]);
+    a6.reverse();
+    assert(a6[] == [3,2,1]);
+
+    // swap
+    SA a7 = SA([9,8,7]);
+    a6.swap(a7);
+    assert(a6[0] == 9 && a7[0] == 3);
+
+    // empty, staticSize, staticUsed
+    assert(!a6.empty);
+    assert(SA.staticSize == 4);
+    assert(a6.staticUsed);
+
+    // dispose
+    a6.put(1);
+    a6.dispose();
+    assert(a6.length == 0);
+}
+
+version(FullUtlArrayStaticUnitTest) // StaticStringBuffer
+unittest
+{
+    import std.stdio : writeln;
+    alias SSB = StaticStringBuffer!(char, 8);
+
+    // Constructors
+    SSB s1;
+    assert(s1.length == 0);
+
+    SSB s2 = SSB("abc");
+    assert(s2.length == 3 && s2[0] == 'a');
+
+    SSB s3 = s2;
+    assert(s3.length == 3 && s3[1] == 'b');
+
+    SSB s4 = SSB(10);
+    assert(s4.length == 0);
+
+    // opAssign
+    SSB s5;
+    s5 = s2;
+    assert(s5.length == 3 && s5[2] == 'c');
+    s5 = "de";
+    assert(s5.length == 2 && s5[1] == 'e');
+
+    // opOpAssign ~ +
+    s5 ~= 'f';
+    assert(s5[s5.length-1] == 'f');
+    s5 += 'g';
+    assert(s5[s5.length-1] == 'g');
+    s5 ~= "hi";
+    assert(s5[s5.length-2..s5.length] == "hi", s5[s5.length-2..s5.length]);
+
+    // opEquals
+    SSB s6 = SSB("abc");
+    assert(s2 == s6);
+    assert(s2 != s5);
+
+    // opIndex, opIndexAssign
+    s6[0] = 'z';
+    assert(s6[0] == 'z');
+    s6[1] = "xy";
+    assert(s6[1] == 'x' && s6[2] == 'y');
+
+    // opSlice
+    assert(s6[1..3] == "xy");
+
+    // chopFront, chopTail
+    s6 = SSB("abcdef");
+    s6.chopFront(2);
+    assert(s6[] == "cdef");
+    s6.chopTail(2);
+    assert(s6[] == "cd");
+
+    // clear, expand, left, right
+    s6.clear();
+    assert(s6.length == 0);
+    s6.expand(3);
+    assert(s6.length == 3);
+    s6.clear();
+    s6.put("abc");
+    assert(s6.left(2) == "ab", s6.left(2));
+    assert(s6.right(2) == "bc", s6.right(2));
+
+    // put (single, array)
+    s6.clear();
+    s6.put('a').put('b');
+    assert(s6.length == 2 && s6[1] == 'b');
+    s6.put("cd");
+    assert(s6.length == 4 && s6[3] == 'd');
+
+    // removeFront, removeTail
+    s6 = SSB("aaabbcdd");
+    s6.removeFront('a');
+    assert(s6[] == "bbcdd");
+    s6.removeTail('d');
+    assert(s6[] == "bbc");
+
+    // reverse
+    s6 = SSB("abc");
+    s6.reverse();
+    assert(s6[] == "cba");
+
+    // swap
+    SSB s7 = SSB("xyz");
+    s6.swap(s7);
+    assert(s6[] == "xyz" && s7[] == "cba");
+
+    // toString
+    assert(s6.toString() == "xyz");
+
+    // empty, staticSize, staticUsed
+    assert(!s6.empty);
+    assert(SSB.staticSize == 8);
+    assert(s6.staticUsed);
+
+    // consume, consumeUnique
+    s6.put("123");
+    auto arr = s6.consume();
+    assert(arr[$-3..$] == "123");
+    assert(s6.length == 0);
+
+    s6.put("456");
+    auto uarr = s6.consumeUnique();
+    assert(uarr[$-3..$] == "456");
+    assert(s6.length == 0);
+
+    // dispose
+    s6.put("abc");
+    s6.dispose();
+    assert(s6.length == 0);
 }

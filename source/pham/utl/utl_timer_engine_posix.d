@@ -20,9 +20,35 @@ import core.stdc.string : memset;
 import core.sys.linux.time;
 import core.sys.posix.time;
 
-enum minResolutionInterval = dur!"msecs"(1);
-
 alias TimerEngineCallback = void delegate(void* data) nothrow @safe;
+
+enum minResolutionInterval = dur!"msecs"(1);
+enum maxResolutionInterval = dur!"msecs"(uint.max);
+
+itimerspec toEngineInterval(const(Duration) interval) @nogc nothrow pure @safe
+{
+    const validInterval = toValidResolutionInterval(interval);
+
+    enum nanosecs = 1_000_000_000U;
+    const nanosecsInterval = cast(ulong)validInterval.total!"hnsecs"() * 100;
+    const tv_sec = nanosecsInterval / nanosecs;
+    const tv_nsec = nanosecsInterval % nanosecs;
+
+    itimerspec result;
+    memset(&result, 0, itimerspec.sizeof);
+    result.it_value.tv_sec = result.it_interval.tv_sec = tv_sec;
+    result.it_value.tv_nsec = result.it_interval.tv_nsec = tv_nsec;
+    return result;
+}
+
+Duration toValidResolutionInterval(const(Duration) resolutionInterval) @nogc nothrow pure @safe
+{
+    return resolutionInterval < minResolutionInterval
+        ? minResolutionInterval
+        : (resolutionInterval > maxResolutionInterval
+            ? maxResolutionInterval
+            : resolutionInterval);
+}
 
 struct TimerEngine
 {
@@ -37,16 +63,11 @@ public:
         this.state = State.initial;
     }
 
-    int start(scope const(Duration) interval) nothrow @trusted
+    int start(const(Duration) interval) nothrow @trusted
     {
         debug(debug_pham_utl_utl_timer_engine_posix) debug writeln("TimerEngine.start()");
 
         atomicStore(state, State.start);
-
-        enum nanosecs = 1_000_000_000U;
-        const nanosecsInterval = cast(ulong)interval.total!"hnsecs" * 100;
-        const tv_sec = nanosecsInterval / nanosecs;
-        const tv_nsec = nanosecsInterval % nanosecs;
 
         hTimer = timer_t.init;
 
@@ -55,9 +76,7 @@ public:
         se.sigev_value.sival_ptr = &this;
         se.sigev_notify_function = &timerRun;
 
-        memset(&ts, 0, itimerspec.sizeof);
-        ts.it_value.tv_sec = ts.it_interval.tv_sec = tv_sec;
-        ts.it_value.tv_nsec = ts.it_interval.tv_nsec = tv_nsec;
+        ts = toEngineInterval(interval);
 
         if (timer_create(CLOCK_BOOTTIME, &se, &hTimer) != 0)
         {
@@ -122,7 +141,8 @@ private:
         assert(arg.sival_ptr !is null);
 
         auto engine = cast(TimerEngine*)arg.sival_ptr;
-        engine.callback(engine.callbackData);
+        if (engine.isRunning)
+            engine.callback(engine.callbackData);
 
         debug(debug_pham_utl_utl_timer_engine_posix) debug writeln("TimerEngine.timerRun(end)");
     }

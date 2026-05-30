@@ -934,7 +934,7 @@ private:
         {
             const newDim = calcDim(entries.length + collisionCount + bucketInflated, buckets.length);
             return newDim > buckets.length
-                ? resize(newDim)
+                ? resize(newDim, true)
                 : false;
         }
 
@@ -1047,7 +1047,7 @@ private:
             const newDim = calcDim(entries.length + collisionCount + bucketInflated, 0);
             if (newDim != buckets.length)
             {
-                resize(newDim);
+                resize(newDim, false);
             }
             else
             {
@@ -1210,13 +1210,13 @@ private:
         {
             bucketCapacity = calcDim(bucketCapacity, 0);
             if (buckets.length < bucketCapacity)
-                resize(bucketCapacity);
+                resize(bucketCapacity, false);
 
             if (entries.capacity < entryCapacity)
                 entries.reserve(entryCapacity);
         }
 
-        bool resize(const(size_t) newDim) nothrow @safe
+        bool resize(const(size_t) newDim, bool grow) nothrow @safe
         {
             debug(debug_pham_utl_utl_array_dictionary) if (!__ctfe) debug writeln(__FUNCTION__, "(buckets.length=",
                 buckets.length, ", newDim=", newDim, ")");
@@ -1226,8 +1226,9 @@ private:
             buckets = allocBuckets(newDim);
             refill();
 
-            // safe to free b/c impossible to reference
-            arrayFree!Index(oldBuckets);
+            // User may add while doing iteration loop
+            if (!grow)
+                arrayFree!Index(oldBuckets);
 
             return true;
         }
@@ -1238,7 +1239,7 @@ private:
 
             const newDim = calcDim(entries.length + collisionCount + bucketInflated, 0);
             if (newDim < buckets.length)
-                resize(newDim);
+                resize(newDim, false);
         }
 
         size_t toHash() const nothrow scope
@@ -2021,11 +2022,12 @@ nothrow pure unittest // Dictionary testByKey2()
     Dictionary!(int, int) a;
     foreach (i; a.byKey)
     {
-        assert(false);
+        assert(0);
     }
+
     foreach (i; a.byValue)
     {
-        assert(false);
+        assert(0);
     }
 }
 
@@ -2491,9 +2493,9 @@ unittest // Dictionary foreach
 {
     Dictionary!(int, int) aa1;
     foreach (v; aa1)
-        assert(false);
+        assert(0);
     foreach (k, v; aa1)
-        assert(false);
+        assert(0);
 
     static struct S
     {
@@ -2503,9 +2505,9 @@ unittest // Dictionary foreach
 
     Dictionary!(int, S) aa2;
     foreach (ref v; aa2)
-        assert(false);
+        assert(0);
     foreach (k, ref v; aa2)
-        assert(false);
+        assert(0);
 }
 
 unittest // Dictionary miscTests2()

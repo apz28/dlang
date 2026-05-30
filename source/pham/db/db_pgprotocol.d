@@ -25,7 +25,7 @@ import pham.utl.utl_enum_set : toName;
 import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_text : shortClassName;
 
-import pham.db.db_auth : DbAuthState;
+import pham.db.db_auth : DbAuthState, DbAuthStateData;
 import pham.db.db_buffer;
 import pham.db.db_database : DbNamedColumn;
 import pham.db.db_message;
@@ -44,8 +44,8 @@ struct PgConnectingStateInfo
 nothrow @safe:
 
     PgAuth auth;
-    CipherBuffer!ubyte authData;
-    const(char)[] authMethod;
+    string authMethod;
+    DbAuthStateData authStateData;
     int32 authType;
     int32 serverProcessId;
     int32 serverSecretKey;
@@ -151,14 +151,14 @@ public:
 
                     case PgOIdAuth.password: // clear-text password is required
                         stateInfo.authMethod = pgAuthClearTextName;
-                        stateInfo.authData = null;
+                        stateInfo.authStateData.authData = null;
                         stateInfo.nextAuthState = DbAuthState.initial;
                         connectAuthenticationProcess(stateInfo, null);
                         goto receiveAgain;
 
                     case PgOIdAuth.md5: // MD5
                         stateInfo.authMethod = pgAuthMD5Name;
-                        stateInfo.authData = null;
+                        stateInfo.authStateData.authData = null;
                         stateInfo.nextAuthState = DbAuthState.initial;
                         const md5Salt = reader.readBytes(4);
                         connectAuthenticationProcess(stateInfo, md5Salt);
@@ -166,7 +166,7 @@ public:
 
                     case PgOIdAuth.sasl: // HMAC - SCRAM-SHA-256
                         stateInfo.authMethod = pgAuthScram256Name;
-                        stateInfo.authData = null;
+                        stateInfo.authStateData.authData = null;
                         stateInfo.nextAuthState = DbAuthState.initial;
                         connectAuthenticationProcess(stateInfo, null);
                         goto receiveAgain;
@@ -946,37 +946,38 @@ protected:
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(stateInfo.nextAuthState=", stateInfo.nextAuthState,
             ", stateInfo.authMethod=", stateInfo.authMethod, ", serverAuthData=", serverAuthData.dgToString(), ")");
 
-        auto useCSB = connection.pgConnectionStringBuilder;
-
         if (stateInfo.nextAuthState == DbAuthState.initial)
             stateInfo.auth = createAuth(stateInfo.authMethod);
+
         if (stateInfo.auth is null)
         {
             auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(stateInfo.authMethod, "invalid state: " ~ stateInfo.nextAuthState.to!string());
             throw new PgException(DbErrorCode.read, msg);
         }
 
-        auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, useCSB.userName, useCSB.userPassword,
-            serverAuthData, stateInfo.authData);
+        stateInfo.authStateData.fill!(DbScheme.pg)(connection.pgConnectionStringBuilder);
+        stateInfo.authStateData.serverAuthData = serverAuthData;
+        
+        auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
         if (status.isError)
             throw new PgException(DbErrorCode.read, status.errorMessage);
 
-        if (stateInfo.authData.length || stateInfo.nextAuthState == DbAuthState.initial)
+        if (stateInfo.authStateData.authData.length || stateInfo.nextAuthState == DbAuthState.initial)
         {
             auto writer = PgWriter(connection);
             writer.beginMessage(PgOIdRequestMsg.saslInitialResponse);
             if (stateInfo.nextAuthState == DbAuthState.initial)
             {
                 if (stateInfo.auth.multiStates == 1)
-                    writer.writeCChars(cast(const(char)[])stateInfo.authData[]);
+                    writer.writeCChars(cast(const(char)[])stateInfo.authStateData.authData[]);
                 else
                 {
                     writer.writeCChars(stateInfo.authMethod);
-                    writer.writeBytes(stateInfo.authData[]);
+                    writer.writeBytes(stateInfo.authStateData.authData[]);
                 }
             }
             else
-                writer.writeBytesRaw(stateInfo.authData[]);
+                writer.writeBytesRaw(stateInfo.authStateData.authData[]);
             stateInfo.nextAuthState++;
             writer.flush();
         }

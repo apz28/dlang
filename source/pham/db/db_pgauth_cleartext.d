@@ -28,17 +28,16 @@ class PgAuthClearText : PgAuth
 nothrow @safe:
 
 public:
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        debug(debug_pham_db_db_pgauth_cleartext) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
-            ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_pgauth_cleartext) debug writeln(__FUNCTION__, "(_nextState=", _nextState,
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
             return status;
 
-        authData = userPassword.representation();
+        stateData.authData = stateData.userPassword[].representation();
         return ResultStatus.ok();
     }
 

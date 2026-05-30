@@ -3597,6 +3597,97 @@ public:
     }
 
     /**
+     * Get/Set OAuth authorizer url
+     */
+    @property final string oauthAuthorizerURL() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.oauthAuthorizerURL);
+    }
+
+    @property final typeof(this) oauthAuthorizerURL(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.oauthAuthorizerURL, value);
+        put(DbConnectionParameterIdentifier.oauthAuthorizerURL, value);
+        return this;
+    }
+
+    /**
+     * Get/Set OAuth access-token
+     */
+    @property final string oauthAccessToken() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.oauthAccessToken);
+    }
+
+    @property final typeof(this) oauthAccessToken(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.oauthAccessToken, value);
+        put(DbConnectionParameterIdentifier.oauthAccessToken, value);
+        return this;
+    }
+
+    /**
+     * Get/Set OAuth client-id
+     */
+    @property final string oauthClientId() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.oauthClientId);
+    }
+
+    @property final typeof(this) oauthClientId(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.oauthClientId, value);
+        put(DbConnectionParameterIdentifier.oauthClientId, value);
+        return this;
+    }
+
+    /**
+     * Get/Set OAuth issuer url
+     */
+    @property final string oauthIssuerURL() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.oauthIssuerURL);
+    }
+
+    @property final typeof(this) oauthIssuerURL(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.oauthIssuerURL, value);
+        put(DbConnectionParameterIdentifier.oauthIssuerURL, value);
+        return this;
+    }
+
+    /**
+     * Get/Set OAuth provider name
+     */
+    @property final string oauthProviderName() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.oauthProviderName);
+    }
+
+    @property final typeof(this) oauthProviderName(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.oauthProviderName, value);
+        put(DbConnectionParameterIdentifier.oauthProviderName, value);
+        return this;
+    }
+
+    /**
+     * Get/Set OAuth scopes
+     * Default value is "openid profile"
+     */
+    @property final string oauthScopes() const nothrow
+    {
+        return getString(DbConnectionParameterIdentifier.oauthScopes);
+    }
+
+    @property final typeof(this) oauthScopes(string value)
+    {
+        validatePropertyValue(DbConnectionParameterIdentifier.oauthScopes, value);
+        put(DbConnectionParameterIdentifier.oauthScopes, value);
+        return this;
+    }
+
+    /**
      * Get/Set transport package size in bytes.
      * Default value is 8_192
      */

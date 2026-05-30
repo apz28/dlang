@@ -26,17 +26,16 @@ class FbAuthLegacy : FbAuth
 nothrow @safe:
 
 public:
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        debug(debug_pham_db_db_fbauth_legacy) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state,
-            ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_fbauth_legacy) debug writeln(__FUNCTION__, "(_nextState=", _nextState, 
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
             return status;
 
-        crypt3(authData, userPassword, salt).chopFront(2); // 2=Exclude the 2 leading salt chars
+        crypt3(stateData.authData, stateData.userPassword[], salt).chopFront(2); // 2=Exclude the 2 leading salt chars
         return ResultStatus.ok();
     }
 

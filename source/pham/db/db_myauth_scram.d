@@ -51,37 +51,10 @@ public:
         this.digestId = digestId;
     }
 
-    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        debug(debug_pham_db_db_myauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
-
-        ShortStringBuffer!ubyte serverSalt;
-        const(char)[] serverNonce;
-        uint serverCount;
-        auto parsedServerAuthData = parseServerAuthData(serverAuthData);
-        auto status = isInvalidServerAuthData(parsedServerAuthData, serverSalt, serverNonce, serverCount);
-        if (status.isError)
-            return status;
-
-        this.salted = hi(userPassword.representation(), serverSalt[], serverCount);
-        alias Base64NoPadding = Base64Impl!('!', '=', Base64.NoPadding);
-        const userProof = Base64NoPadding.encode(("n,a=" ~ userName ~ ",").representation());
-        const withoutProof = "c=" ~ userProof ~ ",r=" ~ serverNonce;
-        this.auth = (this.client ~ "," ~ cast(const(char)[])serverAuthData ~ "," ~ withoutProof).representation();
-        auto ckey = hmacOf(salted, "Client Key".representation());
-        ckey ^= hmacOf(hashOf(ckey[])[], auth)[];
-
-        enum padding = false;
-        auto result = withoutProof ~ ",p=" ~ CipherHelper.base64Encode!padding(ckey[]);
-        authData = result.representation();
-        return ResultStatus.ok();
-    }
-
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
-    {
-        debug(debug_pham_db_db_myauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_myauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState,
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -89,21 +62,21 @@ public:
 
         if (state == 0)
         {
-            getInitial(authData, userName, userPassword);
+            getInitial(stateData.userName[], stateData.userPassword[], stateData.authData);
             return ResultStatus.ok();
         }
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData, authData);
+            return calculateProof(stateData.userName[], stateData.userPassword[], stateData.serverAuthData[], stateData.authData);
         else if (state == 2)
         {
-            authData.clear();
-            return isValidSignature(serverAuthData);
+            stateData.authData.clear();
+            return isValidSignature(stateData.serverAuthData[]);
         }
         else
-            assert(0);
+            return invalidAuthState(state);
     }
 
-    final void getInitial(ref CipherBuffer!ubyte authData, scope const(char)[] userName, scope const(char)[] userPassword)
+    final void getInitial(scope const(char)[] userName, scope const(char)[] userPassword, ref CipherRawKey!ubyte authData)
     {
         if (this.cnonce.length == 0)
         {
@@ -163,7 +136,7 @@ public:
     static const(char)[][char] parseServerAuthData(scope const(ubyte)[] serverAuthData) @trusted
     {
         const(char)[][char] result;
-        foreach (scope part; (cast(string)serverAuthData).split(","))
+        foreach (scope part; (cast(string)serverAuthData[]).split(","))
         {
             if (part.length >= 2 && part[1] == '=')
                 result[part[0]] = part[2..$].dup;
@@ -178,6 +151,33 @@ public:
     }
 
 protected:
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherRawKey!ubyte authData)
+    {
+        debug(debug_pham_db_db_myauth_scram) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+
+        ShortStringBuffer!ubyte serverSalt;
+        const(char)[] serverNonce;
+        uint serverCount;
+        auto parsedServerAuthData = parseServerAuthData(serverAuthData);
+        auto status = isInvalidServerAuthData(parsedServerAuthData, serverSalt, serverNonce, serverCount);
+        if (status.isError)
+            return status;
+
+        this.salted = hi(userPassword.representation(), serverSalt[], serverCount);
+        alias Base64NoPadding = Base64Impl!('!', '=', Base64.NoPadding);
+        const userProof = Base64NoPadding.encode(("n,a=" ~ userName ~ ",").representation());
+        const withoutProof = "c=" ~ userProof ~ ",r=" ~ serverNonce;
+        this.auth = (this.client ~ "," ~ cast(const(char)[])serverAuthData ~ "," ~ withoutProof).representation();
+        auto ckey = hmacOf(salted, "Client Key".representation());
+        ckey ^= hmacOf(hashOf(ckey[])[], auth)[];
+
+        enum padding = false;
+        auto result = withoutProof ~ ",p=" ~ CipherHelper.base64Encode!padding(ckey[]);
+        authData = result.representation();
+        return ResultStatus.ok();
+    }
+    
     override int doDispose(const(DisposingReason) disposingReason) nothrow @safe
     {
         client[] = 0;

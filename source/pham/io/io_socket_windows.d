@@ -519,7 +519,7 @@ private:
 import core.attribute : standalone;
 
 @standalone
-shared static this() nothrow @trusted
+shared static this() nothrow @trusted 
 {
     ushort wsaVersion = MAKEWORD(2, 2);
     WSADATA wsaData;

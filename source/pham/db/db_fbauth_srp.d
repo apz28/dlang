@@ -52,31 +52,10 @@ public:
         this._authClient = new AuthClient(AuthParameters(digestId, proofDigestId, fbPrime), CipherKey.digitsToBigInteger(K));
     }
 
-    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
-        scope const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
+    final override ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData)
     {
-        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
-
-        auto status = parseServerAuthData(serverAuthData);
-        if (status.isError)
-            return status;
-
-        auto normalizedUserName = normalizeUserName(userName);
-        auto serverPublicKeyInt = serverPublicKeyAsBigInteger;
-        scope (exit)
-            serverPublicKeyInt.dispose();
-
-        _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
-        _proof = calculateProof(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
-        authData = bytesToHexs(_proof).representation();
-        return ResultStatus.ok();
-    }
-
-    final override ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData)
-    {
-        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(_nextState=", _nextState, ", state=", state, ", userName=", userName,
-            ", serverAuthData=", serverAuthData.dgToHex(), ")");
+        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(_nextState=", _nextState,
+            ", state=", state, ", stateData=", stateData.toString(), ")");
 
         auto status = checkAdvanceState(state);
         if (status.isError)
@@ -84,13 +63,13 @@ public:
 
         if (state == 0)
         {
-            authData = publicKey();
+            stateData.authData = publicKey();
             return ResultStatus.ok();
         }
         else if (state == 1)
-            return calculateProof(userName, userPassword, serverAuthData, authData);
+            return calculateProof(stateData.userName[], stateData.userPassword[], stateData.serverAuthData[], stateData.authData);
         else
-            assert(0);
+            return invalidAuthState(state);
     }
 
     final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure
@@ -149,6 +128,26 @@ protected:
         debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(_authClient=", this._authClient.traceString(), ")");
     }
 
+    final ResultStatus calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
+        scope const(ubyte)[] serverAuthData, ref CipherRawKey!ubyte authData)
+    {
+        debug(debug_pham_db_db_fbauth_srp) debug writeln(__FUNCTION__, "(userName=", userName, ", serverAuthData=", serverAuthData.dgToHex(), ")");
+
+        auto status = parseServerAuthData(serverAuthData);
+        if (status.isError)
+            return status;
+
+        auto normalizedUserName = normalizeUserName(userName);
+        auto serverPublicKeyInt = serverPublicKeyAsBigInteger;
+        scope (exit)
+            serverPublicKeyInt.dispose();
+
+        _premasterKey = _authClient.calculatePremasterKey(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
+        _proof = calculateProof(normalizedUserName, userPassword, serverSalt, serverPublicKeyInt);
+        authData = bytesToHexs(_proof).representation();
+        return ResultStatus.ok();
+    }
+
     final ubyte[] calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         scope const(ubyte)[] salt, const(BigInteger) serverPublicKey)
 	{
@@ -191,10 +190,10 @@ protected:
             _authClient.dispose(disposingReason);
         _premasterKey.dispose(disposingReason);
         _proof.dispose(disposingReason);
-        
+
         if (isDisposing(disposingReason))
             _authClient = null;
-            
+
         return super.doDispose(disposingReason);
     }
 
@@ -372,10 +371,11 @@ version(unittest)
         uint line = __LINE__)
     {
         auto privateKey = CipherKey.digitsToBigInteger(digitPrivateKey);
-        auto serverAuthData = bytesFromHexs(serverHexAuthData);
+        CipherBuffer!ubyte serverAuthData;
+        serverAuthData = bytesFromHexs(serverHexAuthData);
         auto client = new FbAuthSrpSHA1(privateKey);
-        CipherBuffer!ubyte proof;
-        assert(client.calculateProof(testUserName, testUserPassword, serverAuthData, proof).isOK);
+        CipherRawKey!ubyte proof;
+        assert(client.calculateProof(testUserName, testUserPassword, serverAuthData[], proof).isOK);
         assert(client._authClient.ephemeralPublic.toString() == digitExpectedPublicKey,
             "digitExpectedPublicKey(" ~ line.to!string() ~ "): " ~ client._authClient.ephemeralPublic.toString() ~ " ? " ~ digitExpectedPublicKey);
         assert(client.serverPublicKey.bytesToHexs() == expectedHexServerPublicKey,

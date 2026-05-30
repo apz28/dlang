@@ -18,11 +18,12 @@ public import pham.cp.cp_cipher : CipherBuffer, CipherRawKey;
 import pham.utl.utl_disposable : DisposingReason;
 public import pham.utl.utl_result : ResultCode, ResultStatus;
 import pham.utl.utl_version : VersionString;
+import pham.db.db_database : DbConnectionStringBuilder;
 import pham.db.db_message : DbMessage, fmtMessage;
 import pham.db.db_object : DbDisposableObject;
 import pham.db.db_type : DbScheme;
 
-nothrow @safe:
+@safe:
 
 enum DbAuthState : int
 {
@@ -31,13 +32,82 @@ enum DbAuthState : int
     final_ = 2,
 }
 
+struct DbAuthStateData
+{
+@safe:
+
+public:
+    void fill(DbScheme scheme)(DbConnectionStringBuilder csb) nothrow
+    {
+        userName = csb.userName;
+        userPassword = csb.userPassword;
+
+        static if (scheme == DbScheme.pg)
+        {
+            oauthAccessToken = csb.oauthAccessToken;
+            oauthClientId = csb.oauthClientId;
+            oauthAuthorizerURL = csb.oauthAuthorizerURL;
+            oauthIssuerURL = csb.oauthIssuerURL;
+            oauthScopes = csb.oauthScopes;
+            oauthProviderName = csb.oauthProviderName;
+        }
+    }
+
+    int isOAuthAccessToken(ref const(char)[] accessToken) const nothrow
+    {
+        const result = oauthClientId.length != 0
+            && oauthAuthorizerURL.length != 0
+            && oauthIssuerURL.length != 0;
+        if (result)
+        {
+            if (oauthAccessToken.length != 0)
+            {
+                accessToken = oauthAccessToken[];
+                return 2;
+            }
+            return 1;
+        }
+        return 0;
+    }
+
+    string toString() const nothrow
+    {
+        return "{"
+            ~ "userName=" ~ userName.toString()
+            ~ ", userPassword=?..."
+            ~ ", authData=" ~ authData.toString()
+            ~ ", serverAuthData=" ~ serverAuthData.toString()
+            ~ ", oauthAccessToken=" ~ oauthAccessToken.toString()
+            ~ ", oauthClientId=" ~ oauthClientId.toString()
+            ~ ", oauthAuthorizerURL=" ~ oauthAuthorizerURL
+            ~ ", oauthIssuerURL=" ~ oauthIssuerURL
+            ~ ", oauthScopes=" ~ oauthScopes
+            ~ ", oauthProviderName=" ~ oauthProviderName
+            ~ "}";
+    }
+
+public:
+    CipherRawKey!ubyte authData;
+    CipherRawKey!ubyte serverAuthData;
+    CipherRawKey!ubyte serverAuthKey;
+
+    CipherRawKey!char userName;
+    CipherRawKey!char userPassword;
+
+    CipherRawKey!char oauthAccessToken;
+    CipherRawKey!char oauthClientId;
+    string oauthAuthorizerURL;
+    string oauthIssuerURL;
+    string oauthScopes;
+    string oauthProviderName;
+}
+
 abstract class DbAuth : DbDisposableObject
 {
 @safe:
 
 public:
-    ResultStatus getAuthData(const(int) state, scope const(char)[] userName, scope const(char)[] userPassword,
-        const(ubyte)[] serverAuthData, ref CipherBuffer!ubyte authData) nothrow;
+    ResultStatus getAuthData(const(int) state, ref DbAuthStateData stateData) nothrow;
 
     CipherRawKey!ubyte sessionKey() nothrow
     {
@@ -112,6 +182,12 @@ public:
         return DbAuthMap.init;
     }
 
+    final ResultStatus invalidAuthState(const(int) state) nothrow
+    {
+        auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ state.to!string());
+        return ResultStatus.error(state + 1, msg);
+    }
+
     static void registerAuthMap(DbAuthMap authMap) nothrow @trusted //@trusted=__gshared
     in
     {
@@ -131,20 +207,13 @@ public:
     }
 
 protected:
-    final ResultStatus checkAdvanceState(const(int) state) nothrow pure
+    final ResultStatus checkAdvanceState(const(int) state) nothrow
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         if (state != _nextState || state >= multiStates)
-        {
-            auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(name, "invalid state: " ~ state.to!string());
-            return ResultStatus.error(state + 1, msg);
-        }
-        else
-        {
-            _nextState++;
-            return ResultStatus.ok();
-        }
+            return invalidAuthState(state);
+
+        _nextState++;
+        return ResultStatus.ok();
     }
 
     override int doDispose(const(DisposingReason) disposingReason) nothrow @safe

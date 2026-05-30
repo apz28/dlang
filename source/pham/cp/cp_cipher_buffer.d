@@ -18,7 +18,6 @@ import pham.utl.utl_result : ResultCode;
 
 nothrow @safe:
 
-
 struct CipherBuffer(T)
 if (is(T == ubyte) || is(T == byte) || is(T == char))
 {
@@ -29,7 +28,7 @@ public:
 
     this(scope const(T)[] values) nothrow pure
     {
-        this.data.opAssign(values);
+        this._data.opAssign(values);
     }
 
     ~this() nothrow pure
@@ -39,90 +38,122 @@ public:
 
     ref typeof(this) opAssign(ref typeof(this) rhs) nothrow pure return
     {
-        data.opAssign(rhs.data);
+        _data.opAssign(rhs._data);
         return this;
     }
 
     ref typeof(this) opAssign(scope const(T)[] values) nothrow pure return
     {
-        data.opAssign(values);
+        _data.opAssign(values);
+        return this;
+    }
+
+    ref typeof(this) opIndexOpAssign(string op)(T value, size_t index) nothrow pure return
+    if (op == "|" || op == "&")
+    {
+        static if (op == "|")
+            _data[index] |= value;
+        else static if (op == "&")
+            _data[index] &= value;
+        else
+            static assert(0, "Not supported binary operator: " ~ op);
         return this;
     }
 
     //pragma(inline, true)
     ref typeof(this) chopFront(const(size_t) chopLength) nothrow pure return
     {
-        data.chopFront(chopLength);
+        _data.chopFront(chopLength);
         return this;
     }
 
     //pragma(inline, true)
     ref typeof(this) chopTail(const(size_t) chopLength) nothrow pure return
     {
-        data.chopTail(chopLength);
+        _data.chopTail(chopLength);
         return this;
     }
 
     ref typeof(this) clear() nothrow pure return
     {
-        data.clear();
+        _data.clear();
         return this;
     }
 
     // For security reason, need to clear the secrete information
     int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
     {
-        data.dispose(disposingReason);
+        _data.dispose(disposingReason);
         return ResultCode.ok;
     }
 
     ref typeof(this) put(T v) nothrow pure return
     {
-        data.put(v);
+        _data.put(v);
         return this;
     }
 
     ref typeof(this) put(scope const(T)[] v) nothrow pure return
     {
-        data.put(v);
+        if (v.length)
+            _data.put(v);
         return this;
     }
 
     ref typeof(this) removeFront(const(T) removingValue) nothrow pure return
     {
-        data.removeFront(removingValue);
+        _data.removeFront(removingValue);
         return this;
     }
 
     ref typeof(this) removeTail(const(T) removingValue) nothrow pure return
     {
-        data.removeTail(removingValue);
+        _data.removeTail(removingValue);
         return this;
     }
 
     ref typeof(this) reverse() @nogc nothrow pure return
     {
-        data.reverse();
+        _data.reverse();
         return this;
     }
 
     CipherRawKey!T toRawKey() const nothrow pure
     {
-        return CipherRawKey!T(data[]);
+        return CipherRawKey!T(_data[]);
     }
 
     string toString() const nothrow pure @trusted
     {
         static if (is(T == char))
-            return data[].idup;
+            return _data[].idup;
         else
-            return cast(string)bytesToHexs(data[]);
+            return cast(string)bytesToHexs(_data[]);
     }
 
-public:
-    private enum overheadSize = StaticStringBuffer!(T, 1u).sizeof;
-    StaticStringBuffer!(T, 1_024u - overheadSize) data;
-    alias this = data;
+    pragma(inline, true)
+    @property bool empty() const @nogc nothrow pure
+    {
+        return _data.length == 0;
+    }
+
+    pragma(inline, true)
+    @property size_t length() const @nogc nothrow pure
+    {
+        return _data.length;
+    }
+
+    pragma(inline, true)
+    @property const(T)[] value() const nothrow pure return
+    {
+        return _data[];
+    }
+
+    alias this = value;
+
+private:
+    enum overheadSize = StaticStringBuffer!(T, 1u).sizeof;
+    StaticStringBuffer!(T, 1_024u - overheadSize) _data;
 }
 
 struct CipherRawKey(T)
@@ -151,6 +182,11 @@ public:
         this._data = value._data.dup;
     }
 
+    ~this() pure
+    {
+        dispose(DisposingReason.destructor);
+    }
+
     ref typeof(this) opAssign(scope const(T)[] rhs) pure return
     {
         this._data.length = rhs.length;
@@ -165,9 +201,16 @@ public:
         return this;
     }
 
-    ~this() pure
+    ref typeof(this) opIndexOpAssign(string op)(T value, size_t index) nothrow pure return
+    if (op == "|" || op == "&")
     {
-        dispose(DisposingReason.destructor);
+        static if (op == "|")
+            _data[index] |= value;
+        else static if (op == "&")
+            _data[index] &= value;
+        else
+            static assert(0, "Not supported binary operator: " ~ op);
+        return this;
     }
 
     ref typeof(this) chopFront(const(size_t) chopLength) pure return
@@ -185,6 +228,13 @@ public:
             clear();
         else
             _data = _data[0.._data.length - chopLength];
+        return this;
+    }
+
+    ref typeof(this) clear() pure return
+    {
+        _data[] = 0;
+        _data = null;
         return this;
     }
 
@@ -224,6 +274,19 @@ public:
         return true;
     }
 
+    ref typeof(this) put(T v) nothrow pure return
+    {
+        _data ~= v;
+        return this;
+    }
+
+    ref typeof(this) put(scope const(T)[] v) nothrow pure return
+    {
+        if (v.length)
+            _data ~= v;
+        return this;
+    }
+
     ref typeof(this) reverse() pure return
     {
         import std.algorithm.mutation : swapAt;
@@ -253,6 +316,14 @@ public:
         return this;
     }
 
+    string toString() const nothrow pure @trusted
+    {
+        static if (is(T == char))
+            return _data[].idup;
+        else
+            return cast(string)bytesToHexs(_data[]);
+    }
+
     pragma(inline, true)
     @property bool empty() const @nogc pure
     {
@@ -266,7 +337,7 @@ public:
     }
 
     pragma(inline, true)
-    @property const(T)[] value() const pure
+    @property const(T)[] value() const pure return
     {
         return _data;
     }
@@ -274,13 +345,6 @@ public:
     alias this = value;
 
 package(pham.cp):
-    pragma(inline, true)
-    void clear() pure
-    {
-        _data[] = 0;
-        _data = null;
-    }
-
     pragma(inline, true)
     void unique() pure
     {

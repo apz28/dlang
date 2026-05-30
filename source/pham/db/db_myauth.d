@@ -12,7 +12,7 @@
 module pham.db.db_myauth;
 
 debug(debug_pham_db_db_myauth) import pham.db.db_debug;
-public import pham.cp.cp_cipher : CipherBuffer;
+public import pham.cp.cp_cipher : CipherRawKey;
 import pham.db.db_auth;
 import pham.db.db_type : DbScheme;
 
@@ -29,7 +29,7 @@ public:
     }
 
     ResultStatus getPassword(scope const(char)[] userName, scope const(char)[] userPassword,
-        ref CipherBuffer!ubyte authData)
+        ref CipherRawKey!ubyte authData)
     {
         debug(debug_pham_db_db_myauth) debug writeln(__FUNCTION__, "(userName=", userName, ")");
 
