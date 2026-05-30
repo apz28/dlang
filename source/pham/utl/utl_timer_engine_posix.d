@@ -25,7 +25,7 @@ alias TimerEngineCallback = void delegate(void* data) nothrow @safe;
 enum minResolutionInterval = dur!"msecs"(1);
 enum maxResolutionInterval = dur!"msecs"(uint.max);
 
-itimerspec toEngineInterval(const(Duration) interval) @nogc nothrow pure @safe
+itimerspec toEngineInterval(const(Duration) interval) @nogc nothrow pure @trusted
 {
     const validInterval = toValidResolutionInterval(interval);
 
