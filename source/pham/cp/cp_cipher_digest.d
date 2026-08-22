@@ -41,12 +41,12 @@ public:
     enum maxBufferSize = (Digester.maxDigestLength * 2) + ulong.sizeof; // Allow extra for cipher salt calculation
 
 public:
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opOpAssign(string op)(scope const(ubyte)[] rhs) pure return
+    ref typeof(this) opOpAssign(string op)(scope const(ubyte)[] rhs) return
     if (op == "&" || op == "|" || op == "^")
     {
         const len = length > rhs.length ? rhs.length : length;
@@ -74,17 +74,17 @@ public:
             static assert(0);
     }
 
-    size_t opDollar() const pure
+    size_t opDollar() const
     {
         return length;
     }
 
-    inout(ubyte)[] opIndex() inout pure return
+    inout(ubyte)[] opIndex() inout return
     {
         return buffer[0..length];
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -96,13 +96,13 @@ public:
         return ResultCode.ok;
     }
 
-    ref typeof(this) reset() pure return
+    ref typeof(this) reset() return
     {
         length = 0;
         return this;
     }
 
-    ref typeof(this) reverse() pure return
+    ref typeof(this) reverse() return
     {
         if (const len = length)
         {
@@ -116,12 +116,12 @@ public:
         return this;
     }
 
-    inout(ubyte)[] slice(uint beginIndex, uint forLength) inout pure return
+    inout(ubyte)[] slice(uint beginIndex, uint forLength) inout return
     {
         return buffer[beginIndex..beginIndex + forLength];
     }
 
-    @property bool empty() const pure
+    @property bool empty() const
     {
         return length == 0;
     }
@@ -195,7 +195,7 @@ public:
         return this;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) pure
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose)
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -258,7 +258,7 @@ public:
         this._key = checkKey(key);
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
@@ -291,7 +291,7 @@ public:
         return this;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);

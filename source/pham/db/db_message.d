@@ -95,7 +95,7 @@ struct DbMessage
     static immutable eInvalidSchemeName = "Database scheme name '%s' not found";
 }
 
-string addMessageLine(ref string messageLines, string messageLine) nothrow pure
+string addMessageLine(ref string messageLines, string messageLine) nothrow
 {
     import std.ascii : newline;
     

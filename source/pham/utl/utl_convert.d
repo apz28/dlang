@@ -229,7 +229,7 @@ nothrow @safe unittest // bytesFromBase64s
     import pham.utl.utl_array_append : Appender;
 
     void testCheck(uint radix = 10, N)(N n, const(ubyte) pad, string expected,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto buffer = Appender!string(64);
         putNumber!radix(buffer, n, pad);
@@ -259,6 +259,6 @@ nothrow @safe unittest // bytesFromBase64s
     testCheck!16(cast(int)-456, 8, "FFFFFE38");
 
     // Test default call
-    auto buffer = Appender!string(10);
+    auto buffer = Appender!string(64);
     assert(putNumber(buffer, 10).data == "10");
 }

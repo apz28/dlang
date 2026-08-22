@@ -68,7 +68,7 @@ public:
             return invalidAuthState(state);
     }
 
-    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const nothrow pure
+    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const nothrow
     {
         maxSaltLength = 0;
         return size_t.max;

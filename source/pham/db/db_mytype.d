@@ -246,45 +246,12 @@ nothrow @safe:
     int32 columnCount;
 }
 
-struct MyEOFResponse
-{
-nothrow @safe:
-
-    int16 warningCount;
-    MyStatusFlags statusFlags;
-}
-
-struct MyErrorResult
-{
-@safe:
-
-public:
-    this(int errorCode, string errorMessage, string sqlState,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
-    {
-        this.errorCode = errorCode;
-        this.errorMessage = errorMessage;
-        this.sqlState = sqlState;
-        this.funcName = funcName;
-        this.file = file;
-        this.line = line;
-    }
-
-public:
-    string errorMessage;
-    string file;
-    string funcName;
-    string sqlState;
-    int errorCode;
-    uint line;
-}
-
 struct MyColumnInfo
 {
 nothrow @safe:
 
 public:
-    DbType calculateDbType() const @nogc pure
+    DbType calculateDbType() const @nogc
     {
         DbType result = DbType.unknown;
         if (auto e = typeId in myDbIdToDbTypeInfos)
@@ -303,7 +270,7 @@ public:
         return result;
     }
 
-    void calculateOtherInfo(const ref MyColumnTypeMap columnTypeMaps) pure
+    void calculateOtherInfo(const ref MyColumnTypeMap columnTypeMaps)
     {
         if (typeId == MyTypeId.decimal || typeId == MyTypeId.newDecimal)
         {
@@ -372,12 +339,12 @@ public:
         }
     }
 
-    DbType dbType() const @nogc pure
+    DbType dbType() const @nogc
     {
         return _dbType != DbType.unknown ? _dbType : calculateDbType();
     }
 
-    int32 dbTypeSize() const @nogc pure
+    int32 dbTypeSize() const @nogc
     {
         if (columnLength > 0)
             return columnLength;
@@ -429,68 +396,68 @@ public:
     }
 
     pragma(inline, true)
-    string useName() const pure
+    string useName() const
     {
         return columnName.length != 0 ? columnName : originalColumnName;
     }
 
     pragma(inline, true)
-    string useTableName() const pure
+    string useTableName() const
     {
         return tableName.length != 0 ? tableName : realTableName;
     }
 
     pragma(inline, true)
-    @property bool allowNull() const @nogc pure
+    @property bool allowNull() const @nogc
     {
         return (typeFlags & MyTypeFlag.notNull) == 0;
     }
 
-    @property int characterLength() const @nogc pure
+    @property int characterLength() const @nogc
     {
         return columnLength / characterSetLength;
     }
 
-    @property bool isAlias() const @nogc pure
+    @property bool isAlias() const @nogc
     {
         return originalColumnName.length != 0
             && columnName.length != 0
             && originalColumnName != columnName;
     }
 
-    @property bool isAutoIncrement() const @nogc pure
+    @property bool isAutoIncrement() const @nogc
     {
         return (typeFlags & MyTypeFlag.autoIncrement) != 0;
     }
 
-    @property bool isNumeric() const @nogc pure
+    @property bool isNumeric() const @nogc
     {
         return (typeFlags & MyTypeFlag.number) != 0;
     }
 
-    @property bool isUnique() const @nogc pure
+    @property bool isUnique() const @nogc
     {
         return (typeFlags & MyTypeFlag.uniqueKey) != 0;
     }
 
-    @property bool isPrimaryKey() const @nogc pure
+    @property bool isPrimaryKey() const @nogc
     {
         return (typeFlags & MyTypeFlag.primaryKey) != 0;
     }
 
-    @property bool isBlob() const @nogc pure
+    @property bool isBlob() const @nogc
     {
         return (typeFlags & MyTypeFlag.blob) != 0
             && ((typeFlags & MyTypeFlag.binary) != 0 || characterSetIndex == 63);
     }
 
-    @property bool isText() const @nogc pure
+    @property bool isText() const @nogc
     {
         return (typeFlags & (MyTypeFlag.blob | MyTypeFlag.binary)) != 0
             && (characterSetIndex == 33);
     }
 
-    @property bool isUnsigned() const @nogc pure
+    @property bool isUnsigned() const @nogc
     {
         return (typeFlags & MyTypeFlag.unsigned) != 0;
     }
@@ -512,8 +479,85 @@ public:
     int8 scale;
 }
 
-deprecated("please use MyColumnInfo")
-alias MyFieldInfo = MyColumnInfo;
+enum MyColumnTypeMapKind : ubyte
+{
+    unknown,
+    boolean,
+    tinyText,
+    mediumText,
+    longText,
+    uuid,
+}
+
+struct MyColumnTypeMap
+{
+nothrow @safe:
+
+public:
+    MyColumnTypeMapKind get(string columnName) const @nogc
+    {
+        if (auto e = columnName in columnNames)
+            return *e;
+        else
+            return MyColumnTypeMapKind.unknown;
+    }
+
+    void set(string columnName, MyColumnTypeMapKind kind)
+    {
+        columnNames[columnName] = kind;
+    }
+
+public:
+    Dictionary!(string, MyColumnTypeMapKind) columnNames;
+
+    deprecated("please use columnNames")
+    alias fieldNames = columnNames;
+}
+
+struct MyEOFResponse
+{
+nothrow @safe:
+
+    int16 warningCount;
+    MyStatusFlags statusFlags;
+}
+
+struct MyErrorResult
+{
+@safe:
+
+public:
+    this(int errorCode, string errorMessage, string sqlState,
+        int socketCode = 0,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure
+    {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.sqlState = sqlState;
+        this.socketCode = socketCode;
+        this.funcName = funcName;
+        this.file = file;
+        this.line = line;
+    }
+
+public:
+    string errorMessage;
+    string file;
+    string funcName;
+    string sqlState;
+    int errorCode;
+    int socketCode;
+    size_t line;
+}
+
+struct MyGeometry
+{
+nothrow @safe:
+
+public:
+    DbGeoPoint point;
+    int32 srid;
+}
 
 struct MyOkResponse
 {
@@ -542,56 +586,6 @@ nothrow @safe:
     MySessionTrackType trackType;
 }
 
-enum MyColumnTypeMapKind : ubyte
-{
-    unknown,
-    boolean,
-    tinyText,
-    mediumText,
-    longText,
-    uuid,
-}
-
-deprecated("please use MyColumnTypeMapKind")
-alias MyFieldTypeMapKind = MyColumnTypeMapKind;
-
-deprecated("please use MyColumnTypeMap")
-alias MyFieldTypeMap = MyColumnTypeMap;
-
-struct MyColumnTypeMap
-{
-nothrow @safe:
-
-public:
-    MyColumnTypeMapKind get(string columnName) const @nogc pure
-    {
-        if (auto e = columnName in columnNames)
-            return *e;
-        else
-            return MyColumnTypeMapKind.unknown;
-    }
-
-    void set(string columnName, MyColumnTypeMapKind kind) pure
-    {
-        columnNames[columnName] = kind;
-    }
-
-public:
-    Dictionary!(string, MyColumnTypeMapKind) columnNames;
-
-    deprecated("please use columnNames")
-    alias fieldNames = columnNames;
-}
-
-struct MyGeometry
-{
-nothrow @safe:
-
-public:
-    DbGeoPoint point;
-    int32 srid;
-}
-
 DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) precision) @nogc nothrow pure @safe
 {
     if (auto e = myTypeName in mySimpleTypes)
@@ -604,6 +598,15 @@ DbType myParameterTypeToDbType(scope const(char)[] myTypeName, const(int32) prec
     else
         return DbType.unknown;
 }
+
+deprecated("please use MyColumnInfo")
+alias MyFieldInfo = MyColumnInfo;
+
+deprecated("please use MyColumnTypeMapKind")
+alias MyFieldTypeMapKind = MyColumnTypeMapKind;
+
+deprecated("please use MyColumnTypeMap")
+alias MyFieldTypeMap = MyColumnTypeMap;
 
 
 // Any below codes are private

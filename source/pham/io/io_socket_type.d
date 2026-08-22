@@ -153,7 +153,7 @@ public:
         return result;
     }
 
-    string toString() const pure
+    string toString() const
     {
         return address.isIPv4
             ? IPv4AddressHelper.toString(address._ipvNumbers[0..IPSocketAddress.maxIPv4AddressBytes], port)
@@ -162,7 +162,7 @@ public:
                 : null);
     }
 
-    @property AddressFamily family() const @nogc pure
+    @property AddressFamily family() const @nogc
     {
         return address.family;
     }
@@ -620,7 +620,7 @@ public:
         this._family = family;
     }
 
-    int opCmp(scope const(IPSocketAddress) rhs) const @nogc nothrow pure scope
+    int opCmp(scope const(IPSocketAddress) rhs) const @nogc nothrow scope
     {
         int result = cmp(this.isIPv6 ? 2 : (this.isIPv4 ? 1 : 0), rhs.isIPv6 ? 2 : (rhs.isIPv4 ? 1 : 0));
         if (result == 0)
@@ -632,7 +632,7 @@ public:
         return result;
     }
 
-    bool opEquals(scope const(IPSocketAddress) rhs) const @nogc nothrow pure scope
+    bool opEquals(scope const(IPSocketAddress) rhs) const @nogc nothrow scope
     {
         return opCmp(rhs) == 0;
     }
@@ -689,19 +689,19 @@ public:
     /**
      *  Returns IP address in bytes in network order
      */
-    const(ubyte)[] toBytes() const @nogc nothrow pure return
+    const(ubyte)[] toBytes() const @nogc nothrow return
     {
         return isIPv4
             ? _ipvNumbers[0..maxIPv4AddressBytes]
             : (isIPv6 ? _ipvNumbers[0..maxIPv6AddressBytes] : null);
     }
 
-    SocketAddress toSocketAddress(SocketPort port) @nogc nothrow pure
+    SocketAddress toSocketAddress(SocketPort port) @nogc nothrow
     {
         return SocketAddress(this, port);
     }
 
-    size_t toHash() const @nogc nothrow pure scope
+    size_t toHash() const @nogc nothrow scope
     {
         return hashOf(_family, hashOf(_scopeId, hashOf(_ipvNumbers)));
     }
@@ -711,36 +711,36 @@ public:
         return isIPv4 ? toStringIPv4() : (isIPv6 ? toStringIPv6() : null);
     }
 
-    @property AddressFamily family() const @nogc nothrow pure
+    @property AddressFamily family() const @nogc nothrow
     {
         return _family;
     }
 
-    @property bool isAny() const @nogc nothrow pure
+    @property bool isAny() const @nogc nothrow
     {
         return isIPv4
             ? this.opEquals(ipv4Any)
             : (isIPv6 ? this.opEquals(ipv6Any) : false);
     }
 
-    @property bool isIPv4() const @nogc nothrow pure
+    @property bool isIPv4() const @nogc nothrow
     {
         return _family == AddressFamily.ipv4;
     }
 
-    @property bool isIPv6() const @nogc nothrow pure
+    @property bool isIPv6() const @nogc nothrow
     {
         return _family == AddressFamily.ipv6;
     }
 
-    @property bool isLoopback() const @nogc nothrow pure
+    @property bool isLoopback() const @nogc nothrow
     {
         return isIPv4
             ? this.opEquals(ipv4Loopback)
             : (isIPv6 ? (this.opEquals(ipv6Loopback) || this.opEquals(ipv4LoopbackMappedToIPv6)) : false);
     }
 
-    @property uint scopeId() const @nogc nothrow pure
+    @property uint scopeId() const @nogc nothrow
     {
         return isIPv6 ? _scopeId : 0;
     }
@@ -965,7 +965,7 @@ struct SocketAddress
 nothrow @safe:
 
 public:
-    this(scope const(IPSocketAddress) address, const(SocketPort) port) @nogc pure
+    this(scope const(IPSocketAddress) address, const(SocketPort) port) @nogc
     {
         if (address.isIPv4)
         {
@@ -1038,7 +1038,7 @@ public:
             : (isIPv6 ? IPSocketAddress(_sin6.sin6_addr.s6_addr[], scopeId) : IPSocketAddress.init);
     }
 
-    string toString() const nothrow pure
+    string toString() const nothrow
     {
         auto address = toIPAddress();
         return address.isIPv4
@@ -1225,7 +1225,7 @@ TimeVal toSocketTimeVal(long timeMSecs) @nogc nothrow pure
 private:
 
 import std.ascii : LetterCase, isDigit;
-import pham.utl.utl_array_append : Appender;
+import pham.utl.utl_array_static : ShortStringBuffer;
 import pham.utl.utl_convert : putNumber;
 
 struct IPv4AddressHelper
@@ -1435,12 +1435,12 @@ public:
     }
     do
     {
-        auto buffer = Appender!string(IPSocketAddress.maxIPv4StringLength + (port ? 6+1: 0));
-        return buffer.putIpv4Address(ipv4Address, port).data;
+        ShortStringBuffer!char result;
+        return result.putIpv4Address(ipv4Address, port).toString();
     }
 }
 
-static ref Appender!string putIpv4Address(return ref Appender!string destination, scope const(ubyte)[] ipv4Address) nothrow pure @safe
+ref ShortStringBuffer!char putIpv4Address(return ref ShortStringBuffer!char destination, scope const(ubyte)[] ipv4Address) nothrow pure @safe
 in
 {
     assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
@@ -1456,7 +1456,7 @@ do
         .putNumber(ipv4Address[3]);
 }
 
-static ref Appender!string putIpv4Address(return ref Appender!string destination, scope const(ubyte)[] ipv4Address, SocketPort port) nothrow pure @safe
+ref ShortStringBuffer!char putIpv4Address(return ref ShortStringBuffer!char destination, scope const(ubyte)[] ipv4Address, SocketPort port) nothrow pure @safe
 in
 {
     assert(ipv4Address.length >= IPSocketAddress.maxIPv4AddressBytes);
@@ -1749,15 +1749,15 @@ public:
     do
     {
         const ipv6Address2 = cast(const(ushort)[])ipv6Address;
-        auto buffer = Appender!string(IPSocketAddress.maxIPv6StringLength + (port ? 6+3: 0));
-        return buffer.putIpv6Address(ipv6Address2, scopeId, port).data;
+        ShortStringBuffer!char result;
+        return result.putIpv6Address(ipv6Address2, scopeId, port).toString();
     }
 }
 
 // Appends each of the numbers in address in indexed range [fromInclusive, toExclusive),
 // while also replacing the longest sequence of 0s found in that range with "::", as long
 // as the sequence is more than one 0.
-static ref Appender!string putIpv6Address(return ref Appender!string destination, scope const(ushort)[] ipv6Address) nothrow pure @safe
+ref ShortStringBuffer!char putIpv6Address(return ref ShortStringBuffer!char destination, scope const(ushort)[] ipv6Address) nothrow pure @safe
 in
 {
     assert(ipv6Address.length >= IPv6AddressHelper.maxIPv6AddressShorts/2);
@@ -1797,7 +1797,7 @@ do
     return destination;
 }
 
-static ref Appender!string putIpv6Address(return ref Appender!string destination, scope const(ushort)[] ipv6Address, uint scopeId, SocketPort port) nothrow pure
+ref ShortStringBuffer!char putIpv6Address(return ref ShortStringBuffer!char destination, scope const(ushort)[] ipv6Address, uint scopeId, SocketPort port) nothrow pure
 in
 {
     assert(ipv6Address.length >= IPv6AddressHelper.maxIPv6AddressShorts);

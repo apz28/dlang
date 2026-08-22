@@ -916,7 +916,7 @@ protected:
         if (!authMap.isValid())
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
-            throw new MyException(DbErrorCode.read, msg);
+            throw new MyException(DbErrorCode.connect, msg);
         }
         auto result = cast(MyAuth)authMap.createAuth();
         result.isSSLConnection = stateInfo.canCryptedConnection != DbEncryptedConnection.disabled;
@@ -1213,7 +1213,7 @@ protected:
 		if (stateInfo.auth is null)
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authMethod);
-            throw new MyException(DbErrorCode.read, msg);
+            throw new MyException(DbErrorCode.connect, msg);
         }
 
         auto useCSB = connection.myConnectionStringBuilder;
@@ -1224,7 +1224,7 @@ protected:
         {
             auto status = stateInfo.auth.getAuthData(authState, stateInfo.authStateData);
             if (status.isError)
-                throw new MyException(DbErrorCode.read, status.errorMessage);
+                throw new MyException(DbErrorCode.connect, status.errorMessage);
 
             if (authMethodChanged && stateInfo.authStateData.authData.length == 0)
                 stateInfo.authStateData.authData.put(0x00);
@@ -1254,7 +1254,7 @@ protected:
                 stateInfo.authStateData.serverAuthData = allData[1..$];
                 auto status = stateInfo.auth.getAuthData(authState, stateInfo.authStateData);
                 if (status.isError)
-                    throw new MyException(DbErrorCode.read, status.errorMessage);
+                    throw new MyException(DbErrorCode.connect, status.errorMessage);
             }
         }
 

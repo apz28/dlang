@@ -88,7 +88,7 @@ public:
         return this;
     }
 
-    final bool verifyServerSignature(scope const(ubyte)[] serverAuthData) const pure
+    final bool verifyServerSignature(scope const(ubyte)[] serverAuthData) const
     {
         enum padding = true;
 
@@ -123,8 +123,8 @@ protected:
         calculateProof(userName, userPassword, firstMessage, authData);
         return ResultStatus.ok();
     }
-    
-    final void calculateProof(scope const(char)[] userName, scope const(char)[] userPassword, 
+
+    final void calculateProof(scope const(char)[] userName, scope const(char)[] userPassword,
         const ref PgOIdScramSHA256FirstMessage firstMessage, ref CipherRawKey!ubyte authData)
     {
         debug(debug_pham_db_db_pgauth_scram) debug writeln(__FUNCTION__, "(userName=", userName, ")");
@@ -241,7 +241,7 @@ private:
     }
 
     pragma(inline, true)
-    static void computeScramSHA256XOr(ref DigestResult holder, scope const(DigestResult) other) pure
+    static void computeScramSHA256XOr(ref DigestResult holder, scope const(DigestResult) other)
     in
     {
         assert(holder.length == other.length);

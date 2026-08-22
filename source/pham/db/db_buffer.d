@@ -49,13 +49,13 @@ class DbBuffer : DbDisposableObject
 public:
     enum cachedCapacityLimit = 1024 * 1024;
 
-    final bool isOverCachedCapacityLimit() const nothrow pure
+    final bool isOverCachedCapacityLimit() const nothrow
     {
         return capacity > cachedCapacityLimit;
     }
 
     pragma(inline, true)
-    @property final size_t capacity() const nothrow pure
+    @property final size_t capacity() const nothrow
     {
         return _data.length;
     }
@@ -128,7 +128,7 @@ public:
         return _data[_offset++];
     }
 
-    final ubyte[] consume(const(size_t) nBytes) scope
+    final ubyte[] consume(const(size_t) nBytes) return scope
     {
         if (length < nBytes)
             ensureAvailable(nBytes);
@@ -139,7 +139,7 @@ public:
         return result;
     }
 
-    final ubyte[] consumeAll() scope
+    final ubyte[] consumeAll() return scope
     {
         return consume(length);
     }
@@ -189,7 +189,7 @@ public:
         _data[endOffset..endOffset + nBytes] = additionalBytes[0..$];
     }
 
-    final ubyte[] peekBytes(size_t forLength = size_t.max) nothrow pure scope
+    final ubyte[] peekBytes(size_t forLength = size_t.max) nothrow return scope
     {
         const bLength = this.length;
         return forLength > bLength
@@ -255,7 +255,7 @@ public:
         return result;
     }
 
-    final DbReadBuffer reset() nothrow pure
+    final DbReadBuffer reset() nothrow
     {
         _offset = _maxLength = 0;
         return this;
@@ -263,7 +263,7 @@ public:
 
     /** Return n bytes if searchedByte found, 0 otherwise
      */
-    final size_t search(const(ubyte) searchedByte) nothrow pure
+    final size_t search(const(ubyte) searchedByte) nothrow
     {
         size_t endOffset = _offset;
         while (endOffset < _maxLength)
@@ -276,7 +276,7 @@ public:
 
     /** Return n bytes if searchedByte1 or searchedByte2 found, 0 otherwise
      */
-    final size_t search(const(ubyte) searchedByte1, const(ubyte) searchedByte2) nothrow pure
+    final size_t search(const(ubyte) searchedByte1, const(ubyte) searchedByte2) nothrow
     {
         size_t endOffset = _offset;
         while (endOffset < _maxLength)
@@ -289,19 +289,19 @@ public:
     }
 
     pragma(inline, true)
-    @property final bool empty() const nothrow pure
+    @property final bool empty() const nothrow
     {
         return _offset >= _maxLength;
     }
 
     pragma(inline, true)
-    @property final size_t length() const nothrow pure
+    @property final size_t length() const nothrow
     {
         return _offset < _maxLength ? (_maxLength - _offset) : 0;
     }
 
     pragma(inline, true)
-    @property final size_t offset() const nothrow pure
+    @property final size_t offset() const nothrow
     {
         return _offset;
     }
@@ -377,7 +377,7 @@ public:
         this._buffer = buffer;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -405,7 +405,7 @@ public:
     }
 
     pragma(inline, true)
-    ubyte[] peekBytes() nothrow pure
+    ubyte[] peekBytes() nothrow return scope
     {
         return _buffer.peekBytes();
     }
@@ -548,7 +548,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _buffer.empty;
     }
@@ -574,7 +574,7 @@ public:
         reset();
     }
 
-    final ubyte[] peekBytes() nothrow
+    final ubyte[] peekBytes() nothrow return scope
     {
         return _data[0..length];
     }
@@ -595,19 +595,19 @@ public:
             ~ ", data=" ~ cast(string)bytes.bytesToHexs();
     }
 
-    @property final bool empty() const nothrow pure
+    @property final bool empty() const nothrow
     {
         return _offset == 0;
     }
 
     pragma(inline, true)
-    @property final size_t length() const nothrow pure
+    @property final size_t length() const nothrow
     {
         return _offset;
     }
 
     pragma(inline, true)
-    @property final size_t offset() const nothrow pure
+    @property final size_t offset() const nothrow
     {
         return _offset;
     }
@@ -652,7 +652,7 @@ public:
     }
 
     pragma(inline, true)
-    static auto asBytes(T)(T v) @nogc nothrow pure
+    static auto asBytes(T)(T v) @nogc nothrow
     if (isIntegral!T)
     {
         alias UT = UnsignedTypeOf!T;
@@ -662,7 +662,7 @@ public:
             return unsignedEncode!(UT, endianKind)(numericBitCast!UT(v));
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);

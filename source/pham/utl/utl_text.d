@@ -30,7 +30,7 @@ struct NamedValue(String = string)
  *  startWidth = a substring to compare for start with
  */
 pragma(inline, true)
-bool caseInsentiveStartWidth(scope const(char)[] s1, scope const(char)[] startWidth) nothrow pure @safe
+bool caseInsentiveStartWidth(scope const(char)[] s1, scope const(char)[] startWidth) @nogc nothrow pure @safe
 {
     import std.uni : sicmp;
 
@@ -126,7 +126,7 @@ if (isSomeChar!Char)
         : ResultIf!(Char[]).error(result.data, cast(int)firstErrorIndex, "Invalid form-encoded character: " ~ firstErrorText.idup);
 }
 
-ptrdiff_t indexOf(String = string)(scope const(NamedValue!String)[] values, scope const(String) name) nothrow pure @safe
+ptrdiff_t indexOf(String = string)(scope const(NamedValue!String)[] values, scope const(String) name) @nogc nothrow pure @safe
 {
     foreach (i, ref v; values)
     {
@@ -312,7 +312,7 @@ string shortenTypeNameTemplate(string fullName) nothrow pure @safe
  *  str = element array
  *  c = an element to count of
  */
-size_t simpleCount(E = char)(scope const(E)[] str, const(E) c) nothrow pure @safe
+size_t simpleCount(E = char)(scope const(E)[] str, const(E) c) @nogc nothrow pure @safe
 if (isSomeChar!E || isIntegral!E)
 {
     size_t result;
@@ -455,10 +455,7 @@ struct SimpleIndexOfAny
 {
 nothrow @safe:
 
-    ptrdiff_t index;
-    ptrdiff_t indexOfChar;
-
-    bool opCast(C: bool)() const pure
+    bool opCast(C: bool)() const @nogc pure
     {
         return found;
     }
@@ -467,15 +464,32 @@ nothrow @safe:
     {
         import std.conv : text;
 
-        return text(index, ":", indexOfChar);
+        return text(_index, ":", indexOfChar);
     }
 
     pragma(inline, true)
-    @property bool found() const pure
+    @property bool found() const @nogc pure
     {
-        return index >= 0;
+        return _index >= 0;
     }
+
+    pragma(inline, true)
+    @property ptrdiff_t index() const @nogc pure
+    {
+        return _index;
+    }
+
+    pragma(inline, true)
+    @property ptrdiff_t indexOfChar() const @nogc pure
+    {
+        return _indexOfChar;
+    }
+
+private:
+    ptrdiff_t _index;
+    ptrdiff_t _indexOfChar;
 }
+
 SimpleIndexOfAny simpleIndexOfAny(E = char)(scope const(E)[] str, scope const(E)[] chars, size_t fromIndex = 0) @nogc nothrow pure @safe
 if (isSomeChar!E || isIntegral!E)
 {
@@ -510,7 +524,7 @@ if (isSomeChar!Char)
     return result;
 }
 
-auto simpleSplitter(String = string, Separator = char)(String str, Separator separator) nothrow @safe
+auto simpleSplitter(String = string, Separator = char)(return String str, Separator separator) nothrow @safe
 {
     static struct RangeResult
     {
@@ -739,7 +753,7 @@ if ((isFloatingPoint!T || isIntegral!T) && isSomeChar!Char)
     return buffer[0..sink.i];
 }
 
-String valueOf(String = string)(NamedValue!String[] values, scope const(String) name,
+String valueOf(String = string)(return NamedValue!String[] values, scope const(String) name,
     String notFound = null) nothrow pure @safe
 if (isSomeString!String)
 {
@@ -1063,11 +1077,11 @@ unittest // toString
     v.name = "namE";
     v.value = "";
     assert(v.toString() == "namE=");
-    
+
     NamedValue!string[] vs;
     vs = [NamedValue!string("name", "value"), NamedValue!string("namE", "")];
     assert(vs.toString() == "[name=value, namE=]");
-    
+
     vs = null;
     assert(vs.toString() == "[]");
 }

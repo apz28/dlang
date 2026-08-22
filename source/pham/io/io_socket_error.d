@@ -72,7 +72,7 @@ int lastSocketError(int errorCode) nothrow @trusted
 
 
 ResultStatus lastSocketError(string apiName, string defaultMessage = null,
-    string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
 {
     const code = lastSocketError();
     const message = code != 0 ? getSystemErrorMessage(code) : defaultMessage;

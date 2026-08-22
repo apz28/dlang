@@ -165,7 +165,7 @@ public:
                 static if (DecodeMode == XmlDecodeMode.strict)
                 {
                     auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20u).idup);
-                    throw new XmlConvertException(XmlLoc(0, i), msg);
+                    throw new XmlConvertException(msg, XmlLoc(0, i));
                 }
                 else
                 {
@@ -193,7 +193,7 @@ public:
                         static if (DecodeMode == XmlDecodeMode.strict)
                         {
                             auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20u).idup);
-                            throw new XmlConvertException(XmlLoc(0, i), msg);
+                            throw new XmlConvertException(msg, XmlLoc(0, i));
                         }
                         else
                         {
@@ -213,7 +213,7 @@ public:
                         static if (DecodeMode == XmlDecodeMode.strict)
                         {
                             auto msg = XmlMessage.eUnescapeAndChar ~ " " ~ toUTF!(S, string)(leftString!S(refChars, 20u).idup);
-                            throw new XmlConvertException(XmlLoc(0, i), msg);
+                            throw new XmlConvertException(msg, XmlLoc(0, i));
                         }
                         else
                         {

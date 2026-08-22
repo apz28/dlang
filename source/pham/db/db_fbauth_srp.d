@@ -72,7 +72,7 @@ public:
             return invalidAuthState(state);
     }
 
-    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure
+    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const
     {
         maxSaltLength = saltLength * 2;
         // ((saltLength + 1) * 2) + ((keyLength + 1) * 2)
@@ -109,7 +109,7 @@ public:
         return CipherRawKey!ubyte(_authClient.ephemeralPublicKey().representation());
     }
 
-    @property final BigInteger serverPublicKeyAsBigInteger() const pure
+    @property final BigInteger serverPublicKeyAsBigInteger() const
     {
         return CipherKey.hexDigitsToBigInteger(serverPublicKey);
     }
@@ -368,7 +368,7 @@ version(unittest)
         const(char)[] expectedHexServerSalt,
         const(char)[] expectedHexServerPublicKey,
         const(char)[] expectedDigitServerPublicKey,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto privateKey = CipherKey.digitsToBigInteger(digitPrivateKey);
         CipherBuffer!ubyte serverAuthData;

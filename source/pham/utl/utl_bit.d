@@ -17,11 +17,21 @@ import std.traits : Unqual, isIntegral, isNumeric, isSomeChar, isUnsigned;
 
 nothrow @safe:
 
+union Map8Bit
+{
+    ubyte u;
+    byte i;
+    char c;
+    ubyte[1] a;
+}
+static assert(Map8Bit.sizeof == 1);
+
 // i=1 ~ a=[1,0] (littleEndian)
 union Map16Bit
 {
     ushort u; // Make this first to have zero initialized value
     short i;
+    wchar c;
     ubyte[2] lh;
     ubyte[ushort.sizeof] a;
 }
@@ -32,6 +42,7 @@ union Map32Bit
 {
     uint u; // Make this first to have zero initialized value
     int i;
+    dchar c;
     float f;
     ushort[2] lh;
     ubyte[uint.sizeof] a;
@@ -50,14 +61,16 @@ union Map64Bit
 static assert(Map64Bit.sizeof == 8);
 
 template MapOf(T)
-if (isIntegral!T)
+if (isIntegral!T || isSomeChar!T)
 {
-    static if (T.sizeof == 2)
-        alias MapOf = Map16Bit;
-    else static if (T.sizeof == 4)
+    static if (T.sizeof == 4)
         alias MapOf = Map32Bit;
     else static if (T.sizeof == 8)
         alias MapOf = Map64Bit;
+    else static if (T.sizeof == 2)
+        alias MapOf = Map16Bit;
+    else static if (T.sizeof == 1)
+        alias MapOf = Map8Bit;
     else
         static assert(0);
 }
@@ -160,7 +173,7 @@ if (isUnsigned!T)
     else static if (T.sizeof == 2)
         return (length + 15) >> 4; // "x >> 4" is "x / 16"
     else static if (T.sizeof == 1)
-        return (length + 7) >> 3; // "x >> 3" is "x / 8"
+        return (length + 7)  >> 3; // "x >> 3" is "x / 8"
     else
         static assert(0);
 }
@@ -257,7 +270,10 @@ auto fromBytes(T)(scope const(ubyte)[] value) @nogc pure
 if (isIntegral!T)
 {
     MapOf!T map = { a:value[0..T.sizeof] };
-    return map.u;
+    static if (isUnsigned!T)
+        return map.u;
+    else
+        return map.i;
 }
 
 /**
@@ -430,7 +446,10 @@ pragma(inline, true)
 auto toBytes(T)(const(T) value) @nogc pure
 if (isIntegral!T)
 {
-    MapOf!T map = { u:value };
+    static if (isUnsigned!T)
+        MapOf!T map = { u:value };
+    else
+        MapOf!T map = { i:value };
     return map.a;
 }
 

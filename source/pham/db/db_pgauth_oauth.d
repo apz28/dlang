@@ -72,16 +72,15 @@ public:
     static string createAuthDataDiscover() nothrow
     {
         // "n,,[kvSep]auth=[authScheme ][token][kvSep][kvSep]"
-        auto result = Appender!string(3 + 1 + 5 + 0 + 0 + 1 + 1);
-        result.put("n,,")
+        ShortStringBuffer!char result;
+        return result.put("n,,")
             .put(kvSep)
             .put("auth=")
             .put("")
             .put("")
             .put(kvSep)
-            .put(kvSep);
-
-        return result.data;
+            .put(kvSep)
+            .toString();
     }
 
     static string createAuthDataBearerToken(scope const(char)[] bearerToken) nothrow

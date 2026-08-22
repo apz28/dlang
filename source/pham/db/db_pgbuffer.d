@@ -206,19 +206,19 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _buffer.empty;
     }
 
     pragma(inline, true)
-    @property int32 messageLength() const nothrow pure
+    @property int32 messageLength() const nothrow
     {
         return _messageLength;
     }
 
     pragma(inline, true)
-    @property char messageType() const nothrow pure
+    @property char messageType() const nothrow
     {
         return _messageType;
     }
@@ -295,7 +295,7 @@ public:
         this._writer = DbValueWriter!(Endian.bigEndian)(buffer.reset());
     }
 
-    ~this()
+    ~this() nothrow
     {
         dispose(DisposingReason.destructor);
     }
@@ -311,10 +311,12 @@ public:
 
         if (messageCode != '\0')
             _writer.writeChar(messageCode);
+            
         _reserveLenghtOffset = _buffer.offset;
         _writer.writeInt32(0); // Reserve length value slot
     }
 
+    pragma(inline, true)
     void beginUntypeMessage() nothrow
     {
         beginMessage('\0');
@@ -367,12 +369,12 @@ public:
     }
 
     pragma(inline, true)
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return scope
     {
         return _buffer.peekBytes();
     }
 
-    string traceString(char messageCode) const nothrow pure @trusted
+    string traceString(char messageCode) const nothrow @trusted
     {
         import std.conv : to;
 
@@ -765,7 +767,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _buffer.empty;
     }
@@ -1122,7 +1124,7 @@ unittest // PgXdrReader & PgXdrWriter
     auto reader = PgXdrReader(writerBytes);
 
     int32 valueLength;
-    int32 readLength(uint line = __LINE__)
+    int32 readLength(size_t line = __LINE__)
     {
         valueLength = reader.readInt32();
         return valueLength;

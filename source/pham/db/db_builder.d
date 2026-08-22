@@ -599,7 +599,7 @@ private:
         const vt = value.variantType;
         if (vt == VariantType.staticArray || vt == VariantType.dynamicArray)
         {
-            auto buffer = Appender!string(100);
+            auto buffer = Appender!string(200);
 
             int appendElement(size_t i, Variant e, void*) @trusted
             {
@@ -1289,7 +1289,7 @@ unittest // columnNameString
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
 
-    auto buffer = Appender!string(20);
+    auto buffer = Appender!string(200);
     auto text = buffer.columnNameString(parameters)[];
     assert(text == "colum1, colum2", text);
 }
@@ -1302,7 +1302,7 @@ unittest // parameterNameString
     parameters.add("colum1", DbType.int32);
     parameters.add("colum2", DbType.int32);
 
-    auto buffer = Appender!string(20);
+    auto buffer = Appender!string(200);
     auto text = buffer.parameterNameString(parameters)[];
     assert(text == "@colum1, @colum2", text);
 }
@@ -1316,7 +1316,7 @@ unittest // parameterConditionString
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
 
-    auto buffer = Appender!string(50);
+    auto buffer = Appender!string(200);
     auto text = buffer.parameterConditionString(parameters)[];
     assert(text == "colum1 = @colum1 AND colum3 = @colum3", text);
 }
@@ -1330,7 +1330,7 @@ unittest // parameterUpdateColumn
     parameters.add("colum2", DbType.int32);
     parameters.add("colum3", DbType.int32).isKey = true;
 
-    auto buffer = Appender!string(20);
+    auto buffer = Appender!string(200);
     auto text = buffer.parameterUpdateColumn(parameters)[];
     assert(text == "colum1 = @colum1, colum2 = @colum2", text);
 }

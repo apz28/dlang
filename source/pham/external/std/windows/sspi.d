@@ -141,12 +141,12 @@ struct SecHandle
     ULONG_PTR dwLower;
     ULONG_PTR dwUpper;
 
-    bool isValid() @nogc nothrow pure @trusted
+    bool isValid() @nogc nothrow @trusted
     {
         return dwLower != 0 || dwUpper != 0;
     }
 
-    void reset() @nogc nothrow pure @trusted
+    void reset() @nogc nothrow @trusted
     {
         dwLower = dwUpper = 0;
     }

@@ -103,13 +103,13 @@ public:
                 || (staticIndexOf!(Unqual!T, AllowedTypes) >= 0 && (isBasicType!T || !hasIndirections!T)));
     }
 
-    enum bool elaborateConstructor = !AllowedTypes.length
+    enum bool elaborateConstructor = AllowedTypes.length == 0
         || anySatisfy!(hasElaborateCopyConstructor, AllowedTypes);
 
-    enum bool elaborateDestructor = !AllowedTypes.length
+    enum bool elaborateDestructor = AllowedTypes.length == 0
         || anySatisfy!(hasElaborateDestructor, AllowedTypes);
 
-    enum bool elaborateIndirection = !AllowedTypes.length
+    enum bool elaborateIndirection = AllowedTypes.length == 0
         || anySatisfy!(hasIndirections, AllowedTypes)
         || elaborateDestructor;
 
@@ -603,7 +603,7 @@ public:
 
         static if (AllowedTypes.length && !isInstanceOf!(.VariantN, T))
         {
-            enum canAssign(U) = __traits(compiles, (U u) { u[indexOrKey] = value; });
+            enum canAssign(U) = __traits(compiles, (U u){ u[indexOrKey] = value; });
             static assert(anySatisfy!(canAssign, AllowedTypes), errorMessage());
         }
 
@@ -1131,20 +1131,21 @@ private:
             }
             else
             {
-                // Exclude compiler generated constructor
-                // https://issues.dlang.org/show_bug.cgi?id=21021
-                static if (__traits(hasMember, T, "__ctor") && __traits(compiles, { T* _ = new T(T.init); }))
-                {
-                    T* prhs = new T(rhs);
-                }
-                else static if (is(T == U[n], U, size_t n))
+                static if (is(T == U[n], U, size_t n))
                 {
                     T* prhs = cast(T*)(new U[n]).ptr;
                     copyEmplace(rhs, *prhs);
                 }
+                // Exclude compiler generated constructor
+                // https://issues.dlang.org/show_bug.cgi?id=21021
+                else static if (__traits(hasMember, T, "__ctor") && __traits(compiles, (){ T* _ = new T(T.init); }))
+                {
+                    T* prhs = new T(rhs);
+                }
                 else
                 {
-                    T* prhs = new T;
+                    // Using ubyte buffer in case `this()` is disabled
+                    T* prhs = cast(T*)(new ubyte[T.sizeof]).ptr;
                     copyEmplace(rhs, *prhs);
                 }
 
@@ -2132,13 +2133,13 @@ private:
         {
             T* prhs = cast(T*)(new U[n]).ptr;
         }
-        else static if (__traits(compiles, { T* _ = new T; }))
+        else static if (__traits(compiles, (){ T* _ = new T; }))
         {
             T* prhs = new T;
         }
         else
         {
-            T* prhs = null;
+            T* prhs = cast(T*)(new ubyte[T.sizeof]).ptr;
         }
 
         *(cast(T**)dstStore) = prhs;
@@ -2159,7 +2160,7 @@ private:
                        || isSomeChar!T || isSomeString!T
                        || isPointer!T || isArray!T || isAssociativeArray!T)
                 return true;
-            else static if (__traits(compiles, { bool _ = (T.init).opCast!bool(); }))
+            else static if (__traits(compiles, (){ bool _ = (T.init).opCast!bool(); }))
                 return true;
             else
                 return false;
@@ -2173,7 +2174,7 @@ private:
             return false;
         else
         {
-            static if (__traits(compiles, { string _ = T.init.toString(); }))
+            static if (__traits(compiles, (){ string _ = T.init.toString(); }))
                 return true;
             else static if (is(typeof(to!string(T.init))))
                 return true;

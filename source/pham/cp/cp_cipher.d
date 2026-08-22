@@ -48,7 +48,7 @@ public:
         this.counter32 = counter32;
         this.counterSize = CounterSize.counter32;
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte key, CipherRawKey!ubyte nonce, uint counter32,
         int rounds = 0) pure
     {
@@ -59,7 +59,7 @@ public:
         this.counter32 = counter32;
         this.counterSize = CounterSize.counter32;
     }
-    
+
     this(uint keyBitLength, scope const(ubyte)[] key, scope const(ubyte)[] nonce, ulong counter64,
         int rounds = 0) pure
     {
@@ -70,7 +70,7 @@ public:
         this.counter64 = counter64;
         this.counterSize = CounterSize.counter64;
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte key, CipherRawKey!ubyte nonce, ulong counter64,
         int rounds = 0) pure
     {
@@ -80,14 +80,14 @@ public:
         this.rounds = calRounds(rounds);
         this.counter64 = counter64;
         this.counterSize = CounterSize.counter64;
-    }    
-    
-    ~this() pure
+    }
+
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    ref typeof(this) opAssign(ref typeof(this) rhs) return
     {
         this.keyBitLength = rhs.keyBitLength;
         this.key = rhs.key;
@@ -104,7 +104,7 @@ public:
         return rounds == 0 ? chacha20 : rounds;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -115,25 +115,25 @@ public:
         return ResultCode.ok;
     }
 
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc
     {
         return isValidKey() && isValidNonce();
     }
-    
-    bool isValidKey() const @nogc pure
+
+    bool isValidKey() const @nogc
     {
         return (key.length == keySize128 || key.length == keySize256) && key.isValid();
     }
-    
-    bool isValidNonce() const @nogc pure
+
+    bool isValidNonce() const @nogc
     {
         return ((counterSize == CounterSize.counter32 && nonce.length == nonceSizeCounter32)
                 || (counterSize == CounterSize.counter64 && nonce.length == nonceSizeCounter64))
             && nonce.isValid();
     }
-    
+
 private:
-    void clear() pure
+    void clear()
     {
         counter64 = 0;
         rounds = 0;
@@ -141,23 +141,23 @@ private:
         key.clear();
         nonce.clear();
     }
-    
-    void unique() pure
+
+    void unique()
     {
         key.unique();
         nonce.unique();
     }
-    
+
 public:
     enum CounterSize : ubyte
     {
         counter32,
         counter64,
     }
-    
+
     uint keyBitLength;
     CipherRawKey!ubyte key, nonce;
-    union 
+    union
     {
         ulong counter64;
         uint counter32;
@@ -177,14 +177,14 @@ public:
         this.modulus = CipherRawKey!ubyte(modulus);
         this.exponent = CipherRawKey!ubyte(exponent);
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte modulus, CipherRawKey!ubyte exponent) pure
     {
         this.keyBitLength = keyBitLength;
         this.modulus = modulus;
         this.exponent = exponent;
     }
-    
+
     this(uint keyBitLength, scope const(ubyte)[] modulus, scope const(ubyte)[] exponent,
         scope const(ubyte)[] d, scope const(ubyte)[] p, scope const(ubyte)[] q, scope const(ubyte)[] dp,
         scope const(ubyte)[] dq, scope const(ubyte)[] inversedq) pure
@@ -199,7 +199,7 @@ public:
         this.dq = CipherRawKey!ubyte(dq);
         this.inversedq = CipherRawKey!ubyte(inversedq);
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte modulus, CipherRawKey!ubyte exponent,
         CipherRawKey!ubyte d, CipherRawKey!ubyte p, CipherRawKey!ubyte q, CipherRawKey!ubyte dp,
         CipherRawKey!ubyte dq, CipherRawKey!ubyte inversedq) pure
@@ -214,13 +214,13 @@ public:
         this.dq = dq;
         this.inversedq = inversedq;
     }
-    
-    ~this() pure
+
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    ref typeof(this) opAssign(ref typeof(this) rhs) return
     {
         this.keyBitLength = rhs.keyBitLength;
         this.modulus = rhs.modulus;
@@ -234,7 +234,7 @@ public:
         return this;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -245,13 +245,13 @@ public:
         return ResultCode.ok;
     }
 
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc
     {
         return modulus.isValid() && exponent.isValid();
     }
 
 private:
-    void clear() pure
+    void clear()
     {
         keyBitLength = 0;
         modulus.clear();
@@ -264,7 +264,7 @@ private:
         inversedq.clear();
     }
 
-    void unique() pure
+    void unique()
     {
         modulus.unique();
         exponent.unique();
@@ -293,20 +293,20 @@ public:
         this.modulus = CipherRawKey!ubyte(modulus);
         this.exponent = CipherRawKey!ubyte(exponent);
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte modulus, CipherRawKey!ubyte exponent) pure
     {
         this.keyBitLength = keyBitLength;
         this.modulus = modulus;
         this.exponent = exponent;
     }
-    
-    ~this() pure
+
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    ref typeof(this) opAssign(ref typeof(this) rhs) return
     {
         this.keyBitLength = rhs.keyBitLength;
         this.modulus = rhs.modulus;
@@ -314,7 +314,7 @@ public:
         return this;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -325,20 +325,20 @@ public:
         return ResultCode.ok;
     }
 
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc
     {
         return modulus.isValid() && exponent.isValid();
     }
 
 private:
-    void clear() pure
+    void clear()
     {
         keyBitLength = 0;
         modulus.clear();
         exponent.clear();
     }
-    
-    void unique() pure
+
+    void unique()
     {
         modulus.unique();
         exponent.unique();
@@ -359,26 +359,26 @@ public:
         this.keyBitLength = keyBitLength;
         this.key = CipherRawKey!ubyte(key);
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte key) pure
     {
         this.keyBitLength = keyBitLength;
         this.key = key;
     }
-    
-    ~this() pure
+
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    ref typeof(this) opAssign(ref typeof(this) rhs) return
     {
         this.keyBitLength = rhs.keyBitLength;
         this.key = rhs.key;
         return this;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -389,19 +389,19 @@ public:
         return ResultCode.ok;
     }
 
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc
     {
         return key.isValid();
     }
 
 private:
-    void clear() pure
+    void clear()
     {
         keyBitLength = 0;
         key.clear();
     }
-    
-    void unique() pure
+
+    void unique()
     {
         key.unique();
     }
@@ -422,20 +422,20 @@ public:
         this.key = CipherRawKey!ubyte(key);
         this.nonce = CipherRawKey!ubyte(nonce);
     }
-    
+
     this(uint keyBitLength, CipherRawKey!ubyte key, CipherRawKey!ubyte nonce) pure
     {
         this.keyBitLength = keyBitLength;
         this.key = key;
         this.nonce = nonce;
     }
-    
-    ~this() pure
+
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(ref typeof(this) rhs) pure return
+    ref typeof(this) opAssign(ref typeof(this) rhs) return
     {
         this.keyBitLength = rhs.keyBitLength;
         this.key = rhs.key;
@@ -443,7 +443,7 @@ public:
         return this;
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -454,20 +454,20 @@ public:
         return ResultCode.ok;
     }
 
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc
     {
         return key.isValid() && nonce.isValid();
     }
 
 private:
-    void clear() pure
+    void clear()
     {
         keyBitLength = 0;
         key.clear();
         nonce.clear();
     }
-    
-    void unique() pure
+
+    void unique()
     {
         key.unique();
         nonce.unique();
@@ -492,52 +492,52 @@ struct CipherKey
 nothrow @safe:
 
 public:
-    this(this) pure
+    this(this)
     {
         unique();
     }
 
-    this(CipherSimpleKey key) pure
+    this(CipherSimpleKey key) @trusted
     {
         this._kind = CipherKeyKind.simpleKey;
         this._keyBitLength = key.keyBitLength;
         this._simple = key;
     }
 
-    this(CipherChaChaKey chacha) pure
+    this(CipherChaChaKey chacha) @trusted
     {
         this._kind = CipherKeyKind.chacha;
         this._keyBitLength = chacha.keyBitLength;
         this._chacha = chacha;
     }
 
-    this(CipherPrivateRSAKey privateRSA) pure
+    this(CipherPrivateRSAKey privateRSA) @trusted
     {
         this._kind = CipherKeyKind.privateRSA;
         this._keyBitLength = privateRSA.keyBitLength;
         this._privateRSA = privateRSA;
     }
 
-    this(CipherPublicRSAKey publicRSA) pure
+    this(CipherPublicRSAKey publicRSA) @trusted
     {
         this._kind = CipherKeyKind.publicRSA;
         this._keyBitLength = publicRSA.keyBitLength;
         this._publicRSA = publicRSA;
     }
 
-    this(CipherVectorKey vector) pure
+    this(CipherVectorKey vector) @trusted
     {
         this._kind = CipherKeyKind.vectorKey;
         this._keyBitLength = vector.keyBitLength;
         this._vector = vector;
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    ref typeof(this) opAssign(ref CipherSimpleKey rhs) pure return @trusted
+    ref typeof(this) opAssign(ref CipherSimpleKey rhs) return @trusted
     {
         this.clearKey();
         this._kind = CipherKeyKind.simpleKey;
@@ -546,7 +546,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(ref CipherChaChaKey rhs) pure return @trusted
+    ref typeof(this) opAssign(ref CipherChaChaKey rhs) return @trusted
     {
         this.clearKey();
         this._kind = CipherKeyKind.chacha;
@@ -555,7 +555,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(ref CipherPrivateRSAKey rhs) pure return @trusted
+    ref typeof(this) opAssign(ref CipherPrivateRSAKey rhs) return @trusted
     {
         this.clearKey();
         this._kind = CipherKeyKind.privateRSA;
@@ -564,7 +564,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(ref CipherPublicRSAKey rhs) pure return @trusted
+    ref typeof(this) opAssign(ref CipherPublicRSAKey rhs) return @trusted
     {
         this.clearKey();
         this._kind = CipherKeyKind.publicRSA;
@@ -573,7 +573,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opAssign(ref CipherVectorKey rhs) pure return @trusted
+    ref typeof(this) opAssign(ref CipherVectorKey rhs) return @trusted
     {
         this.clearKey();
         this._kind = CipherKeyKind.vectorKey;
@@ -581,8 +581,8 @@ public:
         this._vector = rhs;
         return this;
     }
-    
-    ref typeof(this) opAssign(ref typeof(this) rhs) pure return @trusted
+
+    ref typeof(this) opAssign(ref typeof(this) rhs) return @trusted
     {
         this.clearKey();
         this._kind = rhs._kind;
@@ -635,7 +635,7 @@ public:
     }
 
     // For security reason, need to clear the secrete information
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -680,7 +680,7 @@ public:
         return x == 1;
     }
 
-    bool isValid() const @nogc pure @trusted
+    bool isValid() const @nogc @trusted
     {
         final switch (_kind) with (CipherKeyKind)
         {
@@ -696,7 +696,7 @@ public:
                 return _vector.isValid();
         }
     }
-    
+
     @property ref const(CipherChaChaKey) chacha() const pure return @trusted
     {
         static immutable CipherChaChaKey dummy;
@@ -751,7 +751,7 @@ public:
     }
 
 private:
-    void clearKey() pure @trusted
+    void clearKey() @trusted
     {
         final switch (_kind) with (CipherKeyKind)
         {
@@ -772,8 +772,8 @@ private:
                 break;
         }
     }
-    
-    void unique() pure @trusted
+
+    void unique() @trusted
     {
         final switch (_kind) with (CipherKeyKind)
         {
@@ -813,12 +813,12 @@ struct CipherParameters
 nothrow @safe:
 
 public:
-    this(CipherKey privateKey) pure
+    this(CipherKey privateKey)
     {
         this._privateKey = privateKey;
     }
 
-    this(DigestId digestId, CipherKey privateKey, CipherKey publicKey, scope const(ubyte)[] salt) pure
+    this(DigestId digestId, CipherKey privateKey, CipherKey publicKey, scope const(ubyte)[] salt)
     {
         this._digestId = digestId;
         this._privateKey = privateKey;
@@ -826,13 +826,13 @@ public:
         this._salt = CipherRawKey!ubyte(salt);
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);

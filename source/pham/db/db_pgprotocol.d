@@ -48,7 +48,7 @@ nothrow @safe:
     DbAuthStateData authStateData;
     int32 authType;
     int32 serverProcessId;
-    int32 serverSecretKey;
+    PgOIdSecretKey serverSecretKey;
     int nextAuthState;
     DbEncryptedConnection canCryptedConnection;
     char trStatus;
@@ -128,9 +128,23 @@ public:
         writer.flush();
     }
 
-    final void cancelRequestWrite(int32 serverProcessId, int32 serverSecretKey)
+    final void cancelRequestWrite(int32 serverProcessId, scope const(PgOIdSecretKey) serverSecretKey)
     {
-        cancelRequestWrite(serverProcessId, serverSecretKey, 1234 << 16 | 5678);
+        // 80877102 or 0x04D2162E
+        enum cancelKind = (1_234 << 16) | 5_678;
+
+        if (this.protocolVersion >= PgOIdOther.protocolVersion3_2)
+        {
+            assert(serverSecretKey.keysLength > int32.sizeof);
+
+            cancelRequestWrite3_2(serverProcessId, serverSecretKey, cancelKind);
+        }
+        else
+        {
+            assert(serverSecretKey.keysLength == int32.sizeof);
+
+            cancelRequestWrite3_0(serverProcessId, serverSecretKey, cancelKind);
+        }
     }
 
     final void connectAuthenticationRead(ref PgConnectingStateInfo stateInfo)
@@ -185,14 +199,24 @@ public:
 
                     default: // non supported authentication type, close connection
                         auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.authType.to!string());
-                        throw new PgException(DbErrorCode.read, msg);
+                        throw new PgException(DbErrorCode.connect, msg);
                 }
 
             case PgOIdResponeMsg.backendKeyData: // K
                 stateInfo.serverProcessId = reader.readInt32();
-                stateInfo.serverSecretKey = reader.readInt32();
+                
+                if (this.protocolVersion >= PgOIdOther.protocolVersion3_2)
+                {
+                    const keyLen = reader.readInt16();
+                    assert(keyLen > int32.sizeof);
+                    stateInfo.serverSecretKey = PgOIdSecretKey(reader.readBytes(keyLen));
+                }
+                else
+                    stateInfo.serverSecretKey = PgOIdSecretKey(reader.readInt32());
+                
                 connection.serverInfo[DbServerIdentifier.protocolProcessId] = stateInfo.serverProcessId.to!string();
-                connection.serverInfo[DbServerIdentifier.protocolSecretKey] = stateInfo.serverSecretKey.to!string();
+                connection.serverInfo[DbServerIdentifier.protocolSecretKey] = stateInfo.serverSecretKey.toString();
+                
                 goto receiveAgain;
 
             case PgOIdResponeMsg.parameterStatus: // S
@@ -247,7 +271,7 @@ public:
 
         auto writer = PgWriter(connection);
         writer.beginUntypeMessage();
-        writer.writeUInt32(PgOIdOther.protocolVersion);
+        writer.writeUInt32(this.protocolVersion);
         foreach (n; useCSB.parameterNames)
         {
             string mappedName;
@@ -904,21 +928,44 @@ public:
         return _connection;
     }
 
+public:
+    uint protocolVersion = PgOIdOther.protocolVersion;
+
 protected:
-    final void cancelRequestWrite(int32 serverProcessId, int32 serverSecretKey, int32 cancelKind)
+    final void cancelRequestWrite3_0(int32 serverProcessId, scope const(PgOIdSecretKey) serverSecretKey, int32 cancelKind)
     {
         debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(serverProcessId=", serverProcessId, ", serverSecretKey=", serverSecretKey, ", cancelKind=", cancelKind, ")");
 
-        const len = int32.sizeof +  // Length
+        const int32 packetLen = int32.sizeof +  // Length
                     int32.sizeof +  // Cancel request code
                     int32.sizeof +  // Backend process id
                     int32.sizeof;   // Backend secret key
 
         auto writer = PgWriter(connection);
-        writer.writeInt32(len);
+        writer.writeInt32(packetLen);
         writer.writeInt32(cancelKind);
         writer.writeInt32(serverProcessId);
-        writer.writeInt32(serverSecretKey);
+        writer.writeInt32(serverSecretKey.keys3_0());
+        writer.flush();
+    }
+
+    final void cancelRequestWrite3_2(int32 serverProcessId, scope const(PgOIdSecretKey) serverSecretKey, int32 cancelKind)
+    {
+        debug(debug_pham_db_db_pgprotocol) debug writeln(__FUNCTION__, "(serverProcessId=", serverProcessId, ", serverSecretKey=", serverSecretKey, ", cancelKind=", cancelKind, ")");
+        assert(serverSecretKey.keys.length > int32.sizeof);
+
+        const int32 packetLen = int32.sizeof +  // Length
+                    int32.sizeof +  // Cancel request code
+                    int32.sizeof +  // Backend process id
+                    int16.sizeof +  // Backend secret key length
+                    serverSecretKey.keysLength; // Backend secret key value
+
+        auto writer = PgWriter(connection);
+        writer.writeInt32(packetLen);
+        writer.writeInt32(cancelKind);
+        writer.writeInt32(serverProcessId);
+        writer.writeInt16(serverSecretKey.keysLength);
+        writer.writeBytesRaw(serverSecretKey.keys);
         writer.flush();
     }
 
@@ -952,15 +999,15 @@ protected:
         if (stateInfo.auth is null)
         {
             auto msg = DbMessage.eInvalidConnectionAuthServerData.fmtMessage(stateInfo.authMethod, "invalid state: " ~ stateInfo.nextAuthState.to!string());
-            throw new PgException(DbErrorCode.read, msg);
+            throw new PgException(DbErrorCode.connect, msg);
         }
 
-        stateInfo.authStateData.fill!(DbScheme.pg)(connection.pgConnectionStringBuilder);
+        stateInfo.authStateData.fill(connection.connectionStringBuilder);
         stateInfo.authStateData.serverAuthData = serverAuthData;
-        
+
         auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
         if (status.isError)
-            throw new PgException(DbErrorCode.read, status.errorMessage);
+            throw new PgException(DbErrorCode.connect, status.errorMessage);
 
         if (stateInfo.authStateData.authData.length || stateInfo.nextAuthState == DbAuthState.initial)
         {
@@ -1018,7 +1065,7 @@ protected:
         if (!authMap.isValid())
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(authMethod);
-            throw new PgException(DbErrorCode.read, msg);
+            throw new PgException(DbErrorCode.connect, msg);
         }
 
         return cast(PgAuth)authMap.createAuth();

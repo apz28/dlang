@@ -25,7 +25,6 @@ debug(debug_pham_db_db_object) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.dtm.dtm_date : DateTime;
 import pham.utl.utl_array : removeAt;
-import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_array_dictionary;
 import pham.utl.utl_disposable;
 import pham.utl.utl_enum_set : EnumSet;
@@ -406,13 +405,15 @@ protected:
 
     final string timerName() nothrow pure @trusted
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
         import pham.utl.utl_convert : putNumber;
 
         static immutable string prefix = "DbCache_";
-        auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
-        return buffer.put(prefix)
+        
+        ShortStringBuffer!char result;
+        return result.put(prefix)
             .putNumber!16(this.asSizeT())
-            .data;
+            .toString();
     }
 
     final unregisterWithTimer()
@@ -509,7 +510,7 @@ public:
         return this;
     }
 
-    bool opCast(B: bool)() const @nogc pure
+    bool opCast(B: bool)() const @nogc
     {
         return _s.length != 0;
     }
@@ -521,37 +522,37 @@ public:
         return this;
     }
 
-    int opCmp(scope const(DbIdentitier) rhs) const @nogc pure
+    int opCmp(scope const(DbIdentitier) rhs) const @nogc
     {
         return sicmp(_s, rhs._s);
     }
 
-    int opCmp(scope const(char)[] rhs) const @nogc pure
+    int opCmp(scope const(char)[] rhs) const @nogc
     {
         return sicmp(_s, rhs);
     }
 
-    bool opEquals(scope const(DbIdentitier) rhs) const @nogc pure
+    bool opEquals(scope const(DbIdentitier) rhs) const @nogc
     {
         return opCmp(rhs) == 0;
     }
 
-    bool opEquals(scope const(char)[] rhs) const @nogc pure
+    bool opEquals(scope const(char)[] rhs) const @nogc
     {
         return opCmp(rhs) == 0;
     }
 
-    size_t toHash() const pure
+    size_t toHash() const
     {
         return hashOf(ivalue);
     }
 
-    string toString() const pure
+    string toString() const
     {
         return _s;
     }
 
-    @property string ivalue() const pure
+    @property string ivalue() const
     {
 	    scope (failure) assert(0, "Assume nothrow failed");
 
@@ -619,17 +620,17 @@ public:
     alias List = DbNamedObjectList!DbNamedObject;
 
 public:
-    final int opCmp(scope const(DbIdentitier) rhsName) const @nogc pure
+    final int opCmp(scope const(DbIdentitier) rhsName) const @nogc
     {
         return _name.opCmp(rhsName);
     }
 
-    final bool opEquals(scope const(DbIdentitier) rhsName) const @nogc pure
+    final bool opEquals(scope const(DbIdentitier) rhsName) const @nogc
     {
         return opCmp(rhsName) == 0;
     }
 
-    final override size_t toHash() const pure
+    final override size_t toHash() const
     {
         return _name.toHash();
     }
@@ -647,7 +648,7 @@ public:
     /**
      * The name of an object to reflect its purpose in the current application
      */
-    @property final DbIdentitier name() const pure
+    @property final DbIdentitier name() const
     {
         return _name;
     }
@@ -996,17 +997,17 @@ public:
         this.value = value;
     }
 
-    int opCmp(scope const(DbIdentitier) rhsName) const @nogc pure
+    int opCmp(scope const(DbIdentitier) rhsName) const @nogc
     {
         return _name.opCmp(rhsName);
     }
 
-    bool opEquals(scope const(DbIdentitier) rhsName) const @nogc pure
+    bool opEquals(scope const(DbIdentitier) rhsName) const @nogc
     {
         return opCmp(rhsName) == 0;
     }
 
-    size_t toHash() const pure
+    size_t toHash() const
     {
         return _name.toHash();
     }
@@ -1022,7 +1023,7 @@ public:
     /**
      * The name of a struct to reflect its purpose in the current application
      */
-    @property DbIdentitier name() const pure
+    @property DbIdentitier name() const
     {
         return _name;
     }
@@ -1528,6 +1529,8 @@ string getDelimiterText(T)(DbIdentitierValueList!T list,
     const(char) valueSeparator = '=') nothrow @safe
 if (is(T == const(char)[]) || is(T == string))
 {
+    import pham.utl.utl_array_append : Appender;
+    
     scope (failure) assert(0, "Assume nothrow failed");
 
     if (list.length == 0)

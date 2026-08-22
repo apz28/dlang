@@ -870,18 +870,18 @@ public:
         this.rightBottom.y = rightBottom.y;
     }
 
-    float opCmp(scope const(DbGeoBox) rhs) const @nogc pure
+    float opCmp(scope const(DbGeoBox) rhs) const @nogc
     {
         const result = leftTop.opCmp(rhs.leftTop);
         return result == 0 ? rightBottom.opCmp(rhs.rightBottom) : result;
     }
 
-    bool opEquals(scope const(DbGeoBox) rhs) const @nogc pure
+    bool opEquals(scope const(DbGeoBox) rhs) const @nogc
     {
         return opCmp(rhs) == 0;
     }
 
-    size_t toHash() const @nogc pure
+    size_t toHash() const @nogc
     {
         return hashOf(rightBottom.y, hashOf(rightBottom.x, hashOf(leftTop.y, hashOf(leftTop.x))));
     }
@@ -906,64 +906,64 @@ public:
     }
 
     pragma(inline, true)
-    @property float64 bottom() const @nogc pure
+    @property float64 bottom() const @nogc
     {
         return rightBottom.y;
     }
 
-    @property ref typeof(this) bottom(float64 value) @nogc pure return
+    @property ref typeof(this) bottom(float64 value) @nogc return
     {
         rightBottom.y = value;
         return this;
     }
 
-    @property float64 height() const @nogc pure
+    @property float64 height() const @nogc
     {
         return bottom - top;
     }
 
-    @property bool isEmpty() @nogc pure return
+    @property bool isEmpty() @nogc return
     {
         return height == 0.0 && width == 0.0;
     }
 
     pragma(inline, true)
-    @property float64 left() const @nogc pure
+    @property float64 left() const @nogc
     {
         return leftTop.x;
     }
 
-    @property ref typeof(this) left(float64 value) @nogc pure return
+    @property ref typeof(this) left(float64 value) @nogc return
     {
         leftTop.x = value;
         return this;
     }
 
     pragma(inline, true)
-    @property float64 right() const @nogc pure
+    @property float64 right() const @nogc
     {
         return rightBottom.x;
     }
 
-    @property ref typeof(this) right(float64 value) @nogc pure return
+    @property ref typeof(this) right(float64 value) @nogc return
     {
         rightBottom.x = value;
         return this;
     }
 
     pragma(inline, true)
-    @property float64 top() const @nogc pure
+    @property float64 top() const @nogc
     {
         return leftTop.y;
     }
 
-    @property ref typeof(this) top(float64 value) @nogc pure return
+    @property ref typeof(this) top(float64 value) @nogc return
     {
         leftTop.y = value;
         return this;
     }
 
-    @property float64 width() const @nogc pure
+    @property float64 width() const @nogc
     {
         return right - left;
     }
@@ -992,7 +992,7 @@ public:
         this.r = radius;
     }
 
-    float opCmp(scope const(DbGeoCircle) rhs) const @nogc pure
+    float opCmp(scope const(DbGeoCircle) rhs) const @nogc
     {
         auto result = cmp(x, rhs.x);
         if (result == 0)
@@ -1004,12 +1004,12 @@ public:
         return result;
     }
 
-    bool opEquals(scope const(DbGeoCircle) rhs) const @nogc pure
+    bool opEquals(scope const(DbGeoCircle) rhs) const @nogc
     {
         return opCmp(rhs) == 0;
     }
 
-    size_t toHash() const @nogc pure
+    size_t toHash() const @nogc
     {
         return hashOf(r, hashOf(y, hashOf(x)));
     }
@@ -1053,17 +1053,17 @@ public:
         this.points = points.dup;
     }
 
-    float opCmp(scope const(DbGeoPath) rhs) const @nogc pure
+    float opCmp(scope const(DbGeoPath) rhs) const @nogc
     {
         return cmp(this, rhs);
     }
 
-    bool opEquals(scope const(DbGeoPath) rhs) const @nogc pure
+    bool opEquals(scope const(DbGeoPath) rhs) const @nogc
     {
         return this.points.length == rhs.points.length && cmp(this, rhs) == 0;
     }
 
-    size_t toHash() const @nogc pure
+    size_t toHash() const @nogc
     {
         size_t result = open;
         foreach (i; 0..points.length)
@@ -1098,7 +1098,7 @@ public:
     bool open;
 
 private:
-    static float cmp(scope ref const(DbGeoPath) lhs, scope ref const(DbGeoPath) rhs) @nogc pure
+    static float cmp(scope ref const(DbGeoPath) lhs, scope ref const(DbGeoPath) rhs) @nogc
     {
         const len = lhs.points.length <= rhs.points.length ? lhs.points.length : rhs.points.length;
         foreach (i; 0..len)
@@ -1123,17 +1123,17 @@ public:
         this.points = points.dup;
     }
 
-    float opCmp(scope const(DbGeoPolygon) rhs) const @nogc pure
+    float opCmp(scope const(DbGeoPolygon) rhs) const @nogc
     {
         return cmp(this, rhs);
     }
 
-    bool opEquals(scope const(DbGeoPolygon) rhs) const @nogc pure
+    bool opEquals(scope const(DbGeoPolygon) rhs) const @nogc
     {
         return this.points.length == rhs.points.length && cmp(this, rhs) == 0;
     }
 
-    size_t toHash() const @nogc pure
+    size_t toHash() const @nogc
     {
         if (points.length == 0)
             return 0;
@@ -1170,7 +1170,7 @@ public:
     DbGeoPoint[] points;
 
 private:
-    static float cmp(scope ref const(DbGeoPolygon) lhs, scope ref const(DbGeoPolygon) rhs) @nogc pure
+    static float cmp(scope ref const(DbGeoPolygon) lhs, scope ref const(DbGeoPolygon) rhs) @nogc
     {
         const len = lhs.points.length <= rhs.points.length ? lhs.points.length : rhs.points.length;
         foreach (const i; 0..len)
@@ -1189,18 +1189,18 @@ struct DbGeoPoint
 nothrow @safe:
 
 public:
-    float opCmp(scope const(DbGeoPoint) rhs) const @nogc pure
+    float opCmp(scope const(DbGeoPoint) rhs) const @nogc
     {
         const result = cmp(x, rhs.x);
         return result == 0 ? cmp(y, rhs.y) : result;
     }
 
-    bool opEquals(scope const(DbGeoPoint) rhs) const @nogc pure
+    bool opEquals(scope const(DbGeoPoint) rhs) const @nogc
     {
         return opCmp(rhs) == 0;
     }
 
-    size_t toHash() const @nogc pure
+    size_t toHash() const @nogc
     {
         return hashOf(y, hashOf(x));
     }
@@ -1330,12 +1330,12 @@ public:
             static assert(0);
     }
 
-    void reset() pure
+    void reset()
     {
         value.u64 = notSetValue;
     }
 
-    void setDummy() pure
+    void setDummy()
     {
         value.u64 = dummyValue;
     }
@@ -1535,7 +1535,7 @@ public:
         return this;
     }
 
-    ref typeof(this) opOpAssign(string op, T)(T rhs) pure return
+    ref typeof(this) opOpAssign(string op, T)(T rhs) return
     if (op == "+" && (is(Unqual!T == int) || is(Unqual!T == long) || is(Unqual!T == DbRecordsAffected)))
     {
         debug(debug_pham_db_db_type) debug writeln(__FUNCTION__, "(rhs=", rhs, ")");
@@ -1565,7 +1565,7 @@ public:
         return this;
     }
 
-    bool opCast(C: bool)() const pure
+    bool opCast(C: bool)() const
     {
         return hasCount;
     }
@@ -1583,7 +1583,7 @@ public:
         return this;
     }
 
-    @property bool hasCount() const pure
+    @property bool hasCount() const
     {
         return value >= 0;
     }
@@ -1995,7 +1995,7 @@ public:
         return hosts.length != 0;
     }
 
-    @property S option(S name) @nogc pure
+    @property S option(S name) @nogc
     {
         import pham.utl.utl_text : valueOf;
 

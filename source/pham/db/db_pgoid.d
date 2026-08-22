@@ -129,7 +129,11 @@ enum PgOIdDiag : char
 
 enum PgOIdOther : int
 {
-    protocolVersion = 0x0003_0000, // version number 3
+    // There is no v3.1
+    protocolVersion3_0 = 0x0003_0000, // version number 3.0
+    protocolVersion3_2 = 0x0003_0002, // version number 3.0
+    protocolVersion = protocolVersion3_0,
+    
     undefined = 0,
 }
 

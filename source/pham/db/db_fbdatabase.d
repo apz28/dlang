@@ -21,7 +21,6 @@ import std.traits : Unqual;
 debug(debug_pham_db_db_fbdatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
-import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_convert : bytesFromBase64s, bytesToBase64s;
 import pham.utl.utl_delegate_list;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
@@ -175,7 +174,7 @@ public:
             case DbType.array:
             case DbType.unknown:
                 auto msg = DbMessage.eUnsupportDataType.fmtMessage(__FUNCTION__, toName!DbType(descriptor.columnInfo.dbType));
-                throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
+                throw new FbException(DbErrorCode.read, msg, "", 0, FbIscResultCode.isc_net_read_err);
         }
 
         // Never reach here
@@ -782,6 +781,8 @@ public:
     }
     do
     {
+        import pham.utl.utl_array_append : Appender;
+
         debug(debug_pham_db_db_fbdatabase) debug writeln(__FUNCTION__, "()");
 
         Appender!(ubyte[]) result;
@@ -845,6 +846,8 @@ public:
     }
     do
     {
+        import pham.utl.utl_array_append : Appender;
+
         debug(debug_pham_db_db_fbdatabase)
         {
             const s = sizes();
@@ -2229,19 +2232,19 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new FbException(DbErrorCode.connect, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_connect_err, next, funcName, file, line);
     }
 
     final override SkException createReadDataError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new FbException(DbErrorCode.read, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_read_err, next, funcName, file, line);
     }
 
     final override SkException createWriteDataError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new FbException(DbErrorCode.write, errorMessage, null, socketErrorCode, FbIscResultCode.isc_net_write_err, next, funcName, file, line);
     }
@@ -2731,6 +2734,8 @@ public:
     // Row numbers are 1-based
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
+
         // No restriction
         if (rows < 0)
             return null;
@@ -2739,25 +2744,27 @@ public:
         if (rows == 0)
             return "ROWS 0";
 
-        auto buffer = Appender!string(30);
-        return buffer.put("ROWS ")
+        ShortStringBuffer!char result;
+        return result.put("ROWS ")
             .putNumber(offset + 1)
             .put(" TO ")
             .putNumber(offset + rows)
-            .data;
+            .toString();
     }
 
     // select FIRST(?) ... from ...
     final override string topClause(int rows) const nothrow pure @safe
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
+
         if (rows < 0)
             return null;
 
-        auto buffer = Appender!string(20);
-        return buffer.put("FIRST(")
+        ShortStringBuffer!char result;
+        return result.put("FIRST(")
             .putNumber(rows)
             .put(')')
-            .data;
+            .toString();
     }
 
     @property final override bool returningClause() const nothrow pure
@@ -3163,6 +3170,8 @@ public:
     void traceStart(string sessionName, FbTraceDatabaseConfiguration[] databaseConfigurations,
         ref FbHandle sessionId)
     {
+        import pham.utl.utl_array_append : Appender;
+
         open();
         scope (exit)
             close();
@@ -3186,6 +3195,8 @@ public:
     void traceStart(string sessionName, FbTraceDatabaseConfiguration[] databaseConfigurations,
         FbTraceServiceConfiguration serviceConfiguration, ref FbHandle sessionId)
     {
+        import pham.utl.utl_array_append : Appender;
+
         open();
         scope (exit)
             close();

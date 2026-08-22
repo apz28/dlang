@@ -365,10 +365,10 @@ struct LogLocation
 {
 nothrow @safe:
 
-    this(uint line, string fileName, string funcName, string moduleName) pure
+    this(size_t line, string fileName, string funcName, string moduleName) pure
     {
-        this.line = line;
         this.fileName = fileName;
+        this.line = line;
         this.funcName = funcName;
         this.moduleName = moduleName;
     }
@@ -379,7 +379,7 @@ nothrow @safe:
         fileName = funcName = moduleName = null;
     }
 
-    static LogLocation get(in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) pure
+    static LogLocation get(in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) pure
     {
         return LogLocation(line, fileName, funcName, moduleName);
     }
@@ -387,7 +387,7 @@ nothrow @safe:
     string fileName; /// the filename the log function was called from
     string funcName; /// the name of the function the log function was called from
     string moduleName; /// the name of the module the log message is coming from
-    uint line; /// the line number the log function was called from
+    size_t line; /// the line number the log function was called from
 }
 
 /**
@@ -402,7 +402,7 @@ nothrow @safe:
  * --------------------
  */
 void log(Args...)(lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
@@ -428,7 +428,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(
  * --------------------
  */
 void log(Args...)(lazy bool condition, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
@@ -452,7 +452,7 @@ void log(Args...)(lazy bool condition, lazy Args args,
  * --------------------
  */
 void log(Args...)(const(LogLevel) ll, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(condition, "(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
@@ -478,7 +478,7 @@ if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
  * --------------------
  */
 void log(Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
     static if (isLoggingEnabled)
     {
@@ -499,7 +499,7 @@ void log(Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
  * --------------------
  */
 void logf(Args...)(lazy string fmt, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
@@ -526,7 +526,7 @@ logf(true, "Hello World %f", 3.1415);
 --------------------
  */
 void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -551,7 +551,7 @@ void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
  * --------------------
  */
 void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -577,7 +577,7 @@ void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
  * --------------------
  */
 void logf(Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
 {
     debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -595,7 +595,7 @@ void logf(Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, laz
 template defaultLogFunction(LogLevel ll)
 {
     void defaultLogFunction(Args...)(lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
@@ -607,7 +607,7 @@ template defaultLogFunction(LogLevel ll)
     }
 
     void defaultLogFunction(Args...)(lazy bool condition, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
@@ -669,7 +669,7 @@ alias logWarn = defaultLogFunction!(LogLevel.warn);
 template defaultLogFunctionf(LogLevel ll)
 {
     void defaultLogFunctionf(Args...)(lazy string fmt, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
@@ -681,7 +681,7 @@ template defaultLogFunctionf(LogLevel ll)
     }
 
     void defaultLogFunctionf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1040,7 +1040,7 @@ public:
          * --------------------
          */
         final void logImpl(Args...)(lazy Args args,
-            in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+            in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
         {
             debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
@@ -1090,7 +1090,7 @@ public:
          * --------------------
          */
         final void logImpl(Args...)(lazy bool condition, lazy Args args,
-            in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+            in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         {
             debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1137,7 +1137,7 @@ public:
          * --------------------
          */
         final void logImplf(Args...)(lazy string fmt, lazy Args args,
-            in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+            in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         if (args.length == 0 || (args.length > 0 && !is(Unqual!(A[0]) : string)))
         {
             debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
@@ -1186,7 +1186,7 @@ public:
          * --------------------
          */
         final void logImplf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
-            in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+            in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
         {
             debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(", condition=", condition, fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1286,7 +1286,7 @@ public:
      * --------------------
      */
     final void log(Args...)(lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(line=", line, ", funcName=", funcName, ")");
@@ -1337,7 +1337,7 @@ public:
      * --------------------
      */
     final void log(Args...)(lazy bool condition, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition= ", condition, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1385,7 +1385,7 @@ public:
      * --------------------
      */
     final void log(Args...)(const(LogLevel) ll, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool)))
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", line=", line, ", funcName=", funcName, ")");
@@ -1433,7 +1433,7 @@ public:
      * --------------------
      */
     final void log(Args...)(const(LogLevel) ll, lazy bool condition, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1479,7 +1479,7 @@ public:
      * --------------------
      */
     final void logf(Args...)(lazy string fmt, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     if (args.length == 0 || (args.length > 0 && !is(Unqual!(Args[0]) : bool) && !is(Unqual!(Args[0]) == LogLevel)))
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
@@ -1527,7 +1527,7 @@ public:
      * --------------------
      */
     final void logf(Args...)(lazy bool condition, lazy string fmt, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(condition=", condition, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1573,7 +1573,7 @@ public:
      * --------------------
      */
     final void logf(Args...)(const(LogLevel) ll, lazy string fmt, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", fmt=", fmt, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1620,7 +1620,7 @@ public:
      * --------------------
      */
     final void logf(Args...)(const(LogLevel) ll, lazy bool condition, lazy string fmt, lazy Args args,
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) nothrow
     {
         debug(debug_pham_external_std_log_log_logger) debug writeln(__FUNCTION__, "(ll=", ll, ", condition=", condition, ", line=", line, ", funcName=", funcName, ")");
 
@@ -1662,7 +1662,7 @@ public:
             this.exception = null;
         }
 
-        this(LogLevel logLevel, uint line, string fileName, string funcName, string moduleName, ThreadID threadID, SysTime timestamp) pure
+        this(LogLevel logLevel, size_t line, string fileName, string funcName, string moduleName, ThreadID threadID, SysTime timestamp) pure
         {
             this.logLevel = logLevel;
             this.location = LogLocation(line, fileName, funcName, moduleName);
@@ -3270,7 +3270,7 @@ public:
     this(Logger logger, string message,
         Duration warnMsecs = Duration.zero,
         string beginMarker = "Begin", string endMarker = "End",
-        in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__)
+        in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__)
     {
         this.message = message;
         this.payload.logger = logger;
@@ -4042,7 +4042,7 @@ package(pham.external.std.log)
             return LoggerOption(defaultUnitTestLogLevel, "TestLogger", defaultOutputPattern, 0);
         }
 
-        final uint line() const nothrow pure @safe
+        final size_t line() const nothrow pure @safe
         {
             return location.line;
         }

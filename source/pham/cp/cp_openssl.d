@@ -38,12 +38,12 @@ public:
         this.keyBitLength = keyBitLength;
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @trusted
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @trusted
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -136,7 +136,7 @@ public:
         return OpenSSLKeyInfo("des_ede3_ofb", &opensslApi.EVP_des_ede3_ofb, 64 / 8, 192);
     }
 
-    static OpenSSLKeyInfo aes_cbc(uint keyBitLength) pure
+    static OpenSSLKeyInfo aes_cbc(uint keyBitLength)
     {
         if (keyBitLength <= 128)
             return OpenSSLKeyInfo("aes_128_cbc", &opensslApi.EVP_aes_128_cbc, 128 / 8, 128);
@@ -146,7 +146,7 @@ public:
             return OpenSSLKeyInfo("aes_256_cbc", &opensslApi.EVP_aes_256_cbc, 128 / 8, 256);
     }
 
-    static OpenSSLKeyInfo aes_cfb(uint keyBitLength) pure
+    static OpenSSLKeyInfo aes_cfb(uint keyBitLength)
     {
         if (keyBitLength <= 128)
             return OpenSSLKeyInfo("aes_128_cfb", &opensslApi.EVP_aes_128_cfb, 128 / 8, 128);
@@ -156,7 +156,7 @@ public:
             return OpenSSLKeyInfo("aes_256_cfb", &opensslApi.EVP_aes_256_cfb, 128 / 8, 256);
     }
 
-    static OpenSSLKeyInfo aes_ecb(uint keyBitLength) pure
+    static OpenSSLKeyInfo aes_ecb(uint keyBitLength)
     {
         if (keyBitLength <= 128)
             return OpenSSLKeyInfo("aes_128_ecb", &opensslApi.EVP_aes_128_ecb, 128 / 8, 128);
@@ -166,7 +166,7 @@ public:
             return OpenSSLKeyInfo("aes_256_ecb", &opensslApi.EVP_aes_256_ecb, 128 / 8, 256);
     }
 
-    static OpenSSLKeyInfo aes_ofb(uint keyBitLength) pure
+    static OpenSSLKeyInfo aes_ofb(uint keyBitLength)
     {
         if (keyBitLength <= 128)
             return OpenSSLKeyInfo("aes_128_ofb", &opensslApi.EVP_aes_128_ofb, 128 / 8, 128);
@@ -466,14 +466,14 @@ public:
     ResultStatus verifyCertificate() @trusted
     {
         this.lastVerificationCallbackResult.reset();
-        
+
         ResultStatus returnErrorStatus(ResultStatus errorStatus)
         {
             if (this.lastVerificationCallbackResult.isOK)
                 this.lastVerificationCallbackResult = errorStatus;
             return errorStatus;
         }
-        
+
         if (!isInitialized)
             return returnErrorStatus(ResultStatus.error(-1, "SSL is not initialized"));
         if (!isConnected)
@@ -565,24 +565,24 @@ public:
         return preverify_ok;
     }
 
-    @property SSL_CTX* ctx() @nogc pure return
+    @property SSL_CTX* ctx() @nogc return
     {
         return _ctx;
     }
 
     pragma(inline, true)
-    @property bool isConnected() const @nogc pure
+    @property bool isConnected() const @nogc
     {
         return _connected;
     }
 
     pragma(inline, true)
-    @property bool isInitialized() const @nogc pure
+    @property bool isInitialized() const @nogc
     {
         return _ssl !is null && _ctx !is null;
     }
 
-    @property SSL* ssl() @nogc pure return
+    @property SSL* ssl() @nogc return
     {
         return _ssl;
     }
@@ -776,7 +776,7 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(OpenSSLKeyInfo info, scope const(ubyte)[] key, scope const(ubyte)[] iv) pure
+    this(OpenSSLKeyInfo info, scope const(ubyte)[] key, scope const(ubyte)[] iv)
     {
         this._info = info;
         this._key = CipherRawKey!ubyte(key);
@@ -954,7 +954,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool isInitialized() const @nogc pure
+    @property bool isInitialized() const @nogc
     {
         return _ctx !is null;
     }
@@ -1223,7 +1223,7 @@ public:
 
         return fromStringz(resultTemp).idup;
     }
-    
+
     static ResultStatus readAll(scope BIO* bio, ref ubyte[] data) @trusted
     {
         const bioSize = getSize(bio);
@@ -1279,12 +1279,12 @@ public:
         this._isPublic = rhs._isPublic;
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -1299,28 +1299,28 @@ public:
     }
 
     pragma(inline, true)
-    bool isValid() const @nogc pure
+    bool isValid() const @nogc
     {
         return _pemData.length != 0 || _pemFile.length != 0;
     }
 
-    static OpenSSLRSAPem privateKey(scope const(char)[] pemData, scope const(char)[] pemFile) pure
+    static OpenSSLRSAPem privateKey(scope const(char)[] pemData, scope const(char)[] pemFile)
     {
         return OpenSSLRSAPem(pemData, pemFile, false);
     }
 
-    static OpenSSLRSAPem publicKey(scope const(char)[] pemData, scope const(char)[] pemFile) pure
+    static OpenSSLRSAPem publicKey(scope const(char)[] pemData, scope const(char)[] pemFile)
     {
         return OpenSSLRSAPem(pemData, pemFile, true);
     }
 
     pragma(inline, true)
-    bool useData() const @nogc pure
+    bool useData() const @nogc
     {
         return _pemData.length != 0;
     }
 
-    @property char[] pemData() @nogc pure return
+    @property char[] pemData() @nogc return
     {
         return _pemData;
     }
@@ -1350,7 +1350,7 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(OpenSSLRSAPem pem) pure
+    this(OpenSSLRSAPem pem)
     {
         this._pem = pem;
     }
@@ -1489,7 +1489,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool isInitialized() const @nogc pure
+    @property bool isInitialized() const @nogc
     {
         return _rsa !is null;
     }

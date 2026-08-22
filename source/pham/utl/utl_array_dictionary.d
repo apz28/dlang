@@ -315,7 +315,7 @@ public:
      *  key = the key of the value to get
      */
     ref inout(V) opIndex(scope const(K) key,
-        string file = __FILE__, uint line = __LINE__) inout return
+        string file = __FILE__, size_t line = __LINE__) inout return
     {
         if (auto v = key in this)
             return *v;
@@ -813,14 +813,14 @@ private:
             return hash % buckets.length;
         }
 
-        pragma(inline, true)
+        //pragma(inline, true)
         size_t calcHash(ref const(K) key) const nothrow @safe
         {
             if (_customHashOf)
                 return _customHashOf(key);
             else
             {
-                static if (__traits(compiles, { size_t _ = K.init.toHash(); }))
+                static if (__traits(compiles, (){ size_t _ = K.init.toHash(); }))
                     const size_t hash = key.toHash();
                 else
                     const size_t hash = hashOf(key);
@@ -953,7 +953,7 @@ private:
             do
             {
                 auto e = &entries[index];
-                static if (__traits(compiles, { bool _ = K.init.opEqual(key); }))
+                static if (__traits(compiles, (){ bool _ = K.init.opEqual(key); }))
                 {
                     if (e.hash == hash && e._key.opEqual(key))
                         return true;

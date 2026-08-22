@@ -20,15 +20,22 @@ public:
         super(message, file, line, next);
     }
 
-    this(string message, size_t line, size_t column,
-        string file = __FILE__, Exception next = null) nothrow pure
+    this(string message, size_t sourceLine, size_t sourceColumn,
+        string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure
     {
         import std.conv : text;
 
-        if (column)
-            super(text(message, " (", line, ":", column, ")"), file, line, next);
+        if (sourceColumn)
+            super(text(message, " (", sourceLine, ":", sourceColumn, ")"), file, line, next);
         else
             super(message, file, line, next);
+    }
+
+    // For re-throw
+    this(string message, Exception next,
+        string file = __FILE__, size_t line = __LINE__) nothrow pure
+    {
+        super(message, file, line, next);
     }
 }
 

@@ -11,22 +11,46 @@
 
 module pham.utl.utl_range;
 
-template ElementType(R)
+template ElementType(Range)
 {
-    static if (is(typeof(R.init.front.init) T))
+    static if (is(typeof(Range.init.front.init) T))
         alias ElementType = T;
     else
         alias ElementType = void;
 }
 
-template UElementType(R)
+template UElementType(Range)
 {
     import std.traits : Unqual;
 
-    static if (is(typeof(R.init.front.init) T))
+    static if (is(typeof(Range.init.front.init) T))
         alias UElementType = Unqual!T;
     else
         alias UElementType = void;
+}
+
+struct ArrayOutputRange(alias arrayValue, ArrayElement)
+{
+    @disable this(this);
+    @disable void opAssign(typeof(this));
+
+    pragma(inline, true)
+    void put(ArrayElement value)
+    {
+        arrayValue ~= value;
+    }
+
+    pragma(inline, true)
+    void put(ArrayElement[] values)
+    {
+        arrayValue ~= values;
+    }
+
+    pragma(inline, true)
+    @property size_t length() const nothrow @safe
+    {
+        return arrayValue.length;
+    }
 }
 
 @property bool empty(T)(auto ref scope T a) @nogc nothrow pure @safe
@@ -71,9 +95,9 @@ unittest // ElementType
         static assert(is(ElementType!(inout(int)[]) == inout(int)));
     }
 
-    static assert(is(ElementType!(string) == immutable(char)));
-    static assert(is(ElementType!(wstring) == immutable(wchar)));
-    static assert(is(ElementType!(dstring) == immutable(dchar)));
+    static assert(is(ElementType!string == immutable(char)));
+    static assert(is(ElementType!wstring == immutable(wchar)));
+    static assert(is(ElementType!dstring == immutable(dchar)));
 
     {
         static struct S
@@ -140,6 +164,27 @@ unittest // UElementType
         }
         static assert(is(UElementType!R == E));
     }
+}
+
+unittest // ArrayOutputRange
+{
+    import std.range.primitives : isOutputRange;
+
+    char[] a;
+    ArrayOutputRange!(a, char) aOut;
+    static assert(isOutputRange!(ArrayOutputRange!(a, char), char));
+    aOut.put('a');
+    assert(aOut.length == 1);
+    aOut.put("bcd".dup);
+    assert(a == "abcd", a);
+
+    string a2;
+    ArrayOutputRange!(a2, immutable(char)) aOut2;
+    static assert(isOutputRange!(ArrayOutputRange!(a2, immutable(char)), immutable(char)));
+    aOut2.put('a');
+    assert(aOut2.length == 1);
+    aOut2.put("bcd");
+    assert(a2 == "abcd", a2);
 }
 
 nothrow pure @safe unittest // empty

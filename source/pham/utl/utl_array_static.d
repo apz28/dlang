@@ -138,8 +138,8 @@ public:
      * Params:
      *  rhs = an integral array of elements to applied logical operator with
      */
-    static if (isIntegral!T)
-    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure return
+    static if (isIntegral!T || isSomeChar!T)
+    void opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow
     if (op == "&" || op == "|" || op == "^")
     {
         const len = _length > rhs.length ? rhs.length : _length;
@@ -152,8 +152,6 @@ public:
             if (len < _length)
                 this._items[len.._length] = 0;
         }
-
-        return this;
     }
 
     bool opCast(B: bool)() const nothrow
@@ -228,8 +226,8 @@ public:
      *  rhs = an integral element to applied logical operator with
      *  index = the index of element to be applied to
      */
-    static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow pure return
+    static if (isIntegral!T || isSomeChar!T)
+    void opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow
     if (op == "&" || op == "|" || op == "^")
     in
     {
@@ -238,7 +236,6 @@ public:
     do
     {
         mixin("this._items[index] " ~ op ~ "= rhs;");
-        return this;
     }
 
     /**
@@ -830,7 +827,7 @@ public:
      * Params:
      *  item = an element to be appended
      */
-    ref typeof(this) opOpAssign(string op)(T item) nothrow pure return
+    ref typeof(this) opOpAssign(string op)(T item) nothrow return
     if (op == "~" || op == "+")
     {
         return put(item);
@@ -842,7 +839,7 @@ public:
      * Params:
      *  items = array of elements to be appended
      */
-    ref typeof(this) opOpAssign(string op)(scope const(T)[] items) nothrow pure return
+    ref typeof(this) opOpAssign(string op)(scope const(T)[] items) nothrow return
     if (op == "~" || op == "+")
     {
         return put(items);
@@ -854,8 +851,8 @@ public:
      * Params:
      *  rhs = an integral array of elements to applied logical operator with
      */
-    static if (isIntegral!T)
-    ref typeof(this) opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow pure return
+    static if (isIntegral!T || isSomeChar!T)
+    void opOpAssign(string op)(scope const(T)[] rhs) @nogc nothrow
     if (op == "&" || op == "|" || op == "^")
     {
         const len = _length > rhs.length ? rhs.length : _length;
@@ -868,8 +865,6 @@ public:
             if (len < _length)
                 this._items[len.._length] = 0;
         }
-
-        return this;
     }
 
     alias opDollar = length;
@@ -897,7 +892,7 @@ public:
     /**
      * Returns range interface
      */
-    inout(T)[] opIndex() inout nothrow pure return
+    inout(T)[] opIndex() inout nothrow return
     {
         return _items[0.._length];
     }
@@ -905,7 +900,7 @@ public:
     /**
      * Returns the item at given index
      */
-    T opIndex(size_t index) const @nogc nothrow pure
+    T opIndex(size_t index) const @nogc nothrow
     in
     {
         assert(index < length);
@@ -957,8 +952,8 @@ public:
      *  rhs = an integral element to applied logical operator with
      *  index = the index of element to be applied to
      */
-    static if (isIntegral!T)
-    ref typeof(this) opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow pure return
+    static if (isIntegral!T || isSomeChar!T)
+    void opIndexOpAssign(string op)(T rhs, size_t index) @nogc nothrow
     if (op == "&" || op == "|" || op == "^")
     in
     {
@@ -967,7 +962,6 @@ public:
     do
     {
         mixin("this._items[index] " ~ op ~ "= rhs;");
-        return this;
     }
 
     /**
@@ -977,7 +971,7 @@ public:
      *  beginRange = starting index of element range
      *  endRange = exclusive index of element range
      */
-    inout(T)[] opSlice(size_t beginRange, size_t endRange) inout nothrow pure return
+    inout(T)[] opSlice(size_t beginRange, size_t endRange) inout nothrow return
     in
     {
         assert(beginRange < endRange);
@@ -993,7 +987,7 @@ public:
             : _items[beginRange..endRange];
     }
 
-    ref typeof(this) chopFront(size_t chopLength) nothrow pure return
+    ref typeof(this) chopFront(size_t chopLength) nothrow return
     {
         if (_length > chopLength)
         {
@@ -1005,7 +999,7 @@ public:
             return clear();
     }
 
-    ref typeof(this) chopTail(size_t chopLength) nothrow pure return
+    ref typeof(this) chopTail(size_t chopLength) nothrow return
     {
         const newLength = chopLength < _length ? _length - chopLength : 0;
         if (newLength != _length)
@@ -1017,14 +1011,14 @@ public:
      * Removes all elements from the StaticStringBuffer.
      * This allows the elements of the array to be reused for appending
      */
-    ref typeof(this) clear() nothrow pure return
+    ref typeof(this) clear() nothrow return
     {
         _items = [];
         _length = 0;
         return this;
     }
 
-    T[] consume() nothrow pure
+    T[] consume() nothrow
     {
         auto result = _items[0.._length].dup;
         _items = [];
@@ -1033,7 +1027,7 @@ public:
         return result;
     }
 
-    immutable(T)[] consumeUnique() nothrow pure
+    immutable(T)[] consumeUnique() nothrow
     {
         auto result = _items[0.._length].idup;
         _items = [];
@@ -1071,7 +1065,7 @@ public:
         return this;
     }
 
-    inout(T)[] left(size_t len) inout nothrow pure return
+    inout(T)[] left(size_t len) inout nothrow return
     {
         return len >= _length
             ? opIndex()
@@ -1083,7 +1077,7 @@ public:
      * Params:
      *  item = a single item to be appended
      */
-    ref typeof(this) put(T item) nothrow pure return
+    ref typeof(this) put(T item) nothrow return
     {
         reserve(1, 1, false);
         this._items[_length++] = item;
@@ -1095,7 +1089,7 @@ public:
      * Params:
      *  items = an array of items to be appended
      */
-    ref typeof(this) put(scope const(T)[] items) nothrow pure return
+    ref typeof(this) put(scope const(T)[] items) nothrow return
     {
         if (const len = items.length)
         {
@@ -1108,7 +1102,7 @@ public:
     }
 
     static if (is(T == char))
-    ref typeof(this) put(dchar c) nothrow pure return
+    ref typeof(this) put(dchar c) nothrow return
     {
         import std.typecons : Yes;
         import std.utf : encode, UseReplacementDchar;
@@ -1118,14 +1112,14 @@ public:
         return put(buffer[0..len]);
     }
 
-    ref typeof(this) removeFront(const(T) removingItem) nothrow pure return
+    ref typeof(this) removeFront(const(T) removingItem) nothrow return
     {
         while (_length && _items[0] == removingItem)
             chopFront(1);
         return this;
     }
 
-    ref typeof(this) removeTail(const(T) removingItem) nothrow pure return
+    ref typeof(this) removeTail(const(T) removingItem) nothrow return
     {
         while (_length && _items[_length - 1] == removingItem)
             chopTail(1);
@@ -1135,7 +1129,7 @@ public:
     /**
      * Reverses items inplace using swap, the front item became last and last became first
      */
-    ref typeof(this) reverse() @nogc nothrow pure
+    ref typeof(this) reverse() @nogc nothrow
     {
         import std.algorithm.mutation : swap;
 
@@ -1150,7 +1144,7 @@ public:
         return this;
     }
 
-    inout(T)[] right(size_t len) inout nothrow pure return
+    inout(T)[] right(size_t len) inout nothrow return
     {
         return len >= _length
             ? opIndex()
@@ -1250,7 +1244,7 @@ public:
      * Returns true if this StaticStringBuffer has length = 0
      */
     pragma(inline, true)
-    @property bool empty() const @nogc nothrow pure
+    @property bool empty() const @nogc nothrow
     {
         return _length == 0;
     }
@@ -1259,7 +1253,7 @@ public:
      * Returns current length of this StaticStringBuffer
      */
     pragma(inline, true)
-    @property size_t length() const @nogc nothrow pure
+    @property size_t length() const @nogc nothrow
     {
         return _length;
     }
@@ -1360,12 +1354,16 @@ private:
     bool _tryExtendBlock;
 }
 
+/**
+ * An alias to StaticStringBuffer with static size = 240 (4 bytes pointer) or 224 (8 bytes pointer)
+ */
 template ShortStringBuffer(T)
 if (isSomeChar!T || isIntegral!T)
 {
     private enum overheadSize = StaticStringBuffer!(T, 1u).sizeof;
     alias ShortStringBuffer = StaticStringBuffer!(T, 256u - overheadSize);
 }
+//pragma(msg, ShortStringBuffer!char.staticSize);
 
 
 private:

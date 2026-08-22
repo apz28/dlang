@@ -425,7 +425,7 @@ debug
 }
 
 void traceFunction(Args...)(Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
     version(TraceFunction)
     {
@@ -434,7 +434,7 @@ void traceFunction(Args...)(Args args,
 }
 
 void traceFunction(
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
     version(TraceFunction)
     {
@@ -443,7 +443,7 @@ void traceFunction(
 }
 
 void traceUnitTest(Args...)(Args args,
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
     version(TraceUnitTest)
     {
@@ -452,7 +452,7 @@ void traceUnitTest(Args...)(Args args,
 }
 
 void traceUnitTest(
-    in uint line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
+    in size_t line = __LINE__, in string fileName = __FILE__, in string funcName = __FUNCTION__, in string moduleName = __MODULE__) @nogc nothrow pure @trusted
 {
     version(TraceUnitTest)
     {

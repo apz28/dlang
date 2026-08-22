@@ -37,12 +37,12 @@ struct DbAuthStateData
 @safe:
 
 public:
-    void fill(DbScheme scheme)(DbConnectionStringBuilder csb) nothrow
+    void fill(DbConnectionStringBuilder csb) nothrow
     {
         userName = csb.userName;
         userPassword = csb.userPassword;
 
-        static if (scheme == DbScheme.pg)
+        if (csb.scheme == DbScheme.pg)
         {
             oauthAccessToken = csb.oauthAccessToken;
             oauthClientId = csb.oauthClientId;
@@ -114,7 +114,7 @@ public:
         return CipherRawKey!ubyte.init;
     }
 
-    DbAuth setServerPublicKey(const(ubyte)[] serverPublicKey) nothrow pure
+    DbAuth setServerPublicKey(const(ubyte)[] serverPublicKey) nothrow
     {
         debug(debug_pham_db_db_auth) debug writeln(__FUNCTION__, "(serverPublicKey=", serverPublicKey.dgToHex(), ")");
 
@@ -122,7 +122,7 @@ public:
         return this;
     }
 
-    DbAuth setServerSalt(const(ubyte)[] serverSalt) nothrow pure
+    DbAuth setServerSalt(const(ubyte)[] serverSalt) nothrow
     {
         debug(debug_pham_db_db_auth) debug writeln(__FUNCTION__, "(serverSalt=", serverSalt.dgToHex(), ")");
 
@@ -245,13 +245,13 @@ nothrow @safe:
 
 public:
     pragma(inline, true)
-    bool isEqual(scope const(char)[] otherName, scope const(DbScheme) otherScheme) const pure
+    bool isEqual(scope const(char)[] otherName, scope const(DbScheme) otherScheme) const
     {
         return name == otherName && scheme == otherScheme;
     }
 
     pragma(inline, true)
-    bool isValid() const pure
+    bool isValid() const
     {
         return name.length != 0 && scheme.length != 0 && createAuth !is null;
     }

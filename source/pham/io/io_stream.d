@@ -268,7 +268,7 @@ package(pham.io):
     enum defaultBufferSize = 16_384;
 
     pragma(inline, true)
-    final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         return active
             ? lastError.reset()
@@ -277,7 +277,7 @@ package(pham.io):
 
     pragma(inline, true)
     final int checkUnsupported(const(bool) can,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         return can
             ? lastError.reset()

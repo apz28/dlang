@@ -23,9 +23,9 @@ class CipherRC4 : Cipher
 nothrow @safe:
 
 public:
-	this(scope const(ubyte)[] key) pure
+	this(scope const(ubyte)[] key)
     in
-    {        
+    {
         assert(CipherRawKey!ubyte.isValid(key));
     }
     do
@@ -34,7 +34,7 @@ public:
 		this(CipherKey(k));
     }
 
-    this(CipherKey key) pure
+    this(CipherKey key)
     in
     {
         assert(key.kind == CipherKeyKind.simpleKey);
@@ -83,7 +83,7 @@ protected:
     }
 
 private:
-    final void initKey() pure
+    final void initKey()
     {
         x = y = 0;
         foreach (i; 0..stateLength)
@@ -100,7 +100,7 @@ private:
         }
     }
 
-    final ubyte[] process(scope const(ubyte)[] input, return ref ubyte[] output) @nogc pure
+    final ubyte[] process(scope const(ubyte)[] input, return ref ubyte[] output) @nogc
     in
     {
         assert(input.length != 0);
@@ -114,7 +114,7 @@ private:
     }
 
     pragma(inline, true)
-    final ubyte processImpl(const(ubyte) input) @nogc pure
+    final ubyte processImpl(const(ubyte) input) @nogc
     {
         x = (x + 1) & 0xff;
         y = (_stateData[x] + y) & 0xff;
@@ -138,7 +138,7 @@ private:
 unittest // CipherRC4
 {
     import pham.utl.utl_convert : bytesFromHexs;
-    
+
     {
         ubyte[] key = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];
         ubyte[] test = [ 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef ];

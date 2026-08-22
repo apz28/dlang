@@ -33,13 +33,13 @@ enum CipherRSAValidState
 struct CipherRSAPrivateKey
 {
 public:
-    ~this() nothrow pure
+    ~this() nothrow
     {
         dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -62,13 +62,13 @@ public:
 struct CipherRSAPublicKey
 {
 public:
-    ~this() nothrow @safe pure
+    ~this() nothrow @safe
     {
         dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -80,7 +80,7 @@ public:
         return ResultCode.ok;
     }
 
-    @property CipherRSAValidState isValidState() const @nogc pure
+    @property CipherRSAValidState isValidState() const @nogc
     {
         if (N.isZero || N.sign < 0)
             return CipherRSAValidState.missModulus;
@@ -93,7 +93,7 @@ public:
     }
 
     pragma(inline, true)
-    @property size_t keyByteLength() const @nogc pure
+    @property size_t keyByteLength() const @nogc
     {
         return (N.bitLength + 7) / 8;
     }
@@ -246,13 +246,13 @@ public:
         return pkcs1_5Pad.pad(dataBlock, keyByteLength);
     }
 
-    final ref CipherBuffer!ubyte unpadPKCS1_5(return ref CipherBuffer!ubyte dataBlock) const pure
+    final ref CipherBuffer!ubyte unpadPKCS1_5(return ref CipherBuffer!ubyte dataBlock) const
     {
         return pkcs1_5Pad.unpad(dataBlock, keyByteLength);
     }
 
     pragma(inline, true)
-    @property final bool hasPrivateKey() const pure
+    @property final bool hasPrivateKey() const
     {
         return _parameters.privateKey.publicRSA.isValid();
     }

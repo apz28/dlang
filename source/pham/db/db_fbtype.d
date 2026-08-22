@@ -347,7 +347,7 @@ struct FbIscArrayDescriptor
 nothrow @safe:
 
 public:
-    uint32 calculateElements() const pure
+    uint32 calculateElements() const
     {
 		uint32 result = 1;
 		foreach (ref bound; bounds)
@@ -357,7 +357,7 @@ public:
         return result;
     }
 
-	uint32 calculateSliceLength(uint32 elements = 0) const pure
+	uint32 calculateSliceLength(uint32 elements = 0) const
 	{
         if (elements == 0)
             elements = calculateElements();
@@ -642,7 +642,6 @@ public
     uint32 size;
 }
 
-
 alias FbBlrIscTypeMap = Dictionary!(int32, int32);
 static immutable FbBlrIscTypeMap fbBlrToIscMap;
 static immutable FbBlrIscTypeMap fbIscToBlrMap;
@@ -652,7 +651,7 @@ struct FbIscColumnInfo
 nothrow @safe:
 
 public:
-    bool opCast(C: bool)() const @nogc pure
+    bool opCast(C: bool)() const @nogc
     {
         return type != 0 && name.length != 0;
     }
@@ -664,13 +663,13 @@ public:
         return this;
     }
 
-    DbBaseTypeInfo baseType() const @nogc pure
+    DbBaseTypeInfo baseType() const @nogc
     {
         return DbBaseTypeInfo(fbType(type), subType, size, numericDigits, numericScale);
     }
 
     pragma(inline, true)
-    int32 baseTypeId() const @nogc pure
+    int32 baseTypeId() const @nogc
     {
         return type & ~0x1; // Exclude allow null indicator
     }
@@ -689,7 +688,7 @@ public:
             return FbIscType.sql_null; // Unknown
 	}
 
-    void reset() pure
+    void reset()
     {
         aliasName = null;
         name = null;
@@ -701,7 +700,7 @@ public:
         type = 0;
     }
 
-    DbType dbType() const @nogc pure
+    DbType dbType() const @nogc
     {
         const t = fbType;
 
@@ -734,7 +733,7 @@ public:
         return DbType.unknown;
     }
 
-    int32 dbTypeSize() const @nogc pure
+    int32 dbTypeSize() const @nogc
     {
         if (size > 0)
             return size;
@@ -760,7 +759,7 @@ public:
         return dynamicTypeSize;
     }
 
-    int32 dbTypeDisplaySize() const @nogc pure
+    int32 dbTypeDisplaySize() const @nogc
     {
         const t = fbType;
         if (t != 0)
@@ -784,7 +783,7 @@ public:
     }
 
     pragma(inline, true)
-    FbIscType fbType() const @nogc pure
+    FbIscType fbType() const @nogc
     {
         return cast(FbIscType)baseTypeId();
     }
@@ -803,7 +802,7 @@ public:
             return FbBlrType.blr_text;
     }
 
-    string fbTypeName() const pure
+    string fbTypeName() const
     {
         if (auto e = fbType in fbDbIdToDbTypeInfos)
             return (*e).nativeName;
@@ -811,7 +810,7 @@ public:
             return null;
     }
 
-    int32 fbTypeSize() const @nogc pure
+    int32 fbTypeSize() const @nogc
     {
         if (size > 0)
             return size;
@@ -826,7 +825,7 @@ public:
         return dynamicTypeSize;
     }
 
-    static DbColumnIdType isValueIdType(int32 type, int32 iscSubType) @nogc pure
+    static DbColumnIdType isValueIdType(int32 type, int32 iscSubType) @nogc
     {
         const t = fbType(type);
         return t == FbIscType.sql_blob
@@ -850,18 +849,18 @@ public:
             ~ ", owner=" ~ owner.to!string();
     }
 
-    const(char)[] useName() const pure
+    const(char)[] useName() const
     {
         return aliasName.length ? aliasName : name;
     }
 
     pragma(inline, true)
-    @property bool allowNull() const @nogc pure
+    @property bool allowNull() const @nogc
     {
         return (type & 0x1) != 0;
     }
 
-    @property ref typeof(this) allowNull(bool value) @nogc pure return
+    @property ref typeof(this) allowNull(bool value) @nogc return
     {
         if (value)
             type |= 0x1;
@@ -871,7 +870,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool hasNumericScale() const @nogc pure
+    @property bool hasNumericScale() const @nogc
     {
         const t = fbType;
 	    return (numericScale != 0) &&
@@ -885,7 +884,7 @@ public:
             );
     }
 
-    @property int16 numericDigits() const @nogc pure
+    @property int16 numericDigits() const @nogc
     {
         if (!hasNumericScale)
             return 0;
@@ -1161,9 +1160,6 @@ public:
     int32 count;
     int32 status;
 }
-
-deprecated("please use FbIscColumnInfo")
-alias FbIscFieldInfo = FbIscColumnInfo;
 
 struct FbIscGenericResponse
 {
@@ -1832,16 +1828,18 @@ nothrow @safe:
 
 public:
     this(FbIscError[] errors, int32 sqlCode,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc pure
+        int socketCode = 0,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @nogc pure
     {
         this.errors = errors;
         this.sqlCode = sqlCode;
+        this.socketCode = socketCode;
         this.funcName = funcName;
         this.file = file;
         this.line = line;
     }
 
-    void buildMessage(out string message, out int code, out string state)
+    void buildMessage(out string message, out int32 code, out string state)
     {
         debug(debug_pham_db_db_fbtype) debug writeln(__FUNCTION__, "()");
 
@@ -1855,18 +1853,22 @@ public:
                     code = error.code;
                     addMessageLine(message, error.str());
                     break;
+
                 case FbIsc.isc_arg_number:
                 case FbIsc.isc_arg_string:
                 case FbIsc.isc_arg_cstring:
                     auto marker = "@" ~ error.argNumber.to!string();
                     message = message.replace(marker, error.str());
                     break;
+
                 case FbIsc.isc_arg_interpreted:
                     addMessageLine(message, error.str());
                     break;
+
                 case FbIsc.isc_arg_sql_state:
                     addMessageLine(state, error.str());
                     break;
+
                 default:
                     break;
             }
@@ -1950,6 +1952,7 @@ public:
     {
         errors = null;
         sqlCode = 0;
+        socketCode = 0;
         file = funcName = null;
         line = 0;
     }
@@ -1981,10 +1984,11 @@ public:
 
 public:
     FbIscError[] errors;
-    int32 sqlCode;
     string file;
     string funcName;
-    uint line;
+    size_t line;
+    int socketCode;
+    int32 sqlCode;
 }
 
 struct FbIscTransactionInfo
@@ -2130,25 +2134,25 @@ FbIscBlobSize parseBlobSize(scope const(ubyte)[] data)
 }
 
 pragma(inline, true)
-bool parseBool(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+bool parseBool(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2)
 {
     uint bytes;
     return parseBool(data, index, bytes, type, lengthBytes);
 }
 
-bool parseBool(scope const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+bool parseBool(scope const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2)
 {
     return parseInteger!int32(data, index, bytes, type, lengthBytes) != 0;
 }
 
 pragma(inline, true)
-const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2)
 {
     uint bytes;
     return parseBytes(data, index, bytes, type, lengthBytes);
 }
 
-const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2)
 {
     bytes = parseLength(data, index, type, lengthBytes);
 
@@ -2165,7 +2169,7 @@ const(ubyte)[] parseBytes(const(ubyte)[] data, ref size_t index, out uint bytes,
  * Check if index + length is not out of bound of array `data`
  */
 pragma(inline, true)
-void parseCheckLength(scope const(ubyte)[] data, size_t index, const(uint) length, int type) pure
+void parseCheckLength(scope const(ubyte)[] data, size_t index, const(uint) length, int type)
 {
     if (index + length > data.length)
     {
@@ -2174,7 +2178,7 @@ void parseCheckLength(scope const(ubyte)[] data, size_t index, const(uint) lengt
     }
 }
 
-FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
+FbIscCommandType parseCommandType(scope const(ubyte)[] data)
 {
     if (data.length <= 2)
         return FbIscCommandType.none;
@@ -2196,7 +2200,7 @@ FbIscCommandType parseCommandType(scope const(ubyte)[] data) pure
 	return FbIscCommandType.none;
 }
 
-FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data) pure
+FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data)
 {
     FbIscDatabaseInfo result;
 
@@ -2235,14 +2239,14 @@ FbIscDatabaseInfo parseDatabaseInfo(scope const(ubyte)[] data) pure
 }
 
 pragma(inline, true)
-T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2)
 if (isIntegral!T)
 {
     uint bytes;
     return parseInteger!T(data, index, bytes, type, lengthBytes);
 }
 
-T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+T parseInteger(T)(scope const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2)
 if (isIntegral!T)
 {
     bytes = parseLength(data, index, type, lengthBytes);
@@ -2259,7 +2263,7 @@ if (isIntegral!T)
     return result;
 }
 
-T parseIntegerFixedLength(T)(scope const(ubyte)[] data, ref size_t index, int type) pure
+T parseIntegerFixedLength(T)(scope const(ubyte)[] data, ref size_t index, int type)
 if (isIntegral!T)
 {
     parseCheckLength(data, index, T.sizeof, type);
@@ -2278,7 +2282,7 @@ if (isIntegral!T)
 /**
  * Check and return length in `length` bytes
  */
-uint parseLength(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+uint parseLength(scope const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2)
 in
 {
     assert(lengthBytes <= 4);
@@ -2352,7 +2356,7 @@ FbIscTransactionInfo parseTransactionInfo(scope const(ubyte)[] data)
     return result;
 }
 
-string parsePlan(scope const(ubyte)[] data, FbIsc describeMode) pure
+string parsePlan(scope const(ubyte)[] data, FbIsc describeMode)
 {
     size_t index = 1;
     return parseString(data, index, describeMode).idup;
@@ -2429,13 +2433,13 @@ DbRecordsAffectedAggregate parseRecordsAffected(scope const(ubyte)[] data) @safe
 }
 
 pragma(inline, true)
-const(char)[] parseString(return const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2) pure
+const(char)[] parseString(return const(ubyte)[] data, ref size_t index, int type, const(ubyte) lengthBytes = 2)
 {
     uint bytes;
     return parseString(data, index, bytes, type, lengthBytes);
 }
 
-const(char)[] parseString(return const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2) pure
+const(char)[] parseString(return const(ubyte)[] data, ref size_t index, out uint bytes, int type, const(ubyte) lengthBytes = 2)
 {
     bytes = parseLength(data, index, type, lengthBytes);
 
@@ -2551,6 +2555,9 @@ FbIscUserInfo[] parseUserInfo(scope const(ubyte)[] data)
 
     return result;
 }
+
+deprecated("please use FbIscColumnInfo")
+alias FbIscFieldInfo = FbIscColumnInfo;
 
 
 // Any below codes are private

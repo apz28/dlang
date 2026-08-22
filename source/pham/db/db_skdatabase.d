@@ -113,7 +113,7 @@ public:
     }
 
     pragma(inline, true)
-    @property final bool socketActive() const nothrow pure @safe
+    @property final bool socketActive() const nothrow @safe
     {
         version(pham_io_socket)
             return _socket !is null && _socket.active;
@@ -124,7 +124,7 @@ public:
     version(none)
     {
     pragma(inline, true)
-    @property final bool socketSSLActive() const nothrow pure @safe
+    @property final bool socketSSLActive() const nothrow @safe
     {
         return socketActive && _sslSocket.isConnected;
     }
@@ -388,7 +388,7 @@ package(pham.db):
     }
 
     final noreturn throwConnectError(const(int) rawErrorCode, string rawErrorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(rawErrorCode=", rawErrorCode,
             ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
@@ -401,7 +401,7 @@ package(pham.db):
     }
 
     final noreturn throwReadDataError(const(int) rawErrorCode, string rawErrorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(rawErrorCode=", rawErrorCode,
             ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
@@ -418,7 +418,7 @@ package(pham.db):
     }
 
     final noreturn throwWriteDataError(const(int) rawErrorCode, string rawErrorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_skdatabase) debug writeln(__FUNCTION__, "(rawErrorCode=", rawErrorCode,
             ", rawErrorMessage=", rawErrorMessage, ", funcName=", funcName, ")");
@@ -441,19 +441,19 @@ protected:
     }
 
     SkException createConnectError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new SkException(DbErrorCode.connect, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     SkException createReadDataError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new SkException(DbErrorCode.read, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     SkException createWriteDataError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new SkException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }

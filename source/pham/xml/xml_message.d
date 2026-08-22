@@ -15,54 +15,6 @@ import pham.xml.xml_type;
 
 nothrow @safe:
 
-struct XmlMessage
-{
-nothrow @safe:
-
-public:
-    static immutable eBlankName = "Name is blank";
-    static immutable eEos = "Incompleted xml data";
-    static immutable eExpectedCharButChar = `Expect character "%c" but found "%c"`;
-    static immutable eExpectedCharButEos = `Expect character "%c" but incompleted data`;
-    static immutable eExpectedEndName = `Expect end element name "%s" but found "%s"`;
-    static immutable eExpectedStringButEos = `Expect string "%s" but incompleted data`;
-    static immutable eExpectedStringButNotFound = `Expect string "%s" but not found`;
-    static immutable eExpectedStringButString = `Expect string "%s" but found "%s"`;
-    static immutable eExpectedOneOfCharsButChar = `Expect one of characters "%s" but found "%c"`;
-    static immutable eExpectedOneOfCharsButEos = `Expect one of characters "%s" but incompleted data`;
-    static immutable eExpectedOneOfStringsButString = `Expect one of "%s" but found "%s"`;
-    static immutable eInvalidArgTypeOf = `Invalid argument type at %d for "%s"; data "%s"`;
-    static immutable eInvalidName = `Invalid name "%s"`;
-    static immutable eInvalidNameAtOf = `Invalid name character at %d; data "%s"`;
-    //static immutable eInvalidNumArgs = `Invalid number of arguments "%d/%d" of %s`;
-    static immutable eInvalidNumberArgsOf = `Invalid number of arguments "%d" [expected %d] for "%s"; data "%s"`;
-    static immutable eInvalidOpDelegate = "Invalid operation %s.%s";
-    static immutable eInvalidOpFunction = "Invalid operation %s";
-    static immutable eInvalidOpFromWrongParent = "Invalid operation %s.%s of different parent node";
-    static immutable eInvalidTokenAtOf = `Invalid token "%c" at %d; data "%s"`;
-    static immutable eInvalidTypeValueOf2 = `Invalid %s value [%s, %s]: "%s"`;
-    static immutable eInvalidUtf8SequenceEos = "Invalid UTF8 sequence - end of stream";
-    static immutable eInvalidUtf8SequenceCodeAt = "Invalid UTF8 sequence at %d.%d";
-    static immutable eInvalidUtf16SequenceEos = "Invalid UTF16 sequence - end of stream";
-    static immutable eInvalidUtf16SequenceCodeAt = "Invalid UTF16 sequence at %d.%d";
-    static immutable eInvalidUtf32SequenceEos = "Invalid UTF32 sequence - end of stream";
-    static immutable eInvalidVariableName = `Invalid variable name "%s"`;
-    static immutable eInvalidVersionStr = `Invalid version string "%s"`;
-    static immutable eMultipleTextFound = `Multiple "%s" found`;
-    static immutable eNodeSetExpectedAtOf = `NodeSet is expected at %d; data "%s"`;
-    static immutable eNotAllWhitespaces = "Not all whitespace characters";
-    static immutable eNotAllowChild = `Invalid operation %s.%s. "%s" [node type "%d"] not allow child "%s" [node type "%d"]`;
-    static immutable eNotAllowAppendDifDoc = `Not allow appending "%s" with different owner document`;
-    static immutable eNotAllowAppendSelf = "Not allow appending self as child";
-    static immutable eAttributeDuplicated = `Not allow to append duplicated attribute "%s"`;
-    static immutable eAttributeListChanged = "Attribute list had changed since start enumerated";
-    static immutable eChildListChanged = "Child list had changed since start enumerated";
-    static immutable eExpressionTooComplex = `Expression is too complex "%s"`;
-    static immutable eUnescapeAndChar = `Unescaped "&" character`;
-
-    static immutable atLineInfo = " at line %d position %d";
-}
-
 struct XmlConst(S)
 if (isXmlString!S)
 {
@@ -112,4 +64,62 @@ public:
     static immutable S floatPNaN = "NaN";
     static immutable S floatNInf = "-Infinity";    
     static immutable S floatPInf = "Infinity";
+}
+
+struct XmlMessage
+{
+nothrow @safe:
+
+public:
+    static immutable eBlankName = "Name is blank";
+    static immutable eEos = "Incompleted xml data";
+    static immutable eExpectedCharButChar = `Expect character "%c" but found "%c"`;
+    static immutable eExpectedCharButEos = `Expect character "%c" but incompleted data`;
+    static immutable eExpectedEndName = `Expect end element name "%s" but found "%s"`;
+    static immutable eExpectedStringButEos = `Expect string "%s" but incompleted data`;
+    static immutable eExpectedStringButNotFound = `Expect string "%s" but not found`;
+    static immutable eExpectedStringButString = `Expect string "%s" but found "%s"`;
+    static immutable eExpectedOneOfCharsButChar = `Expect one of characters "%s" but found "%c"`;
+    static immutable eExpectedOneOfCharsButEos = `Expect one of characters "%s" but incompleted data`;
+    static immutable eExpectedOneOfStringsButString = `Expect one of "%s" but found "%s"`;
+    static immutable eInvalidArgTypeOf = `Invalid argument type at %d for "%s"; data "%s"`;
+    static immutable eInvalidName = `Invalid name "%s"`;
+    static immutable eInvalidNameAtOf = `Invalid name character at %d; data "%s"`;
+    static immutable eInvalidNumber = `Invalid number at %d for "%s"\n%s; data "%s"`;
+    //static immutable eInvalidNumArgs = `Invalid number of arguments "%d/%d" of %s`;
+    static immutable eInvalidNumberArgsOf = `Invalid number of arguments "%d" [expected %d] for "%s"; data "%s"`;
+    static immutable eInvalidOpDelegate = "Invalid operation %s.%s";
+    static immutable eInvalidOpFunction = "Invalid operation %s";
+    static immutable eInvalidOpFromWrongParent = "Invalid operation %s.%s of different parent node";
+    static immutable eInvalidTokenAtOf = `Invalid token "%c" at %d; data "%s"`;
+    static immutable eInvalidTypeValueOf2 = `Invalid %s value [%s, %s]: "%s"`;
+    static immutable eInvalidUtf8SequenceEos = "Invalid UTF8 sequence - end of stream";
+    static immutable eInvalidUtf8SequenceCodeAt = "Invalid UTF8 sequence at %d.%d";
+    static immutable eInvalidUtf16SequenceEos = "Invalid UTF16 sequence - end of stream";
+    static immutable eInvalidUtf16SequenceCodeAt = "Invalid UTF16 sequence at %d.%d";
+    static immutable eInvalidUtf32SequenceEos = "Invalid UTF32 sequence - end of stream";
+    static immutable eInvalidVariableName = `Invalid variable name "%s"`;
+    static immutable eInvalidVersionStr = `Invalid version string "%s"`;
+    static immutable eMultipleTextFound = `Multiple "%s" found`;
+    static immutable eNodeSetExpectedAtOf = `NodeSet is expected at %d; data "%s"`;
+    static immutable eNotAllWhitespaces = "Not all whitespace characters";
+    static immutable eNotAllowChild = `Invalid operation %s.%s. "%s" [node type "%d"] not allow child "%s" [node type "%d"]`;
+    static immutable eNotAllowAppendDifDoc = `Not allow appending "%s" with different owner document`;
+    static immutable eNotAllowAppendSelf = "Not allow appending self as child";
+    static immutable eAttributeDuplicated = `Not allow to append duplicated attribute "%s"`;
+    static immutable eAttributeListChanged = "Attribute list had changed since start enumerated";
+    static immutable eChildListChanged = "Child list had changed since start enumerated";
+    static immutable eExpressionTooComplex = `Expression is too complex "%s"`;
+    static immutable eUnescapeAndChar = `Unescaped "&" character`;
+
+    static immutable atLineInfo = " at line %d position %d";
+}
+
+package(pham.xml) string fmtMessage(Args...)(string fmt, Args args) nothrow
+{
+    import std.format : format;
+    
+    scope (failure) assert(0, "Assume nothrow failed");
+    
+    return format(fmt, args);
 }

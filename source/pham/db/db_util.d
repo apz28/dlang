@@ -44,7 +44,7 @@ string combineSymbol(string schemaOrTable, string symbol) nothrow pure
 }
 
 version(none)
-string dictionaryGet(ref const(string[string]) values, string name, string notFoundValue) pure
+string dictionaryGet(ref const(string[string]) values, string name, string notFoundValue)
 in
 {
     assert(name.length != 0);
@@ -58,7 +58,7 @@ do
 }
 
 version(none)
-string dictionaryPut(ref string[string] values, string name, string value) pure
+string dictionaryPut(ref string[string] values, string name, string value)
 in
 {
     assert(name.length != 0);
@@ -86,15 +86,15 @@ char isQuoted(scope const(char)[] symbol) @nogc nothrow pure
 
 string makeCommandName(const(void*) command, uint counter)
 {
-    import pham.utl.utl_array_append : Appender;
+    import pham.utl.utl_array_static : ShortStringBuffer;
     import pham.utl.utl_convert : putNumber;
 
-    auto result = Appender!string((size_t.sizeof * 2) + 10 + 2);
+    ShortStringBuffer!char result;
     return result.put('x') // Name must start with a character, so pick one
         .putNumber!16(cast(size_t)command)
         .put('_')
         .putNumber(counter)
-        .data;
+        .toString();
 }
 
 /** Returns a string of all integers into its concatenated string separated by separator
@@ -107,20 +107,20 @@ string makeCommandName(const(void*) command, uint counter)
 */
 string toSeparatedString(scope const(int)[] values, const(char)[] separator) pure
 {
-    import pham.utl.utl_array_append : Appender;
+    import pham.utl.utl_array_static : ShortStringBuffer;
     import pham.utl.utl_convert : putNumber;
 
     if (values.length == 0)
         return null;
 
-    auto result = Appender!string(values.length * 10);
+    ShortStringBuffer!char result;
     foreach (v; values)
     {
         if (result.length)
             result.put(separator);
         result.putNumber(v);
     }
-    return result.data;
+    return result.toString();
 }
 
 /** Returns a string of all version parts into its version string format

@@ -1157,7 +1157,7 @@ protected:
     {
         debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), "evaluate()");
+        throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortClassName(this), "evaluate()"));
     }
 
 protected:
@@ -1904,7 +1904,7 @@ protected:
         {
             const functionName = functionTypeName(functionType);
             if (!defaultFunctionTable.find(functionName, evaluateFct))
-                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), functionName);
+                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortClassName(this), functionName));
 
             _prefix = "fn";
             _localName = functionName;
@@ -1916,7 +1916,7 @@ protected:
             if (!found && prefix.length != 0)
                 found = defaultFunctionTable.find(localName, userDefinedEvaluateFct);
             if (!found)
-                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), qualifiedName);
+                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortClassName(this), qualifiedName));
 
             evaluateFct = userDefinedEvaluateFct.evaluate;
         }
@@ -2366,7 +2366,7 @@ public:
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidVariableName, qualifiedName);
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidVariableName.fmtMessage(qualifiedName));
         }
 
         outputContext.resValue = *result;
@@ -2797,10 +2797,18 @@ public:
 
     static struct XPathScannerState
     {
-        S prefix, name;
-        S textValue;
+    public:
+        void resetNext() nothrow @safe
+        {
+            prefix = name = textValue = null;
+            numberValue = 0;
+            canBeFunction = false;
+        }
+
+    public:
+        S prefix, name, textValue;
         double numberValue = 0; // Make struct to zero initialized because of inconsistent in D
-        size_t tokens;
+        size_t tokens; // Number of token seen/lex so far
         size_t xPathExpressionNextIndex;
         C currentChar = 0, kind = 0; // Make struct to zero initialized because of inconsistent in D
         bool canBeFunction;
@@ -2817,29 +2825,19 @@ public:
         this._axisTypeTable = XPathAxisTypeTable!S.defaultAxisTypeTable();
         this._xPathExpression = xpathExpression;
         this._xPathExpressionLength = xpathExpression.length;
+
         nextChar();
         nextLex();
     }
 
-    bool nextChar() nothrow
-    in
-    {
-        assert(_state.xPathExpressionNextIndex <= _xPathExpressionLength);
-    }
-    do
+    C nextChar() nothrow
     {
         debug(debug_pham_xml_xml_xpath) scope (exit) traceFunctionPar(text("kind=", _state.kind, ", currentChar=", _state.currentChar));
 
-        if (_state.xPathExpressionNextIndex < _xPathExpressionLength)
-        {
-            _state.currentChar = _xPathExpression[_state.xPathExpressionNextIndex++];
-            return true;
-        }
-        else
-        {
-            _state.currentChar = 0;
-            return false;
-        }
+        _state.currentChar = _state.xPathExpressionNextIndex < _xPathExpressionLength
+            ? _xPathExpression[_state.xPathExpressionNextIndex++]
+            : '\0';
+        return _state.currentChar;
     }
 
     bool nextLex()
@@ -2855,13 +2853,11 @@ public:
             }
         }
 
-        _state.prefix = _state.name = _state.textValue = null;
-        _state.numberValue = 0;
-        _state.canBeFunction = false;
+        _state.resetNext();
         _state.tokens++;
 
         skipSpace();
-        switch (currentChar)
+        switch (_state.currentChar)
         {
             case '\0':
                 _state.kind = XPathScannerLexKind.eof;
@@ -2880,13 +2876,12 @@ public:
             case '=':
             case '#':
             case '$':
-                _state.kind = currentChar;
+                _state.kind = _state.currentChar;
                 nextChar();
                 break;
             case '<':
                 _state.kind = XPathScannerLexKind.lt;
-                nextChar();
-                if (currentChar == '=')
+                if (nextChar() == '=')
                 {
                     _state.kind = XPathScannerLexKind.le;
                     nextChar();
@@ -2894,8 +2889,7 @@ public:
                 break;
             case '>':
                 _state.kind = XPathScannerLexKind.gt;
-                nextChar();
-                if (currentChar == '=')
+                if (nextChar() == '=')
                 {
                     _state.kind = XPathScannerLexKind.ge;
                     nextChar();
@@ -2903,8 +2897,7 @@ public:
                 break;
             case '!':
                 _state.kind = XPathScannerLexKind.bang;
-                nextChar();
-                if (currentChar == '=')
+                if (nextChar() == '=')
                 {
                     _state.kind = XPathScannerLexKind.ne;
                     nextChar();
@@ -2912,13 +2905,12 @@ public:
                 break;
             case '.':
                 _state.kind = XPathScannerLexKind.dot;
-                nextChar();
-                if (currentChar == '.')
+                if (nextChar() == '.')
                 {
                     _state.kind = XPathScannerLexKind.dotDot;
                     nextChar();
                 }
-                else if (isDigit(currentChar))
+                else if (isDigit(_state.currentChar))
                 {
                     _state.kind = XPathScannerLexKind.number;
                     _state.numberValue = scanNumberM();
@@ -2926,8 +2918,7 @@ public:
                 break;
             case '/':
                 _state.kind = XPathScannerLexKind.slash;
-                nextChar();
-                if (currentChar == '/')
+                if (nextChar() == '/')
                 {
                     _state.kind = XPathScannerLexKind.slashSlash;
                     nextChar();
@@ -2939,23 +2930,22 @@ public:
                 _state.textValue = scanText();
                 break;
             default:
-                if (isDigit(currentChar))
+                if (isDigit(_state.currentChar))
                 {
                     _state.kind = XPathScannerLexKind.number;
                     _state.numberValue = scanNumberS();
                 }
-                else if (isNameStartC(currentChar))
+                else if (isNameStartC(_state.currentChar))
                 {
                     _state.kind = XPathScannerLexKind.name;
                     _state.prefix = null;
                     _state.name = scanName();
                     // "foo:bar" is one lexem not three because it doesn't allow spaces in between
                     // We should distinct it from "foo::" and need process "foo ::" as well
-                    if (currentChar == ':')
+                    if (_state.currentChar == ':')
                     {
-                        nextChar();
                         // can be "foo:bar" or "foo::"
-                        if (currentChar == ':')
+                        if (nextChar() == ':')
                         {
                             // "foo::"
                             nextChar();
@@ -2965,29 +2955,28 @@ public:
                         {
                             // "foo:*", "foo:bar" or "foo: "
                             _state.prefix = _state.name;
-                            if (currentChar == '*')
+                            if (_state.currentChar == '*')
                             {
                                 nextChar();
                                 _state.name = "*";
                             }
-                            else if (isNameStartC(currentChar))
+                            else if (isNameStartC(_state.currentChar))
                                 _state.name = scanName();
                             else
                             {
                                 debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                                throw new XmlParserException(XmlMessage.eInvalidNameAtOf, currentIndex + 1, sourceText);
+                                throw new XmlParserException(XmlMessage.eInvalidNameAtOf.fmtMessage(currentIndex + 1, sourceText));
                             }
                         }
                     }
                     else
                     {
                         skipSpace();
-                        if (currentChar == ':')
+                        if (_state.currentChar == ':')
                         {
-                            nextChar();
                             // it can be "foo ::" or just "foo :"
-                            if (currentChar == ':')
+                            if (nextChar() == ':')
                             {
                                 nextChar();
                                 _state.kind = XPathScannerLexKind.axe;
@@ -2996,18 +2985,18 @@ public:
                             {
                                 debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                                throw new XmlParserException(XmlMessage.eInvalidNameAtOf, currentIndex + 1, sourceText);
+                                throw new XmlParserException(XmlMessage.eInvalidNameAtOf.fmtMessage(currentIndex + 1, sourceText));
                             }
                         }
                     }
                     skipSpace();
-                    _state.canBeFunction = currentChar == '(';
+                    _state.canBeFunction = _state.currentChar == '(';
                 }
                 else
                 {
                     debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                    throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, currentChar, currentIndex + 1, sourceText);
+                    throw new XmlParserException(XmlMessage.eInvalidTokenAtOf.fmtMessage(currentChar, currentIndex + 1, sourceText));
                 }
                 break;
         }
@@ -3020,24 +3009,25 @@ public:
         debug(debug_pham_xml_xml_xpath) traceFunction();
 
         auto saveState = _state;
-        scope (exit)
+        scope (failure)
             _state = saveState;
-
         nextLex();
-        return _state;
+        auto result = _state;
+        _state = saveState;
+        return result;
     }
 
     S scanName() nothrow
     in
     {
-        assert(isNameStartC(currentChar));
+        assert(isNameStartC(_state.currentChar));
         assert(_state.xPathExpressionNextIndex >= 1);
     }
     do
     {
         const begin = _state.xPathExpressionNextIndex - 1;
         size_t end = _state.xPathExpressionNextIndex - 1;
-        while (currentChar != ':' && isNameInC(currentChar))
+        while (_state.currentChar != ':' && isNameInC(_state.currentChar))
         {
             ++end;
             nextChar();
@@ -3048,89 +3038,90 @@ public:
         return _xPathExpression[begin..end];
     }
 
-    double scanNumberM() nothrow
+    double scanNumberM()
     in
     {
-        assert(isDigit(currentChar));
+        assert(isDigit(_state.currentChar));
         assert(_state.xPathExpressionNextIndex >= 2);
         assert(_xPathExpression[_state.xPathExpressionNextIndex - 2] == '.');
     }
     do
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        const begin = _state.xPathExpressionNextIndex - 2;
+        const begin = _state.xPathExpressionNextIndex - 2; // -2 to include '.'
         size_t end = _state.xPathExpressionNextIndex - 1;
-
-        while (isDigit(currentChar))
+        while (isDigit(_state.currentChar))
         {
             ++end;
             nextChar();
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[begin..end]));
+        const numberText = _xPathExpression[begin..end];
 
-        return _xPathExpression[begin..end].to!double();
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", numberText));
+
+        try
+            return numberText.to!double();
+        catch (Exception e)
+            throw new XmlParserException(XmlMessage.eInvalidNumber.fmtMessage(begin + 1, numberText, e.msg, sourceText), e);
     }
 
-    double scanNumberS() nothrow
+    double scanNumberS()
     in
     {
-        assert(currentChar == '.' || isDigit(currentChar));
+        assert(_state.currentChar == '.' || isDigit(_state.currentChar));
         assert(_state.xPathExpressionNextIndex >= 1);
     }
     do
     {
-        scope (failure) assert(0, "Assume nothrow failed");
-
         const begin = _state.xPathExpressionNextIndex - 1;
         size_t end = _state.xPathExpressionNextIndex - 1;
-        while (isDigit(currentChar))
+        while (isDigit(_state.currentChar))
         {
             ++end;
             nextChar();
         }
-        if (currentChar == '.')
+        if (_state.currentChar == '.')
         {
             ++end;
-            nextChar();
-            while (isDigit(currentChar))
-            {
+            while (isDigit(nextChar()))
                 ++end;
-                nextChar();
-            }
         }
 
-        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", _xPathExpression[begin..end]));
+        const numberText = _xPathExpression[begin..end];
 
-        return _xPathExpression[begin..end].to!double();
+        debug(debug_pham_xml_xml_xpath) traceFunctionPar(text("_xPathExpression=", numberText));
+
+        try
+            return numberText.to!double();
+        catch (Exception e)
+            throw new XmlParserException(XmlMessage.eInvalidNumber.fmtMessage(begin + 1, numberText, e.msg, sourceText), e);
     }
 
     S scanText()
     {
-        const quoteChar = currentChar;
+        const quoteChar = _state.currentChar;
         nextChar();
         assert(_state.xPathExpressionNextIndex >= 1);
 
         const begin = _state.xPathExpressionNextIndex - 1;
         size_t end = _state.xPathExpressionNextIndex - 1;
 
-        while (currentChar != quoteChar)
+        while (_state.currentChar != quoteChar)
         {
             if (!nextChar())
             {
                 debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                throw new XmlParserException(XmlMessage.eExpectedCharButEos, quoteChar);
+                throw new XmlParserException(XmlMessage.eExpectedCharButEos.fmtMessage(quoteChar));
             }
             ++end;
         }
 
-        if (currentChar != quoteChar)
+        if (_state.currentChar != quoteChar)
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eExpectedCharButChar, quoteChar, currentChar);
+            throw new XmlParserException(XmlMessage.eExpectedCharButChar.fmtMessage(quoteChar, currentChar));
         }
 
         nextChar();
@@ -3142,7 +3133,7 @@ public:
 
     void skipSpace() nothrow
     {
-        while (isSpace(currentChar) && nextChar())
+        while (isSpace(_state.currentChar) && nextChar())
         {}
     }
 
@@ -3151,20 +3142,28 @@ public:
         return text("name=", _state.name, ", kind=", _state.kind, ", currentChar=", _state.currentChar, ", tokens=", _state.tokens);
     }
 
+    pragma(inline, true)
     @property bool canBeFunction() const nothrow
     {
         //assert(_state.kind == XPathScannerLexKind.name);
         return _state.canBeFunction;
     }
 
+    pragma(inline, true)
     @property C currentChar() const nothrow
     {
         return _state.currentChar;
     }
 
+    pragma(inline, true)
     @property ptrdiff_t currentIndex() const nothrow
     {
         return _state.xPathExpressionNextIndex - 1;
+    }
+
+    @property bool isEof() const nothrow
+    {
+        return _state.kind == XPathScannerLexKind.eof && _state.xPathExpressionNextIndex >= _xPathExpressionLength;
     }
 
     @property bool isNameNodeType() const nothrow
@@ -3179,7 +3178,7 @@ public:
 
     @property bool isPrimaryExpr() const nothrow
     {
-        const k = kind;
+        const k = _state.kind;
         return (k == XPathScannerLexKind.dollar) ||
             (k == XPathScannerLexKind.lParens) ||
             (k == XPathScannerLexKind.number) ||
@@ -3189,7 +3188,7 @@ public:
 
     @property bool isStep() const nothrow
     {
-        const k = kind;
+        const k = _state.kind;
         return k == XPathScannerLexKind.at ||
             k == XPathScannerLexKind.axe ||
             k == XPathScannerLexKind.dot ||
@@ -3198,11 +3197,13 @@ public:
             k == XPathScannerLexKind.star;
     }
 
+    pragma(inline, true)
     @property C kind() const nothrow
     {
         return _state.kind;
     }
 
+    pragma(inline, true)
     @property S name() const nothrow
     {
         return _state.name;
@@ -3227,19 +3228,25 @@ public:
     do
     {
         const n = name;
-        return n == "comment" ? XPathNodeType.comment :
-            n == "node" ? XPathNodeType.all :
-            n == "processing-instruction" ? XPathNodeType.processingInstruction :
-            n == "text" ? XPathNodeType.text :
-            XPathNodeType.root;
+        return n == "comment"
+            ? XPathNodeType.comment
+            : n == "node"
+                ? XPathNodeType.all
+                : n == "processing-instruction"
+                    ? XPathNodeType.processingInstruction
+                    : n == "text"
+                        ? XPathNodeType.text
+                        : XPathNodeType.root;
     }
 
+    pragma(inline, true)
     @property double numberValue() const nothrow
     {
         //assert(_state.kind == XPathScannerLexKind.number);
         return _state.numberValue;
     }
 
+    pragma(inline, true)
     @property S prefix() const nothrow
     {
         //assert(_state.kind == XPathScannerLexKind.name);
@@ -3251,12 +3258,14 @@ public:
         return _xPathExpression;
     }
 
+    pragma(inline, true)
     @property S textValue() const nothrow
     {
         //assert(_state.kind == XPathScannerLexKind.text);
         return _state.textValue;
     }
 
+    pragma(inline, true)
     @property size_t tokens() const nothrow
     {
         return _state.tokens;
@@ -3293,11 +3302,11 @@ public:
         }
 
         XPathNode!S result = parseExpression(null);
-        if (scanner.kind != XPathScannerLexKind.eof)
+        if (!scanner.isEof)
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf.fmtMessage(scanner.currentChar, scanner.currentIndex + 1, sourceText));
         }
         return result;
     }
@@ -3313,11 +3322,11 @@ public:
         }
 
         XPathNode!S result = parsePattern(null);
-        if (scanner.kind != XPathScannerLexKind.eof)
+        if (!scanner.isEof)
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf.fmtMessage(scanner.currentChar, scanner.currentIndex + 1, sourceText));
         }
         return result;
     }
@@ -3354,7 +3363,7 @@ private:
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf, scanner.currentIndex + 1, sourceText);
+            throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf.fmtMessage(scanner.currentIndex + 1, sourceText));
         }
     }
 
@@ -3367,7 +3376,7 @@ private:
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf.fmtMessage(scanner.currentChar, scanner.currentIndex + 1, sourceText));
         }
     }
 
@@ -3380,7 +3389,7 @@ private:
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+            throw new XmlParserException(XmlMessage.eInvalidTokenAtOf.fmtMessage(scanner.currentChar, scanner.currentIndex + 1, sourceText));
         }
         return axis;
     }
@@ -3415,7 +3424,7 @@ private:
         {
             debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-            throw new XmlParserException(XmlMessage.eExpressionTooComplex, sourceText);
+            throw new XmlParserException(XmlMessage.eExpressionTooComplex.fmtMessage(sourceText));
         }
 
         XPathNode!S result = parseOrExpr(aInput);
@@ -3487,9 +3496,11 @@ private:
 
         do
         {
-            auto op = scanner.kind == XPathScannerLexKind.eq
+            const op = scanner.kind == XPathScannerLexKind.eq
                 ? XPathOp.eq
-                : (scanner.kind == XPathScannerLexKind.ne ? XPathOp.ne : XPathOp.error);
+                : scanner.kind == XPathScannerLexKind.ne
+                    ? XPathOp.ne
+                    : XPathOp.error;
             if (op == XPathOp.error)
                 return result;
 
@@ -3515,11 +3526,15 @@ private:
 
         do
         {
-            auto op = scanner.kind == XPathScannerLexKind.lt ? XPathOp.lt :
-                scanner.kind == XPathScannerLexKind.le ? XPathOp.le :
-                scanner.kind == XPathScannerLexKind.gt ? XPathOp.gt :
-                scanner.kind == XPathScannerLexKind.ge ? XPathOp.ge :
-                XPathOp.error;
+            const op = scanner.kind == XPathScannerLexKind.lt
+                ? XPathOp.lt
+                : scanner.kind == XPathScannerLexKind.le
+                    ? XPathOp.le
+                    : scanner.kind == XPathScannerLexKind.gt
+                        ? XPathOp.gt
+                        : scanner.kind == XPathScannerLexKind.ge
+                            ? XPathOp.ge
+                            : XPathOp.error;
             if (op == XPathOp.error)
                 return result;
 
@@ -3545,9 +3560,11 @@ private:
 
         do
         {
-            auto op = scanner.kind == XPathScannerLexKind.plus
+            const op = scanner.kind == XPathScannerLexKind.plus
                 ? XPathOp.plus
-                : (scanner.kind == XPathScannerLexKind.minus ? XPathOp.minus : XPathOp.error);
+                : scanner.kind == XPathScannerLexKind.minus
+                    ? XPathOp.minus
+                    : XPathOp.error;
             if (op == XPathOp.error)
                 return result;
 
@@ -3573,10 +3590,13 @@ private:
 
         do
         {
-            auto op = scanner.kind == XPathScannerLexKind.star ? XPathOp.multiply :
-                isOp("div") ? XPathOp.divide :
-                isOp("mod") ? XPathOp.mod :
-                XPathOp.error;
+            const op = scanner.kind == XPathScannerLexKind.star
+                ? XPathOp.multiply
+                : isOp("div")
+                    ? XPathOp.divide
+                    : isOp("mod")
+                        ? XPathOp.mod
+                        : XPathOp.error;
             if (op == XPathOp.error)
                 return result;
 
@@ -3942,7 +3962,7 @@ private:
                 break;
             default:
                 debug(debug_pham_xml_xml_xpath) debug stdout.flush();
-                throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf, scanner.currentIndex + 1, sourceText);
+                throw new XmlParserException(XmlMessage.eNodeSetExpectedAtOf.fmtMessage(scanner.currentIndex + 1, sourceText));
         }
 
         return new XPathAxis!S(aInput, axisType, aInput, nodeType, nodePrefix, nodeName);
@@ -4039,7 +4059,7 @@ private:
                 {
                     debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                    throw new XmlParserException(XmlMessage.eInvalidNumberArgsOf, argList.length, pi.minArgs, name, sourceText);
+                    throw new XmlParserException(XmlMessage.eInvalidNumberArgsOf.fmtMessage(argList.length, pi.minArgs, name, sourceText));
                 }
 
                 if (pi.functionType == XPathFunctionType.concat)
@@ -4057,7 +4077,7 @@ private:
                     {
                         debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                        throw new XmlParserException(XmlMessage.eInvalidNumberArgsOf, argCount, pi.maxArgs, name, sourceText);
+                        throw new XmlParserException(XmlMessage.eInvalidNumberArgsOf.fmtMessage(argCount, pi.maxArgs, name, sourceText));
                     }
 
                     // argument we have the type specified (can be < pi.minArgs)
@@ -4080,7 +4100,7 @@ private:
                                     {
                                         debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                                        throw new XmlParserException(XmlMessage.eInvalidArgTypeOf, i + 1, name, sourceText);
+                                        throw new XmlParserException(XmlMessage.eInvalidArgTypeOf.fmtMessage(i + 1, name, sourceText));
                                     }
                                     break;
                                 case XPathResultType.number:
@@ -4261,7 +4281,7 @@ private:
                 {
                     debug(debug_pham_xml_xml_xpath) debug stdout.flush();
 
-                    throw new XmlParserException(XmlMessage.eInvalidTokenAtOf, scanner.currentChar, scanner.currentIndex + 1, sourceText);
+                    throw new XmlParserException(XmlMessage.eInvalidTokenAtOf.fmtMessage(scanner.currentChar, scanner.currentIndex + 1, sourceText));
                 }
                 nextLex();
                 break;

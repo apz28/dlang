@@ -1345,27 +1345,27 @@ package:
             case AllowAttributeError.none:
                 break;
             case AllowAttributeError.notAllow:
-                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), op);
+                throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortClassName(this), op));
             case AllowAttributeError.difOwner:
-                throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendDifDoc, "attribute");
+                throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendDifDoc.fmtMessage("attribute"));
             case AllowAttributeError.duplicate:
-                throw new XmlInvalidOperationException(XmlMessage.eAttributeDuplicated, attribute.name);
+                throw new XmlInvalidOperationException(XmlMessage.eAttributeDuplicated.fmtMessage(attribute.name));
         }
     }
 
     final void checkChild(XmlNode!S child, string op)
     {
         if (!allowChild())
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), op);
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortClassName(this), op));
 
         if (child !is null)
         {
             if (!allowChildType(child.nodeType))
-                throw new XmlInvalidOperationException(XmlMessage.eNotAllowChild, shortClassName(this), op,
-                    name, nodeType, child.name, child.nodeType);
+                throw new XmlInvalidOperationException(XmlMessage.eNotAllowChild.fmtMessage(shortClassName(this), op,
+                    name, nodeType, child.name, child.nodeType));
 
             if (child.ownerDocument !is null && child.ownerDocument !is selfOwnerDocument)
-                throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendDifDoc, "child");
+                throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendDifDoc.fmtMessage("child"));
 
             if (child is this || isAncestorNode(child))
                 throw new XmlInvalidOperationException(XmlMessage.eNotAllowAppendSelf);
@@ -1466,10 +1466,10 @@ protected:
     final void checkParent(XmlNode!S node, bool child, string op)
     {
         if (node._parent !is this)
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpFromWrongParent, shortClassName(this), op);
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpFromWrongParent.fmtMessage(shortClassName(this), op));
 
         if (child && node.nodeType == XmlNodeType.attribute)
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortClassName(this), op);
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortClassName(this), op));
     }
 
     final XmlNode!S findChild(XmlNodeType nodeType) nothrow
@@ -1650,7 +1650,7 @@ public:
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         if (listType == XmlNodeListType.flat)
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, "XmlNodeList", "this(listType = XmlNodeListType.flat)");
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage("XmlNodeList", "this(listType = XmlNodeListType.flat)"));
 
         this._orgParent = parent;
         this._listType = listType;
@@ -1749,7 +1749,7 @@ public:
         debug(debug_pham_xml_xml_dom) debug writeln(__FUNCTION__, "()");
 
         if (_listType != XmlNodeListType.flat)
-            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate, shortTypeName!(XmlNodeList!S)(), "insertBack");
+            throw new XmlInvalidOperationException(XmlMessage.eInvalidOpDelegate.fmtMessage(shortTypeName!(XmlNodeList!S)(), "insertBack"));
 
         _flatList ~= node;
         return node;
@@ -2696,7 +2696,7 @@ protected:
             }
             else
             {
-                //throw new XmlException(XmlMessage.eInvalidName, name);
+                //throw new XmlException(XmlMessage.eInvalidName.fmtMessage(name));
                 assert(0);
             }
         }
@@ -2747,15 +2747,15 @@ protected:
     final void checkStandalone(S s)
     {
         if (!isStandalone(s))
-            throw new XmlException(XmlMessage.eInvalidTypeValueOf2,
-                XmlConst!string.declarationStandaloneName, XmlConst!string.yes, XmlConst!string.no, s);
+            throw new XmlException(XmlMessage.eInvalidTypeValueOf2.fmtMessage(
+                XmlConst!string.declarationStandaloneName, XmlConst!string.yes, XmlConst!string.no, s));
     }
 
     version(none)
     final void checkVersion(scope const(C)[] s) // rule 26
     {
         if (!isVersionStr!(S, Yes.AllowEmpty)(s))
-            throw new XmlException(XmlMessage.eInvalidVersionStr, s);
+            throw new XmlException(XmlMessage.eInvalidVersionStr.fmtMessage(s));
     }
 
     static XmlName!S createDefaultQualifiedName() nothrow pure

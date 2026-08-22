@@ -11,16 +11,14 @@
 
 module pham.utl.utl_trait;
 
-import std.meta : Filter;
-import std.traits : BaseClassesTuple, BaseTypeTuple, Parameters, ReturnType, Unqual,
-    fullyQualifiedName, FunctionAttribute, functionAttributes,
-    isCallable, isDelegate, isFunction, isIntegral;
+import std.traits : isAggregateType, isIntegral;
 
 @safe:
 
 template ElementTypeOf(R)
 {
     import std.range.primitives : ElementType;
+    import std.traits : Unqual;
 
     static if (is(R == string) || is(R == const(char)[]) || is(R == char[]))
         alias ElementTypeOf = char;
@@ -49,11 +47,15 @@ if (isIntegral!T)
 
 template getParamType(alias functionSymbol, size_t i)
 {
+    import std.traits : Parameters;
+
     alias getParamType = Parameters!functionSymbol[i];
 }
 
 template getReturnType(alias getFunctionSymbol)
 {
+    import std.traits : ReturnType;
+
     static if (isPropertyFunction!getFunctionSymbol)
         alias getReturnType = typeof(getFunctionSymbol);
     else
@@ -62,6 +64,8 @@ template getReturnType(alias getFunctionSymbol)
 
 template getUDA(alias symbol, alias attribute)
 {
+    import std.traits : fullyQualifiedName;
+
     private alias allAttributes = getUDAs!(symbol, attribute);
     static if (allAttributes.length != 1)
         static assert(0, "Exactly one " ~ fullyQualifiedName!attribute ~ " attribute is allowed, got " ~ allAttributes.length.stringof ~ " for " ~ fullyQualifiedName!symbol);
@@ -73,6 +77,8 @@ template getUDA(alias symbol, alias attribute)
 
 template getUDAs(alias symbol, alias attribute)
 {
+    import std.meta : Filter;
+
     static if (__traits(compiles, __traits(getAttributes, symbol)))
         alias getUDAs = Filter!(isDesiredUDA!attribute, __traits(getAttributes, symbol));
     else
@@ -112,6 +118,8 @@ template hasUDA(alias symbol, alias attribute)
 
 template isCallableWithParameterTypes(alias functionSymbol, Args...)
 {
+    import std.traits : Parameters, isCallable;
+
     private alias funcParams = Parameters!functionSymbol;
 
     private bool sameParameterTypes()
@@ -133,6 +141,8 @@ template isCallableWithParameterTypes(alias functionSymbol, Args...)
 
 template isDelegateWith(alias functionSymbol, ReturnT, Args...)
 {
+    import std.traits : ReturnType, isDelegate;
+
     static if (isDelegate!functionSymbol && is(ReturnType!functionSymbol : ReturnT))
         enum bool isDelegateWith = isCallableWithParameterTypes!(functionSymbol, Args);
     else
@@ -141,6 +151,8 @@ template isDelegateWith(alias functionSymbol, ReturnT, Args...)
 
 template isDelegateWithParameterTypes(alias functionSymbol, Args...)
 {
+    import std.traits : isDelegate;
+
     static if (isDelegate!functionSymbol)
         enum bool isDelegateWithParameterTypes = isCallableWithParameterTypes!(functionSymbol, Args);
     else
@@ -174,6 +186,8 @@ template isDesiredUDA(alias attribute)
 
 template isGetterFunction(alias symbol)
 {
+    import std.traits : Parameters, ReturnType, isFunction;
+
     static if (isFunction!symbol)
         enum bool isGetterFunction = !is(ReturnType!symbol == void) && ((Parameters!symbol).length == 0);
     else
@@ -182,6 +196,8 @@ template isGetterFunction(alias symbol)
 
 template isPropertyFunction(alias symbol)
 {
+    import std.traits : FunctionAttribute, functionAttributes, isFunction;
+
     static if (isFunction!symbol)
         enum bool isPropertyFunction = (functionAttributes!symbol & FunctionAttribute.property) != 0;
     else
@@ -190,6 +206,8 @@ template isPropertyFunction(alias symbol)
 
 template isSetterFunction(alias symbol)
 {
+    import std.traits : Parameters, isFunction;
+
     static if (isFunction!symbol)
         enum bool isSetterFunction = (Parameters!symbol).length == 1;
     else
@@ -212,6 +230,8 @@ template isTemplateSymbol(alias symbol)
 
 template isTypeOf(T, checkingT)
 {
+    import std.traits : Unqual;
+
     enum bool isTypeOf = is(T == checkingT) || is(Unqual!T == checkingT);
 }
 
@@ -248,6 +268,61 @@ template maxSize(Ts...)
         }
         return result != 0 ? result : size_t.sizeof;
     }();
+}
+
+template methodListOf(T)
+if (isAggregateType!T)
+{
+    private bool isExcludedName(string name) nothrow pure
+    {
+        static if (is(T : Throwable))
+        {
+            return name == "nextInChain"
+                || name == "_nextInChainPtr"
+                || name == "_nextIsRefcounted"
+                || name == "_refcount";
+        }
+        else
+            return false;
+    }
+
+    private string[] getMethodNames() nothrow pure
+	{
+        import std.traits : Parameters, isFunction;
+
+		string[] result;
+
+		foreach (memberName; __traits(allMembers, T))
+		{
+            static if (!isExcludedName(memberName)
+                        && !is(__traits(getMember, T, memberName) == void)
+                        && isFunction!(__traits(getMember, T, memberName)))
+            {
+                enum fullMemberName = T.stringof ~ "." ~ memberName;
+                foreach (method; __traits(getOverloads, T, memberName))
+                {
+                    alias parameters = Parameters!method;
+                    if (parameters.length == 0)
+                        result ~= fullMemberName ~ "()";
+                    else
+                    {
+                        string fullMethodName = fullMemberName ~ "(";
+                        foreach (i, parameter; parameters)
+                        {
+                            if (i)
+                                fullMethodName ~= ", ";
+                            fullMethodName ~= parameter.stringof;
+                        }
+                        result ~= fullMethodName ~ ")";
+                    }
+                }
+            }
+		}
+
+		return result;
+	}
+
+    enum methodListOf = getMethodNames();
 }
 
 
@@ -360,7 +435,7 @@ unittest // hasPostblit
     static struct XP { P p; }
     static struct D { @disable this(this); }
     static struct XD { D d; }
-    
+
     static assert(!hasPostblit!N);
     static assert(hasPostblit!N == HasPostblit.none);
     static assert(hasPostblit!P);

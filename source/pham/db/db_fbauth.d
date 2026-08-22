@@ -88,7 +88,7 @@ public:
         return DbAuth.findAuthMap(name, DbScheme.fb);
     }
 
-    abstract size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure;
+    abstract size_t maxSizeServerAuthData(out size_t maxSaltLength) const;
 
     static const(char)[] normalizeUserName(scope const(char)[] userName) pure
     {

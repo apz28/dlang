@@ -27,7 +27,7 @@ public
     enum secBufferSize = 16_000;
 
 public:
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) pure @trusted
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) @trusted
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -47,12 +47,12 @@ public:
         return ResultCode.ok;
     }
 
-    ubyte[] getSecBytes() pure @trusted
+    ubyte[] getSecBytes() @trusted
     {
         return secBufferData[0..secBuffer.cbBuffer].dup;
     }
 
-    PSecBufferDesc initServerContext(scope const(ubyte)[] secBytes) pure return @trusted
+    PSecBufferDesc initServerContext(scope const(ubyte)[] secBytes) return @trusted
     {
         secBufferData = secBytes.dup;
 
@@ -67,7 +67,7 @@ public:
         return &secBufferDesc;
     }
 
-    PSecBufferDesc initClientContext() pure return @trusted
+    PSecBufferDesc initClientContext() return @trusted
     {
         secBufferData.length = secBufferSize;
 

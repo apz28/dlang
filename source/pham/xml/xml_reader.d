@@ -345,7 +345,7 @@ package:
         }
 
         if (name.s.length == 0)
-            throw new XmlParserException(name.loc, XmlMessage.eBlankName);
+            throw new XmlParserException(XmlMessage.eBlankName, name.loc);
 
         debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s, ", line=", name.loc.sourceLine,
             ", column=", name.loc.sourceColumn, ", nline=", _loc.sourceLine, ", ncolumn=", _loc.sourceColumn);
@@ -445,7 +445,7 @@ package:
         }
 
         if (name.s.length == 0)
-            throw new XmlParserException(name.loc, XmlMessage.eBlankName);
+            throw new XmlParserException(XmlMessage.eBlankName, name.loc);
 
         debug(debug_pham_xml_xml_reader) debug writeln(__FUNCTION__, "(name=", name.s,
             ", line=", name.loc.sourceLine, ", column=", name.loc.sourceColumn, ", nline=", _loc.sourceLine, ", ncolumn=", _loc.sourceColumn);
@@ -547,12 +547,12 @@ protected:
         else static if (is(C == wchar))
         {
             if (!nextUTF16Char(_s, _sPos, _currentChar, _currentCount))
-                throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceCodeAt, _loc.sourceLine, _loc.sourceColumn);
+                throw new XmlConvertException(XmlMessage.eInvalidUtf16SequenceCodeAt.fmtMessage(_loc.sourceLine, _loc.sourceColumn));
         }
         else
         {
             if (!nextUTF8Char(_s, _sPos, _currentChar, _currentCount))
-                throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceCodeAt, _loc.sourceLine, _loc.sourceColumn);
+                throw new XmlConvertException(XmlMessage.eInvalidUtf8SequenceCodeAt.fmtMessage(_loc.sourceLine, _loc.sourceColumn));
         }
     }
 

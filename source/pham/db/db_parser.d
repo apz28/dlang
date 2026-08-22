@@ -70,7 +70,7 @@ public:
         this.reset();
     }
 
-    ptrdiff_t isCurrentKind(scope const(DbTokenKind)[] kinds) @nogc pure
+    ptrdiff_t isCurrentKind(scope const(DbTokenKind)[] kinds) @nogc
     {
         foreach (i; 0..kinds.length)
         {
@@ -80,7 +80,7 @@ public:
         return -1;
     }
 
-    void popFront() pure
+    void popFront()
     {
         popFrontImpl();
         static if (skipLevel != DbTokenSkipLevel.none)
@@ -97,7 +97,7 @@ public:
         }
     }
 
-    void reset() pure
+    void reset()
     {
         _p = _beginP = 0;
         _lastKinds = null;
@@ -121,37 +121,37 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const @nogc pure
+    @property bool empty() const @nogc
     {
         return _currentKind == DbTokenKind.eos;
     }
 
-    @property S front() const @nogc pure
+    @property S front() const @nogc
     {
         return _currentToken;
     }
 
-    @property bool malformed() const @nogc pure
+    @property bool malformed() const @nogc
     {
         return _malformed;
     }
 
-    @property DbTokenKind kind() const @nogc pure
+    @property DbTokenKind kind() const @nogc
     {
         return _currentKind;
     }
 
-    @property const(DbTokenKind)[] lastKinds() const @nogc pure
+    @property const(DbTokenKind)[] lastKinds() const @nogc
     {
         return _lastKinds;
     }
 
-    @property size_t offset() const @nogc pure
+    @property size_t offset() const @nogc
     {
         return _p;
     }
 
-    @property S parameterIndicator() const @nogc pure
+    @property S parameterIndicator() const @nogc
     {
         return _currentParameterIndicator;
     }
@@ -239,12 +239,12 @@ private:
     }
 
     pragma(inline, true)
-    bool hasChar() const @nogc pure
+    bool hasChar() const @nogc
     {
         return _p < _sql.length;
     }
 
-    void popFrontImpl() pure
+    void popFrontImpl()
     {
         _currentParameterIndicator = null;
         _currentAlternatedQuotedChar = '\0';
@@ -415,7 +415,7 @@ private:
     }
 
     pragma(inline, true)
-    dchar readChar() @nogc pure
+    dchar readChar() @nogc
     {
         UTF8Iterator iterator;
         if (!nextUTF8Char(_sql, _p, iterator.code, iterator.count))
@@ -424,7 +424,7 @@ private:
         return iterator.code;
     }
 
-    S readCommentMulti() pure
+    S readCommentMulti()
     {
         dchar prevC = '\0';
         while (hasChar())
@@ -439,7 +439,7 @@ private:
         return _sql[_beginP.._p];
     }
 
-    S readCommentSingle() pure
+    S readCommentSingle()
     {
         while (hasChar())
         {
@@ -461,7 +461,7 @@ private:
         return _sql[_beginP.._p];
     }
 
-    S readLiteral() pure
+    S readLiteral()
     {
         while (hasChar())
         {
@@ -475,7 +475,7 @@ private:
         return _sql[_beginP.._p];
     }
 
-    S readName() pure
+    S readName()
     {
         debug(debug_pham_db_db_parser) debug writeln(__FUNCTION__, "(_beginP=", _beginP, ", _sql=", _sql[_beginP.._p], ")");
 
@@ -491,7 +491,7 @@ private:
         return _sql[_beginP.._p];
     }
 
-    S readQuoted(const(dchar) endQuotedChar, const(dchar) extraChar = '\0') pure
+    S readQuoted(const(dchar) endQuotedChar, const(dchar) extraChar = '\0')
     {
         dchar previousChar = '\0';
         bool escaped;
@@ -519,7 +519,7 @@ private:
         return _sql[_beginP.._p];
     }
 
-    S readSpace(ref DbTokenKind tk) pure
+    S readSpace(ref DbTokenKind tk)
     {
         while (hasChar())
         {
@@ -908,14 +908,14 @@ private:
 
 version(unittest)
 {
-    const(char)[] quoteBool(bool token, bool expected, const(char)[] name, int line)
+    const(char)[] quoteBool(bool token, bool expected, const(char)[] name, size_t line)
     {
         import std.conv : to;
 
         return "'" ~ token.to!string() ~ " vs " ~ expected.to!string() ~ "' " ~ name ~ " from line# " ~ line.to!string();
     }
 
-    const(char)[] quoteKind(DbTokenKind token, DbTokenKind expected, const(char)[] name, int line)
+    const(char)[] quoteKind(DbTokenKind token, DbTokenKind expected, const(char)[] name, size_t line)
     {
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;
@@ -923,7 +923,7 @@ version(unittest)
         return "'" ~ token.toName() ~ " vs " ~ expected.toName() ~ "' " ~ name ~ " from line# " ~ line.to!string();
     }
 
-    const(char)[] quoteStr(const(char)[] token, const(char)[] expected, const(char)[] name, int line)
+    const(char)[] quoteStr(const(char)[] token, const(char)[] expected, const(char)[] name, size_t line)
     {
         import std.conv : to;
 
@@ -932,7 +932,7 @@ version(unittest)
 
     void checkTokenizer(T)(ref T tokenizer,
         bool empty, bool malformed, const(char)[] parameterIndicator, DbTokenKind kind, const(char)[] front,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         import std.conv : to;
         import pham.utl.utl_enum_set : toName;

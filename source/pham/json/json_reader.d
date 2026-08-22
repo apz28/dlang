@@ -1612,7 +1612,8 @@ version(unittest)
             : null;
     }
 
-    package static void checkTokens(Tokenizer, S)(ref Tokenizer tokens, JSONToken!S[] expectTokens, uint line = __LINE__) nothrow @safe
+    package static void checkTokens(Tokenizer, S)(ref Tokenizer tokens, JSONToken!S[] expectTokens, 
+        size_t line = __LINE__) nothrow @safe
     {
         uint count;
         while (!tokens.empty)

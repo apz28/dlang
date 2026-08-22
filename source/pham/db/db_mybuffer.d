@@ -88,19 +88,19 @@ public:
         return ResultCode.ok;
     }
 
-    bool isAuthSha2Caching(string authMethod) nothrow pure
+    bool isAuthSha2Caching(string authMethod) nothrow
     {
         return _buffer.length && _buffer.peekBytes(1)[0] == 0x01 && authMethod == myAuthSha2Caching;
     }
 
     pragma(inline, true)
-    bool isAuthSwitch() nothrow pure
+    bool isAuthSwitch() nothrow
     {
         return _buffer.length && _buffer.peekBytes(1)[0] == MyPackageType.eof;
     }
 
     pragma(inline, true)
-    bool isError() nothrow pure
+    bool isError() nothrow
     {
         return _buffer.length && _buffer.peekBytes(1)[0] == MyPackageType.error;
     }
@@ -108,7 +108,7 @@ public:
     alias isEOF = isLastPacket;
 
     pragma(inline, true)
-    bool isLastPacket() nothrow pure
+    bool isLastPacket() nothrow
     {
         return _packetLength <= 5 && _buffer.length && _buffer.peekBytes(1)[0] == MyPackageType.eof;
     }
@@ -124,13 +124,13 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _buffer.empty;
     }
 
     pragma(inline, true)
-    @property int32 packetLength() const nothrow pure
+    @property int32 packetLength() const nothrow
     {
         return _packetLength;
     }
@@ -650,7 +650,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _buffer.empty;
     }
@@ -774,12 +774,12 @@ public:
     }
 
     pragma(inline, true)
-    ubyte[] peekBytes() nothrow
+    ubyte[] peekBytes() nothrow return scope
     {
         return _buffer.peekBytes();
     }
 
-    string traceString(ubyte sequenceByte) const nothrow pure @trusted
+    string traceString(ubyte sequenceByte) const nothrow @trusted
     {
         import std.conv : to;
 

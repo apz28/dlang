@@ -17,7 +17,6 @@ import std.system : Endian;
 debug(debug_pham_db_db_mydatabase) import pham.db.db_debug;
 version(profile) import pham.utl.utl_test : PerfFunction;
 import pham.external.std.log.log_logger : Logger, LogLevel, LogTimming;
-import pham.utl.utl_array_append : Appender;
 import pham.utl.utl_disposable : DisposingReason, isDisposing;
 import pham.utl.utl_enum_set;
 import pham.utl.utl_result : ResultCode;
@@ -128,6 +127,8 @@ public:
 
     final override string getExecutionPlan(uint vendorMode = 0) @safe
 	{
+        import pham.utl.utl_array_append : Appender;
+
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(vendorMode=", vendorMode, ")");
 
         if (auto log = canTraceLog())
@@ -195,6 +196,8 @@ public:
 protected:
     override string buildStoredProcedureSql(string storedProcedureName, const(BuildCommandTextState) state) @safe
     {
+        import pham.utl.utl_array_append : Appender;
+
         debug(debug_pham_db_db_mydatabase) debug writeln(__FUNCTION__, "(storedProcedureName=", storedProcedureName, ", state=", state, ")");
 
         if (storedProcedureName.length == 0)
@@ -751,19 +754,19 @@ package(pham.db):
 
 protected:
     final override SkException createConnectError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new MyException(DbErrorCode.connect, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     final override SkException createReadDataError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new MyException(DbErrorCode.read, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
 
     final override SkException createWriteDataError(int socketErrorCode, string errorMessage,
-        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        Throwable next = null, string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         return new MyException(DbErrorCode.write, errorMessage, null, socketErrorCode, 0, next, funcName, file, line);
     }
@@ -1221,6 +1224,8 @@ public:
     // The offset of the initial row is 0 (not 1)
     final override string limitClause(int32 rows, uint32 offset = 0) const nothrow pure @safe
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
+
         // No restriction
         if (rows < 0)
             return null;
@@ -1229,12 +1234,12 @@ public:
         if (rows == 0)
             return "LIMIT 0 OFFSET 0";
 
-        auto buffer = Appender!string(40);
-        return buffer.put("LIMIT ")
+        ShortStringBuffer!char result;
+        return result.put("LIMIT ")
             .putNumber(rows)
             .put(" OFFSET ")
             .putNumber(offset)
-            .data;
+            .toString();
     }
 
     // Does not support this contruct

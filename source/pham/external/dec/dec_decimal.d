@@ -1658,7 +1658,7 @@ else
 
         version(decNogcException)
         {
-            final typeof(this) set(string msg, string file, uint line) @nogc nothrow pure @safe
+            final typeof(this) set(string msg, string file, size_t line) @nogc nothrow pure @safe
             {
                 this.file = file;
                 this.line = line;
@@ -1812,16 +1812,16 @@ unittest
     static foreach (D; DecimalTypes)
     {
         static foreach (T; DecimalTypes)
-            static assert(__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, (){ D d = T.init; }));
         static foreach (T; IntegralTypes)
-            static assert(__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, (){ D d = T.init; }));
         static foreach (T; FloatTypes)
-            static assert(__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, (){ D d = T.init; }));
         static foreach (T; CharTypes)
-            static assert(__traits(compiles, { D d = T.init; }));
+            static assert(__traits(compiles, (){ D d = T.init; }));
         static foreach (T; StringTypes)
-            static assert(__traits(compiles, { D d = T.init; }));
-        static assert(__traits(compiles, { D d = true; }));
+            static assert(__traits(compiles, (){ D d = T.init; }));
+        static assert(__traits(compiles, (){ D d = true; }));
     }
 
     //cast

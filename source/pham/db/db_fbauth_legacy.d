@@ -39,7 +39,7 @@ public:
         return ResultStatus.ok();
     }
 
-    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const pure
+    final override size_t maxSizeServerAuthData(out size_t maxSaltLength) const
     {
         maxSaltLength = saltLength * 2;
         // ((saltLength + 1) * 2) + ((keyLength + 1) * 2)

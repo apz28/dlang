@@ -398,7 +398,7 @@ public:
         if (op != FbIsc.op_response)
         {
             auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(op, stateInfo.forOP);
-            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
+            throw new FbException(DbErrorCode.connect, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
         auto result = opResponse.generic.getIscObject();
@@ -445,7 +445,7 @@ public:
         if (op == FbIsc.op_cont_auth)
         {
             auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, stateInfo.forOP);
-            throw new FbException(DbErrorCode.read, msg, null, 0, stateInfo.forOPCode);
+            throw new FbException(DbErrorCode.connect, msg, null, 0, stateInfo.forOPCode);
         }
     }
 
@@ -941,7 +941,7 @@ public:
         if (op != FbIsc.op_response)
         {
             auto msg = DbMessage.eUnexpectReadOperation.fmtMessage(op, stateInfo.forOP);
-            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_net_read_err);
+            throw new FbException(DbErrorCode.connect, msg, null, 0, FbIscResultCode.isc_net_read_err);
         }
 
         auto result = opResponse.generic.getIscObject();
@@ -1458,7 +1458,7 @@ protected:
 			if (stateInfo.auth is null || stateInfo.serverAuthMethod != stateInfo.authMethod)
             {
                 auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(stateInfo.serverAuthMethod);
-                throw new FbException(DbErrorCode.read, msg, null, 0, stateInfo.forOPCode);
+                throw new FbException(DbErrorCode.connect, msg, null, 0, stateInfo.forOPCode);
             }
 
             auto useCSB = connection.fbConnectionStringBuilder;
@@ -1466,7 +1466,7 @@ protected:
             stateInfo.authStateData.userPassword = useCSB.userPassword;
             auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
-                throw new FbException(DbErrorCode.read, status.errorMessage, null, 0, stateInfo.forOPCode);
+                throw new FbException(DbErrorCode.connect, status.errorMessage, null, 0, stateInfo.forOPCode);
 		}
 
         setupCompression(stateInfo); // Before further sending requests
@@ -1569,7 +1569,7 @@ protected:
 
             default:
                 auto msg = DbMessage.eUnhandleIntOperation.fmtMessage(op, stateInfo.forOP);
-                throw new FbException(DbErrorCode.read, msg, null, 0, stateInfo.forOPCode);
+                throw new FbException(DbErrorCode.connect, msg, null, 0, stateInfo.forOPCode);
         }
         return op;
     }
@@ -1600,7 +1600,7 @@ protected:
             stateInfo.authStateData.serverAuthData = contAuth.data;
             auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
-                throw new FbException(DbErrorCode.read, status.errorMessage, null, 0, stateInfo.forOPCode);
+                throw new FbException(DbErrorCode.connect, status.errorMessage, null, 0, stateInfo.forOPCode);
         }
 
         contAuthWrite(stateInfo);
@@ -1627,7 +1627,7 @@ protected:
         if (!authMap.isValid())
         {
             auto msg = DbMessage.eInvalidConnectionAuthUnsupportedName.fmtMessage(authMethod);
-            throw new FbException(DbErrorCode.read, msg, null, 0, FbIscResultCode.isc_auth_data);
+            throw new FbException(DbErrorCode.connect, msg, null, 0, FbIscResultCode.isc_auth_data);
         }
 
         return cast(FbAuth)authMap.createAuth();
@@ -1863,7 +1863,7 @@ protected:
             stateInfo.authStateData.serverAuthData = null;
             auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
-                throw new FbException(DbErrorCode.write, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
+                throw new FbException(DbErrorCode.connect, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
         }
 
         debug(debug_pham_db_db_fbprotocol) debug writeln("\t", "stateInfo.authMethod=", stateInfo.authMethod, ", stateInfo.authStateData=", stateInfo.authStateData.toString());
@@ -2167,7 +2167,7 @@ protected:
             stateInfo.authStateData.userPassword = useCSB.userPassword;
             auto status = stateInfo.auth.getAuthData(stateInfo.nextAuthState, stateInfo.authStateData);
             if (status.isError)
-                throw new FbException(DbErrorCode.write, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
+                throw new FbException(DbErrorCode.connect, status.errorMessage, null, 0, FbIscResultCode.isc_auth_data);
         }
 
         writer.writeChars(FbIsc.cnct_user, currentUserName());

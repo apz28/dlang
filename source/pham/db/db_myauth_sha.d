@@ -36,7 +36,7 @@ public:
         return getPasswordEx(userName, userPassword, true, authData);
     }
 
-    final override DbAuth setServerSalt(const(ubyte)[] serverSalt) pure
+    final override DbAuth setServerSalt(const(ubyte)[] serverSalt)
     {
         debug(debug_pham_db_db_myauth_sha) debug writeln(__FUNCTION__, "(serverSalt=", serverSalt.dgToHex(), ")");
 

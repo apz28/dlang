@@ -556,7 +556,7 @@ public:
         dispose(DisposingReason.destructor);
     }
 
-    auto asBytes(T)(T v) const @nogc nothrow pure
+    auto asBytes(T)(T v) const @nogc nothrow
     if (isIntegral!T)
     {
         return storage.writer.asBytes(v);
@@ -722,7 +722,7 @@ public:
         return storage.dispose(disposingReason);
     }
 
-    auto asBytes(T)(T v) const @nogc nothrow pure
+    auto asBytes(T)(T v) const @nogc nothrow
     if (isIntegral!T)
     {
         return storage.writer.asBytes(v);
@@ -1382,7 +1382,7 @@ public:
     }
 
     pragma(inline, true)
-    @property bool empty() const nothrow pure
+    @property bool empty() const nothrow
     {
         return _buffer.empty;
     }

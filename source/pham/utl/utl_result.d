@@ -178,14 +178,14 @@ public:
      */
     pragma(inline, true)
     static typeof(this) error(uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         return typeof(this)(T.init, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
     }
 
     pragma(inline, true)
     static typeof(this) error(T value, uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         return typeof(this)(value, ResultStatus.error(errorCode, errorMessage, funcName, file, line));
     }
@@ -206,13 +206,13 @@ public:
     }
 
     static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         return typeof(this)(T.init, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
     }
 
     static typeof(this) systemError(T value, string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         return typeof(this)(value, ResultStatus.systemError(apiName, errorCode, postfixMessage, funcName, file, line));
     }
@@ -260,7 +260,7 @@ struct ResultStatus
 
 public:
     this(uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure
     {
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
@@ -291,13 +291,13 @@ public:
 
     pragma(inline, true)
     static typeof(this) error(uint errorCode, string errorMessage,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure
     {
         return typeof(this)(errorCode, errorMessage, funcName, file, line);
     }
 
     static typeof(this) systemError(string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         typeof(this) result;
         result.setSystemError(apiName, errorCode, postfixMessage, funcName, file, line);
@@ -305,7 +305,7 @@ public:
     }
 
     static typeof(this) unsupportedError(uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         typeof(this) result;
         result.setUnsupportedError(errorCode, postfixMessage, funcName, file, line);
@@ -334,7 +334,7 @@ public:
     }
 
     int set(uint errorCode, string errorMessage, const(int) resultCode = ResultCode.error,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @nogc nothrow pure
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @nogc nothrow pure
     {
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
@@ -345,7 +345,7 @@ public:
     }
 
     int setError(uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         this.errorCode = errorCode;
         this.errorMessage = "Failed " ~ funcName ~ postfixMessage;
@@ -357,7 +357,7 @@ public:
     }
 
     int setSystemError(string apiName, uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         this.errorCode = errorCode;
         this.errorMessage = "Failed " ~ apiName ~ postfixMessage;
@@ -370,7 +370,7 @@ public:
     }
 
     int setUnsupportedError(uint errorCode, string postfixMessage = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow pure
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow pure
     {
         this.errorCode = errorCode;
         this.errorMessage = "Unsupported " ~ funcName ~ postfixMessage;
@@ -438,7 +438,7 @@ public:
     string file;
     string funcName;
     uint errorCode;
-    uint line;
+    size_t line;
 }
 
 struct TryLimit
@@ -819,7 +819,7 @@ uint lastSystemError(uint lastError) nothrow @trusted
 }
 
 ResultStatus lastSystemError(string apiName,
-    string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
 {
     auto code = lastSystemError();
     auto message = getSystemErrorMessage(code);

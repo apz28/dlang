@@ -147,12 +147,13 @@ public:
      */
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
         import pham.utl.utl_convert : putNumber;
 
-        auto buffer = Appender!string(anonymousColumnNamePrefix.length + 10);
-        return buffer.put(anonymousColumnNamePrefix)
+        ShortStringBuffer!char result;
+        return result.put(anonymousColumnNamePrefix)
             .putNumber(ordinal)
-            .data;
+            .toString();
     }
 
     /**
@@ -1030,7 +1031,7 @@ package(pham.db):
         row,
     }
 
-    void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    void checkActive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -1049,7 +1050,7 @@ package(pham.db):
         _connection.checkActive(funcName, file, line);
     }
 
-    final void checkActiveReader(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkActiveReader(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -1065,7 +1066,7 @@ package(pham.db):
         _connection.checkActiveReader(funcName, file, line);
     }
 
-    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -1294,7 +1295,7 @@ protected:
     }
 
     void checkCommand(int excludeCommandType,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -2447,7 +2448,7 @@ public:
     Logger logger;
 
 package(pham.db):
-    final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkActive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -2460,13 +2461,13 @@ package(pham.db):
         }
     }
 
-    final void checkActiveReader(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) const @safe
+    final void checkActiveReader(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) const @safe
     {
         if (_readerCounter != 0 && !supportMultiReaders)
             throw new DbException(0, DbMessage.eInvalidConnectionActiveReader, null, funcName, file, line);
     }
 
-    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkInactive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(funcName=", funcName, ")");
 
@@ -2518,7 +2519,7 @@ package(pham.db):
     }
 
     void fatalError(const(DbFatalErrorReason) fatalError, const(DbConnectionState) previousState,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     in
     {
         assert(fatalError != DbFatalErrorReason.none);
@@ -3147,15 +3148,17 @@ protected:
         }
     }
 
-    final string timerName() nothrow pure
+    final string timerName() const nothrow
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
         import pham.utl.utl_convert : putNumber;
 
         static immutable string prefix = "DbConnectionPool_";
-        auto buffer = Appender!string(prefix.length + size_t.sizeof * 2);
-        return buffer.put(prefix)
+
+        ShortStringBuffer!char result;
+        return result.put(prefix)
             .putNumber!16(this.asSizeT())
-            .data;
+            .toString();
     }
 
     final void unregisterWithTimer() nothrow
@@ -4009,21 +4012,21 @@ protected:
     }
 
     final noreturn throwInvalidPropertyValue(string name, string value,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__)
     {
         auto msg = DbMessage.eInvalidConnectionStringValue.fmtMessage(scheme, name, value);
         throw new DbException(DbErrorCode.parse, msg, null, funcName, file, line);
     }
 
     final void validateCustomPropertyValue(string name, string value, string displayValue = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__)
     {
         if (customAttributeInfo.isValidValue(value) != DbNameValueValidated.ok)
             throwInvalidPropertyValue(name, displayValue.length ? displayValue : value, funcName, file, line);
     }
 
     final void validatePropertyValue(string name, string value, string displayValue = null,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__)
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__)
     {
         auto k = DbConnectionParameterIdentifier.userPassword in dbDefaultConnectionParameterValues;
         if (k is null || (*k).isValidValue(value) != DbNameValueValidated.ok)
@@ -4323,8 +4326,10 @@ public:
 
     final string quoteIdentifier(scope const(char)[] value) const nothrow pure
     {
-        auto result = Appender!string(value.length + 10);
-        return quoteIdentifier(result, value).data;
+        import pham.utl.utl_array_static : ShortStringBuffer;
+
+        ShortStringBuffer!char result;
+        return quoteIdentifier(result, value).toString();
     }
 
     final ref Writer quoteIdentifier(Writer)(return ref Writer writer, scope const(char)[] value) const nothrow pure
@@ -5029,12 +5034,13 @@ public:
      */
     static string generateName(uint32 ordinal) nothrow pure @safe
     {
+        import pham.utl.utl_array_static : ShortStringBuffer;
         import pham.utl.utl_convert : putNumber;
 
-        auto buffer = Appender!string(anonymousParameterNamePrefix.length + 10);
-        return buffer.put(anonymousParameterNamePrefix)
+        ShortStringBuffer!char result;
+        return result.put(anonymousParameterNamePrefix)
             .putNumber(ordinal)
-            .data;
+            .toString();
     }
 
     final size_t loadBlob(uint64 loadedSize, size_t segmentSize, ref scope const(ubyte)[] data) @safe
@@ -6653,7 +6659,7 @@ protected:
     }
 
     final ptrdiff_t checkSavePointName(string savePointName,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(savePointName=", savePointName, ", funcName=", funcName, ")");
 
@@ -6666,7 +6672,7 @@ protected:
         return index;
     }
 
-    final void checkSavePointState(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+    final void checkSavePointState(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         try
         {
@@ -6680,7 +6686,7 @@ protected:
     }
 
     final void checkState(const(DbTransactionState) checkingState,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) @safe
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) @safe
     {
         debug(debug_pham_db_db_database) debug writeln(__FUNCTION__, "(checkingState=", checkingState, ", funcName=", funcName, ")");
 

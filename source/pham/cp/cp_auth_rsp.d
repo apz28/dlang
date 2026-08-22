@@ -126,13 +126,13 @@ public:
         this._paddingSize = paddingSize;
     }
 
-    ~this() nothrow @safe pure
+    ~this() nothrow @safe
     {
         dispose(DisposingReason.destructor);
     }
 
     // For security reason, need to clear the secrete information
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -206,7 +206,7 @@ public:
     }
     
     // For security reason, need to clear the secrete information
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);

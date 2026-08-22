@@ -3004,7 +3004,7 @@ nothrow unittest // BigInteger.toString('%d')
     static void check(T)(T value, string checkedValue,
         string format = null,
         char separator = '_',
-        uint line = __LINE__) nothrow @safe
+        size_t line = __LINE__) nothrow @safe
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v, format, separator);
@@ -3037,7 +3037,7 @@ unittest // BigInteger.toString('%X')
     static void check(T)(T value, string checkedValue,
         string format = "%X",
         char separator = '_',
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v, format, separator);
@@ -3068,7 +3068,7 @@ unittest // parse integer
     import std.conv : to;
 
     static void check(string value,
-        uint line = __LINE__) @safe
+        size_t line = __LINE__) @safe
     {
         auto v = BigInteger(value);
         auto s = toStringSafe(v);
@@ -3099,7 +3099,7 @@ unittest // parse hex
     import std.conv : to;
 
     static void check(string value,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto v = BigInteger("0x" ~ value);
         auto s = toStringSafe(v, "%X");
@@ -3216,7 +3216,7 @@ unittest // operator + - ~
     import std.conv : to;
 
     static void check(const(BigInteger) value, string checkedValue,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3364,7 +3364,7 @@ unittest // operator * / %
     import std.conv : to;
 
     static void check(const(BigInteger) value, string checkedValue,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3434,7 +3434,7 @@ unittest // operator << >> ^^
     import std.conv : to;
 
     static void check(const(BigInteger) value, string checkedValue,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto s = toStringSafe(value, "%,3d", '_');
         assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3463,7 +3463,7 @@ unittest // multiply
     import std.conv : to;
 
     static void check(const(BigInteger) value, string checkedValue,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto s = toStringSafe(value);
         assert(s == checkedValue, "from line: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);
@@ -3496,7 +3496,7 @@ unittest
     import std.conv : to;
 
     static void check(string caseNumber, const(BigInteger) value, string checkedValue,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         auto s = toStringSafe(value);
         assert(s == checkedValue, caseNumber ~ " from line s: " ~ line.to!string() ~ ": " ~ s ~ " ? " ~ checkedValue);

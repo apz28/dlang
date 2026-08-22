@@ -13,7 +13,7 @@ module pham.utl.utl_numeric_parser;
 
 import core.time : Duration, dur;
 public import std.ascii : LetterCase;
-import std.range.primitives : isInfinite, isInputRange, isOutputRange, put;
+import std.range.primitives : isInfinite, isInputRange, isOutputRange;
 import std.traits : Unqual, isIntegral, isSigned, isSomeChar, isSomeString, isUnsigned;
 
 debug(debug_pham_utl_utl_numeric_parser) import std.stdio : writeln;
@@ -74,15 +74,15 @@ if (isOutputRange!(Writer, char))
             if (resultLineBreak >= lineBreakLength)
             {
                 resultLineBreak = 0;
-                put(sink, lineBreakChar);
+                sink.put(lineBreakChar);
             }
         }
 
         const val = (bytesPtr[0] << 16) | (bytesPtr[1] << 8) | bytesPtr[2];
-        put(sink, encodeMap[val >> 18       ]);
-        put(sink, encodeMap[val >> 12 & 0x3f]);
-        put(sink, encodeMap[val >>  6 & 0x3f]);
-        put(sink, encodeMap[val       & 0x3f]);
+        sink.put(encodeMap[val >> 18       ]);
+        sink.put(encodeMap[val >> 12 & 0x3f]);
+        sink.put(encodeMap[val >>  6 & 0x3f]);
+        sink.put(encodeMap[val       & 0x3f]);
         bytesPtr += 3;
 
         static if (lineBreak)
@@ -93,21 +93,21 @@ if (isOutputRange!(Writer, char))
     if (remain)
     {
         const val = (bytesPtr[0] << 16) | (remain == 2 ? bytesPtr[1] << 8 : 0);
-        put(sink, encodeMap[val >> 18       ]);
-        put(sink, encodeMap[val >> 12 & 0x3f]);
+        sink.put(encodeMap[val >> 18       ]);
+        sink.put(encodeMap[val >> 12 & 0x3f]);
 
         final switch (remain)
         {
             case 2:
-                put(sink, encodeMap[val >> 6 & 0x3f]);
+                sink.put(encodeMap[val >> 6 & 0x3f]);
                 if (padding != Base64MappingChar.noPadding)
-                    put(sink, padding);
+                    sink.put(padding);
                 break;
             case 1:
                 if (padding != Base64MappingChar.noPadding)
                 {
-                    put(sink, padding);
-                    put(sink, padding);
+                    sink.put(padding);
+                    sink.put(padding);
                 }
                 break;
         }
@@ -170,12 +170,12 @@ if (isOutputRange!(Writer, char))
             if (resultLineBreak >= lineBreakLength)
             {
                 resultLineBreak = 0;
-                put(sink, lineBreakChar);
+                sink.put(lineBreakChar);
             }
         }
 
-        put(sink, hexDigits[(b >> 4) & 0xF]);
-        put(sink, hexDigits[b & 0xF]);
+        sink.put(hexDigits[(b >> 4) & 0xF]);
+        sink.put(hexDigits[b & 0xF]);
 
         static if (lineBreak)
             resultLineBreak += 2;
@@ -409,7 +409,7 @@ public:
     @disable this(this);
     @disable void opAssign(typeof(this));
 
-    this(Range value, NumericLexerOptions!(const(ElementType!Range)) options) pure
+    this(Range value, NumericLexerOptions!(const(RangeElement)) options) pure
     {
         this.value = value;
         this.options = options;
@@ -534,7 +534,7 @@ public:
 
 public:
     Range value;
-    NumericLexerOptions!(const(ElementType!Range)) options;
+    NumericLexerOptions!(const(RangeElement)) options;
 
 private:
     void checkHasBase64Char() pure
@@ -899,32 +899,32 @@ enum NumericParsedKind : ubyte
     underflow,
 }
 
-NumericLexerOptions!(const(Char)) defaultParseBase64Options(Char)() pure
+NumericLexerOptions!(const(Unqual!Char)) defaultParseBase64Options(Char)() pure
 {
-    NumericLexerOptions!(const(Char)) result;
+    NumericLexerOptions!(const(Unqual!Char)) result;
     result.decimalChar = 0;
     result.groupSeparators = null;
     result.flags |= NumericLexerFlag.skipInnerBlank;
     return result;
 }
 
-NumericLexerOptions!(const(Char)) defaultParseDecimalOptions(Char)() pure
+NumericLexerOptions!(const(Unqual!Char)) defaultParseDecimalOptions(Char)() pure
 {
-    NumericLexerOptions!(const(Char)) result;
+    NumericLexerOptions!(const(Unqual!Char)) result;
     result.flags |= NumericLexerFlag.allowFloat;
     return result;
 }
 
-NumericLexerOptions!(const(Char)) defaultParseHexDigitOptions(Char)() pure
+NumericLexerOptions!(const(Unqual!Char)) defaultParseHexDigitOptions(Char)() pure
 {
-    NumericLexerOptions!(const(Char)) result;
+    NumericLexerOptions!(const(Unqual!Char)) result;
     result.flags |= NumericLexerFlag.hexDigit | NumericLexerFlag.allowHexDigit;
     return result;
 }
 
-NumericLexerOptions!(const(Char)) defaultParseIntegralOptions(Char)() pure
+NumericLexerOptions!(const(Unqual!Char)) defaultParseIntegralOptions(Char)() pure
 {
-    NumericLexerOptions!(const(Char)) result;
+    NumericLexerOptions!(const(Unqual!Char)) result;
     result.flags |= NumericLexerFlag.allowHexDigit;
     return result;
 }
@@ -953,7 +953,7 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
             bv = cast(ubyte)((bv << 4) | b);
             if (bc)
             {
-                put(sink, bv);
+                sink.put(bv);
                 bv = 0;
                 bc = false;
             }
@@ -971,7 +971,7 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
             return NumericParsedKind.invalid;
     }
     if (bc)
-        put(sink, bv);
+        sink.put(bv);
     return NumericParsedKind.ok;
 }
 
@@ -1027,15 +1027,15 @@ if (isNumericLexerRange!Range && isOutputRange!(Writer, ubyte))
             final switch (p)
             {
                 case 0:
-                    put(sink, cast(ubyte)((cb1 << 2) | (cb2 >> 4)));
+                    sink.put(cast(ubyte)((cb1 << 2) | (cb2 >> 4)));
                     break;
 
                 case 1:
-                    put(sink, cast(ubyte)(((cb1 & 0b1111) << 4)  | (cb2 >> 2)));
+                    sink.put(cast(ubyte)(((cb1 & 0b1111) << 4)  | (cb2 >> 2)));
                     break;
 
                 case 2:
-                    put(sink, cast(ubyte)(((cb1 & 0b11) << 6) | cb2));
+                    sink.put(cast(ubyte)(((cb1 & 0b11) << 6) | cb2));
                     lexer.popFront();
                     break;
             }
@@ -1297,7 +1297,7 @@ if (isSomeString!String)
 
         if (d > 0 && d > durationUnitMaxs[u])
             return NumericParsedKind.overflow;
-            
+
         if (d < 0 && d < -durationUnitMaxs[u])
             return NumericParsedKind.underflow;
 
@@ -1428,7 +1428,7 @@ do
     }
     else if (validIntegralText[0] == '+')
         i++;
-        
+
     enum maxDiv10 = Target.max / 10;
     const maxLastDigit = (Target.min < 0 ? 7 : 5) + isNeg;
 
@@ -1436,7 +1436,7 @@ do
         int vTemp = 0;
     else
         long vTemp = 0;
-        
+
     ubyte b;
     while (i < validIntegralText.length)
     {
@@ -1454,7 +1454,7 @@ do
         }
         i++;
     }
-    
+
     target = isNeg ? cast(Target)(-vTemp) : cast(Target)vTemp;
     return NumericParsedKind.ok;
 }
@@ -1727,7 +1727,7 @@ nothrow @safe unittest // parseBase64
     import pham.utl.utl_array_static : ShortStringBuffer;
 
     static test(string base64Text, NumericParsedKind expectedCondition, string expectedText,
-        uint line = __LINE__)
+        size_t line = __LINE__)
     {
         ShortStringBuffer!ubyte buffer;
         assert(parseBase64(buffer, base64Text) == expectedCondition, "parseBase64 failed from line#: " ~ line.to!string());
@@ -1756,7 +1756,7 @@ nothrow @safe unittest // parseIntegral, parseHexDigits
     s = "1";
     assert(parseIntegral(s, i) == NumericParsedKind.ok);
     assert(i == 1);
-    
+
     assert(parseIntegral("0123456789", i) == NumericParsedKind.ok);
     assert(i == 123456789);
     s = "12345";
@@ -2038,20 +2038,20 @@ unittest // parseValidIntegral
     auto a = parseValidIntegral!int("123", v);
     assert(a == NumericParsedKind.ok);
     assert(v == 123);
-    
+
     a = parseValidIntegral!int("+123", v);
     assert(a == NumericParsedKind.ok);
     assert(v == 123);
-    
+
     a = parseValidIntegral!int("-123", v);
     assert(a == NumericParsedKind.ok);
     assert(v == -123);
-    
+
     a = parseValidIntegral!int("+123__456", v);
     assert(a == NumericParsedKind.ok);
     assert(v == 123_456);
-    
+
     a = parseValidIntegral!int("-123_456", v);
     assert(a == NumericParsedKind.ok);
-    assert(v == -123_456);    
+    assert(v == -123_456);
 }

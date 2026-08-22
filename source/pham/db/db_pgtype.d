@@ -173,9 +173,11 @@ nothrow @safe:
 
 public:
     this(Dictionary!(char, string) typeValues,
-        string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) pure
+        int socketCode = 0,
+        string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) pure
     {
         this.typeValues = typeValues;
+        this.socketCode = socketCode;
         this.funcName = funcName;
         this.file = file;
         this.line = line;
@@ -293,7 +295,8 @@ public:
     Dictionary!(char, string) typeValues;
     string file;
     string funcName;
-    uint line;
+    size_t line;
+    int socketCode;
 }
 
 struct PgNotificationResponse
@@ -306,59 +309,13 @@ public:
     int32 pid;
 }
 
-struct PgOIdExecuteResult
-{
-nothrow @safe:
-
-public:
-    DbFetchResultStatus fetchStatus() const
-    {
-		if (messageType == PgOIdResponeMsg.dataRow) // D
-            return DbFetchResultStatus.hasData;
-        else if (messageType == PgOIdResponeMsg.commandComplete) // C
-            return DbFetchResultStatus.ready;
-        else
-            return DbFetchResultStatus.completed;
-    }
-
-public:
-    string dmlName; // DELETE, INSERT, UPDATE ...
-    DbRecordsAffected recordsAffected;
-    PgOId oid;
-    char messageType;
-}
-
-struct PgOIdFetchResult
-{
-nothrow @safe:
-
-public:
-    DbFetchResultStatus fetchStatus() const
-    {
-		if (messageType == PgOIdResponeMsg.dataRow) // D
-            return DbFetchResultStatus.hasData;
-        else if (messageType == PgOIdResponeMsg.portalSuspended) // s
-            return DbFetchResultStatus.ready;
-        else
-            return DbFetchResultStatus.completed;
-    }
-
-    bool needFetchAgain(bool isSuspended) const
-    {
-        return isSuspended && messageType == PgOIdResponeMsg.portalSuspended;
-    }
-
-public:
-    char messageType;
-}
-
 // https://www.postgresql.org/docs/current/protocol-message-formats.html
 struct PgOIdColumnInfo
 {
 nothrow @safe:
 
 public:
-    bool opCast(C: bool)() const pure
+    bool opCast(C: bool)() const
     {
         return type != 0 && name.length != 0;
     }
@@ -370,7 +327,7 @@ public:
         return this;
     }
 
-    void reset() pure
+    void reset()
     {
         name = null;
         modifier = 0;
@@ -380,7 +337,7 @@ public:
         ordinal = 0;
     }
 
-    DbType dbType() const @nogc pure
+    DbType dbType() const @nogc
     {
         if (type == PgOIdType.numeric)
         {
@@ -399,7 +356,7 @@ public:
         return DbType.unknown;
     }
 
-    int32 dbTypeSize() const @nogc pure
+    int32 dbTypeSize() const @nogc
     {
         if (size > 0)
             return size;
@@ -451,14 +408,14 @@ public:
         return true;
     }
 
-    @property int32 bitLength() const @nogc pure
+    @property int32 bitLength() const @nogc
     {
         return (type == PgOIdType.bit || type == PgOIdType.varbit)
             ? modifier
             : dynamicTypeSize; // -1=No limit or unknown
     }
 
-    @property int32 characterLength() const @nogc pure
+    @property int32 characterLength() const @nogc
     {
         // For PgOIdType.varchar, this is a max length
         return (type == PgOIdType.bpchar || type == PgOIdType.varchar) && modifier != -1
@@ -466,7 +423,7 @@ public:
             : dynamicTypeSize; // -1=No limit or unknown
     }
 
-    @property int16 numericPrecision() const @nogc pure
+    @property int16 numericPrecision() const @nogc
     {
         // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
         return type == PgOIdType.numeric && modifier != -1
@@ -474,7 +431,7 @@ public:
             : 0;
     }
 
-    @property int16 numericScale() const @nogc pure
+    @property int16 numericScale() const @nogc
     {
         // See https://stackoverflow.com/questions/3350148/where-are-numeric-precision-and-scale-for-a-field-found-in-the-pg-catalog-tables
         return type == PgOIdType.numeric && modifier != -1
@@ -482,7 +439,7 @@ public:
             : 0;
     }
 
-    @property int16 timezonePrecision() const @nogc pure
+    @property int16 timezonePrecision() const @nogc
     {
         return (type == PgOIdType.timestamptz || type == PgOIdType.timetz) && modifier != -1
             ? cast(int16)(modifier & 0xFFFF)
@@ -504,8 +461,51 @@ public:
     int16 size;
 }
 
-deprecated("please use PgOIdColumnInfo")
-alias PgOIdFieldInfo = PgOIdColumnInfo;
+struct PgOIdExecuteResult
+{
+nothrow @safe:
+
+public:
+    DbFetchResultStatus fetchStatus() const
+    {
+		if (messageType == PgOIdResponeMsg.dataRow) // D
+            return DbFetchResultStatus.hasData;
+        else if (messageType == PgOIdResponeMsg.commandComplete) // C
+            return DbFetchResultStatus.ready;
+        else
+            return DbFetchResultStatus.completed;
+    }
+
+public:
+    string dmlName; // DELETE, INSERT, UPDATE ...
+    DbRecordsAffected recordsAffected;
+    PgOId oid;
+    char messageType;
+}
+
+struct PgOIdFetchResult
+{
+nothrow @safe:
+
+public:
+    DbFetchResultStatus fetchStatus() const
+    {
+		if (messageType == PgOIdResponeMsg.dataRow) // D
+            return DbFetchResultStatus.hasData;
+        else if (messageType == PgOIdResponeMsg.portalSuspended) // s
+            return DbFetchResultStatus.ready;
+        else
+            return DbFetchResultStatus.completed;
+    }
+
+    bool needFetchAgain(bool isSuspended) const
+    {
+        return isSuspended && messageType == PgOIdResponeMsg.portalSuspended;
+    }
+
+public:
+    char messageType;
+}
 
 struct PgOIdInterval
 {
@@ -533,7 +533,7 @@ public:
         this.microseconds = timeSpan.total!"usecs"();
     }
 
-    int opCmp(scope const(PgOIdInterval) rhs) const @nogc pure
+    int opCmp(scope const(PgOIdInterval) rhs) const @nogc
     {
         auto result = cmp(months, rhs.months);
         if (result == 0)
@@ -545,23 +545,23 @@ public:
         return result;
     }
 
-    bool opEquals(scope const(PgOIdInterval) rhs) const @nogc pure
+    bool opEquals(scope const(PgOIdInterval) rhs) const @nogc
     {
         return opCmp(rhs) == 0;
     }
 
-    size_t toHash() const @nogc pure
+    size_t toHash() const @nogc
     {
         return hashOf(months, hashOf(days, hashOf(microseconds)));
     }
 
-    Duration toDuration() const @nogc pure
+    Duration toDuration() const @nogc
     {
         // For months, the best is just a guess
         return dur!"usecs"(microseconds) + dur!"days"(days) + dur!"days"(months * 30);
     }
 
-    DbTimeSpan toTimeSpan() const @nogc pure
+    DbTimeSpan toTimeSpan() const @nogc
     {
         return DbTimeSpan(toDuration());
     }
@@ -583,7 +583,7 @@ public:
     enum signNeg = 0x4000;
 
     // Exclude null terminated
-    size_t digitLength() const @nogc pure scope
+    size_t digitLength() const @nogc scope
     {
 	    auto i = (weight + 1) * digitPerBase;
 	    if (i <= 0)
@@ -598,7 +598,7 @@ public:
         return result;
     }
 
-    void setSign(uint16 value) @nogc pure
+    void setSign(uint16 value) @nogc
     {
         this.sign = cast(int16)value;
     }
@@ -616,12 +616,12 @@ public:
             ~ ", digits=" ~ digits[0..ndigits].to!string();
     }
 
-    @property bool isNaN() const @nogc pure scope
+    @property bool isNaN() const @nogc scope
     {
         return sign == signNaN;
     }
 
-    @property bool isNeg() const @nogc pure scope
+    @property bool isNeg() const @nogc scope
     {
         return sign == signNeg;
     }
@@ -673,12 +673,12 @@ public:
         debug(debug_pham_db_db_pgtype) debug writeln("\t", "signature=", signature);
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -729,12 +729,12 @@ public:
         debug(debug_pham_db_db_pgtype) debug writeln("\t", "nonce=", nonce, ", salt=", salt, ", _iteration=", _iteration);
     }
 
-    ~this() pure
+    ~this()
     {
         dispose(DisposingReason.destructor);
     }
 
-    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow pure @safe
+    int dispose(const(DisposingReason) disposingReason = DisposingReason.dispose) nothrow @safe
     in
     {
         assert(disposingReason != DisposingReason.none);
@@ -748,12 +748,12 @@ public:
         return ResultCode.ok;
     }
 
-    const(char)[] getMessage() const pure
+    const(char)[] getMessage() const
     {
         return "r=" ~ nonce ~ ",s=" ~ salt ~ ",i=" ~ iteration.to!string();
     }
 
-    const(ubyte)[] getSalt() const pure
+    const(ubyte)[] getSalt() const
     {
         // Special try construct for grep
         try {
@@ -762,14 +762,14 @@ public:
         } catch (Exception) return null;
     }
 
-    bool isValid() const pure scope
+    bool isValid() const scope
     {
         return nonce.length != 0
             && salt.length != 0
             && iteration > 0; // Counter start number is 1
     }
 
-    int32 iteration() const pure scope
+    int32 iteration() const scope
     {
         return this._iteration;
     }
@@ -778,6 +778,75 @@ public:
     char[] nonce;
     char[] salt;
     int32 _iteration;
+}
+
+struct PgOIdSecretKey
+{
+    import pham.utl.utl_bit : Map32Bit;
+
+@safe:
+    enum minLength = int32.sizeof; // 4=protocol v3.0 or previous
+    enum maxLength = 256; // 256=protocol v3.2 or greater
+
+public:
+    this(int32 keys) nothrow
+    {
+        Map32Bit map;
+        map.i = keys;
+        this.keys = map.a[].dup;
+    }
+
+    this(const(ubyte)[] keys) nothrow
+    {
+        assert(keys.length >= minLength && keys.length <= maxLength);
+
+        this.keys = keys;
+    }
+
+    static PgOIdSecretKey fromString(scope const(char)[] hexKeys) nothrow
+    {
+        import pham.cp.cp_cipher : CipherBuffer;
+        import pham.utl.utl_numeric_parser : NumericParsedKind, parseBase16;
+
+        CipherBuffer!ubyte rawKeys;
+        const r = parseBase16(rawKeys, hexKeys);
+        return r == NumericParsedKind.ok && rawKeys.length >= minLength
+            ? PgOIdSecretKey(rawKeys.value.dup)
+            : PgOIdSecretKey.init;
+    }
+
+    int32 keys3_0() const nothrow
+    {
+        assert(keys.length == int32.sizeof);
+
+        return keys3_0(keys);
+    }
+
+    static int32 keys3_0(scope const(ubyte)[] keys) nothrow pure
+    {
+        assert(keys.length == int32.sizeof);
+
+        Map32Bit map;
+        map.a = keys[0..int32.sizeof];
+        return map.i;
+    }
+
+    string toString() const nothrow
+    {
+        import pham.utl.utl_numeric_parser : cvtBytesBase16;
+
+        return cvtBytesBase16(keys);
+    }
+
+    @property uint16 keysLength() const nothrow
+    {
+        assert(keys.length <= maxLength);
+
+        return cast(uint16)keys.length;
+    }
+
+public:
+    const(ubyte)[] keys;
 }
 
 CanSendParameter canSendParameter(string name, ref string mappedName) pure
@@ -963,6 +1032,9 @@ DbParameterDirection pgParameterModeToDirection(scope const(char)[] mode)
                 : DbParameterDirection.input));
 }
 
+deprecated("please use PgOIdColumnInfo")
+alias PgOIdFieldInfo = PgOIdColumnInfo;
+
 
 // Any below codes are private
 private:
@@ -1012,7 +1084,7 @@ shared static this() nothrow @safe
         result[DbConnectionParameterIdentifier.userPassword] = ""; // password - special handling
         result[DbConnectionParameterIdentifier.socketBlocking] = "";
         result[DbConnectionParameterIdentifier.socketNoDelay] = "";
-        
+
         /*
         result[DbConnectionParameterIdentifier.pgOptions] = DbConnectionParameterIdentifier.pgOptions,
         result[DbConnectionParameterIdentifier.pgPassFile] = DbConnectionParameterIdentifier.pgPassFile,
@@ -1086,4 +1158,24 @@ unittest // pgAuthIntegratedSecurityNames
     assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp1] == pgAuthScram256Name);
     assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.srp256] == pgAuthScram256Name);
     //assert(pgAuthIntegratedSecurityNames[DbIntegratedSecurityConnection.sspi] == "Not supported SSPI");
+}
+
+unittest // PgOIdSecretKey
+{
+    import std.conv : to;
+
+    auto keys = PgOIdSecretKey(123_456);
+    assert(keys.keysLength == 4);
+    assert(keys.keys3_0() == 123_456, keys.toString());
+    assert(keys.toString() == "40E20100", keys.toString());
+    keys = PgOIdSecretKey.fromString("40E20100");
+    assert(keys.keysLength == 4);
+    assert(keys.keys3_0() == 123_456, keys.toString());
+
+    keys = PgOIdSecretKey(cast(ubyte[])[0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15]);
+    assert(keys.keysLength == 15);
+    assert(keys.toString() == "010203040506070809101112131415", keys.toString());
+    keys = PgOIdSecretKey.fromString("010203040506070809101112131415");
+    assert(keys.keysLength == 15);
+    assert(keys.keys == [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15], keys.toString());
 }

@@ -627,7 +627,7 @@ public:
     }
 
     pragma(inline, true)
-    @property final bool active() const @nogc nothrow pure
+    @property final bool active() const @nogc nothrow
     {
         return _safeSocketHandle.isValid;
     }
@@ -651,7 +651,7 @@ public:
     }
 
     pragma(inline, true)
-    @property final SocketHandle handle() @nogc nothrow pure
+    @property final SocketHandle handle() @nogc nothrow
     {
         return _safeSocketHandle.handle;
     }
@@ -775,7 +775,7 @@ protected:
     }
 
     pragma(inline, true)
-    final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, uint line = __LINE__) nothrow
+    final int checkActive(string funcName = __FUNCTION__, string file = __FILE__, size_t line = __LINE__) nothrow
     {
         debug(debug_pham_io_io_socket) debug writeln(__FUNCTION__, "(active=", active, ")");
 

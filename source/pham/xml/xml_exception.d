@@ -11,52 +11,56 @@
 
 module pham.xml.xml_exception;
 
-import pham.xml.xml_message;
-import pham.xml.xml_object;
+import pham.xml.xml_object : XmlLoc;
 
 @safe:
 
-template XmlExceptionConstructors()
+mixin template XmlExceptionConstructors(bool isBase = false)
 {
-@safe:
-
-public:
     this(string message,
-        string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure
+        Throwable next = null,
+        string file = __FILE__, size_t line = __LINE__) nothrow pure @safe
     {
-        super(message, file, line, next);
+        static if (isBase)
+            super(message, file, line, next);
+        else
+            super(message, next, file, line);
     }
 
-    this(XmlLoc loc, string message,
-        string file = __FILE__, size_t line = __LINE__, Exception next = null) nothrow pure
+    this(string message, XmlLoc loc,
+        Throwable next = null,
+        string file = __FILE__, size_t line = __LINE__) nothrow pure @safe
     {
-        if (loc.isSpecified())
-            message = message ~ loc.lineMessage();
+        static if (isBase)
+        {
+            import std.conv : text;
 
-        this.loc = loc;
-        super(message, file, line, next);
+            this.loc = loc;
+            super(text(message, " (", loc.sourceLine, ":", loc.sourceColumn, ")"), file, line, next);
+        }
+        else
+            super(message, loc, next, file, line);
     }
 
-    this(Args...)(const(char)[] fmt, Args args,
-        string file = __FILE__, size_t line = __LINE__, Exception next = null) @trusted
+    // For re-throw
+    this(string message, Throwable previous) nothrow pure @safe
     {
-        import std.format : format;
-
-        auto message = format(fmt, args);
-        super(message, file, line, next);
+        static if (isBase)
+            super(message, previous.file, previous.line, previous);
+        else
+            super(message, previous);
     }
 
-    this(Args...)(XmlLoc loc, const(char)[] fmt, Args args,
-        string file = __FILE__, size_t line = __LINE__, Exception next = null) @trusted
+    // For re-throw
+    this(string message, XmlLoc loc, Throwable previous) nothrow pure @safe
     {
-        import std.format : format;
-
-        auto message = format(fmt, args);
-        if (loc.isSpecified())
-            message = message ~ loc.lineMessage();
-
-        this.loc = loc;
-        super(message, file, line, next);
+        static if (isBase)
+        {
+            this.loc = loc;
+            super(message, previous.file, previous.line, previous);
+        }
+        else
+            super(message, loc, previous);
     }
 }
 
@@ -65,7 +69,7 @@ class XmlException : Exception
 @safe:
 
 public:
-    mixin XmlExceptionConstructors;
+    mixin XmlExceptionConstructors!true;
 
     override string toString() @system
     {
@@ -90,7 +94,7 @@ class XmlConvertException : XmlException
 @safe:
 
 public:
-    mixin XmlExceptionConstructors;
+    mixin XmlExceptionConstructors!false;
 }
 
 class XmlInvalidOperationException : XmlException
@@ -98,7 +102,7 @@ class XmlInvalidOperationException : XmlException
 @safe:
 
 public:
-    mixin XmlExceptionConstructors;
+    mixin XmlExceptionConstructors!false;
 }
 
 class XmlParserException : XmlException
@@ -106,5 +110,5 @@ class XmlParserException : XmlException
 @safe:
 
 public:
-    mixin XmlExceptionConstructors;
+    mixin XmlExceptionConstructors!false;
 }

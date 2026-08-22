@@ -150,7 +150,7 @@ do
 
     if (__ctfe)
     {
-        static if (__traits(compiles, { T[] t; t.reserve(1); t.length = 1; }))
+        static if (__traits(compiles, (){ T[] t; t.reserve(1); t.length = 1; }))
         {
             array.reserve(allocCapacity);
             array.length = currentLength + additionalLength;

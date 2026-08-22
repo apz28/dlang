@@ -50,7 +50,7 @@ public:
 
 public:
 	this(scope const(ubyte)[] key, scope const(ubyte)[] nonce, uint counter32,
-        int rounds = 0) pure
+        int rounds = 0)
     in
     {
         import std.conv : to;
@@ -77,7 +77,7 @@ public:
     }
 
 	this(scope const(ubyte)[] key, scope const(ubyte)[] nonce, ulong counter64,
-        int rounds = 0) pure
+        int rounds = 0)
     in
     {
         import std.conv : to;
@@ -92,7 +92,7 @@ public:
         this(CipherKey(k));
     }
 
-	this(CipherKey key) pure
+	this(CipherKey key)
     in
     {
         assert(key.kind == CipherKeyKind.chacha);
@@ -139,7 +139,7 @@ public:
         return "ChaCha20";
     }
 
-	@property final bool overflow() const @nogc pure
+	@property final bool overflow() const @nogc
     {
 		return _overflow;
     }
@@ -214,7 +214,7 @@ private:
         }
     }
 
-    final ubyte[] process(scope const(ubyte)[] input, ubyte[] output) @nogc pure
+    final ubyte[] process(scope const(ubyte)[] input, ubyte[] output) @nogc
     in
     {
         assert(input.length != 0);
@@ -245,7 +245,7 @@ private:
         }
 
         Block buf;
-        for (;;)
+        while (true)
         {
             chacha20Block(buf, this._input, this._rounds);
 

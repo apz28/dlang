@@ -143,7 +143,7 @@ public:
     /**
      * Gets element DbType of an array value
      */
-    @property DbType elementType() const nothrow pure @safe
+    @property DbType elementType() const nothrow @safe
     {
         return cast(DbType)(_type & DbTypeMask);
     }
@@ -160,12 +160,12 @@ public:
     /**
      * Returns indicator if value can return its' size
      */
-    @property bool hasSize() const nothrow pure @safe
+    @property bool hasSize() const nothrow @safe
     {
         return isDbTypeHasSize(type) || isArray;
     }
 
-    @property bool isArray() const nothrow pure @safe
+    @property bool isArray() const nothrow @safe
     {
         return (_type & DbType.array) != 0;
     }
@@ -175,7 +175,7 @@ public:
         return _value.isNull || (isDbTypeHasZeroSizeAsNull(_type) && size == 0);
     }
 
-    @property bool isUnassign() const nothrow pure @safe
+    @property bool isUnassign() const nothrow @safe
     {
         return _value.isUnassign;
     }
@@ -186,7 +186,7 @@ public:
      * struct is size
      * If instance does not have size, return valueNoSizeMarker (-1)
      */
-    @property ptrdiff_t size() const nothrow pure @safe
+    @property ptrdiff_t size() const nothrow @safe
     {
         return hasSize
             ? (_type == DbType.record ? _value.typeSize : _value.length)
@@ -196,12 +196,12 @@ public:
     /**
      * Gets the DbType of the value
      */
-    @property DbType type() const nothrow pure @safe
+    @property DbType type() const nothrow @safe
     {
         return _type;
     }
 
-    @property ref typeof(this) type(DbType value) nothrow pure return @safe
+    @property ref typeof(this) type(DbType value) nothrow return @safe
     {
         _type = value;
         return this;

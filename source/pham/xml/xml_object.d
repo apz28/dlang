@@ -83,22 +83,17 @@ struct XmlLoc
 nothrow @safe:
 
 public:
+    // Zero based index values
     this(size_t line, size_t column) pure
     {
         this.line = line;
         this.column = column;
     }
 
+    pragma(inline, true)
     bool isSpecified() const pure
     {
         return line != 0 || column != 0;
-    }
-
-    string lineMessage() const pure
-    {
-        scope (failure) assert(0, "Assume nothrow failed");
-
-        return format(XmlMessage.atLineInfo, sourceLine, sourceColumn);
     }
 
     @property size_t sourceColumn() const pure

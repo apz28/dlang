@@ -1083,7 +1083,7 @@ public:
     }
 
 public:
-    ResultStatus status() const @nogc pure @safe
+    ResultStatus status() const @nogc @safe
     {
         ResultStatus result = _loadSslStatus.isError
             ? _loadSslStatus

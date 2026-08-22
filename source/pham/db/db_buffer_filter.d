@@ -74,7 +74,7 @@ public:
         return head;
     }
 
-    @property bool hasError() const pure
+    @property bool hasError() const
     {
         return errorStatus.isError;
     }
@@ -98,7 +98,7 @@ public:
 
 protected:
     pragma(inline, true)
-    final void clearError() pure
+    final void clearError()
     {
         errorStatus.reset();
     }

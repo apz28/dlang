@@ -259,7 +259,7 @@ public:
      * ---
      */
     static void checkFlags(const(ExceptionFlags) flags, const(ExceptionFlags) traps,
-        string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+        string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         if (isFlagTrapped(flags, traps, ExceptionFlags.invalidOperation))
             throwFlags(ExceptionFlags.invalidOperation, msg, file, line);
@@ -319,7 +319,7 @@ public:
 	 */
     @IEEECompliant("raiseFlags", 26)
 	static void raiseFlags(const(ExceptionFlags) raisingFlags,
-        string msg = null, string file = __FILE__, uint line = __LINE__)
+        string msg = null, string file = __FILE__, size_t line = __LINE__)
 	{
         const validFlags = raisingFlags & ExceptionFlags.all;
         if (__ctfe)
@@ -387,7 +387,7 @@ public:
     }
 
     static void throwFlags(const(ExceptionFlags) flags,
-        string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+        string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         if (flags & ExceptionFlags.invalidOperation)
             throwInvalidOperationError(msg, file, line);
@@ -404,7 +404,7 @@ public:
     version(D_BetterC)
     private static char[500] errorMessageBuffer = 0;
 
-    static noreturn throwDivisionByZeroError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    static noreturn throwDivisionByZeroError(string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         version(D_BetterC)
         {
@@ -419,7 +419,7 @@ public:
         }
     }
 
-    static noreturn throwInexactError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    static noreturn throwInexactError(string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         version(D_BetterC)
         {
@@ -434,7 +434,7 @@ public:
         }
     }
 
-    static noreturn throwInvalidOperationError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    static noreturn throwInvalidOperationError(string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         version(D_BetterC)
         {
@@ -449,7 +449,7 @@ public:
         }
     }
 
-    static noreturn throwOverflowError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    static noreturn throwOverflowError(string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         version(D_BetterC)
         {
@@ -464,7 +464,7 @@ public:
         }
     }
 
-    static noreturn throwUnderflowError(string msg = null, string file = __FILE__, uint line = __LINE__) pure @trusted
+    static noreturn throwUnderflowError(string msg = null, string file = __FILE__, size_t line = __LINE__) pure @trusted
     {
         version(D_BetterC)
         {

@@ -79,7 +79,7 @@ public:
         return ResultStatus.ok();
     }
 
-    final override DbAuth setServerSalt(const(ubyte)[] serverSalt) pure
+    final override DbAuth setServerSalt(const(ubyte)[] serverSalt)
     {
         // if the data given to us is a null terminated string,
         // we need to trim off the trailing zero
