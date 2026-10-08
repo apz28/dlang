@@ -193,24 +193,28 @@ private:
         const(ubyte)[] nonce = _parameters.privateKey.chacha.nonce;
         const nonceLength = nonce.length;
 
-        final switch (_counterSize) with (CipherChaChaKey.CounterSize)
+        with (CipherChaChaKey.CounterSize)
         {
-            case counter32:
-                assert(nonceLength == CipherChaChaKey.nonceSizeCounter32);
-                const counter32 = _parameters.privateKey.chacha.counter32;
-                _input.ints[12] = counter32;
-                _input.ints[13] = bytesToNative!uint(nonce[0..4]);
-                _input.ints[14] = bytesToNative!uint(nonce[4..8]);
-                _input.ints[15] = bytesToNative!uint(nonce[8..12]);
-                break;
-            case counter64:
+            if (_counterSize == counter64)
+            {
                 assert(nonceLength == CipherChaChaKey.nonceSizeCounter64);
                 const counter64 = _parameters.privateKey.chacha.counter64;
                 _input.ints[12] = cast(uint)(counter64 & 0xFFFF_FFFF);
                 _input.ints[13] = cast(uint)(counter64 >> 32);
                 _input.ints[14] = bytesToNative!uint(nonce[0..4]);
                 _input.ints[15] = bytesToNative!uint(nonce[4..8]);
-                break;
+            }
+            else if (_counterSize == counter32)
+            {
+                assert(nonceLength == CipherChaChaKey.nonceSizeCounter32);
+                const counter32 = _parameters.privateKey.chacha.counter32;
+                _input.ints[12] = counter32;
+                _input.ints[13] = bytesToNative!uint(nonce[0..4]);
+                _input.ints[14] = bytesToNative!uint(nonce[4..8]);
+                _input.ints[15] = bytesToNative!uint(nonce[8..12]);
+            }
+            else
+                assert(0, "Need to check for all enum values");
         }
     }
 
@@ -249,22 +253,26 @@ private:
         {
             chacha20Block(buf, this._input, this._rounds);
 
-            final switch (this._counterSize) with (CipherChaChaKey.CounterSize)
+            with (CipherChaChaKey.CounterSize)
             {
-                case counter32:
-                    if (++this._input.ints[12] == 0)
-                    {
-                        this._overflow = true;
-                        return resultOutput[0..resultLength];
-                    }
-                    break;
-                case counter64:
+                if (this._counterSize == counter64)
+                {
                     if (++this._input.ints[12] == 0 && ++this._input.ints[13] == 0)
                     {
                         this._overflow = true;
                         return resultOutput[0..resultLength];
                     }
-                    break;
+                }
+                else if (this._counterSize == counter32)
+                {
+                    if (++this._input.ints[12] == 0)
+                    {
+                        this._overflow = true;
+                        return resultOutput[0..resultLength];
+                    }
+                }
+                else
+                    assert(0, "Need to check for all enum values");
             }
 
             if (input.length <= blockSize)
