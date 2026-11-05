@@ -1262,13 +1262,13 @@ private:
 
 /**
  * Parses a serialized string and returns a tree of JSON values.
- * Throws:
- *  JSONException if string does not follow the JSON grammar or the depth exceeds the max depth,
- *      or a number in the input cannot be represented by a native D type.
  * Params:
  *  json = json-formatted string to parse
  *  options = enable decoding string representations of NaN/Inf as float values
  *  maxDepth = maximum depth of nesting allowed, 0 disables depth checking
+ * Throws:
+ *  JSONParserException if string does not follow the JSON grammar or the depth exceeds the max depth,
+ *      or a number in the input cannot be represented by a native D type.
  */
 JSONValue parseJSON(T, JSONOptions options = defaultOptions)(T json, size_t maxDepth = 0)
 if (isSomeFiniteCharInputRange!T)
@@ -1281,7 +1281,7 @@ if (isSomeFiniteCharInputRange!T)
     if (tokenizer.empty)
     {
         static if (options & JSONOptions.strictParsing)
-            throw new JSONException("JSON - Empty body");
+            throw new JSONParserException("JSON - Empty body");
 
         return root;
     }
@@ -1289,13 +1289,13 @@ if (isSomeFiniteCharInputRange!T)
     noreturn error(string msg) @safe
     {
         if (tokenizer.front.kind == JSONTokenKind.error)
-            throw new JSONException(tokenizer.front.errorMessage, tokenizer.front.line, tokenizer.front.column);
+            throw new JSONParserException(tokenizer.front.errorMessage, tokenizer.front.line, tokenizer.front.column);
         else
-            throw new JSONException(msg, tokenizer.front.line, tokenizer.front.column);
+            throw new JSONParserException(msg, tokenizer.front.line, tokenizer.front.column);
     }
 
     version(JSONCommentStore) string lastComment;
-    int depth = -1;
+    ptrdiff_t depth = -1;
 
     void parseComment() nothrow
     {
@@ -1400,6 +1400,7 @@ if (isSomeFiniteCharInputRange!T)
                 break;
 
             case JSONTokenKind.beginArray:
+                size_t arrayI;
                 JSONValue[] arrayV;
                 tokenizer.popFront(); // Skip [
                 while (true)
@@ -1425,13 +1426,15 @@ if (isSomeFiniteCharInputRange!T)
                     // Get array element
                     JSONValue elementValue;
                     parseValue(elementValue);
-
+                    elementValue._xpathInfo.index = arrayI++;
+                    elementValue._xpathInfo.level = depth + 1;
                     arrayV ~= elementValue;
                 }
                 value.nullify(JSONType.array)._store = JSONValue.Store(arr: arrayV);
                 break;
 
             case JSONTokenKind.beginObject:
+                size_t objectI;
                 Dictionary!(string, JSONValue) objectV;
                 tokenizer.popFront(); // Skip {
                 while (true)
@@ -1458,7 +1461,7 @@ if (isSomeFiniteCharInputRange!T)
                         error(text("Expected field name but found '", tokenizer.front.text, "'"));
 
                     // Get member name
-                    const memberKey = tokenizer.front.itext;
+                    const memberName = tokenizer.front.itext;
                     tokenizer.popFront();
                     kind = popFrontCheck();
                     if (kind != JSONTokenKind.colon)
@@ -1473,8 +1476,10 @@ if (isSomeFiniteCharInputRange!T)
                         memberValue.comment = lastComment;
                         lastComment = null;
                     }
-
-                    objectV[memberKey] = memberValue;
+                    memberValue._xpathInfo.name = memberName;
+                    memberValue._xpathInfo.index = objectI++;
+                    memberValue._xpathInfo.level = depth + 1;
+                    objectV[memberName] = memberValue;
                 }
                 value.nullify(JSONType.object)._store = JSONValue.Store(obj: objectV);
                 break;
@@ -1499,6 +1504,7 @@ if (isSomeFiniteCharInputRange!T)
                 error(text("JSON - Unexpected text found '", tokenizer.front.text, "'"));
         }
 
+        value._xpathInfo.level = depth;
         tokenizer.popFront();
         depth--;
     }
@@ -1509,14 +1515,18 @@ if (isSomeFiniteCharInputRange!T)
     }
     catch (Exception e)
     {
-        if (cast(JSONException)e !is null)
+        if (cast(JSONParserException)e)
             throw e;
         else
-            throw new JSONException(e.msg, e.file, e.line, e);
+            throw new JSONParserException(e.msg, e.file, e.line, e);
     }
 
     if (tokenizer.front.kind != JSONTokenKind.eof)
         error("JSON - Trailing non-whitespace characters");
+
+    root._xpathInfo.name = "#document";
+    root._xpathInfo.index = 0;
+    root._xpathInfo.level = 0;
 
     return root;
 }
@@ -1612,7 +1622,7 @@ version(unittest)
             : null;
     }
 
-    package static void checkTokens(Tokenizer, S)(ref Tokenizer tokens, JSONToken!S[] expectTokens, 
+    package static void checkTokens(Tokenizer, S)(ref Tokenizer tokens, JSONToken!S[] expectTokens,
         size_t line = __LINE__) nothrow @safe
     {
         uint count;

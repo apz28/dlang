@@ -33,7 +33,7 @@ import pham.utl.utl_result : ResultCode;
 import pham.utl.utl_system : currentComputerName, currentProcessId, currentProcessName, currentUserName;
 import pham.utl.utl_text : shortFunctionName;
 import pham.utl.utl_timer;
-import pham.utl.utl_utf8 : UTF8Iterator, encodeUTF8, nextUTF8Char;
+import pham.utl.utl_utf8 : UTF8Iterator, nextUTF8Char;
 import pham.db.db_convert;
 public import pham.db.db_exception;
 import pham.db.db_message;
@@ -4186,36 +4186,33 @@ public:
         UTF8Iterator iterator;
         while (startIndex < value.length)
         {
-            if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+            if (!nextUTF8Char(value, startIndex, iterator))
                 iterator.code = replacementChar;
 
             final switch (charClass(iterator.code))
             {
                 case CharClass.any:
                 case CharClass.stringQuote:
-                    writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                    writer.put(iterator.utfValue());
                     break;
                 case CharClass.idenfifierQuote:
-                    const encodedQuote = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    const encodedQuote = iterator.utfValue();
                     writer.put(encodedQuote);
                     writer.put(encodedQuote);
                     break;
                 case CharClass.backslashSequence:
-                    const encodedBackslash = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    const encodedBackslash = iterator.utfValue();
                     writer.put(encodedBackslash);
-                    startIndex += iterator.count;
                     if (startIndex < value.length)
                     {
-                        if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+                        if (!nextUTF8Char(value, startIndex, iterator))
                             iterator.code = replacementChar;
-                        writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                        writer.put(iterator.utfValue());
                     }
                     else
                         writer.put(encodedBackslash);
                     break;
             }
-
-            startIndex += iterator.count;
         }
     }
 
@@ -4245,36 +4242,33 @@ public:
         UTF8Iterator iterator;
         while (startIndex < value.length)
         {
-            if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+            if (!nextUTF8Char(value, startIndex, iterator))
                 iterator.code = replacementChar;
 
             final switch (charClass(iterator.code))
             {
                 case CharClass.any:
                 case CharClass.idenfifierQuote:
-                    writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                    writer.put(iterator.utfValue());
                     break;
                 case CharClass.stringQuote:
-                    const encodedQuote = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    const encodedQuote = iterator.utfValue();
                     writer.put(encodedQuote);
                     writer.put(encodedQuote);
                     break;
                 case CharClass.backslashSequence:
-                    const encodedBackslash = encodeUTF8(iterator.codeBuffer, iterator.code);
+                    const encodedBackslash = iterator.utfValue();
                     writer.put(encodedBackslash);
-                    startIndex += iterator.count;
                     if (startIndex < value.length)
                     {
-                        if (!nextUTF8Char(value, startIndex, iterator.code, iterator.count))
+                        if (!nextUTF8Char(value, startIndex, iterator))
                             iterator.code = replacementChar;
-                        writer.put(encodeUTF8(iterator.codeBuffer, iterator.code));
+                        writer.put(iterator.utfValue());
                     }
                     else
                         writer.put(encodedBackslash);
                     break;
             }
-
-            startIndex += iterator.count;
         }
     }
 
@@ -4282,12 +4276,14 @@ public:
     {
         size_t result;
         UTF8Iterator iterator;
-        while (result < value.length && nextUTF8Char(value, result, iterator.code, iterator.count))
+        while (result < value.length && nextUTF8Char(value, result, iterator))
         {
             const cc = charClass(iterator.code);
             if (cc == forCharClass || cc == CharClass.backslashSequence)
+            {
+                result -= iterator.count;
                 break;
-            result += iterator.count;
+            }
         }
         return result;
     }

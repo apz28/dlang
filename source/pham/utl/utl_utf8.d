@@ -21,9 +21,17 @@ enum dchar replacementUtf8Char = '\uFFFD';
 
 struct UTF8Iterator
 {
-    char[encodeUTF8MaxLength] codeBuffer = 0;
+public:
     dchar code = 0;
     ubyte count;
+
+    char[] utfValue() @nogc nothrow pure return
+    {
+        return encodeUTF8(codeBuffer, code);
+    }
+
+private:
+    char[encodeUTF8MaxLength] codeBuffer = 0;
 }
 
 /**
@@ -68,9 +76,17 @@ char[] encodeUTF8(return ref char[encodeUTF8MaxLength] buffer, const(dchar) c) @
 
 struct UTF16Iterator
 {
-    wchar[encodeUTF16MaxLength] codeBuffer = 0;
+public:
     dchar code = 0;
     ubyte count;
+
+    wchar[] utfValue() @nogc nothrow pure return
+    {
+        return encodeUTF16(codeBuffer, code);
+    }
+
+private:
+    wchar[encodeUTF16MaxLength] codeBuffer = 0;
 }
 
 /**
@@ -230,6 +246,14 @@ bool nextUTF8Char(scope const(char)[] str, ref size_t pos, out dchar cCode) @nog
     return result;
 }
 
+pragma(inline, true)
+bool nextUTF8Char(scope const(char)[] str, ref size_t pos, out UTF8Iterator iterator) @nogc pure
+{
+    const result = nextUTF8Char(str, pos, iterator.code, iterator.count);
+    pos += iterator.count;
+    return result;
+}
+
 version(none)
 pragma(inline, true)
 bool isUTF16SurrogateHigh(const(wchar) c) @nogc pure
@@ -302,6 +326,14 @@ bool nextUTF16Char(scope const(wchar)[] str, ref size_t pos, out dchar cCode) @n
     ubyte cCount = void;
     const result = nextUTF16Char(str, pos, cCode, cCount);
     pos += cCount;
+    return result;
+}
+
+pragma(inline, true)
+bool nextUTF16Char(scope const(wchar)[] str, ref size_t pos, out UTF16Iterator iterator) @nogc pure
+{
+    const result = nextUTF16Char(str, pos, iterator.code, iterator.count);
+    pos += iterator.count;
     return result;
 }
 

@@ -6,10 +6,15 @@
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
+ * This behaves similar to std.json except the implementation detail
+ * 1. Avoid two passes
+ * 2. Support json5 format
+ * 3. Maintain the order of object members without extra cost
+ * 4. Better handling of floating point literal for NaN and Infinity
  */
 module pham.json.json_value;
 
-import std.conv : ConvException, text, to;
+import std.conv : ConvException, to;
 import std.exception : enforce;
 import std.range : isSomeFiniteCharInputRange;
 import std.traits : Unqual, fullyQualifiedName, isArray, isFloatingPoint, isIntegral,
@@ -30,6 +35,52 @@ public import pham.json.json_type : JSONFloatLiteralType, JSONLiteral, JSONOptio
 
 enum jsonNoLengthMarker = -1;
 
+struct JSONXPathInfo
+{
+public:
+    bool opEqual(scope const(JSONXPathInfo) rhs) const nothrow @safe
+    {
+        return this.index == rhs.index
+            && this.level == rhs.level
+            && this.name == rhs.name;
+    }
+
+    /**
+     * Name getter for this value
+     */
+    string nameOf(JSONType type) const nothrow @safe
+    {
+        static immutable string[] staticNames = [
+            "#null",    // null_
+            "#boolean", // false_
+            "#boolean", // true_
+            "#number",  // integer
+            "#number",  // float_
+            "#string",  // string
+            "#array",   // array
+            "#object",  // object
+            ];
+        return name.length ? name : staticNames[type];
+    }
+
+    size_t toHash() const nothrow @safe
+    {
+        return hashOf(name, hashOf(index, hashOf(level)));
+    }
+
+    string toString() const nothrow @safe
+    {
+        import std.conv : text;
+
+        return text("JSONXPathInfo(name=", name, ", index=", index, ", level=", level, ")");
+    }
+
+public:
+    string name;
+    size_t index;
+    uint level;
+}
+
 /**
  * JSON value node
  */
@@ -39,14 +90,16 @@ public:
     /**
      * Constructor for `JSONValue`. If `arg` is a `JSONValue`
      * its value and type will be copied to the new `JSONValue`.
-     * Note that this is a shallow copy: if type is `JSONType.object`
-     * or `JSONType.array` then only the reference to the data will
-     * be copied.
-     * Otherwise, `arg` must be implicitly convertible to one of the
-     * following types: `typeof(null)`, `string`,
-     * `long`, `double`, an associative array `V[K]` for any `V`
-     * and `K` i.e. a JSON object, any array or `bool`. The type will
-     * be set accordingly.
+     * Params:
+     *  arg = a value for this JSON
+     * Note:
+     *  This is a shallow copy; if type is `JSONType.object`
+     *  or `JSONType.array` then only the reference to the data will be copied.
+     *  Otherwise, `arg` must be implicitly convertible to one of the
+     *  following types: `typeof(null)`, `string`,
+     *  `long`, `double`, an associative array `V[K]` for any `V`
+     *  and `K` i.e. a JSON object, any array or `bool`. The type will
+     *  be set accordingly.
      */
     this(T)(T arg)
     if (!isStaticArray!T)
@@ -66,6 +119,8 @@ public:
     {
         this._store = arg._store;
         this._type = arg._type;
+        this._xpathInfo = arg._xpathInfo;
+        version(JSONCommentStore) this.comment = arg.comment;
     }
 
     /// Implements the foreach `opApply` interface for json array & object.
@@ -223,17 +278,22 @@ public:
      */
     ref inout(JSONValue) opIndex(size_t index) inout return @safe
     {
-        if (_type == JSONType.object)
+        switch (_type)
         {
-            auto obj = this.object;
-            enforce!JSONException(index < obj.length, "JSONValue object index is out of range: " ~ index.to!string);
-            return obj.getAt(index);
-        }
-        else
-        {
-            auto arr = this.array;
-            enforce!JSONException(index < arr.length, "JSONValue array index is out of range: " ~ index.to!string);
-            return arr[index];
+            case JSONType.object:
+                ref obj = this.objectImpl;
+                if (index >= obj.length)
+                    throw new JSONException("Index is out of range: " ~ index.to!string() ~ " / " ~ obj.length.to!string());
+                return obj.getAt(index);
+
+            case JSONType.array:
+                ref arr = this.arrayImpl;
+                if (index >= arr.length)
+                    throw new JSONException("Index is out of range: " ~ index.to!string() ~ " / " ~ arr.length.to!string());
+                return arr[index];
+
+            default:
+                throw new JSONException("JSONValue.opIndex does not support: " ~ _type.to!string());
         }
     }
 
@@ -244,8 +304,15 @@ public:
      */
     ref inout(JSONValue) opIndex(return scope const(char)[] key) inout return @safe
     {
-        auto obj = this.object;
-        return *enforce!JSONException(key in obj, "Key not found: " ~ key);
+        if (_type == JSONType.object)
+        {
+            ref obj = this.objectImpl;
+            auto val = key in obj;
+            if (val is null)
+                throw new JSONException("Key not found: " ~ key.idup);
+            return *val;
+        }
+        throw new JSONException("JSONValue.opIndex does not support: " ~ _type.to!string());
     }
 
     /**
@@ -259,30 +326,35 @@ public:
      * Throws:
      *  `JSONException` if `type` is not `JSONType.object` or `JSONType.null_`.
      */
-    void opIndexAssign(T)(auto ref T arg, string key) @trusted
+    void opIndexAssign(T)(auto ref T arg, string key)
     {
-        enforce!JSONException(type == JSONType.object || type == JSONType.null_, "JSONValue must be an object or null type");
-
+        if (_type != JSONType.object && _type != JSONType.null_)
+            throw new JSONException("JSONValue is not an object or null type for opIndexAssign");
         if (_type == JSONType.null_)
             nullify(JSONType.object)._store = Store(obj: Dictionary!(string, JSONValue)([key: asJSONValue(arg)]));
         else
-            _store.obj[key] = asJSONValue(arg);
+            this.objectImpl[key] = asJSONValue(arg);
+
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(key=", key, ", json=", toString(), ")");
     }
 
     /// ditto
     void opIndexAssign(T)(auto ref T arg, size_t index)
     {
-        enforce!JSONException(_type == JSONType.array, "JSONValue is not an array");
-        enforce!JSONException(index < _store.arr.length, "JSONValue array index is out of range: " ~ index.to!string);
+        if (_type != JSONType.array)
+            throw new JSONException("JSONValue is not an array type for opIndexAssign");
+        ref arr = this.arrayImpl;
+        if (index >= arr.length)
+            throw new JSONException("Index is out of range: " ~ index.to!string ~ " / " ~ arr.length.to!string());
+        arr[index] = asJSONValue(arg);
 
-        _store.arr[index] = asJSONValue(arg);
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(index=", index, ", json=", toString(), ")");
     }
 
     void opOpAssign(string op : "~", T)(auto ref T arg)
     {
-        enforce!JSONException(_type == JSONType.array, "JSONValue is not an array type");
+        if (_type != JSONType.array)
+            throw new JSONException("JSONValue is not an array for opOpAssign");
 
         static if (isArray!T)
             _store.arr ~= JSONValue(arg).array;
@@ -290,6 +362,7 @@ public:
             _store.arr ~= arg.array;
         else
             static assert(0, "Argument is not an array or a JSONValue array: " ~ fullyQualifiedName!T);
+
         debug(debug_pham_utl_utl_json) debug writeln(__FUNCTION__, "(json=", toString(), ")");
     }
 
@@ -413,6 +486,7 @@ public:
 
         _store.dummy[] = 0;
         _type = newType;
+        _xpathInfo = JSONXPathInfo.init;
         version(JSONCommentStore) comment = null;
         return this;
     }
@@ -486,14 +560,15 @@ public:
      * Throws:
      *  `JSONException` for read access if `type` is not `JSONType.array`.
      */
-    @property ref inout(JSONValue[]) array() inout return scope @trusted
+    @property ref inout(JSONValue[]) array() inout return @safe
     {
-        enforce!JSONException(_type == JSONType.array, "JSONValue is not an array type");
-        return _store.arr;
+        if (_type != JSONType.array)
+            throw new JSONException("JSONValue is not an array type");
+        return this.arrayImpl;
     }
 
     /// ditto
-    @property JSONValue[] array(return scope JSONValue[] v) nothrow scope @safe
+    @property JSONValue[] array(return scope JSONValue[] v) nothrow @safe
     {
         assign!true(v);
         return v;
@@ -507,13 +582,11 @@ public:
      */
     @property bool boolean() const @safe
     {
-        if (_type == JSONType.true_)
-            return true;
-
-        if (_type == JSONType.false_)
-            return false;
-
-        throw new JSONException("JSONValue is not a boolean type");
+        return _type == JSONType.true_
+            ? true
+            : (_type == JSONType.false_
+                ? false
+                : throw new JSONException("JSONValue is not a boolean type"));
     }
 
     /// ditto
@@ -530,18 +603,21 @@ public:
      * Note:
      *  Despite the name, this is a 64-bit `double`, not a 32-bit `float`.
      */
-    @property double floating() const @safe
+    @property double flt() const @safe
     {
-        enforce!JSONException(_type == JSONType.float_, "JSONValue is not a floating type");
-        return _store.flt;
+        return _type == JSONType.float_
+            ? _store.flt
+            : throw new JSONException("JSONValue is not a float type");
     }
 
     /// ditto
-    @property double floating(double v) nothrow @safe
+    @property double flt(double v) nothrow @safe
     {
         assign!true(v);
         return v;
     }
+
+    alias floating = flt;
 
     /**
      * Value getter/setter for `JSONType.integer`.
@@ -550,8 +626,9 @@ public:
      */
     @property long integer() const @safe
     {
-        enforce!JSONException(_type == JSONType.integer, "JSONValue is not an integer type");
-        return _store.int_;
+        return _type == JSONType.integer
+            ? _store.int_
+            : throw new JSONException("JSONValue is not an integer type");
     }
 
     /// ditto
@@ -561,12 +638,18 @@ public:
         return v;
     }
 
-    /// Test whether the type is `JSONType.null_`
+    /**
+     * Test whether the type is `JSONType.null_`
+     */
     @property bool isNull() const @nogc nothrow pure @safe
     {
         return _type == JSONType.null_;
     }
 
+    /**
+     * Returns lenght of array or member count of object.
+     * For other types, returns jsonNoLengthMarker (-1)
+     */
     @property ptrdiff_t length() const @nogc nothrow @trusted
     {
         return _type == JSONType.array
@@ -575,14 +658,45 @@ public:
     }
 
     /**
+     * Name getter for this value
+     */
+    pragma(inline, true)
+    @property string name() const nothrow @safe
+    {
+        return _xpathInfo.nameOf(type);
+    }
+
+    /**
+     * Value getter/setter for `JSONType.float_ or JSONType.integer`.
+     * Throws:
+     *  `JSONException` for read access if `type` is not `JSONType.float_ or JSONType.integer`.
+     */
+    @property double number() const @safe
+    {
+        return _type == JSONType.float_
+            ? _store.flt
+            : (_type == JSONType.integer
+                ? _store.int_
+                : throw new JSONException("JSONValue is not a number type"));
+    }
+
+    /// ditto
+    @property double number(double v) nothrow @safe
+    {
+        assign!true(v);
+        return v;
+    }
+
+    /**
      * Value getter/setter for unordered `JSONType.object`.
      * Throws:
      *  `JSONException` for read access if `type` is not `JSONType.object`
      */
-    @property ref inout(Dictionary!(string, JSONValue)) object() inout return @trusted
+    @property ref inout(Dictionary!(string, JSONValue)) object() inout return @safe
     {
-        enforce!JSONException(_type == JSONType.object, "JSONValue is not an object type");
-        return _store.obj;
+        if (_type != JSONType.object)
+            throw new JSONException("JSONValue is not an object type");
+        return this.objectImpl;
     }
 
     /// ditto
@@ -605,14 +719,15 @@ public:
      * Throws:
      *  `JSONException` for read access if `type` is not `JSONType.string`.
      */
-    @property string str() const return scope @trusted
+    @property string str() const @trusted
     {
-        enforce!JSONException(_type == JSONType.string, "JSONValue is not a string type");
-        return _store.str;
+        return _type == JSONType.string
+            ? _store.str
+            : throw new JSONException("JSONValue is not a string type");
     }
 
     /// ditto
-    @property string str(return scope string v) nothrow return @safe
+    @property string str(return scope string v) nothrow @safe
     {
         assign!true(v);
         return v;
@@ -622,15 +737,68 @@ public:
      * Returns the JSONType of the value stored in this structure.
      */
     pragma(inline, true)
-    @property JSONType type() const @nogc nothrow pure @safe
+    @property JSONType type() const @nogc nothrow @safe
     {
         return _type;
+    }
+
+    @property JSONXPathInfo xpathInfo() const nothrow @safe
+    {
+        return _xpathInfo;
     }
 
 public:
     version(JSONCommentStore) string comment;
 
 package(pham.json):
+    pragma(inline, true)
+    @property ref inout(JSONValue[]) arrayImpl() inout nothrow return @trusted
+    {
+        assert(_type == JSONType.array, "JSONValue is not an array type");
+
+        return _store.arr;
+    }
+
+    pragma(inline, true)
+    @property double fltImpl() const nothrow @trusted
+    {
+        assert(_type == JSONType.float_, "JSONValue is not a floating type");
+
+        return _store.flt;
+    }
+
+    pragma(inline, true)
+    @property long intImpl() const nothrow @trusted
+    {
+        assert(_type == JSONType.integer, "JSONValue is not an integer type");
+
+        return _store.int_;
+    }
+
+    pragma(inline, true)
+    @property double numberImpl() const nothrow @trusted
+    {
+        assert(_type == JSONType.float_ || _type == JSONType.integer, "JSONValue is not a number type");
+
+        return _type == JSONType.float_ ? _store.flt : _store.int_;
+    }
+
+    pragma(inline, true)
+    @property ref inout(Dictionary!(string, JSONValue)) objectImpl() inout nothrow return @trusted
+    {
+        assert(_type == JSONType.object, "JSONValue is not an object type");
+
+        return _store.obj;
+    }
+
+    pragma(inline, true)
+    @property string strImpl() const nothrow @trusted
+    {
+        assert(_type == JSONType.string, "JSONValue is not a string type");
+
+        return _store.str;
+    }
+
     static union Store
     {
         size_t[2] dummy; // First member to be initialized to all zero
@@ -653,7 +821,11 @@ private:
     void assign(bool byAssign, T)(T arg)
     {
         static if (byAssign)
+        {
+            auto savedXPathInfo = _xpathInfo;
             nullify();
+            _xpathInfo = savedXPathInfo;
+        }
 
         static if (is(T : typeof(null)))
         {
@@ -696,9 +868,17 @@ private:
             }
             else
             {
+                const newEleLevel = _xpathInfo.level + 1;
+                size_t newEleI;
                 auto newArg = Dictionary!(string, JSONValue)(arg.length);
                 foreach (k, ref v; arg)
-                    newArg[k] = JSONValue(v);
+                {
+                    auto newEle = JSONValue(v);
+                    newEle._xpathInfo.name = k;
+                    newEle._xpathInfo.index = newEleI++;
+                    newEle._xpathInfo.level = newEleLevel;
+                    newArg[k] = newEle;
+                }
                 _store = Store(obj: newArg);
             }
             _type = JSONType.object;
@@ -713,9 +893,17 @@ private:
             }
             else
             {
+                const newEleLevel = _xpathInfo.level + 1;
+                size_t newEleI;
                 auto newArg = Dictionary!(string, JSONValue)(arg.length);
                 foreach (k, ref v; arg)
-                    newArg[k] = JSONValue(v);
+                {
+                    auto newEle = JSONValue(v);
+                    newEle._xpathInfo.name = k;
+                    newEle._xpathInfo.index = newEleI++;
+                    newEle._xpathInfo.level = newEleLevel;
+                    newArg[k] = newEle;
+                }
             }
             _store = Store(obj: newArg);
             _type = JSONType.object;
@@ -728,9 +916,15 @@ private:
             }
             else
             {
+                const newEleLevel = _xpathInfo.level + 1;
                 JSONValue[] newArg = new JSONValue[arg.length];
                 foreach (i, ref v; arg)
-                    newArg[i] = JSONValue(v);
+                {
+                    auto newEle = JSONValue(v);
+                    newEle._xpathInfo.index = i;
+                    newEle._xpathInfo.level = newEleLevel;
+                    newArg[i] = newEle;
+                }
                 _store = Store(arr: newArg);
             }
             _type = JSONType.array;
@@ -739,6 +933,7 @@ private:
         {
             this._store = arg._store;
             this._type = arg._type;
+            this._xpathInfo = arg._xpathInfo;
             version(JSONCommentStore) this.comment = arg.comment;
         }
         else
@@ -751,7 +946,11 @@ private:
     if (isStaticArray!T)
     {
         static if (byAssign)
+        {
+            auto savedXPathInfo = _xpathInfo;
             nullify();
+            _xpathInfo = savedXPathInfo;
+        }
 
         static if (is(ElementEncodingType!T : JSONValue))
         {
@@ -759,16 +958,23 @@ private:
         }
         else
         {
+            const newEleLevel = _xpathInfo.level + 1;
             JSONValue[] newArg = new JSONValue[arg.length];
-            foreach (i, ref e; arg)
-                newArg[i] = JSONValue(e);
+            foreach (i, ref v; arg)
+            {
+                auto newEle = JSONValue(v);
+                newEle._xpathInfo.index = i;
+                newEle._xpathInfo.level = newEleLevel;
+                newArg[i] = newEle;
+            }
             _store = Store(arr: newArg);
         }
         _type = JSONType.array;
     }
 
-package:
+package(pham.json):
     Store _store;
+    JSONXPathInfo _xpathInfo;
     JSONType _type;
 }
 
@@ -1520,9 +1726,10 @@ unittest
     assert(jv.type == JSONType.true_);
 }
 
+// Adding new json element via array() / object() directly
 @system unittest
 {
-    // Adding new json element via array() / object() directly
+    import std.conv : text;
 
     JSONValue jarr = JSONValue([10]);
     foreach (i; 0 .. 9)
@@ -1535,9 +1742,10 @@ unittest
     assert(jobj.object.length == 10);
 }
 
+// Adding new json element without array() / object() access
 @system unittest
 {
-    // Adding new json element without array() / object() access
+    import std.conv : text;
 
     JSONValue jarr = JSONValue([10]);
     foreach (i; 0 .. 9)
@@ -1555,9 +1763,10 @@ unittest
     assert(jarr[0] == JSONValue(10));
 }
 
+// @system because JSONValue.array is @system
 @system unittest
 {
-    // @system because JSONValue.array is @system
+    import std.conv : text;
     import std.exception;
 
     // An overly simple test suite, if it can parse a serializated string and
@@ -1684,6 +1893,9 @@ unittest
 
 @safe unittest
 {
+    import std.conv : text;
+    import std.exception;
+
     auto s = q"EOF
 [
   1,
@@ -1692,8 +1904,6 @@ unittest
   potato
 ]
 EOF";
-
-    import std.exception;
 
     auto e = collectException!JSONException(parseJSON(s));
     if (defaultOptions & JSONOptions.json5)
@@ -1973,6 +2183,8 @@ nothrow @safe unittest
 // https://issues.dlang.org/show_bug.cgi?id=20330
 @safe unittest
 {
+    import std.conv : text;
+
     string expectedPretty =
 `{
     "a": [
@@ -2009,6 +2221,8 @@ nothrow @safe unittest
 
 unittest // prettyString + objectName
 {
+    import std.conv : text;
+
     string expectedPretty =
 `{
     a: [
@@ -2027,6 +2241,8 @@ unittest // prettyString + objectName
 version(JSONCommentStore)
 unittest // comment
 {
+    import std.conv : text;
+
     string expectedPretty =
 `{
     /* First comment line */
@@ -2049,6 +2265,8 @@ unittest // comment
 version(JSONCommentStore)
 unittest // comment + prettyString + objectName
 {
+    import std.conv : text;
+
     string expectedPretty =
 `{
     /* First comment line */

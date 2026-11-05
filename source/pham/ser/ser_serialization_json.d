@@ -200,13 +200,13 @@ public:
     final override wstring readWChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
         auto chars = readChars(attribute, kind);
-        return chars.length != 0 ? chars.to!wstring : null;
+        return chars.length != 0 ? chars.to!wstring() : null;
     }
 
     final override dstring readDChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)
     {
         auto chars = readChars(attribute, kind);
-        return chars.length != 0 ? chars.to!dstring : null;
+        return chars.length != 0 ? chars.to!dstring() : null;
     }
 
     final override const(char)[] readScopeChars(scope ref Serializable attribute, const(DataKind) kind = DataKind.character)

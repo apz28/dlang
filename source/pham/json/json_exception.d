@@ -57,3 +57,11 @@ class JSONParserException : JSONException
 public:
     mixin JSONExceptionConstructors;
 }
+
+class JSONXPathException : JSONException
+{
+@safe:
+
+public:
+    mixin JSONExceptionConstructors;
+}

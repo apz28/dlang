@@ -7,6 +7,11 @@
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
+ * This behaves similar to std.Variant except the implementation detail
+ * 1. Use dispatch function tables for faster execution (avoid `switch` usage which is slow)
+ * 2. Will have better `safe` or `nothrow` implementation
+ * 3. Extend way to convert value to compatible types (not hardcode)
+ * 4. Allow to query value at runtime to avoid `version` (ifdef)
  */
 
 module pham.var.var_variant;
