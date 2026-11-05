@@ -1270,7 +1270,7 @@ private:
  *  JSONParserException if string does not follow the JSON grammar or the depth exceeds the max depth,
  *      or a number in the input cannot be represented by a native D type.
  */
-JSONValue parseJSON(T, JSONOptions options = defaultOptions)(T json, size_t maxDepth = 0)
+JSONValue parseJSON(T, JSONOptions options = defaultOptions)(T json, uint maxDepth = 0)
 if (isSomeFiniteCharInputRange!T)
 {
     JSONValue root;
@@ -1295,7 +1295,7 @@ if (isSomeFiniteCharInputRange!T)
     }
 
     version(JSONCommentStore) string lastComment;
-    ptrdiff_t depth = -1;
+    int depth = -1;
 
     void parseComment() nothrow
     {
@@ -1531,7 +1531,7 @@ if (isSomeFiniteCharInputRange!T)
     return root;
 }
 
-JSONValue parseJSON(JSONOptions options, T)(T json, size_t maxDepth = 0)
+JSONValue parseJSON(JSONOptions options, T)(T json, uint maxDepth = 0)
 if (isSomeFiniteCharInputRange!T)
 {
     return parseJSON!(T, options)(json, maxDepth);

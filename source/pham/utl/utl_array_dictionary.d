@@ -7,6 +7,9 @@
  * Distributed under the Boost Software License, Version 1.0.
  * (See accompanying file LICENSE.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  *
+ * This behaves similar to D build associative array except the implementation detail
+ * 1. Maintain the order of added items. This is important for serialization/deserialization in json format
+ * 2. Allow to specify a capacity to avoid relocating/rehashing when full
  */
 
 module pham.utl.utl_array_dictionary;
