@@ -293,7 +293,7 @@ public:
                 return arr[index];
 
             default:
-                throw new JSONException("JSONValue.opIndex does not support: " ~ _type.to!string());
+                throw new JSONException("JSONValue.opIndex does not support: " ~ (cast()_type).to!string()); // cast()=D bug in v2.113
         }
     }
 
