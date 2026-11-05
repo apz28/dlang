@@ -304,6 +304,8 @@ public:
      */
     ref inout(JSONValue) opIndex(return scope const(char)[] key) inout return @safe
     {
+        import pham.utl.utl_enum_set : toName;
+        
         if (_type == JSONType.object)
         {
             ref obj = this.objectImpl;
@@ -312,7 +314,7 @@ public:
                 throw new JSONException("Key not found: " ~ key.idup);
             return *val;
         }
-        throw new JSONException("JSONValue.opIndex does not support: " ~ _type.to!string());
+        throw new JSONException("JSONValue.opIndex does not support: " ~ _type.toName());
     }
 
     /**
